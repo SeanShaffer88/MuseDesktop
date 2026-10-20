@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>MuseDesktop</AssemblyName>
+    <RootNamespace>MuseDesktop</RootNamespace>
+    <Version>0.1.0</Version>
+    <Authors>Sean Shaffer</Authors>
+    <Description>A native Windows desktop client for Muse (muse.ai).</Description>
+    <ApplicationIcon>muse.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- Allow building the Windows target on non-Windows machines for CI gates. -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MuseDesktop.Core\MuseDesktop.Core.csproj" />
+  </ItemGroup>
+
+</Project>

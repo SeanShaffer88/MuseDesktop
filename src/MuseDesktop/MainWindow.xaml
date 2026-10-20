@@ -1,0 +1,101 @@
+<Window x:Class="MuseDesktop.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="Muse"
+        Width="1280" Height="860"
+        MinWidth="720" MinHeight="480"
+        Background="{StaticResource BgBrush}"
+        Foreground="{StaticResource TextBrush}"
+        Icon="muse.ico"
+        WindowStartupLocation="Manual">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="40"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="24"/>
+        </Grid.RowDefinitions>
+
+        <!-- Toolbar -->
+        <Border x:Name="Toolbar" Grid.Row="0" Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,0,1">
+            <DockPanel LastChildFill="True" Margin="6,0">
+                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="BackButton" Style="{StaticResource BarButton}" Content="&#x2190;"
+                            ToolTip="Back (Alt+Left)" Click="OnBack" AutomationProperties.Name="Back"/>
+                    <Button x:Name="ForwardButton" Style="{StaticResource BarButton}" Content="&#x2192;"
+                            ToolTip="Forward (Alt+Right)" Click="OnForward" AutomationProperties.Name="Forward"/>
+                    <Button x:Name="ReloadButton" Style="{StaticResource BarButton}" Content="&#x27F3;"
+                            ToolTip="Reload (Ctrl+R / F5)" Click="OnReload" AutomationProperties.Name="Reload"/>
+                    <Button x:Name="HomeButton" Style="{StaticResource BarButton}" Content="&#x2302;"
+                            ToolTip="Muse home" Click="OnHome" AutomationProperties.Name="Home"/>
+                </StackPanel>
+
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="ZoomOutButton" Style="{StaticResource BarButton}" Content="&#x2212;" Width="28"
+                            ToolTip="Zoom out (Ctrl+-)" Click="OnZoomOut" AutomationProperties.Name="Zoom out"/>
+                    <TextBlock x:Name="ZoomLabel" Text="100%" Width="42" TextAlignment="Center"
+                               VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}" FontSize="12"
+                               ToolTip="Current zoom. Ctrl+0 resets."/>
+                    <Button x:Name="ZoomInButton" Style="{StaticResource BarButton}" Content="+" Width="28"
+                            ToolTip="Zoom in (Ctrl++)" Click="OnZoomIn" AutomationProperties.Name="Zoom in"/>
+                    <Button x:Name="BrowserButton" Style="{StaticResource BarButton}" Content="&#x2197;"
+                            ToolTip="Open this page in your default browser" Click="OnOpenInBrowser"
+                            AutomationProperties.Name="Open in browser"/>
+                    <Button x:Name="MenuButton" Style="{StaticResource BarButton}" Content="&#x22EF;"
+                            ToolTip="More options" Click="OnMenu" AutomationProperties.Name="More options">
+                        <Button.ContextMenu>
+                            <ContextMenu x:Name="MoreMenu">
+                                <MenuItem x:Name="CloseToTrayItem" Header="Close window to tray" IsCheckable="True"
+                                          ToolTip="When on, closing the window keeps MuseDesktop running in the tray"/>
+                                <MenuItem x:Name="AutostartItem" Header="Start with Windows" IsCheckable="True"
+                                          ToolTip="Launch quietly in the tray when you sign in"/>
+                                <Separator/>
+                                <MenuItem Header="Open log folder" Click="OnOpenLogFolder"/>
+                                <MenuItem Header="About MuseDesktop" Click="OnAbout"/>
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
+                    <Ellipse Width="8" Height="8" Fill="{StaticResource AccentBrush}" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="TitleText" Text="Muse" Margin="8,0,0,0" FontSize="13"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                               Foreground="{StaticResource TextBrush}"/>
+                    <TextBlock x:Name="AddressText" Text="" Margin="10,0,0,0" FontSize="12"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                               Foreground="{StaticResource FaintBrush}"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- Web content. The first-run / error overlay sits above it until the page loads. -->
+        <Grid Grid.Row="1">
+            <wv2:WebView2 x:Name="Browser" DefaultBackgroundColor="#0B0B0D"/>
+            <Border x:Name="Overlay" Background="{StaticResource BgBrush}" Visibility="Visible">
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520">
+                    <TextBlock x:Name="OverlayTitle" Text="Connecting to Muse…" FontSize="20"
+                               FontWeight="SemiBold" TextAlignment="Center" TextWrapping="Wrap"/>
+                    <TextBlock x:Name="OverlayBody" Text="" FontSize="13" Margin="0,10,0,0"
+                               Foreground="{StaticResource MutedBrush}" TextAlignment="Center" TextWrapping="Wrap"/>
+                    <Button x:Name="OverlayButton" Content="Retry" Width="110" Height="32" Margin="0,18,0,0"
+                            Visibility="Collapsed" Click="OnReload" HorizontalAlignment="Center"
+                            Background="{StaticResource AccentBrush}" Foreground="White" BorderThickness="0"/>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Status bar -->
+        <Border Grid.Row="2" Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,1,0,0">
+            <DockPanel LastChildFill="True" Margin="8,0">
+                <TextBlock x:Name="StatusRight" DockPanel.Dock="Right" FontSize="11"
+                           Foreground="{StaticResource FaintBrush}" VerticalAlignment="Center"/>
+                <TextBlock x:Name="StatusText" Text="Starting…" FontSize="11"
+                           Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"/>
+            </DockPanel>
+        </Border>
+    </Grid>
+</Window>

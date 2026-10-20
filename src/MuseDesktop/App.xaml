@@ -1,0 +1,47 @@
+<Application x:Class="MuseDesktop.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ShutdownMode="OnExplicitShutdown">
+    <Application.Resources>
+        <!-- Product-family tokens (InstallScope black/red), shared by every control. -->
+        <SolidColorBrush x:Key="BgBrush" Color="#0B0B0D"/>
+        <SolidColorBrush x:Key="SurfaceBrush" Color="#141417"/>
+        <SolidColorBrush x:Key="RaisedBrush" Color="#1D1D21"/>
+        <SolidColorBrush x:Key="HairlineBrush" Color="#2C2C31"/>
+        <SolidColorBrush x:Key="AccentBrush" Color="#E50914"/>
+        <SolidColorBrush x:Key="TextBrush" Color="#F5F5F7"/>
+        <SolidColorBrush x:Key="MutedBrush" Color="#A7A7AD"/>
+        <SolidColorBrush x:Key="FaintBrush" Color="#6E6E75"/>
+
+        <Style x:Key="BarButton" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Width" Value="34"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Margin" Value="1,0"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}" CornerRadius="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource RaisedBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource HairlineBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="{StaticResource FaintBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Application.Resources>
+</Application>
