@@ -17,6 +17,10 @@ Honest list of what v0.1.0 does not do or has not proven yet. Kept current as wo
 - **Framework-dependent.** Requires the .NET 8 Desktop Runtime; there is no self-contained or ARM64 build yet, and no installer — a zip is the whole distribution.
 - **WebView2 Runtime is a prerequisite** on the minority of Windows 10 PCs that lack it; the app detects this and links to Microsoft's Evergreen installer but does not install it for you.
 
+## Documentation
+
+- **README screenshots are outstanding.** Per project convention, screenshots come from a real run on SEAN's Windows machine; the capture list lives in the README's Screenshots section. No screenshots are included until those captures exist — the section is a list, not placeholder imagery.
+
 ## Accessibility notes
 
 - Toolbar buttons carry tooltips and AutomationProperties names, and zoom level is text (not color-only). A full screen-reader pass over the shell and a keyboard-only end-to-end run are still outstanding (they need the on-machine session above).

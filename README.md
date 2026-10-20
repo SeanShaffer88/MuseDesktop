@@ -18,6 +18,15 @@ Muse ships apps for iOS, Android and macOS, and a web app at muse.ai — but no 
 - **Private by construction** — no telemetry, no accounts of its own, no data collection. The only files it writes are its settings, a rolling local log, and the WebView2 profile (cookies/local storage) — all under your user profile, all deletable by you at any time.
 - **Forgiving** — second launches wake the running window instead of opening a duplicate; a corrupted settings file is preserved as a backup and defaults are used; load failures explain themselves and offer a retry.
 
+## Screenshots
+
+Captures from a real run will be added here. Needed shots (from SEAN's Windows machine — this project's GUI can't be rendered in the build environment, and no placeholder images are used):
+
+1. Main window signed in to Muse, full window at 100% scaling — black/red toolbar visible.
+2. The **⋯** (More options) menu open, showing Close to tray / Start with Windows.
+3. A file downloading from Muse, showing the status-bar progress % and ETA.
+4. The tray icon's right-click menu.
+
 ## Requirements
 
 - Windows 10 or Windows 11 (x64)
