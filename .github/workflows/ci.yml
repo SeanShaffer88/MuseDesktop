@@ -3,19 +3,22 @@ name: CI
 on:
   push:
     branches: [main]
-    tags: ['v*']
   pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
 
 jobs:
-  windows:
+  build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - name: Set up .NET 8
-        uses: actions/setup-dotnet@v4
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: '10.0.x'
 
       - name: Restore
         run: dotnet restore MuseDesktop.sln
@@ -26,26 +29,23 @@ jobs:
       - name: Test (core logic)
         run: dotnet test tests/MuseDesktop.Core.Tests -c Release --no-build
 
-      - name: Publish app (win-x64, framework-dependent)
-        run: >
-          dotnet publish src/MuseDesktop/MuseDesktop.csproj
-          -c Release -r win-x64 --self-contained false
-          -o publish/win-x64
+      - name: Publish (win-x64, self-contained)
+        run: dotnet publish src/MuseDesktop/MuseDesktop.csproj -c Release -r win-x64 --self-contained true -o publish/win-x64
 
       - name: Stage release folder
         shell: pwsh
         run: |
-          Copy-Item README.md, LICENSE, CHANGELOG.md publish/win-x64/
+          Copy-Item README.md, LICENSE, KNOWN_LIMITATIONS.md, RELEASE_CHECKLIST.md publish/win-x64/
 
-      - name: Smoke test (construct the real window)
+      - name: Smoke test (window construction + WebView2 init)
         shell: pwsh
         run: |
-          $p = Start-Process publish/win-x64/MuseDesktop.exe -ArgumentList '--smoke-test' -Wait -PassThru
+          $p = Start-Process -FilePath "publish/win-x64/MuseDesktop.exe" -ArgumentList "--smoke-test" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "Smoke test failed with exit code $($p.ExitCode)" }
-          Write-Host "Smoke test passed"
 
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
         with:
           name: MuseDesktop-win-x64
           path: publish/win-x64
+          if-no-files-found: error
