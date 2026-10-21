@@ -2,6 +2,15 @@
 
 A living log of significant architecture, UX, security, and dependency decisions.
 
+## 2026-10-21 — Public product; .NET 10; self-contained download (v0.1.2)
+
+SEAN set the audience to **public product** (not personal tool) and approved the review's top recommendations. Consequences:
+
+- **.NET 8 → .NET 10 LTS.** Microsoft ends .NET 8 support on 2026-11-10; an app that hosts a browser and holds a signed-in session must not sit on an unpatched runtime. .NET 10 LTS runs to November 2028. `global.json` pins the SDK band (10.0.x, latestFeature) so builds are reproducible.
+- **Self-contained publish replaces framework-dependent.** A public first-run cannot dead-end on a missing .NET Desktop Runtime with a generic OS dialog. The zip grows from ~0.7 MB to tens of MB (the publish folder measures 175 MB before compression); in exchange the only remaining prerequisite is the WebView2 Runtime, which the app already detects with a guided path. Trade-off accepted knowingly: the bundled runtime is patched by shipping new app releases rather than by the OS, which makes keeping releases current part of the deal.
+- **DevTools is Debug-only** — a release build should not hand a scripting console to a signed-in session.
+- **Runtime verification is a release gate, not a hope:** the CI smoke test now requires WebView2 to initialize, and `RELEASE_CHECKLIST.md` defines the on-machine checks. This is the structural answer to the v0.1.0 startup crash, which every compile/test check missed.
+
 ## 2026-10-20 — C# / WPF + WebView2 instead of the usual Rust default
 
 Muse is a website, so the client is a shell around a web view. On Windows the first-party tool for that is Microsoft's WebView2 (Edge/Chromium) with its official .NET SDK: documented APIs for the exact things this app needs — a persistent user-data folder (login session), new-window and navigation events, permission requests, and download operations with progress and ETA.

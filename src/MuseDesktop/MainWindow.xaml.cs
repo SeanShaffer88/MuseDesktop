@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     private bool _reallyExit;
     private bool _balloonShown;
     private bool _webReady;
+    private bool _webInitFailed;
     private bool _isFullScreen;
     private WindowState _preFullScreenState;
     private WindowStyle _preFullScreenStyle;
@@ -255,6 +256,7 @@ public partial class MainWindow : Window
         }
         catch (WebView2RuntimeNotFoundException)
         {
+            _webInitFailed = true;
             _log.Error("WebView2 Runtime not found");
             ShowOverlay(
                 "The WebView2 Runtime is missing",
@@ -268,6 +270,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
+            _webInitFailed = true;
             _log.Error($"WebView2 init failed: {ex.GetType().Name}: {ex.Message}");
             ShowOverlay(
                 "Muse could not start",
@@ -278,7 +281,13 @@ public partial class MainWindow : Window
         }
 
         var core = Browser.CoreWebView2;
+#if DEBUG
         core.Settings.AreDevToolsEnabled = true;
+#else
+        // Release builds: DevTools would let anyone script the live,
+        // signed-in Muse session from the app's own window.
+        core.Settings.AreDevToolsEnabled = false;
+#endif
         core.Settings.IsStatusBarEnabled = false;
         core.Settings.IsBuiltInErrorPageEnabled = false;
         core.Settings.IsZoomControlEnabled = true;
@@ -312,6 +321,27 @@ public partial class MainWindow : Window
             try { return CoreWebView2Environment.GetAvailableBrowserVersionString(); }
             catch { return "(unknown version)"; }
         }
+    }
+
+    /// <summary>
+    /// For the --smoke-test mode: waits until WebView2 initialization has
+    /// succeeded (the Loaded handler runs it) or failed, up to a timeout.
+    /// Navigation success is deliberately not required — CI networks vary;
+    /// what the smoke test proves is that the window constructs AND the
+    /// WebView2 environment/controller come up on a real machine image.
+    /// </summary>
+    public async Task<bool> WaitForWebViewReadyAsync(TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            if (_webReady && Browser.CoreWebView2 is not null)
+                return true;
+            if (_webInitFailed)
+                return false;
+            await Task.Delay(250);
+        }
+        return false;
     }
 
     private void OnNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)

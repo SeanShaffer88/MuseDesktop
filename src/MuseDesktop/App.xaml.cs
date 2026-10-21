@@ -98,15 +98,37 @@ public partial class App : System.Windows.Application
             _window.Show();
     }
 
-    private void RunSmokeTest()
+    private async void RunSmokeTest()
     {
         Settings = SettingsStore.Load(AppPaths.SettingsPath);
+        MainWindow window;
         try
         {
-            var window = new MainWindow(Settings, Log);
-            window.Close();
-            Log.Info("SMOKE-TEST OK: main window constructed");
-            Shutdown(0);
+            window = new MainWindow(Settings, Log);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"SMOKE-TEST FAILED (window construction): {ex}");
+            Shutdown(1);
+            return;
+        }
+
+        Log.Info("SMOKE-TEST: main window constructed");
+        try
+        {
+            window.Show();
+            var ready = await window.WaitForWebViewReadyAsync(TimeSpan.FromSeconds(45));
+            if (ready)
+            {
+                Log.Info("SMOKE-TEST OK: window constructed and WebView2 initialized");
+                window.Close();
+                Shutdown(0);
+            }
+            else
+            {
+                Log.Error("SMOKE-TEST FAILED: WebView2 did not initialize within 45s");
+                Shutdown(1);
+            }
         }
         catch (Exception ex)
         {

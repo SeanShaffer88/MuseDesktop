@@ -30,8 +30,8 @@ Captures from a real run will be added here. Needed shots (from SEAN's Windows m
 ## Requirements
 
 - Windows 10 or Windows 11 (x64)
-- .NET 8 Desktop Runtime (the release zip is framework-dependent)
 - The Microsoft Edge **WebView2 Runtime** — preinstalled on Windows 11 and most Windows 10 PCs. If it's missing, MuseDesktop tells you and links you to Microsoft's installer.
+- Nothing else: the download is **self-contained** — the .NET 10 runtime is bundled in, so there is no separate .NET install.
 
 ## Install
 
@@ -61,13 +61,13 @@ The app is not code-signed yet, so Windows SmartScreen may warn on first run —
 
 ## Building from source
 
-Requires the .NET 8 SDK.
+Requires the .NET 10 SDK (see `global.json`).
 
 ```powershell
 dotnet restore MuseDesktop.sln
 dotnet build MuseDesktop.sln -c Release
 dotnet test tests\MuseDesktop.Core.Tests -c Release
-dotnet publish src\MuseDesktop\MuseDesktop.csproj -c Release -r win-x64 --self-contained false
+dotnet publish src\MuseDesktop\MuseDesktop.csproj -c Release -r win-x64 --self-contained true
 ```
 
 Architecture: `MuseDesktop.Core` holds all testable logic (URL policy, settings, zoom, paths, logging) as plain .NET 8 with no Windows dependencies; the WPF app in `src\MuseDesktop` is a thin shell over Microsoft's WebView2 control. See [DECISIONS.md](DECISIONS.md) and [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md).
