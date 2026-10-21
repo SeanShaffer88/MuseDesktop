@@ -28,6 +28,16 @@ public partial class App : System.Windows.Application
         var startInBackground = e.Args.Any(a =>
             a.Equals("--background", StringComparison.OrdinalIgnoreCase));
 
+        // Smoke-test mode (used by CI): construct the real main window —
+        // which runs its XAML — then exit. v0.1.0 compiled and passed every
+        // test yet crashed on first launch because nothing ever built the
+        // window; this mode makes CI prove the window constructs.
+        if (e.Args.Any(a => a.Equals("--smoke-test", StringComparison.OrdinalIgnoreCase)))
+        {
+            RunSmokeTest();
+            return;
+        }
+
         _mutex = new Mutex(initiallyOwned: true, MutexName, out var isFirst);
         if (!isFirst)
         {
@@ -51,7 +61,9 @@ public partial class App : System.Windows.Application
 
         DispatcherUnhandledException += (_, args) =>
         {
-            Log.Error($"Unhandled: {args.Exception.GetType().Name}: {args.Exception.Message}");
+            // Full exception (type, inner exceptions, stack) — v0.1.0 logged
+            // only Message and the inner cause of its startup crash was lost.
+            Log.Error($"Unhandled: {args.Exception}");
             args.Handled = true;
             System.Windows.MessageBox.Show(
                 "MuseDesktop hit an unexpected error but kept your session safe.\n\n" +
@@ -65,12 +77,42 @@ public partial class App : System.Windows.Application
 
         Autostart.Sync(Settings.StartWithWindows);
 
-        _window = new MainWindow(Settings, Log);
+        try
+        {
+            _window = new MainWindow(Settings, Log);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Main window creation failed: {ex}");
+            System.Windows.MessageBox.Show(
+                "MuseDesktop could not create its main window.\n\n" +
+                $"The full error was written to the log:\n{AppPaths.LogPath}",
+                "MuseDesktop", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown(1);
+            return;
+        }
         MainWindow = _window;
         if (startInBackground)
             _window.StartHidden();
         else
             _window.Show();
+    }
+
+    private void RunSmokeTest()
+    {
+        Settings = SettingsStore.Load(AppPaths.SettingsPath);
+        try
+        {
+            var window = new MainWindow(Settings, Log);
+            window.Close();
+            Log.Info("SMOKE-TEST OK: main window constructed");
+            Shutdown(0);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"SMOKE-TEST FAILED: {ex}");
+            Shutdown(1);
+        }
     }
 
     private void WaitForShowSignal()

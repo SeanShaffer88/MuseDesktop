@@ -10,7 +10,7 @@
     <LangVersion>latest</LangVersion>
     <AssemblyName>MuseDesktop</AssemblyName>
     <RootNamespace>MuseDesktop</RootNamespace>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <Authors>Sean Shaffer</Authors>
     <Description>A native Windows desktop client for Muse (muse.ai).</Description>
     <ApplicationIcon>muse.ico</ApplicationIcon>
@@ -25,6 +25,14 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MuseDesktop.Core\MuseDesktop.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The window icon is loaded at runtime from a pack resource. It must
+         be a WPF Resource: ApplicationIcon alone only embeds the Win32 exe
+         icon, and referencing the file from XAML without this crashes
+         startup with a XamlParseException (v0.1.0 field bug). -->
+    <Resource Include="muse.ico" />
   </ItemGroup>
 
 </Project>

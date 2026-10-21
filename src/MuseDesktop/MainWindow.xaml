@@ -7,7 +7,6 @@
         MinWidth="720" MinHeight="480"
         Background="{StaticResource BgBrush}"
         Foreground="{StaticResource TextBrush}"
-        Icon="muse.ico"
         WindowStartupLocation="Manual">
     <Grid>
         <Grid.RowDefinitions>

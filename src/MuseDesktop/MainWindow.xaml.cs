@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media.Imaging;
 using Microsoft.Web.WebView2.Core;
 using MuseDesktop.Core;
 using Forms = System.Windows.Forms;
@@ -32,12 +33,46 @@ public partial class MainWindow : Window
         _settings = settings;
         _log = log;
         InitializeComponent();
+        SetWindowIcon();
         ApplySavedPlacement();
         BuildTray();
         Loaded += OnLoaded;
         Closing += OnClosing;
         StateChanged += (_, _) => UpdateTrayMenuState();
         PreviewKeyDown += OnPreviewKeyDown;
+    }
+
+    /// <summary>
+    /// The window icon is set in code, never from a XAML attribute: v0.1.0
+    /// crashed at startup because XAML's Icon="muse.ico" needed the file as
+    /// a pack resource and it was only the exe's Win32 icon. Any failure
+    /// here is cosmetic and must never take the app down.
+    /// </summary>
+    private void SetWindowIcon()
+    {
+        try
+        {
+            Icon = new BitmapImage(new Uri("pack://application:,,,/muse.ico"));
+            return;
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Pack icon failed, falling back to exe icon: {ex.Message}");
+        }
+        try
+        {
+            var handle = System.Drawing.Icon.ExtractAssociatedIcon(
+                Environment.ProcessPath ?? "")?.Handle;
+            if (handle is { } h && h != IntPtr.Zero)
+            {
+                Icon = Imaging.CreateBitmapSourceFromHIcon(
+                    h, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Exe icon fallback failed: {ex.Message}");
+        }
     }
 
     // ───────────────────────── lifecycle ─────────────────────────
@@ -168,6 +203,20 @@ public partial class MainWindow : Window
     // ───────────────────────── tray ─────────────────────────
 
     private void BuildTray()
+    {
+        try
+        {
+            BuildTrayCore();
+        }
+        catch (Exception ex)
+        {
+            // The tray is a convenience; the window must still start.
+            _log.Warn($"Tray creation failed: {ex.Message}");
+            _tray = null;
+        }
+    }
+
+    private void BuildTrayCore()
     {
         _tray = new Forms.NotifyIcon
         {
