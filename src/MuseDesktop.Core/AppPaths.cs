@@ -24,6 +24,9 @@ public static class AppPaths
 
     public static string SettingsPath => Path.Combine(RootDir, "settings.json");
 
+    /// <summary>Finished-download history for the Downloads window (v0.4.0).</summary>
+    public static string DownloadsHistoryPath => Path.Combine(RootDir, "downloads.json");
+
     public static string LogDir => Path.Combine(RootDir, "logs");
     public static string LogPath => Path.Combine(LogDir, "musedesktop.log");
 

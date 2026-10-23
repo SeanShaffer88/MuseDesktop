@@ -41,6 +41,9 @@
             <TextBlock Text="Account profiles" Style="{StaticResource SectionHeader}"/>
             <ComboBox x:Name="ProfileCombo" SelectionChanged="OnProfileSelectionChanged"
                       ToolTip="Sign-in profiles — each keeps its own Muse session"/>
+            <CheckBox x:Name="ProfileStartHomeCheck" Content="Start this profile at the Muse home page"
+                      Checked="OnProfileStartHomeChanged" Unchecked="OnProfileStartHomeChanged"
+                      ToolTip="On: this profile opens at Muse's home page. Off: it reopens the page it was last on"/>
             <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                 <Button x:Name="SwitchProfileButton" Content="Switch to this profile" Width="150" Click="OnSwitchProfile"
                         ToolTip="Restarts MuseDesktop signed in with the selected profile"/>
@@ -81,6 +84,14 @@
                     ToolTip="Removes cookies, cache, and site data from MuseDesktop's own profile"/>
             <TextBlock x:Name="ClearDataNote" Style="{StaticResource Note}"
                        Text="Deletes cookies, cache, and site data stored by MuseDesktop — you will sign in to Muse again. Your chats live in your Muse account and are not affected."/>
+            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                <Button Content="Export settings…" Width="130" Click="OnExportSettings"
+                        ToolTip="Save these settings to a file you can keep or move to another PC"/>
+                <Button Content="Import settings…" Width="130" Margin="8,0,0,0" Click="OnImportSettings"
+                        ToolTip="Replace these settings with ones from an exported file"/>
+            </StackPanel>
+            <TextBlock x:Name="ImportNote" Style="{StaticResource Note}"
+                       Text="Export saves the settings shown here (including profiles and per-profile start pages) as a small JSON file. Sign-ins themselves are not exported — those stay in each profile's own data."/>
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
                 <Button Content="OK" Width="86" Height="30" IsDefault="True" Click="OnOk"

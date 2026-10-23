@@ -1,8 +1,9 @@
 ; MuseDesktop installer (NSIS) — per-user install, no admin required.
 ;
 ; Build (from the repo root, with the verified release publish staged):
-;   makensis /DVERSION=0.3.0 /DSTAGE=<dir containing the publish output> installer\MuseDesktop.nsi
-; Produces MuseDesktop-Setup-v<VERSION>.exe next to this script.
+;   makensis /DVERSION=0.4.0 /DARCH=x64 /DSTAGE=<dir containing the publish output> installer\MuseDesktop.nsi
+; Produces MuseDesktop-Setup-v<VERSION>-<ARCH>.exe next to this script.
+; ARCH is x64 or arm64 and must match the staged publish (v0.4.0+).
 ;
 ; Design notes (see DECISIONS.md, 2026-10-23):
 ; - Per-user install to %LOCALAPPDATA%\Programs\MuseDesktop, HKCU uninstall
@@ -13,7 +14,10 @@
 ;   "also delete" prompt — the same folders a zip user would delete by hand.
 
 !ifndef VERSION
-  !define VERSION "0.3.0"
+  !define VERSION "0.4.0"
+!endif
+!ifndef ARCH
+  !define ARCH "x64"
 !endif
 !ifndef STAGE
   !error "Pass /DSTAGE=<publish output dir>"
@@ -21,7 +25,7 @@
 
 Unicode true
 Name "MuseDesktop"
-OutFile "MuseDesktop-Setup-v${VERSION}.exe"
+OutFile "MuseDesktop-Setup-v${VERSION}-${ARCH}.exe"
 InstallDir "$LOCALAPPDATA\Programs\MuseDesktop"
 InstallDirRegKey HKCU "Software\MuseDesktop" "InstallDir"
 RequestExecutionLevel user

@@ -1,16 +1,13 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
-using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media.Imaging;
-using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 using MuseDesktop.Core;
-using Forms = System.Windows.Forms;
 
 namespace MuseDesktop;
 
@@ -21,27 +18,19 @@ public partial class MainWindow : Window
 
     private readonly AppSettings _settings;
     private readonly DiagnosticLog _log;
-    private Forms.NotifyIcon? _tray;
+    private readonly DownloadTracker _downloads;
+    private readonly TrayController _tray;
     private bool _reallyExit;
-    private bool _balloonShown;
     private bool _webReady;
     private bool _webInitFailed;
     private bool _isFullScreen;
     private WindowState _preFullScreenState;
     private WindowStyle _preFullScreenStyle;
-    private CoreWebView2DownloadOperation? _download;
-    private string? _completedDownloadPath;
 
-    // v0.2.0 — update check
-    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(12) };
+    // v0.2.0 — update check (the check itself lives in UpdateService)
     private bool _checkingUpdate;
     private string? _updateTag;
     private string? _updateUrl;
-
-    // v0.2.0 — tray suspend: after this long hidden, the renderer sleeps.
-    private static readonly TimeSpan SuspendDelay = TimeSpan.FromMinutes(5);
-    private DispatcherTimer? _suspendTimer;
-    private bool _webSuspended;
 
     // v0.3.0 — the active profile's WebView2 data folder (per-profile sign-ins).
     private readonly string _profileDir;
@@ -52,13 +41,36 @@ public partial class MainWindow : Window
         _log = log;
         _profileDir = AppPaths.ProfileDir(settings.ActiveProfileId);
         InitializeComponent();
+
+        _downloads = new DownloadTracker(_log, SetStatus, record =>
+        {
+            try { DownloadHistoryStore.Add(AppPaths.DownloadsHistoryPath, record); }
+            catch (Exception ex) { _log.Warn($"Download history save failed: {ex.Message}"); }
+        });
+        _downloads.ActiveChanged += active =>
+        {
+            CancelDownloadButton.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
+            if (active) StatusText.ToolTip = "";
+        };
+        _downloads.Completed += () => StatusText.ToolTip = "Click to open the file";
+
+        _tray = new TrayController(
+            _log, Dispatcher,
+            ShowFromTray,
+            () => { if (_webReady) Browser.Reload(); },
+            ExitApp,
+            () => _settings.SuspendWhenInTray,
+            () => _webReady,
+            () => _downloads.IsActive,
+            TrySuspendWebViewAsync,
+            ResumeWebView);
+
         SetWindowIcon();
         ApplySavedPlacement();
-        BuildTray();
+        _tray.Build();
         RefreshProfileIndicator();
         Loaded += OnLoaded;
         Closing += OnClosing;
-        StateChanged += (_, _) => UpdateTrayMenuState();
         PreviewKeyDown += OnPreviewKeyDown;
     }
 
@@ -114,7 +126,7 @@ public partial class MainWindow : Window
 
     public void ShowFromTray()
     {
-        ResumeWebViewIfSuspended();
+        _tray.OnShown();
         Show();
         if (WindowState == WindowState.Minimized)
             WindowState = WindowState.Normal;
@@ -125,69 +137,42 @@ public partial class MainWindow : Window
     private void HideToTray(bool showBalloon)
     {
         Hide();
-        ArmSuspendTimer();
-        if (showBalloon && !_balloonShown && _tray is not null)
-        {
-            _balloonShown = true;
-            _tray.BalloonTipTitle = "MuseDesktop is still running";
-            _tray.BalloonTipText = "Muse keeps working in the cloud. Double-click the tray icon to come back.";
-            _tray.ShowBalloonTip(4000);
-        }
+        _tray.OnHidden(showBalloon);
     }
 
-    // ───────────────────────── tray suspend (v0.2.0) ─────────────────────────
+    // ── tray suspend delegates (v0.2.0; the timer lives in TrayController) ──
 
-    private void ArmSuspendTimer()
+    private async Task<bool> TrySuspendWebViewAsync()
     {
-        if (!_settings.SuspendWhenInTray || !_webReady || _webSuspended)
-            return;
-        _suspendTimer?.Stop();
-        _suspendTimer = new DispatcherTimer { Interval = SuspendDelay };
-        _suspendTimer.Tick += OnSuspendTimerTick;
-        _suspendTimer.Start();
-    }
-
-    private async void OnSuspendTimerTick(object? sender, EventArgs e)
-    {
-        _suspendTimer?.Stop();
-        if (IsVisible || !_webReady || _webSuspended)
-            return;
-        if (_download is not null)
-        {
-            // Never sleep mid-download; check again shortly.
-            _suspendTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(2) };
-            _suspendTimer.Tick += OnSuspendTimerTick;
-            _suspendTimer.Start();
-            return;
-        }
         try
         {
             var ok = await Browser.CoreWebView2.TrySuspendAsync();
-            _webSuspended = ok;
             _log.Info(ok
                 ? "WebView2 suspended (window hidden in tray)"
                 : "WebView2 suspend declined by the page (active media/call?)");
+            return ok;
         }
         catch (Exception ex)
         {
             _log.Warn($"WebView2 suspend failed: {ex.Message}");
+            return false;
         }
     }
 
-    private void ResumeWebViewIfSuspended()
+    private bool ResumeWebView()
     {
-        _suspendTimer?.Stop();
-        if (!_webSuspended || !_webReady)
-            return;
+        if (!_webReady)
+            return false;
         try
         {
             Browser.CoreWebView2.Resume();
-            _webSuspended = false;
             _log.Info("WebView2 resumed");
+            return true;
         }
         catch (Exception ex)
         {
             _log.Warn($"WebView2 resume failed: {ex.Message}");
+            return false;
         }
     }
 
@@ -200,7 +185,7 @@ public partial class MainWindow : Window
             HideToTray(showBalloon: true);
             return;
         }
-        _tray?.Dispose();
+        _tray.Dispose();
         System.Windows.Application.Current.Shutdown();
     }
 
@@ -267,47 +252,6 @@ public partial class MainWindow : Window
         {
             _log.Warn($"Settings save failed: {ex.Message}");
         }
-    }
-
-    // ───────────────────────── tray ─────────────────────────
-
-    private void BuildTray()
-    {
-        try
-        {
-            BuildTrayCore();
-        }
-        catch (Exception ex)
-        {
-            // The tray is a convenience; the window must still start.
-            _log.Warn($"Tray creation failed: {ex.Message}");
-            _tray = null;
-        }
-    }
-
-    private void BuildTrayCore()
-    {
-        _tray = new Forms.NotifyIcon
-        {
-            Text = "MuseDesktop",
-            Visible = true,
-            Icon = System.Drawing.Icon.ExtractAssociatedIcon(Environment.ProcessPath ?? "")
-                   ?? System.Drawing.SystemIcons.Application,
-        };
-        var menu = new Forms.ContextMenuStrip();
-        menu.Items.Add("Open Muse", null, (_, _) => Dispatcher.Invoke(ShowFromTray));
-        menu.Items.Add("Reload", null, (_, _) => Dispatcher.Invoke(() => Browser.Reload()));
-        menu.Items.Add(new Forms.ToolStripSeparator());
-        menu.Items.Add("Exit", null, (_, _) => Dispatcher.Invoke(ExitApp));
-        _tray.ContextMenuStrip = menu;
-        _tray.DoubleClick += (_, _) => Dispatcher.Invoke(ShowFromTray);
-        UpdateTrayMenuState();
-    }
-
-    private void UpdateTrayMenuState()
-    {
-        // The tray icon exists for the app's whole lifetime; nothing dynamic
-        // is needed yet, but menu state hooks live here as features grow.
     }
 
     // ───────────────────────── WebView2 ─────────────────────────
@@ -526,93 +470,14 @@ public partial class MainWindow : Window
         }
 
         e.Handled = true;
-        _download = e.DownloadOperation;
-        _completedDownloadPath = null;
-        var name = Path.GetFileName(e.ResultFilePath);
-        _log.Info($"Download started: {name}");
-        CancelDownloadButton.Visibility = Visibility.Visible;
-        StatusText.ToolTip = "";
-        SetStatus($"Downloading {name}…");
-
-        _download.BytesReceivedChanged += OnDownloadProgress;
-        _download.EstimatedEndTimeChanged += OnDownloadProgress;
-        _download.StateChanged += OnDownloadStateChanged;
+        // Destination decided above; the tracker follows the operation
+        // (progress, cancel, completion, history) from here.
+        _downloads.Attach(e.DownloadOperation);
     }
 
-    private void OnDownloadProgress(object? sender, object e) => ReportDownloadProgress();
+    private void OnCancelDownload(object sender, RoutedEventArgs e) => _downloads.Cancel();
 
-    private void ReportDownloadProgress()
-    {
-        if (_download is null) return;
-        var name = Path.GetFileName(_download.ResultFilePath);
-        if (_download.TotalBytesToReceive is { } total && total > 0)
-        {
-            var pct = (int)(_download.BytesReceived * 100L / (long)total);
-            var eta = _download.EstimatedEndTime - DateTimeOffset.Now;
-            var etaText = eta > TimeSpan.Zero ? $", about {FormatEta(eta)} left" : "";
-            SetStatus($"Downloading {name} — {pct}%{etaText}", $"{_download.BytesReceived / 1024} KB of {total / 1024} KB");
-        }
-        else
-        {
-            SetStatus($"Downloading {name}…", $"{_download.BytesReceived / 1024} KB received");
-        }
-    }
-
-    private void OnDownloadStateChanged(object? sender, object e)
-    {
-        if (_download is null) return;
-        var name = Path.GetFileName(_download.ResultFilePath);
-        switch (_download.State)
-        {
-            case CoreWebView2DownloadState.Completed:
-                _log.Info($"Download completed: {name}");
-                _completedDownloadPath = _download.ResultFilePath;
-                StatusText.ToolTip = "Click to open the file";
-                SetStatus($"Download complete: {name} — click to open");
-                break;
-            case CoreWebView2DownloadState.Interrupted:
-                var cancelled = _download.InterruptReason == CoreWebView2DownloadInterruptReason.UserCanceled;
-                _log.Warn($"Download interrupted: {name} ({_download.InterruptReason})");
-                SetStatus(cancelled ? $"Download cancelled: {name}" : $"Download interrupted: {name} ({_download.InterruptReason})");
-                break;
-        }
-        if (_download.State != CoreWebView2DownloadState.InProgress)
-        {
-            _download.BytesReceivedChanged -= OnDownloadProgress;
-            _download.EstimatedEndTimeChanged -= OnDownloadProgress;
-            _download.StateChanged -= OnDownloadStateChanged;
-            _download = null;
-            CancelDownloadButton.Visibility = Visibility.Collapsed;
-        }
-    }
-
-    private void OnCancelDownload(object sender, RoutedEventArgs e)
-    {
-        try { _download?.Cancel(); }
-        catch (Exception ex) { _log.Warn($"Cancel download failed: {ex.Message}"); }
-    }
-
-    private void OnStatusTextClick(object sender, MouseButtonEventArgs e)
-    {
-        if (_completedDownloadPath is { } path && File.Exists(path))
-        {
-            try
-            {
-                Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
-            }
-            catch (Exception ex)
-            {
-                _log.Warn($"Open downloaded file failed: {ex.Message}");
-                SetStatus($"Couldn't open {Path.GetFileName(path)} — it's in your downloads folder");
-            }
-        }
-    }
-
-    private static string FormatEta(TimeSpan eta)
-    {
-        if (eta.TotalMinutes >= 1) return $"{(int)Math.Ceiling(eta.TotalMinutes)} min";
-        return $"{Math.Max(1, (int)Math.Ceiling(eta.TotalSeconds))} sec";
-    }
+    private void OnStatusTextClick(object sender, MouseButtonEventArgs e) => _downloads.TryOpenCompleted();
 
     private void OnTitleChanged(object? sender, object e)
     {
@@ -741,12 +606,13 @@ public partial class MainWindow : Window
         _settings.ZoomFactor = clone.ZoomFactor;
         _settings.Profiles = clone.Profiles;
         _settings.ActiveProfileId = clone.ActiveProfileId;
+        _settings.LastUrlByProfile = clone.LastUrlByProfile;
         _settings.Sanitized();
         Autostart.Sync(_settings.StartWithWindows);
         if (_webReady)
             Browser.ZoomFactor = ZoomMath.Clamp(_settings.ZoomFactor);
         if (!_settings.SuspendWhenInTray)
-            _suspendTimer?.Stop();
+            _tray.CancelPendingSuspend();
         SaveSettings();
         RefreshProfileIndicator();
 
@@ -819,8 +685,7 @@ public partial class MainWindow : Window
         ProfileSeparator.Visibility = multi ? Visibility.Visible : Visibility.Collapsed;
         if (multi && active is not null)
             ProfileItem.Header = $"Profile: {active.Name}";
-        if (_tray is not null)
-            _tray.Text = multi && active is not null ? $"MuseDesktop — {active.Name}" : "MuseDesktop";
+        _tray.SetText(multi && active is not null ? $"MuseDesktop — {active.Name}" : "MuseDesktop");
     }
 
     // ───────────────────────── context menu (v0.3.0) ─────────────────────────
@@ -900,9 +765,9 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// One quiet request to GitHub's latest-release endpoint. Any failure
-    /// (offline, rate limit, odd payload) is a log line, never a dialog —
-    /// the app is offline-first and updates are a courtesy.
+    /// Runs the update check (UpdateService) and applies the outcome to
+    /// the menu and status bar. Manual checks report every outcome;
+    /// the automatic launch check only speaks up when an update exists.
     /// </summary>
     private async Task CheckForUpdatesAsync(bool manual)
     {
@@ -913,47 +778,40 @@ public partial class MainWindow : Window
         {
             if (manual)
                 SetStatus("Checking for updates…");
-            using var request = new HttpRequestMessage(HttpMethod.Get, UpdateInfo.LatestReleaseApiUrl);
             var version = typeof(App).Assembly.GetName().Version ?? new Version(0, 0, 0);
-            request.Headers.UserAgent.ParseAdd($"MuseDesktop/{version.ToString(3)}");
-            using var response = await Http.SendAsync(request);
-            if (!response.IsSuccessStatusCode)
+            var outcome = await UpdateService.CheckAsync(version, _log);
+            switch (outcome.Kind)
             {
-                _log.Warn($"Update check: HTTP {(int)response.StatusCode}");
-                if (manual) SetStatus("Couldn't check for updates — GitHub didn't answer");
-                return;
+                case UpdateOutcomeKind.Available:
+                    _updateTag = outcome.Tag;
+                    _updateUrl = outcome.Url;
+                    UpdateItem.Header = $"⬆ Update available: {outcome.Tag}";
+                    UpdateItem.ToolTip = "Open the release page";
+                    SetStatus($"MuseDesktop {outcome.Tag} is available — see the ⋯ menu");
+                    break;
+                case UpdateOutcomeKind.UpToDate:
+                    if (manual) SetStatus($"You're up to date (v{version.ToString(3)})");
+                    break;
+                case UpdateOutcomeKind.Unreachable:
+                    if (manual) SetStatus("Couldn't check for updates — GitHub didn't answer");
+                    break;
+                case UpdateOutcomeKind.BadData:
+                    if (manual) SetStatus("Couldn't read the update information");
+                    break;
+                default:
+                    if (manual) SetStatus("Couldn't check for updates — are you offline?");
+                    break;
             }
-            var json = await response.Content.ReadAsStringAsync();
-            var latest = UpdateInfo.ParseLatestReleaseJson(json);
-            if (latest is null)
-            {
-                if (manual) SetStatus("Couldn't read the update information");
-                return;
-            }
-            if (UpdateInfo.IsNewer(latest.Value.Tag, version))
-            {
-                _updateTag = latest.Value.Tag;
-                _updateUrl = latest.Value.Url;
-                UpdateItem.Header = $"⬆ Update available: {latest.Value.Tag}";
-                UpdateItem.ToolTip = "Open the release page";
-                SetStatus($"MuseDesktop {latest.Value.Tag} is available — see the ⋯ menu");
-                _log.Info($"Update available: {latest.Value.Tag} (running {version.ToString(3)})");
-            }
-            else
-            {
-                _log.Info($"Update check: up to date ({latest.Value.Tag})");
-                if (manual) SetStatus($"You're up to date (v{version.ToString(3)})");
-            }
-        }
-        catch (Exception ex)
-        {
-            _log.Warn($"Update check failed: {ex.Message}");
-            if (manual) SetStatus("Couldn't check for updates — are you offline?");
         }
         finally
         {
             _checkingUpdate = false;
         }
+    }
+
+    private void OnDownloads(object sender, RoutedEventArgs e)
+    {
+        new DownloadsWindow(_log) { Owner = this }.ShowDialog();
     }
 
     private void OnOpenLogFolder(object sender, RoutedEventArgs e)
@@ -1009,6 +867,7 @@ public partial class MainWindow : Window
             switch (e.Key)
             {
                 case Key.R: OnReload(this, e); e.Handled = true; break;
+                case Key.OemComma: OnSettings(this, e); e.Handled = true; break;
                 case Key.OemPlus or Key.Add: OnZoomIn(this, e); e.Handled = true; break;
                 case Key.OemMinus or Key.Subtract: OnZoomOut(this, e); e.Handled = true; break;
                 case Key.D0 or Key.NumPad0:

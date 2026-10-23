@@ -12,6 +12,9 @@ public sealed class AccountProfile
 {
     public string Id { get; set; } = Profiles.DefaultId;
     public string Name { get; set; } = "Default";
+
+    /// <summary>Start this profile at the Muse home page instead of reopening its last page (v0.4.0).</summary>
+    public bool StartAtHome { get; set; }
 }
 
 /// <summary>Invariants and helpers for the profile list stored in settings.</summary>

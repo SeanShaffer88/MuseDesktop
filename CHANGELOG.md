@@ -2,6 +2,26 @@
 
 All notable changes to MuseDesktop. Format follows Keep a Changelog; versions use semantic versioning.
 
+## [0.4.0] — 2026-10-23
+
+### Added
+
+- **ARM64 builds.** Releases now ship native ARM64 downloads (`MuseDesktop-v0.4.0-windows-arm64.zip` and `MuseDesktop-Setup-v0.4.0-arm64.exe`) alongside x64 — built and smoke-tested on GitHub's ARM64 Windows runners, so Snapdragon/Windows-on-ARM PCs get a native app instead of the emulated x64 one.
+- **Download history.** The ⋯ menu's new **Downloads…** window lists finished downloads (newest first, kept on this PC only): name, size, date, and location, with **Open** and **Show in folder** actions and a **Clear history** button. Until now the only record of a download was the status-bar message, which the next download erased.
+- **Per-profile start page.** Each profile can now start at the Muse home page instead of reopening its last page: Settings → *Account profiles* → select a profile → *Start this profile at the Muse home page*.
+- **Settings export / import.** Settings → *Data* can save the settings (including profiles and per-profile start pages) to a JSON file and load them back — handy for backups and moving to a new PC. Imports are validated and sanitized like any settings load. Sign-ins are not exported; they stay in each profile's own data.
+- **Ctrl+, opens Settings** (the Windows convention), and the ⋯ menu now labels it.
+
+### Changed
+
+- **Internals: the main window was decomposed.** Download tracking, the tray icon + suspend timer, and the update check moved out of `MainWindow.xaml.cs` (1,064 → 923 lines) into focused `DownloadTracker`, `TrayController`, and `UpdateService` classes, and the download status wording moved into Core (`DownloadText`) where it is unit-tested. No intended behavior changes; two deliberate micro-fixes ride along: the tray menu's *Reload* now does nothing before the web view is ready instead of failing, and settings adopted from the Settings window now include the per-profile last-page map (import completeness).
+- **Keyboard audit:** the shortcut set (Ctrl+R/F5, Ctrl+±/0, Alt+←/→, F11) was audited and found complete and already documented — this release's only keyboard changes are the Ctrl+, addition and its menu label above.
+
+### Notes
+
+- Core test suite grows 86 → 110 (download history store, status wording, per-profile startup, settings export/import).
+- The x64 installer is now named `MuseDesktop-Setup-vX.Y.Z-x64.exe` so the two architectures are unmistakable on the Releases page.
+
 ## [0.3.1] — 2026-10-23
 
 ### Fixed

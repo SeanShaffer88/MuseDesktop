@@ -96,8 +96,21 @@ public sealed class AppSettings
         Uri.TryCreate(url, UriKind.Absolute, out var u) &&
         UrlPolicy.IsInAppHost(u.Host);
 
-    /// <summary>The page to open at launch: the active profile's restored page when valid, else home.</summary>
-    public string StartupUrl => ActiveLastUrl ?? UrlPolicy.HomeUrl;
+    /// <summary>
+    /// The page to open at launch: the Muse home page when the active
+    /// profile asks for it (v0.4.0), else the active profile's restored
+    /// page when valid, else home.
+    /// </summary>
+    public string StartupUrl
+    {
+        get
+        {
+            var active = Profiles.FirstOrDefault(p => p.Id == ActiveProfileId);
+            if (active?.StartAtHome == true)
+                return UrlPolicy.HomeUrl;
+            return ActiveLastUrl ?? UrlPolicy.HomeUrl;
+        }
+    }
 
     /// <summary>Deep copy (JSON round-trip) — the Settings window edits a clone so Cancel can discard cleanly.</summary>
     public AppSettings Clone() =>
@@ -153,5 +166,37 @@ public static class SettingsStore
         var tmp = path + ".tmp";
         File.WriteAllText(tmp, JsonSerializer.Serialize(settings, Options));
         File.Move(tmp, path, overwrite: true);
+    }
+
+    // Settings export / import (v0.4.0): the same JSON the app itself
+    // writes, so a backup made by any build loads in any other. Import
+    // goes through Sanitized like every other load — a hand-edited or
+    // damaged file can never produce an invalid settings object.
+
+    /// <summary>Serialize settings for the Settings window's Export button.</summary>
+    public static string Export(AppSettings settings) =>
+        JsonSerializer.Serialize(settings, Options);
+
+    /// <summary>Parse an imported settings file. On failure, <paramref name="error"/> says why in plain words.</summary>
+    public static bool TryImport(string json, out AppSettings? settings, out string? error)
+    {
+        settings = null;
+        error = null;
+        try
+        {
+            var parsed = JsonSerializer.Deserialize<AppSettings>(json, Options);
+            if (parsed is null)
+            {
+                error = "That file doesn't contain MuseDesktop settings.";
+                return false;
+            }
+            settings = parsed.Sanitized();
+            return true;
+        }
+        catch (Exception)
+        {
+            error = "That file couldn't be read as MuseDesktop settings (it may be damaged or from another app).";
+            return false;
+        }
     }
 }

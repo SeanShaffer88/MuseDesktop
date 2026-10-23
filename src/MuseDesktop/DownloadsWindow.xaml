@@ -1,0 +1,45 @@
+<Window x:Class="MuseDesktop.DownloadsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Downloads"
+        Width="560" Height="420" MinWidth="420" MinHeight="260"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
+    <Window.Resources>
+        <Style x:Key="Note" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,6,0,0"/>
+        </Style>
+    </Window.Resources>
+
+    <DockPanel Margin="14,12,14,12">
+        <StackPanel DockPanel.Dock="Bottom">
+            <TextBlock x:Name="NoteText" Style="{StaticResource Note}"
+                       Text="Files Muse downloaded for you, newest first. The list is kept on this PC only."/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+                <Button x:Name="OpenButton" Content="Open" Width="86" Height="30" Click="OnOpen"
+                        Background="{StaticResource AccentBrush}" Foreground="White" BorderThickness="0"/>
+                <Button x:Name="FolderButton" Content="Show in folder" Width="110" Height="30" Margin="8,0,0,0" Click="OnShowInFolder"/>
+                <Button Content="Clear history" Width="100" Height="30" Margin="8,0,0,0" Click="OnClear"/>
+                <Button Content="Close" Width="86" Height="30" Margin="8,0,0,0" IsCancel="True"/>
+            </StackPanel>
+        </StackPanel>
+
+        <ListBox x:Name="DownloadsList" Background="{StaticResource SurfaceBrush}"
+                 Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource HairlineBrush}"
+                 MouseDoubleClick="OnOpen" SelectionChanged="OnSelectionChanged"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Margin="4,3">
+                        <TextBlock Text="{Binding FileName}" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Text="{Binding Detail}" FontSize="11"
+                                   Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </DockPanel>
+</Window>

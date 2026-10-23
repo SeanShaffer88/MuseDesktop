@@ -8,15 +8,15 @@ Muse ships apps for iOS, Android and macOS, and a web app at muse.ai — but no 
 
 ## TL;DR
 
-Muse has no Windows app, so this is one: a small native program that opens muse.ai in its own window, keeps you signed in, and lives in the system tray. It adds the desktop touches a browser tab can't — downloads with progress and cancel, multiple sign-in profiles, a settings window, update notices, and sensible link handling. Free, open source (MIT), no telemetry; you only need Windows 10/11 and the WebView2 Runtime (usually already installed). Download the installer from Releases and run it.
+Muse has no Windows app, so this is one: a small native program that opens muse.ai in its own window, keeps you signed in, and lives in the system tray. It adds the desktop touches a browser tab can't — downloads with progress, cancel, and a history window, multiple sign-in profiles, a settings window, update notices, and sensible link handling. Free, open source (MIT), no telemetry; you only need Windows 10/11 (x64 or ARM64) and the WebView2 Runtime (usually already installed). Download the installer from Releases and run it.
 
 ## What you get
 
 - **A real app, not a tab** — its own window, taskbar icon, and Alt-Tab entry; no browser chrome competing for space.
 - **Stay signed in** — a dedicated WebView2 profile on your PC keeps your Muse session between launches, and the app reopens the last Muse page you were on.
 - **Tray support** — always-available tray icon (Open / Reload / Exit); closing the window minimizes to the tray by default, and after 5 minutes hidden the web view suspends to free memory until you come back.
-- **Downloads with progress and control** — files Muse makes for you download with live progress % and an estimated time remaining in the status bar; cancel from the status bar, click a finished download to open it, and choose the folder (or ask-where-to-save) in Settings.
-- **Settings window** — one place (⋯ menu → *Settings…*) for startup behavior, close-to-tray, default zoom, downloads, update checks, tray memory saving, and **clear browsing data / sign out**.
+- **Downloads with progress and control** — files Muse makes for you download with live progress % and an estimated time remaining in the status bar; cancel from the status bar, click a finished download to open it, and choose the folder (or ask-where-to-save) in Settings. The ⋯ menu's **Downloads…** window keeps a history of finished downloads with Open / Show in folder.
+- **Settings window** — one place (⋯ menu → *Settings…*, or Ctrl+,) for startup behavior, close-to-tray, default zoom, downloads, update checks, tray memory saving, **clear browsing data / sign out**, and **export/import** of your settings. Each profile can start at the Muse home page instead of reopening its last page.
 - **Update notices** — the app checks GitHub Releases once per launch and quietly tells you in the status bar when a newer version is out (you can turn this off in Settings).
 - **Multiple accounts** — profiles (Settings → *Account profiles*) keep separate Muse sign-ins on one PC, each with its own session data; switch from Settings (the app restarts into the chosen profile).
 - **Sensible link handling** — Muse and sign-in pages stay in the app; ordinary web links from chats open in your default browser; dangerous schemes (`file:`, `javascript:`, …) are refused. Right-clicking a link adds *Open link in browser* and *Copy link address*.
@@ -43,15 +43,15 @@ Still to capture from a real run:
 
 ## Requirements
 
-- Windows 10 or Windows 11 (x64)
+- Windows 10 or Windows 11 (x64, or ARM64 — native builds ship for both)
 - The Microsoft Edge **WebView2 Runtime** — preinstalled on Windows 11 and most Windows 10 PCs. If it's missing, MuseDesktop tells you and links you to Microsoft's installer.
 - Nothing else: the download is **self-contained** — the .NET 10 runtime is bundled in, so there is no separate .NET install.
 
 ## Install
 
-**Installer (recommended):** download `MuseDesktop-Setup-vX.Y.Z.exe` from the [Releases](../../releases) page and run it. It's a per-user install (no admin needed): program in `%LOCALAPPDATA%\Programs\MuseDesktop`, a Start Menu shortcut, and an entry in Apps & Features for uninstalling. Uninstalling keeps your settings and sign-in data unless you choose to delete them when asked.
+**Installer (recommended):** download `MuseDesktop-Setup-vX.Y.Z-x64.exe` (or `-arm64.exe` on a Windows-on-ARM PC) from the [Releases](../../releases) page and run it. It's a per-user install (no admin needed): program in `%LOCALAPPDATA%\Programs\MuseDesktop`, a Start Menu shortcut, and an entry in Apps & Features for uninstalling. Uninstalling keeps your settings and sign-in data unless you choose to delete them when asked.
 
-**Portable zip:** download `MuseDesktop-vX.Y.Z-windows-x64.zip`, unzip anywhere, and run `MuseDesktop.exe`.
+**Portable zip:** download `MuseDesktop-vX.Y.Z-windows-x64.zip` (or `-windows-arm64.zip`), unzip anywhere, and run `MuseDesktop.exe`.
 
 Either way: the app is not code-signed yet, so Windows SmartScreen may warn on first run — choose **More info → Run anyway**. Your data folders (`%APPDATA%\MuseDesktop` and `%LOCALAPPDATA%\MuseDesktop`) hold settings and sign-in profiles; deleting them signs you out.
 
@@ -60,6 +60,7 @@ Either way: the app is not code-signed yet, so Windows SmartScreen may warn on f
 | What | Where |
 | --- | --- |
 | Settings | `%APPDATA%\MuseDesktop\settings.json` |
+| Download history | `%APPDATA%\MuseDesktop\downloads.json` (names, sizes, dates, and paths of finished downloads — never their source URLs) |
 | Diagnostic log | `%APPDATA%\MuseDesktop\logs\musedesktop.log` (1 MB, single rollover; URLs are logged host-and-path only, never with query strings) |
 | Web profile (login session) | `%LOCALAPPDATA%\MuseDesktop\WebView2` for the default profile; extra profiles get sibling folders (`WebView2-<id>`) |
 | Downloads | Your Downloads folder, or the folder chosen in Settings |
@@ -72,6 +73,7 @@ Either way: the app is not code-signed yet, so Windows SmartScreen may warn on f
 | Ctrl+R or F5 | Reload |
 | Ctrl+Plus / Ctrl+Minus | Zoom in / out |
 | Ctrl+0 | Reset zoom to 100% |
+| Ctrl+, | Open Settings |
 | F11 | Full screen (Esc exits) — works from the window chrome and the page's own full-screen requests are honored |
 
 ## Building from source

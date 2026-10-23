@@ -45,6 +45,12 @@ The per-release items below accumulated faster than on-machine passes ran. This 
 - [ ] **v0.3.0 — Installer:** run `MuseDesktop-Setup-vX.Y.Z.exe`: installs without admin, app launches from the finish page, Start Menu shortcut works; Apps & Features lists MuseDesktop with the right version
 - [ ] **v0.3.0 — Installer:** run the installer again (upgrade): completes over the existing install, still signed in afterwards
 - [ ] **v0.3.0 — Installer:** uninstall answering No to data deletion: program gone, `%APPDATA%\MuseDesktop` settings remain; uninstall again answering Yes: data folders gone too
+- [ ] **v0.4.0 — Downloads window:** download a file, then ⋯ → *Downloads…*: the file is listed with size/date/path; *Open* opens it; *Show in folder* selects it in Explorer; double-click also opens; *Clear history* (confirmed) empties the list but leaves the files; reopening the window after another download shows both
+- [ ] **v0.4.0 — Per-profile start page:** Settings → select a profile → check *Start this profile at the Muse home page* → OK; switch to that profile: it opens at Muse home even though it had a last page; uncheck → last page restores again
+- [ ] **v0.4.0 — Settings export/import:** Settings → *Export settings…* → file saved; change a setting (e.g. zoom), *Import settings…* the file → controls show the exported values → OK applies them; importing a non-settings file shows the plain error and changes nothing
+- [ ] **v0.4.0 — Keyboard:** Ctrl+, opens Settings from the main window; ⋯ menu shows the "Ctrl+," label on Settings…
+- [ ] **v0.4.0 — Refactor regression sweep:** tray balloon on first close-to-tray; suspend after 6 min hidden + resume (log lines); tray Reload works; update check from ⋯ reports correctly; a download's progress/cancel/complete flow matches the pre-refactor behavior
+- [ ] **v0.4.0 — ARM64 (if an ARM device is available):** run `MuseDesktop-Setup-vX.Y.Z-arm64.exe`: installs, launches, signs in; otherwise record as CI-verified only
 - [ ] Download a file Muse produced: status bar shows % and ETA, file lands in Downloads, completion is reported
 - [ ] Click an ordinary web link in a chat: opens in the default browser, not in the app
 - [ ] Voice: microphone is granted to muse.ai without extra prompts; dictation works
