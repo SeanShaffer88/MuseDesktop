@@ -10,8 +10,10 @@ Muse ships apps for iOS, Android and macOS, and a web app at muse.ai — but no 
 
 - **A real app, not a tab** — its own window, taskbar icon, and Alt-Tab entry; no browser chrome competing for space.
 - **Stay signed in** — a dedicated WebView2 profile on your PC keeps your Muse session between launches, and the app reopens the last Muse page you were on.
-- **Tray support** — always-available tray icon (Open / Reload / Exit); closing the window minimizes to the tray by default (toggle *Close window to tray* in the **⋯** menu); optional *Start with Windows* (quiet tray launch).
-- **Downloads with progress** — files Muse makes for you download into your Downloads folder with live progress % and an estimated time remaining in the status bar, instead of a browser flyout.
+- **Tray support** — always-available tray icon (Open / Reload / Exit); closing the window minimizes to the tray by default, and after 5 minutes hidden the web view suspends to free memory until you come back.
+- **Downloads with progress and control** — files Muse makes for you download with live progress % and an estimated time remaining in the status bar; cancel from the status bar, click a finished download to open it, and choose the folder (or ask-where-to-save) in Settings.
+- **Settings window** — one place (⋯ menu → *Settings…*) for startup behavior, close-to-tray, default zoom, downloads, update checks, tray memory saving, and **clear browsing data / sign out**.
+- **Update notices** — the app checks GitHub Releases once per launch and quietly tells you in the status bar when a newer version is out (you can turn this off in Settings).
 - **Sensible link handling** — Muse and sign-in pages stay in the app; ordinary web links from chats open in your default browser; dangerous schemes (`file:`, `javascript:`, …) are refused.
 - **Voice and alerts** — Muse origins get microphone (voice dictation) and notification permission; every other permission request is denied rather than silently granted.
 - **Keyboard-friendly** — Back/Forward/Reload/Home in the toolbar, zoom controls with a % readout (Ctrl + / − / 0), F11 full screen, and standard browser accelerators inside the page.
@@ -26,9 +28,10 @@ The main window, signed in to Muse — from a real run of v0.1.2 on Windows (con
 
 Still to capture from a real run:
 
-1. The **⋯** (More options) menu open, showing Close to tray / Start with Windows.
-2. A file downloading from Muse, showing the status-bar progress % and ETA.
+1. The **⋯** (More options) menu open, showing Settings… / Check for updates.
+2. A file downloading from Muse, showing the status-bar progress % and ETA (and the ✕ cancel button).
 3. The tray icon's right-click menu.
+4. The Settings window (since v0.2.0).
 
 ## Requirements
 
@@ -50,7 +53,7 @@ The app is not code-signed yet, so Windows SmartScreen may warn on first run —
 | Settings | `%APPDATA%\MuseDesktop\settings.json` |
 | Diagnostic log | `%APPDATA%\MuseDesktop\logs\musedesktop.log` (1 MB, single rollover; URLs are logged host-and-path only, never with query strings) |
 | Web profile (login session) | `%LOCALAPPDATA%\MuseDesktop\WebView2` |
-| Downloads | Your normal Downloads folder (WebView2 default) |
+| Downloads | Your Downloads folder, or the folder chosen in Settings |
 
 ## Keyboard shortcuts
 
@@ -73,7 +76,7 @@ dotnet test tests\MuseDesktop.Core.Tests -c Release
 dotnet publish src\MuseDesktop\MuseDesktop.csproj -c Release -r win-x64 --self-contained true
 ```
 
-Architecture: `MuseDesktop.Core` holds all testable logic (URL policy, settings, zoom, paths, logging) as plain .NET 8 with no Windows dependencies; the WPF app in `src\MuseDesktop` is a thin shell over Microsoft's WebView2 control. See [DECISIONS.md](DECISIONS.md) and [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md).
+Architecture: `MuseDesktop.Core` holds all testable logic (URL policy, settings, zoom, update checks, paths, logging) as plain .NET 10 with no Windows dependencies; the WPF app in `src\MuseDesktop` is a thin shell over Microsoft's WebView2 control. See [DECISIONS.md](DECISIONS.md) and [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md).
 
 ## License
 

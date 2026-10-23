@@ -26,6 +26,21 @@ public sealed class AppSettings
     /// <summary>Start with Windows (HKCU Run). Off by default; user opt-in only.</summary>
     public bool StartWithWindows { get; set; }
 
+    // Downloads (v0.2.0).
+    /// <summary>Folder downloads land in. Null/empty = the Windows Downloads folder.</summary>
+    public string? DownloadsFolder { get; set; }
+
+    /// <summary>Ask where to save each download (Save-As dialog per file).</summary>
+    public bool AskWhereToSave { get; set; }
+
+    // Updates (v0.2.0).
+    /// <summary>Check GitHub Releases for a newer version once per launch. On by default; the check is silent on failure (offline-first).</summary>
+    public bool CheckForUpdates { get; set; } = true;
+
+    // Resources (v0.2.0).
+    /// <summary>Suspend the WebView2 renderer after the window has been hidden in the tray for a while, to free memory/CPU. On by default.</summary>
+    public bool SuspendWhenInTray { get; set; } = true;
+
     /// <summary>Last in-app page, restored on launch when it is still a Muse page.</summary>
     public string? LastUrl { get; set; }
 
@@ -35,6 +50,10 @@ public sealed class AppSettings
         WindowWidth = WindowWidth is >= 480 and <= 10000 ? WindowWidth : 1280;
         WindowHeight = WindowHeight is >= 320 and <= 10000 ? WindowHeight : 860;
         ZoomFactor = ZoomMath.Clamp(ZoomFactor);
+        if (string.IsNullOrWhiteSpace(DownloadsFolder))
+            DownloadsFolder = null;
+        else
+            DownloadsFolder = DownloadsFolder.Trim();
         if (LastUrl is not null &&
             (UrlPolicy.ClassifyNavigation(LastUrl) != LinkDisposition.InApp ||
              !UrlPolicy.IsInAppHost(new Uri(LastUrl).Host)))
@@ -46,6 +65,10 @@ public sealed class AppSettings
 
     /// <summary>The page to open at launch: the restored page when valid, else home.</summary>
     public string StartupUrl => LastUrl ?? UrlPolicy.HomeUrl;
+
+    /// <summary>Deep copy (JSON round-trip) — the Settings window edits a clone so Cancel can discard cleanly.</summary>
+    public AppSettings Clone() =>
+        JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(this)) ?? new AppSettings();
 }
 
 /// <summary>

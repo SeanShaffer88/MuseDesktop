@@ -121,4 +121,74 @@ public class CoreBehaviorTests
         }
         finally { dir.Delete(recursive: true); }
     }
+
+    // ---- v0.2.0: settings defaults + sanitize ----
+
+    [Fact]
+    public void Settings_V020Defaults()
+    {
+        var s = new AppSettings();
+        Assert.True(s.CloseToTray);          // default since v0.1.3
+        Assert.True(s.CheckForUpdates);
+        Assert.True(s.SuspendWhenInTray);
+        Assert.False(s.AskWhereToSave);
+        Assert.Null(s.DownloadsFolder);
+    }
+
+    [Fact]
+    public void Settings_Sanitized_NormalizesDownloadsFolder()
+    {
+        Assert.Null(new AppSettings { DownloadsFolder = "   " }.Sanitized().DownloadsFolder);
+        Assert.Equal(@"C:\Data\Dl", new AppSettings { DownloadsFolder = "  C:\\Data\\Dl  " }.Sanitized().DownloadsFolder);
+    }
+
+    [Fact]
+    public void Settings_Roundtrip_V020Fields()
+    {
+        var dir = Directory.CreateTempSubdirectory("musedesktop-tests");
+        try
+        {
+            var path = Path.Combine(dir.FullName, "settings.json");
+            SettingsStore.Save(path, new AppSettings
+            {
+                DownloadsFolder = @"D:\Muse downloads",
+                AskWhereToSave = true,
+                CheckForUpdates = false,
+                SuspendWhenInTray = false,
+            });
+            var loaded = SettingsStore.Load(path);
+            Assert.Equal(@"D:\Muse downloads", loaded.DownloadsFolder);
+            Assert.True(loaded.AskWhereToSave);
+            Assert.False(loaded.CheckForUpdates);
+            Assert.False(loaded.SuspendWhenInTray);
+        }
+        finally { dir.Delete(recursive: true); }
+    }
+
+    // ---- v0.2.0: update logic ----
+
+    [Theory]
+    [InlineData("v0.2.0", "0.1.3", true)]
+    [InlineData("v0.1.3", "0.1.3", false)]
+    [InlineData("v0.1.2", "0.1.3", false)]
+    [InlineData("0.3.0", "0.2.0", true)]
+    [InlineData("v1.0.0", "0.9.9", true)]
+    [InlineData("v0.2.0-beta", "0.1.3", false)]  // pre-release tags never count
+    [InlineData("garbage", "0.1.3", false)]
+    [InlineData("", "0.1.3", false)]
+    [InlineData(null, "0.1.3", false)]
+    public void Update_IsNewer(string? tag, string current, bool expected) =>
+        Assert.Equal(expected, UpdateInfo.IsNewer(tag, Version.Parse(current)));
+
+    [Fact]
+    public void Update_ParseLatestReleaseJson()
+    {
+        var json = """{"tag_name":"v0.2.0","html_url":"https://github.com/SeanShaffer88/MuseDesktop/releases/tag/v0.2.0","name":"x"}""";
+        var parsed = UpdateInfo.ParseLatestReleaseJson(json);
+        Assert.NotNull(parsed);
+        Assert.Equal("v0.2.0", parsed!.Value.Tag);
+        Assert.Contains("/releases/tag/v0.2.0", parsed.Value.Url);
+        Assert.Null(UpdateInfo.ParseLatestReleaseJson("{}"));
+        Assert.Null(UpdateInfo.ParseLatestReleaseJson("not json"));
+    }
 }

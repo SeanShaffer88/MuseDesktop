@@ -1,11 +1,13 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 using MuseDesktop.Core;
 using Forms = System.Windows.Forms;
@@ -28,6 +30,18 @@ public partial class MainWindow : Window
     private WindowState _preFullScreenState;
     private WindowStyle _preFullScreenStyle;
     private CoreWebView2DownloadOperation? _download;
+    private string? _completedDownloadPath;
+
+    // v0.2.0 — update check
+    private static readonly HttpClient Http = new() { Timeout = TimeSpan.FromSeconds(12) };
+    private bool _checkingUpdate;
+    private string? _updateTag;
+    private string? _updateUrl;
+
+    // v0.2.0 — tray suspend: after this long hidden, the renderer sleeps.
+    private static readonly TimeSpan SuspendDelay = TimeSpan.FromMinutes(5);
+    private DispatcherTimer? _suspendTimer;
+    private bool _webSuspended;
 
     public MainWindow(AppSettings settings, DiagnosticLog log)
     {
@@ -81,20 +95,9 @@ public partial class MainWindow : Window
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         ApplyDarkTitleBar();
-        CloseToTrayItem.IsChecked = _settings.CloseToTray;
-        AutostartItem.IsChecked = _settings.StartWithWindows;
-        CloseToTrayItem.Click += (_, _) =>
-        {
-            _settings.CloseToTray = CloseToTrayItem.IsChecked;
-            SaveSettings();
-        };
-        AutostartItem.Click += (_, _) =>
-        {
-            _settings.StartWithWindows = AutostartItem.IsChecked;
-            Autostart.Sync(_settings.StartWithWindows);
-            SaveSettings();
-        };
         await InitWebViewAsync();
+        if (_settings.CheckForUpdates)
+            _ = CheckForUpdatesAsync(manual: false);
     }
 
     /// <summary>Started via --background: create the window, then park it in the tray.</summary>
@@ -106,6 +109,7 @@ public partial class MainWindow : Window
 
     public void ShowFromTray()
     {
+        ResumeWebViewIfSuspended();
         Show();
         if (WindowState == WindowState.Minimized)
             WindowState = WindowState.Normal;
@@ -116,12 +120,69 @@ public partial class MainWindow : Window
     private void HideToTray(bool showBalloon)
     {
         Hide();
+        ArmSuspendTimer();
         if (showBalloon && !_balloonShown && _tray is not null)
         {
             _balloonShown = true;
             _tray.BalloonTipTitle = "MuseDesktop is still running";
             _tray.BalloonTipText = "Muse keeps working in the cloud. Double-click the tray icon to come back.";
             _tray.ShowBalloonTip(4000);
+        }
+    }
+
+    // ───────────────────────── tray suspend (v0.2.0) ─────────────────────────
+
+    private void ArmSuspendTimer()
+    {
+        if (!_settings.SuspendWhenInTray || !_webReady || _webSuspended)
+            return;
+        _suspendTimer?.Stop();
+        _suspendTimer = new DispatcherTimer { Interval = SuspendDelay };
+        _suspendTimer.Tick += OnSuspendTimerTick;
+        _suspendTimer.Start();
+    }
+
+    private async void OnSuspendTimerTick(object? sender, EventArgs e)
+    {
+        _suspendTimer?.Stop();
+        if (IsVisible || !_webReady || _webSuspended)
+            return;
+        if (_download is not null)
+        {
+            // Never sleep mid-download; check again shortly.
+            _suspendTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(2) };
+            _suspendTimer.Tick += OnSuspendTimerTick;
+            _suspendTimer.Start();
+            return;
+        }
+        try
+        {
+            var ok = await Browser.CoreWebView2.TrySuspendAsync();
+            _webSuspended = ok;
+            _log.Info(ok
+                ? "WebView2 suspended (window hidden in tray)"
+                : "WebView2 suspend declined by the page (active media/call?)");
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"WebView2 suspend failed: {ex.Message}");
+        }
+    }
+
+    private void ResumeWebViewIfSuspended()
+    {
+        _suspendTimer?.Stop();
+        if (!_webSuspended || !_webReady)
+            return;
+        try
+        {
+            Browser.CoreWebView2.Resume();
+            _webSuspended = false;
+            _log.Info("WebView2 resumed");
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"WebView2 resume failed: {ex.Message}");
         }
     }
 
@@ -420,10 +481,49 @@ public partial class MainWindow : Window
     {
         // We report progress in the status bar, so suppress WebView2's own
         // download flyout and follow the operation ourselves.
+        var suggestedName = Path.GetFileName(e.ResultFilePath);
+
+        // v0.2.0: honor the downloads folder / ask-where-to-save settings.
+        if (_settings.AskWhereToSave)
+        {
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                FileName = suggestedName,
+                InitialDirectory = _settings.DownloadsFolder ?? AppPaths.DownloadsHint,
+                Title = "Save download",
+            };
+            if (dialog.ShowDialog(this) == true)
+            {
+                e.ResultFilePath = dialog.FileName;
+            }
+            else
+            {
+                e.Cancel = true;
+                _log.Info($"Download cancelled at save prompt: {suggestedName}");
+                SetStatus("Download cancelled");
+                return;
+            }
+        }
+        else if (!string.IsNullOrWhiteSpace(_settings.DownloadsFolder))
+        {
+            try
+            {
+                Directory.CreateDirectory(_settings.DownloadsFolder);
+                e.ResultFilePath = Path.Combine(_settings.DownloadsFolder, suggestedName);
+            }
+            catch (Exception ex)
+            {
+                _log.Warn($"Downloads folder unusable, keeping default: {ex.Message}");
+            }
+        }
+
         e.Handled = true;
         _download = e.DownloadOperation;
+        _completedDownloadPath = null;
         var name = Path.GetFileName(e.ResultFilePath);
         _log.Info($"Download started: {name}");
+        CancelDownloadButton.Visibility = Visibility.Visible;
+        StatusText.ToolTip = "";
         SetStatus($"Downloading {name}…");
 
         _download.BytesReceivedChanged += OnDownloadProgress;
@@ -458,11 +558,14 @@ public partial class MainWindow : Window
         {
             case CoreWebView2DownloadState.Completed:
                 _log.Info($"Download completed: {name}");
-                SetStatus($"Download complete: {name} (in your Downloads folder)");
+                _completedDownloadPath = _download.ResultFilePath;
+                StatusText.ToolTip = "Click to open the file";
+                SetStatus($"Download complete: {name} — click to open");
                 break;
             case CoreWebView2DownloadState.Interrupted:
+                var cancelled = _download.InterruptReason == CoreWebView2DownloadInterruptReason.UserCanceled;
                 _log.Warn($"Download interrupted: {name} ({_download.InterruptReason})");
-                SetStatus($"Download interrupted: {name} ({_download.InterruptReason})");
+                SetStatus(cancelled ? $"Download cancelled: {name}" : $"Download interrupted: {name} ({_download.InterruptReason})");
                 break;
         }
         if (_download.State != CoreWebView2DownloadState.InProgress)
@@ -471,6 +574,29 @@ public partial class MainWindow : Window
             _download.EstimatedEndTimeChanged -= OnDownloadProgress;
             _download.StateChanged -= OnDownloadStateChanged;
             _download = null;
+            CancelDownloadButton.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void OnCancelDownload(object sender, RoutedEventArgs e)
+    {
+        try { _download?.Cancel(); }
+        catch (Exception ex) { _log.Warn($"Cancel download failed: {ex.Message}"); }
+    }
+
+    private void OnStatusTextClick(object sender, MouseButtonEventArgs e)
+    {
+        if (_completedDownloadPath is { } path && File.Exists(path))
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                _log.Warn($"Open downloaded file failed: {ex.Message}");
+                SetStatus($"Couldn't open {Path.GetFileName(path)} — it's in your downloads folder");
+            }
         }
     }
 
@@ -582,6 +708,125 @@ public partial class MainWindow : Window
     {
         MoreMenu.PlacementTarget = MenuButton;
         MoreMenu.IsOpen = true;
+    }
+
+    // ───────────────────────── settings (v0.2.0) ─────────────────────────
+
+    private void OnSettings(object sender, RoutedEventArgs e)
+    {
+        var clone = _settings.Clone();
+        var dialog = new SettingsWindow(clone, _log, ClearBrowsingDataAsync) { Owner = this };
+        if (dialog.ShowDialog() != true)
+            return;
+
+        _settings.CloseToTray = clone.CloseToTray;
+        _settings.StartWithWindows = clone.StartWithWindows;
+        _settings.SuspendWhenInTray = clone.SuspendWhenInTray;
+        _settings.CheckForUpdates = clone.CheckForUpdates;
+        _settings.AskWhereToSave = clone.AskWhereToSave;
+        _settings.DownloadsFolder = clone.DownloadsFolder;
+        _settings.ZoomFactor = clone.ZoomFactor;
+        Autostart.Sync(_settings.StartWithWindows);
+        if (_webReady)
+            Browser.ZoomFactor = ZoomMath.Clamp(_settings.ZoomFactor);
+        if (!_settings.SuspendWhenInTray)
+            _suspendTimer?.Stop();
+        SaveSettings();
+        _log.Info("Settings updated");
+    }
+
+    /// <summary>
+    /// Wipes the WebView2 profile's cookies/cache/site data (the Settings
+    /// window's clear-data action). Muse's chats live server-side; this is a
+    /// local sign-out + reset.
+    /// </summary>
+    public async Task<bool> ClearBrowsingDataAsync()
+    {
+        if (!_webReady || Browser.CoreWebView2 is null)
+            return false;
+        try
+        {
+            await Browser.CoreWebView2.Profile.ClearBrowsingDataAsync(
+                CoreWebView2BrowsingDataKinds.AllProfile);
+            _log.Info("Browsing data cleared from Settings");
+            Browser.CoreWebView2.Navigate(UrlPolicy.HomeUrl);
+            SetStatus("Browsing data cleared — sign in to Muse to continue");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _log.Error($"Clear browsing data failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    // ───────────────────────── update check (v0.2.0) ─────────────────────────
+
+    private void OnCheckForUpdates(object sender, RoutedEventArgs e)
+    {
+        if (_updateUrl is not null && _updateTag is not null)
+        {
+            OpenExternal(_updateUrl);
+            return;
+        }
+        _ = CheckForUpdatesAsync(manual: true);
+    }
+
+    /// <summary>
+    /// One quiet request to GitHub's latest-release endpoint. Any failure
+    /// (offline, rate limit, odd payload) is a log line, never a dialog —
+    /// the app is offline-first and updates are a courtesy.
+    /// </summary>
+    private async Task CheckForUpdatesAsync(bool manual)
+    {
+        if (_checkingUpdate)
+            return;
+        _checkingUpdate = true;
+        try
+        {
+            if (manual)
+                SetStatus("Checking for updates…");
+            using var request = new HttpRequestMessage(HttpMethod.Get, UpdateInfo.LatestReleaseApiUrl);
+            var version = typeof(App).Assembly.GetName().Version ?? new Version(0, 0, 0);
+            request.Headers.UserAgent.ParseAdd($"MuseDesktop/{version.ToString(3)}");
+            using var response = await Http.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                _log.Warn($"Update check: HTTP {(int)response.StatusCode}");
+                if (manual) SetStatus("Couldn't check for updates — GitHub didn't answer");
+                return;
+            }
+            var json = await response.Content.ReadAsStringAsync();
+            var latest = UpdateInfo.ParseLatestReleaseJson(json);
+            if (latest is null)
+            {
+                if (manual) SetStatus("Couldn't read the update information");
+                return;
+            }
+            if (UpdateInfo.IsNewer(latest.Value.Tag, version))
+            {
+                _updateTag = latest.Value.Tag;
+                _updateUrl = latest.Value.Url;
+                UpdateItem.Header = $"⬆ Update available: {latest.Value.Tag}";
+                UpdateItem.ToolTip = "Open the release page";
+                SetStatus($"MuseDesktop {latest.Value.Tag} is available — see the ⋯ menu");
+                _log.Info($"Update available: {latest.Value.Tag} (running {version.ToString(3)})");
+            }
+            else
+            {
+                _log.Info($"Update check: up to date ({latest.Value.Tag})");
+                if (manual) SetStatus($"You're up to date (v{version.ToString(3)})");
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Update check failed: {ex.Message}");
+            if (manual) SetStatus("Couldn't check for updates — are you offline?");
+        }
+        finally
+        {
+            _checkingUpdate = false;
+        }
     }
 
     private void OnOpenLogFolder(object sender, RoutedEventArgs e)

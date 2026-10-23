@@ -45,10 +45,10 @@
                             ToolTip="More options" Click="OnMenu" AutomationProperties.Name="More options">
                         <Button.ContextMenu>
                             <ContextMenu x:Name="MoreMenu">
-                                <MenuItem x:Name="CloseToTrayItem" Header="Close window to tray" IsCheckable="True"
-                                          ToolTip="When on, closing the window keeps MuseDesktop running in the tray"/>
-                                <MenuItem x:Name="AutostartItem" Header="Start with Windows" IsCheckable="True"
-                                          ToolTip="Launch quietly in the tray when you sign in"/>
+                                <MenuItem Header="Settings…" Click="OnSettings"
+                                          ToolTip="Startup, downloads, updates, memory, and data options"/>
+                                <MenuItem x:Name="UpdateItem" Header="Check for updates" Click="OnCheckForUpdates"
+                                          ToolTip="See whether a newer MuseDesktop is available"/>
                                 <Separator/>
                                 <MenuItem Header="Open log folder" Click="OnOpenLogFolder"/>
                                 <MenuItem Header="About MuseDesktop" Click="OnAbout"/>
@@ -89,11 +89,16 @@
         <Border Grid.Row="2" Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,1,0,0">
             <DockPanel LastChildFill="True" Margin="8,0">
+                <Button x:Name="CancelDownloadButton" DockPanel.Dock="Right" Content="&#x2715;" Width="22" Height="18"
+                        Visibility="Collapsed" ToolTip="Cancel this download" Click="OnCancelDownload"
+                        Background="Transparent" Foreground="{StaticResource MutedBrush}" BorderThickness="0"
+                        AutomationProperties.Name="Cancel download"/>
                 <TextBlock x:Name="StatusRight" DockPanel.Dock="Right" FontSize="11"
                            Foreground="{StaticResource FaintBrush}" VerticalAlignment="Center"/>
                 <TextBlock x:Name="StatusText" Text="Starting…" FontSize="11"
                            Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"
-                           TextTrimming="CharacterEllipsis"/>
+                           TextTrimming="CharacterEllipsis" MouseLeftButtonUp="OnStatusTextClick"
+                           ToolTip=""/>
             </DockPanel>
         </Border>
     </Grid>

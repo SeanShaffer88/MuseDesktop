@@ -1,0 +1,75 @@
+<Window x:Class="MuseDesktop.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="MuseDesktop Settings"
+        Width="480" SizeToContent="Height" MaxHeight="720"
+        ResizeMode="NoResize" WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
+    <Window.Resources>
+        <Style x:Key="SectionHeader" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
+            <Setter Property="Margin" Value="0,14,0,4"/>
+        </Style>
+        <Style x:Key="Note" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,2,0,0"/>
+        </Style>
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="Margin" Value="0,5,0,0"/>
+        </Style>
+    </Window.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="18,6,18,16">
+            <TextBlock Text="Behavior" Style="{StaticResource SectionHeader}"/>
+            <CheckBox x:Name="StartWithWindowsCheck" Content="Start with Windows (quietly, in the tray)"
+                      ToolTip="Launch MuseDesktop when you sign in to Windows"/>
+            <CheckBox x:Name="CloseToTrayCheck" Content="Close window to tray (instead of quitting)"
+                      ToolTip="The X button hides the window; Exit lives on the tray menu"/>
+            <CheckBox x:Name="SuspendInTrayCheck" Content="Save memory while hidden in the tray"
+                      ToolTip="After 5 minutes hidden, the web view is suspended until you come back"/>
+            <CheckBox x:Name="CheckUpdatesCheck" Content="Check for updates when the app starts"
+                      ToolTip="One silent request to GitHub Releases per launch; failures are ignored"/>
+            <TextBlock Style="{StaticResource Note}"
+                       Text="Changes apply when you choose OK. Start-with-Windows writes the usual per-user Run entry; nothing here phones home beyond the update check you control."/>
+
+            <TextBlock Text="Zoom" Style="{StaticResource SectionHeader}"/>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                <TextBlock Text="Default zoom:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <ComboBox x:Name="ZoomCombo" Width="90"/>
+            </StackPanel>
+            <TextBlock Style="{StaticResource Note}"
+                       Text="Applies immediately at OK and is where the toolbar zoom starts next launch."/>
+
+            <TextBlock Text="Downloads" Style="{StaticResource SectionHeader}"/>
+            <DockPanel LastChildFill="True">
+                <Button x:Name="BrowseFolderButton" DockPanel.Dock="Right" Content="Browse…" Width="76" Margin="8,0,0,0"
+                        Click="OnBrowseDownloadsFolder"/>
+                <TextBox x:Name="DownloadsFolderText" IsReadOnly="True"
+                         ToolTip="Where downloads are saved"/>
+            </DockPanel>
+            <TextBlock Style="{StaticResource Note}"
+                       Text="Empty means your Windows Downloads folder. Changing it does not move files already downloaded."/>
+            <CheckBox x:Name="AskWhereToSaveCheck" Content="Ask where to save each download"
+                      ToolTip="Shows a Save-As dialog for every file"/>
+
+            <TextBlock Text="Data" Style="{StaticResource SectionHeader}"/>
+            <Button x:Name="ClearDataButton" Content="Clear browsing data and sign out…" Width="230"
+                    HorizontalAlignment="Left" Click="OnClearData"
+                    ToolTip="Removes cookies, cache, and site data from MuseDesktop's own profile"/>
+            <TextBlock x:Name="ClearDataNote" Style="{StaticResource Note}"
+                       Text="Deletes cookies, cache, and site data stored by MuseDesktop — you will sign in to Muse again. Your chats live in your Muse account and are not affected."/>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+                <Button Content="OK" Width="86" Height="30" IsDefault="True" Click="OnOk"
+                        Background="{StaticResource AccentBrush}" Foreground="White" BorderThickness="0"/>
+                <Button Content="Cancel" Width="86" Height="30" Margin="8,0,0,0" IsCancel="True"/>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</Window>

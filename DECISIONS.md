@@ -2,6 +2,16 @@
 
 A living log of significant architecture, UX, security, and dependency decisions.
 
+## 2026-10-23 — The v0.2.0 pack: Settings window, update check, download controls, clear data, tray suspend
+
+SEAN picked the full v0.2.0 bundle from the improvement shortlist. Decisions inside it:
+
+- **Update channel = GitHub Releases.** The public repo's `/releases/latest` endpoint is the single source of truth; the app compares its assembly version against the tag (Core `UpdateInfo`, unit-tested). One request per launch, 12 s timeout, User-Agent identifies the app; every failure path is a log line, never UI. Pre-release tags never count as updates. No third-party updater framework — at this app's scale a notifier + link is honest and sufficient, and auto-install would need signing/update plumbing deliberately out of scope.
+- **Settings window edits a clone** (`AppSettings.Clone()`), OK adopts, Cancel discards — the forgiving-UI standard. The ⋯ menu's checkable toggles were removed so settings have exactly one home; the menu keeps actions (Settings…, Check for updates, log folder, About).
+- **Clear data uses the WebView2 profile API** (`Profile.ClearBrowsingDataAsync(All)`) rather than deleting the profile folder: the folder delete races the running controller and can't happen in-process; the API is the platform's supported reset and keeps the profile structure intact.
+- **Suspend uses WebView2's own `TrySuspendAsync`** after 5 minutes hidden (not a process freeze): the platform knows how to sleep a renderer safely and resume it; the app honors a decline, never suspends mid-download, and resumes before showing the window.
+- **Downloads stay single-operation in the status bar** (see KNOWN_LIMITATIONS) but gained the controls users actually reach for: cancel, click-to-open, folder choice, Save-As. A multi-download manager UI stays deferred until there's evidence one download at a time hurts.
+
 ## 2026-10-23 — Close minimizes to tray by default (v0.1.3)
 
 v0.1.2 passed its on-machine verification (clean startup log, sign-in and voice confirmed by SEAN). His direction from that session: **closing the window minimizes to the tray by default** — MuseDesktop is a resident companion app, so the X means "put it away," and Exit lives on the tray menu where it always has. The default applies to fresh installs; existing installs keep their saved preference (settings are per-user and the ⋯ toggle is one click). If real-world feedback says the default confuses people, it's a one-line change in `AppSettings`.
