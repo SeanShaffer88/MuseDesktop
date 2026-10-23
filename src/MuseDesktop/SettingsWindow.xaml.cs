@@ -16,12 +16,15 @@ public partial class SettingsWindow : Window
     private readonly AppSettings _working;
     private readonly DiagnosticLog _log;
     private readonly Func<Task<bool>> _clearBrowsingData;
+    private readonly Action<AppSettings, string> _switchProfile;
 
-    public SettingsWindow(AppSettings working, DiagnosticLog log, Func<Task<bool>> clearBrowsingData)
+    public SettingsWindow(AppSettings working, DiagnosticLog log, Func<Task<bool>> clearBrowsingData,
+        Action<AppSettings, string> switchProfile)
     {
         _working = working;
         _log = log;
         _clearBrowsingData = clearBrowsingData;
+        _switchProfile = switchProfile;
         InitializeComponent();
 
         StartWithWindowsCheck.IsChecked = working.StartWithWindows;
@@ -35,6 +38,78 @@ public partial class SettingsWindow : Window
             ZoomCombo.Items.Add(ZoomMath.FormatPercent(step));
         var current = ZoomMath.FormatPercent(working.ZoomFactor);
         ZoomCombo.SelectedItem = ZoomCombo.Items.Contains(current) ? current : "100%";
+
+        RefreshProfileCombo(_working.ActiveProfileId);
+    }
+
+    // ───────────────────────── profiles (v0.3.0) ─────────────────────────
+
+    private AccountProfile? SelectedProfile =>
+        ProfileCombo.SelectedItem is AccountProfile p ? p : null;
+
+    private void RefreshProfileCombo(string selectId)
+    {
+        ProfileCombo.ItemsSource = null;
+        ProfileCombo.ItemsSource = _working.Profiles;
+        ProfileCombo.DisplayMemberPath = nameof(AccountProfile.Name);
+        ProfileCombo.SelectedItem = _working.Profiles.FirstOrDefault(p => p.Id == selectId)
+                                    ?? _working.Profiles.FirstOrDefault();
+        UpdateProfileButtons();
+    }
+
+    private void UpdateProfileButtons()
+    {
+        var selected = SelectedProfile;
+        SwitchProfileButton.IsEnabled = selected is not null && selected.Id != _working.ActiveProfileId;
+        RemoveProfileButton.IsEnabled = selected is not null
+                                         && selected.Id != _working.ActiveProfileId
+                                         && _working.Profiles.Count > 1;
+    }
+
+    private void OnProfileSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) =>
+        UpdateProfileButtons();
+
+    private void OnAddProfile(object sender, RoutedEventArgs e)
+    {
+        if (_working.Profiles.Count >= Profiles.MaxProfiles)
+        {
+            System.Windows.MessageBox.Show(this,
+                $"MuseDesktop supports up to {Profiles.MaxProfiles} profiles.",
+                "Profiles", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        var name = string.IsNullOrWhiteSpace(NewProfileNameText.Text)
+            ? $"Profile {_working.Profiles.Count + 1}"
+            : NewProfileNameText.Text.Trim();
+        var profile = new AccountProfile { Id = Profiles.NewId(), Name = name };
+        _working.Profiles.Add(profile);
+        NewProfileNameText.Text = "";
+        RefreshProfileCombo(profile.Id);
+    }
+
+    private void OnRemoveProfile(object sender, RoutedEventArgs e)
+    {
+        var selected = SelectedProfile;
+        if (selected is null || selected.Id == _working.ActiveProfileId)
+            return;
+        _working.Profiles.Remove(selected);
+        RefreshProfileCombo(_working.ActiveProfileId);
+    }
+
+    private void OnSwitchProfile(object sender, RoutedEventArgs e)
+    {
+        var selected = SelectedProfile;
+        if (selected is null || selected.Id == _working.ActiveProfileId)
+            return;
+        var confirm = System.Windows.MessageBox.Show(this,
+            $"Switch to profile \"{selected.Name}\"?\n\n" +
+            "MuseDesktop restarts now with that profile's sign-in. " +
+            "Any other unsaved changes in this window are discarded.",
+            "Switch profile", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (confirm != MessageBoxResult.Yes)
+            return;
+        _switchProfile(_working, selected.Id);
+        // The app is exiting for the restart; this window goes with it.
     }
 
     private void OnBrowseDownloadsFolder(object sender, RoutedEventArgs e)

@@ -41,6 +41,13 @@ public sealed class AppSettings
     /// <summary>Suspend the WebView2 renderer after the window has been hidden in the tray for a while, to free memory/CPU. On by default.</summary>
     public bool SuspendWhenInTray { get; set; } = true;
 
+    // Account profiles (v0.3.0).
+    /// <summary>Sign-in profiles; each has its own WebView2 data folder. Always contains at least the default profile (see Profiles.EnsureValid).</summary>
+    public List<AccountProfile> Profiles { get; set; } = new() { new AccountProfile() };
+
+    /// <summary>The profile this launch uses. Switching profiles restarts the app with the other folder.</summary>
+    public string ActiveProfileId { get; set; } = global::MuseDesktop.Core.Profiles.DefaultId;
+
     /// <summary>Last in-app page, restored on launch when it is still a Muse page.</summary>
     public string? LastUrl { get; set; }
 
@@ -50,6 +57,7 @@ public sealed class AppSettings
         WindowWidth = WindowWidth is >= 480 and <= 10000 ? WindowWidth : 1280;
         WindowHeight = WindowHeight is >= 320 and <= 10000 ? WindowHeight : 860;
         ZoomFactor = ZoomMath.Clamp(ZoomFactor);
+        global::MuseDesktop.Core.Profiles.EnsureValid(this);
         if (string.IsNullOrWhiteSpace(DownloadsFolder))
             DownloadsFolder = null;
         else

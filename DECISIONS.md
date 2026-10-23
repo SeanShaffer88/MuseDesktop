@@ -2,6 +2,14 @@
 
 A living log of significant architecture, UX, security, and dependency decisions.
 
+## 2026-10-23 — v0.3.0: account profiles, and an NSIS installer built from the verified artifact
+
+SEAN directed: implement the remaining improvements, and include installers on the next publish.
+
+- **Profiles = separate WebView2 user-data folders**, the only real isolation the platform offers (a folder is a whole browser profile: cookies, storage, cache). The default profile keeps the historic `WebView2` folder — renaming it would sign every existing user out, so the folder scheme is `WebView2` + `WebView2-<id>` siblings. Switching profiles restarts the app (an environment is bound to its folder per process); the relaunch is a detached `cmd` delayed-start after this process exits and frees the single-instance mutex. Profile list invariants are enforced in Core on every load (`Profiles.EnsureValid`), so a hand-edited settings file can't strand the app.
+- **Installer = NSIS, built from the hash-verified CI artifact** (script in `installer/MuseDesktop.nsi`, compiled with makensis at release time from the exact bytes CI produced and this release process hash-checked — the installer never carries separately-built binaries). NSIS over Inno Setup/MSIX because: it compiles cross-platform in the release pipeline, per-user install needs no admin and no signing (MSIX would force the signing question SEAN has ruled out unless required), and SEAN's other projects already use NSIS. **Per-user** install (`%LOCALAPPDATA%\Programs\MuseDesktop`, HKCU uninstall key) matches the app's all-per-user data layout. The uninstaller preserves user data by default with an explicit opt-in delete — the zip flow's behavior, carried into the installer.
+- **Satellite trim:** `SatelliteResourceLanguages=en` — honest small win; full trimming is not safe for WPF and ReadyToRun costs more size than it saves users.
+
 ## 2026-10-23 — The v0.2.0 pack: Settings window, update check, download controls, clear data, tray suspend
 
 SEAN picked the full v0.2.0 bundle from the improvement shortlist. Decisions inside it:

@@ -191,4 +191,69 @@ public class CoreBehaviorTests
         Assert.Null(UpdateInfo.ParseLatestReleaseJson("{}"));
         Assert.Null(UpdateInfo.ParseLatestReleaseJson("not json"));
     }
+
+    // ---- v0.3.0: account profiles ----
+
+    [Fact]
+    public void Profiles_Defaults_OneDefaultProfileActive()
+    {
+        var s = new AppSettings().Sanitized();
+        Assert.Single(s.Profiles);
+        Assert.Equal(Profiles.DefaultId, s.Profiles[0].Id);
+        Assert.Equal(Profiles.DefaultId, s.ActiveProfileId);
+        Assert.Equal("WebView2", Profiles.FolderName(Profiles.DefaultId));
+    }
+
+    [Fact]
+    public void Profiles_EnsureValid_RepairsBrokenLists()
+    {
+        var s = new AppSettings
+        {
+            Profiles = new List<AccountProfile>
+            {
+                new() { Id = "BAD ID!", Name = "x" },
+                new() { Id = "work", Name = "  " },
+                new() { Id = "work", Name = "dup" },
+            },
+            ActiveProfileId = "missing",
+        }.Sanitized();
+        Assert.Equal(2, s.Profiles.Count); // bad dropped, dup dropped, default reinserted
+        Assert.Equal(Profiles.DefaultId, s.Profiles[0].Id);
+        Assert.Equal("Profile", s.Profiles[1].Name);
+        Assert.Equal(Profiles.DefaultId, s.ActiveProfileId);
+        Assert.Equal("WebView2-work", Profiles.FolderName("work"));
+    }
+
+    [Fact]
+    public void Profiles_Roundtrip()
+    {
+        var dir = Directory.CreateTempSubdirectory("musedesktop-tests");
+        try
+        {
+            var path = Path.Combine(dir.FullName, "settings.json");
+            SettingsStore.Save(path, new AppSettings
+            {
+                Profiles = new List<AccountProfile>
+                {
+                    new(),
+                    new() { Id = "work", Name = "Work" },
+                },
+                ActiveProfileId = "work",
+            });
+            var loaded = SettingsStore.Load(path);
+            Assert.Equal(2, loaded.Profiles.Count);
+            Assert.Equal("work", loaded.ActiveProfileId);
+            Assert.Equal("Work", loaded.Profiles[1].Name);
+        }
+        finally { dir.Delete(recursive: true); }
+    }
+
+    [Fact]
+    public void Profiles_NewIdsAreValidAndDistinct()
+    {
+        var a = Profiles.NewId();
+        var b = Profiles.NewId();
+        Assert.True(Profiles.IsValidId(a));
+        Assert.NotEqual(a, b);
+    }
 }

@@ -27,9 +27,15 @@ public static class AppPaths
     public static string LogDir => Path.Combine(RootDir, "logs");
     public static string LogPath => Path.Combine(LogDir, "musedesktop.log");
 
+    /// <summary>WebView2 profile (cookies / local storage — what keeps you signed in) for the default profile; additional profiles get sibling folders (see Profiles.FolderName).</summary>
     public static string WebViewDataDir => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "MuseDesktop", "WebView2");
+
+    /// <summary>The WebView2 data folder for any profile id (v0.3.0).</summary>
+    public static string ProfileDir(string profileId) => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "MuseDesktop", Profiles.FolderName(profileId));
 
     public static string DownloadsHint =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");

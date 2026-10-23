@@ -38,6 +38,23 @@
             <TextBlock Style="{StaticResource Note}"
                        Text="Changes apply when you choose OK. Start-with-Windows writes the usual per-user Run entry; nothing here phones home beyond the update check you control."/>
 
+            <TextBlock Text="Account profiles" Style="{StaticResource SectionHeader}"/>
+            <ComboBox x:Name="ProfileCombo" SelectionChanged="OnProfileSelectionChanged"
+                      ToolTip="Sign-in profiles — each keeps its own Muse session"/>
+            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                <Button x:Name="SwitchProfileButton" Content="Switch to this profile" Width="150" Click="OnSwitchProfile"
+                        ToolTip="Restarts MuseDesktop signed in with the selected profile"/>
+                <Button x:Name="RemoveProfileButton" Content="Remove" Width="76" Margin="8,0,0,0" Click="OnRemoveProfile"
+                        ToolTip="Removes the profile; its local sign-in data is deleted when you choose OK"/>
+            </StackPanel>
+            <DockPanel LastChildFill="True" Margin="0,8,0,0">
+                <Button x:Name="AddProfileButton" DockPanel.Dock="Right" Content="Add" Width="76" Margin="8,0,0,0"
+                        Click="OnAddProfile"/>
+                <TextBox x:Name="NewProfileNameText" ToolTip="Name for a new profile, e.g. Work"/>
+            </DockPanel>
+            <TextBlock Style="{StaticResource Note}"
+                       Text="Each profile is a separate Muse sign-in (its own cookies and data on this PC). Switching restarts the app immediately, discarding other unsaved changes in this window. You can't remove the profile you're currently using."/>
+
             <TextBlock Text="Zoom" Style="{StaticResource SectionHeader}"/>
             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                 <TextBlock Text="Default zoom:" VerticalAlignment="Center" Margin="0,0,8,0"/>

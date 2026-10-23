@@ -43,14 +43,19 @@ public partial class MainWindow : Window
     private DispatcherTimer? _suspendTimer;
     private bool _webSuspended;
 
+    // v0.3.0 — the active profile's WebView2 data folder (per-profile sign-ins).
+    private readonly string _profileDir;
+
     public MainWindow(AppSettings settings, DiagnosticLog log)
     {
         _settings = settings;
         _log = log;
+        _profileDir = AppPaths.ProfileDir(settings.ActiveProfileId);
         InitializeComponent();
         SetWindowIcon();
         ApplySavedPlacement();
         BuildTray();
+        RefreshProfileIndicator();
         Loaded += OnLoaded;
         Closing += OnClosing;
         StateChanged += (_, _) => UpdateTrayMenuState();
@@ -309,10 +314,10 @@ public partial class MainWindow : Window
     {
         try
         {
-            Directory.CreateDirectory(AppPaths.WebViewDataDir);
+            Directory.CreateDirectory(_profileDir);
             var env = await CoreWebView2Environment.CreateAsync(
                 browserExecutableFolder: null,
-                userDataFolder: AppPaths.WebViewDataDir);
+                userDataFolder: _profileDir);
             await Browser.EnsureCoreWebView2Async(env);
         }
         catch (WebView2RuntimeNotFoundException)
@@ -361,6 +366,7 @@ public partial class MainWindow : Window
         core.NewWindowRequested += OnNewWindowRequested;
         core.PermissionRequested += OnPermissionRequested;
         core.DownloadStarting += OnDownloadStarting;
+        core.ContextMenuRequested += OnContextMenuRequested;
         core.DocumentTitleChanged += OnTitleChanged;
         core.SourceChanged += OnSourceChanged;
         core.HistoryChanged += (_, _) => UpdateNavButtons();
@@ -373,7 +379,7 @@ public partial class MainWindow : Window
 
         Browser.ZoomFactor = ZoomMath.Clamp(_settings.ZoomFactor);
         _webReady = true;
-        _log.Info($"WebView2 {envVersion()} ready; profile {AppPaths.WebViewDataDir}");
+        _log.Info($"WebView2 {envVersion()} ready; profile {_profileDir}");
         core.Navigate(_settings.StartupUrl);
         SetStatus("Loading Muse…");
 
@@ -715,9 +721,14 @@ public partial class MainWindow : Window
     private void OnSettings(object sender, RoutedEventArgs e)
     {
         var clone = _settings.Clone();
-        var dialog = new SettingsWindow(clone, _log, ClearBrowsingDataAsync) { Owner = this };
+        var dialog = new SettingsWindow(clone, _log, ClearBrowsingDataAsync, SwitchToProfile) { Owner = this };
         if (dialog.ShowDialog() != true)
             return;
+
+        var removedProfileIds = _settings.Profiles
+            .Select(p => p.Id)
+            .Where(id => clone.Profiles.All(p => p.Id != id))
+            .ToList();
 
         _settings.CloseToTray = clone.CloseToTray;
         _settings.StartWithWindows = clone.StartWithWindows;
@@ -726,13 +737,127 @@ public partial class MainWindow : Window
         _settings.AskWhereToSave = clone.AskWhereToSave;
         _settings.DownloadsFolder = clone.DownloadsFolder;
         _settings.ZoomFactor = clone.ZoomFactor;
+        _settings.Profiles = clone.Profiles;
+        _settings.ActiveProfileId = clone.ActiveProfileId;
+        _settings.Sanitized();
         Autostart.Sync(_settings.StartWithWindows);
         if (_webReady)
             Browser.ZoomFactor = ZoomMath.Clamp(_settings.ZoomFactor);
         if (!_settings.SuspendWhenInTray)
             _suspendTimer?.Stop();
         SaveSettings();
+        RefreshProfileIndicator();
+
+        // Delete the data folders of profiles removed in the dialog — except
+        // the one this process is running (WebView2 holds it open; it stays
+        // orphaned on disk, noted in KNOWN_LIMITATIONS).
+        foreach (var id in removedProfileIds)
+        {
+            if (AppPaths.ProfileDir(id) == _profileDir)
+            {
+                _log.Info($"Profile {id} removed while running; its folder is kept until it is no longer in use");
+                continue;
+            }
+            try
+            {
+                var dir = AppPaths.ProfileDir(id);
+                if (Directory.Exists(dir))
+                    Directory.Delete(dir, recursive: true);
+                _log.Info($"Removed profile {id}; deleted its data folder");
+            }
+            catch (Exception ex)
+            {
+                _log.Warn($"Removing profile {id} folder failed: {ex.Message}");
+            }
+        }
         _log.Info("Settings updated");
+    }
+
+    /// <summary>
+    /// Profile switching restarts the app: a WebView2 environment is bound to
+    /// its data folder for the process lifetime. Persists the dialog's
+    /// profile state, relaunches detached after a short delay (the single-
+    /// instance mutex frees as this process exits), and exits.
+    /// </summary>
+    private void SwitchToProfile(AppSettings workingClone, string targetProfileId)
+    {
+        _settings.Profiles = workingClone.Profiles;
+        _settings.ActiveProfileId = targetProfileId;
+        _settings.Sanitized();
+        SaveSettings();
+        _log.Info($"Switching to profile {targetProfileId}; restarting");
+        try
+        {
+            var exe = Environment.ProcessPath;
+            if (!string.IsNullOrEmpty(exe))
+            {
+                Process.Start(new ProcessStartInfo(
+                    "cmd.exe",
+                    $"/c timeout /t 2 /nobreak > NUL & start \"\" \"{exe}\"")
+                {
+                    CreateNoWindow = true,
+                    UseShellExecute = false,
+                    WindowStyle = ProcessWindowStyle.Hidden,
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Profile-switch relaunch failed (start the app manually): {ex.Message}");
+        }
+        ExitApp();
+    }
+
+    /// <summary>Shows the active profile name in the ⋯ menu and tray tooltip when more than one profile exists.</summary>
+    private void RefreshProfileIndicator()
+    {
+        var active = _settings.Profiles.FirstOrDefault(p => p.Id == _settings.ActiveProfileId);
+        var multi = _settings.Profiles.Count > 1;
+        ProfileItem.Visibility = multi ? Visibility.Visible : Visibility.Collapsed;
+        ProfileSeparator.Visibility = multi ? Visibility.Visible : Visibility.Collapsed;
+        if (multi && active is not null)
+            ProfileItem.Header = $"Profile: {active.Name}";
+        if (_tray is not null)
+            _tray.Text = multi && active is not null ? $"MuseDesktop — {active.Name}" : "MuseDesktop";
+    }
+
+    // ───────────────────────── context menu (v0.3.0) ─────────────────────────
+
+    /// <summary>
+    /// Adds link actions to WebView2's own context menu (which stays
+    /// enabled): right-clicking a link gains "Open link in browser" —
+    /// the same external-browser route the link policy uses — and
+    /// "Copy link address".
+    /// </summary>
+    private void OnContextMenuRequested(object? sender, CoreWebView2ContextMenuRequestedEventArgs e)
+    {
+        try
+        {
+            var target = e.ContextMenuTarget;
+            if (!target.HasLinkUri || string.IsNullOrWhiteSpace(target.LinkUri))
+                return;
+            var linkUri = target.LinkUri;
+            var env = Browser.CoreWebView2.Environment;
+
+            var openItem = env.CreateContextMenuItem(
+                "Open link in browser", null, CoreWebView2ContextMenuItemKind.Command);
+            openItem.CustomItemSelected += (_, _) => OpenExternal(linkUri);
+
+            var copyItem = env.CreateContextMenuItem(
+                "Copy link address", null, CoreWebView2ContextMenuItemKind.Command);
+            copyItem.CustomItemSelected += (_, _) =>
+            {
+                try { System.Windows.Clipboard.SetText(linkUri); }
+                catch { /* clipboard busy — nothing sensible to do */ }
+            };
+
+            e.MenuItems.Insert(0, openItem);
+            e.MenuItems.Insert(1, copyItem);
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Context menu extension failed: {ex.Message}");
+        }
     }
 
     /// <summary>
@@ -847,7 +972,7 @@ public partial class MainWindow : Window
             "A native Windows client for Muse at muse.ai.\n" +
             $"Settings: {AppPaths.SettingsPath}\n" +
             $"Log: {AppPaths.LogPath}\n" +
-            $"Web profile: {AppPaths.WebViewDataDir}\n\n" +
+            $"Web profile: {_profileDir}\n\n" +
             "MuseDesktop is an independent open-source project (MIT) and is not made by Meta.",
             "About MuseDesktop", MessageBoxButton.OK, MessageBoxImage.Information);
     }

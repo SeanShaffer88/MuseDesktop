@@ -14,6 +14,7 @@ Muse ships apps for iOS, Android and macOS, and a web app at muse.ai — but no 
 - **Downloads with progress and control** — files Muse makes for you download with live progress % and an estimated time remaining in the status bar; cancel from the status bar, click a finished download to open it, and choose the folder (or ask-where-to-save) in Settings.
 - **Settings window** — one place (⋯ menu → *Settings…*) for startup behavior, close-to-tray, default zoom, downloads, update checks, tray memory saving, and **clear browsing data / sign out**.
 - **Update notices** — the app checks GitHub Releases once per launch and quietly tells you in the status bar when a newer version is out (you can turn this off in Settings).
+- **Multiple accounts** — profiles (Settings → *Account profiles*) keep separate Muse sign-ins on one PC, each with its own session data; switch from Settings (the app restarts into the chosen profile).
 - **Sensible link handling** — Muse and sign-in pages stay in the app; ordinary web links from chats open in your default browser; dangerous schemes (`file:`, `javascript:`, …) are refused.
 - **Voice and alerts** — Muse origins get microphone (voice dictation) and notification permission; every other permission request is denied rather than silently granted.
 - **Keyboard-friendly** — Back/Forward/Reload/Home in the toolbar, zoom controls with a % readout (Ctrl + / − / 0), F11 full screen, and standard browser accelerators inside the page.
@@ -41,10 +42,11 @@ Still to capture from a real run:
 
 ## Install
 
-1. Download `MuseDesktop-vX.Y.Z-windows-x64.zip` from the [Releases](../../releases) page and unzip it anywhere.
-2. Run `MuseDesktop.exe`.
+**Installer (recommended):** download `MuseDesktop-Setup-vX.Y.Z.exe` from the [Releases](../../releases) page and run it. It's a per-user install (no admin needed): program in `%LOCALAPPDATA%\Programs\MuseDesktop`, a Start Menu shortcut, and an entry in Apps & Features for uninstalling. Uninstalling keeps your settings and sign-in data unless you choose to delete them when asked.
 
-The app is not code-signed yet, so Windows SmartScreen may warn on first run — choose **More info → Run anyway**. To uninstall, exit the app and delete its folder; your data folders (`%APPDATA%\MuseDesktop` and `%LOCALAPPDATA%\MuseDesktop`) can be deleted too, which also signs you out.
+**Portable zip:** download `MuseDesktop-vX.Y.Z-windows-x64.zip`, unzip anywhere, and run `MuseDesktop.exe`.
+
+Either way: the app is not code-signed yet, so Windows SmartScreen may warn on first run — choose **More info → Run anyway**. Your data folders (`%APPDATA%\MuseDesktop` and `%LOCALAPPDATA%\MuseDesktop`) hold settings and sign-in profiles; deleting them signs you out.
 
 ## Where things live
 

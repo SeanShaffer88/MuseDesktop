@@ -22,6 +22,12 @@ Run before publishing any release. CI covers the automated half; this is the on-
 - [ ] **v0.2.0 — Clear data:** Settings → *Clear browsing data and sign out* → confirm → Muse asks for sign-in again; chats intact after signing back in
 - [ ] **v0.2.0 — Tray suspend:** hide to tray, wait 6+ minutes, reopen: window returns, page works (send a message); log shows "suspended" then "resumed" lines
 - [ ] **v0.2.0 — Update notice:** run the *previous* release (v0.1.3) once this release is published: status bar offers the update and the ⋯ item opens the release page; ⋯ → *Check for updates* on the new build reports "up to date"
+- [ ] **v0.3.0 — Profiles:** Settings → add a "Work" profile → switch: app restarts, Muse asks for sign-in; sign in with a different account; switch back to Default: original session intact. ⋯ menu shows "Profile: …" and the tray tooltip names the profile
+- [ ] **v0.3.0 — Profiles:** remove the non-active profile → OK → its `WebView2-<id>` folder under `%LOCALAPPDATA%\MuseDesktop` is gone
+- [ ] **v0.3.0 — Context menu:** right-click a link in a chat → *Open link in browser* opens it externally; *Copy link address* puts the URL on the clipboard
+- [ ] **v0.3.0 — Installer:** run `MuseDesktop-Setup-vX.Y.Z.exe`: installs without admin, app launches from the finish page, Start Menu shortcut works; Apps & Features lists MuseDesktop with the right version
+- [ ] **v0.3.0 — Installer:** run the installer again (upgrade): completes over the existing install, still signed in afterwards
+- [ ] **v0.3.0 — Installer:** uninstall answering No to data deletion: program gone, `%APPDATA%\MuseDesktop` settings remain; uninstall again answering Yes: data folders gone too
 - [ ] Download a file Muse produced: status bar shows % and ETA, file lands in Downloads, completion is reported
 - [ ] Click an ordinary web link in a chat: opens in the default browser, not in the app
 - [ ] Voice: microphone is granted to muse.ai without extra prompts; dictation works

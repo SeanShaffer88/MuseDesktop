@@ -10,7 +10,10 @@
     <LangVersion>latest</LangVersion>
     <AssemblyName>MuseDesktop</AssemblyName>
     <RootNamespace>MuseDesktop</RootNamespace>
-    <Version>0.2.0</Version>
+    <Version>0.3.0</Version>
+    <!-- Ship only English satellite assemblies: the shell UI is English-only,
+         and the self-contained runtime otherwise adds a folder per culture. -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <Authors>Sean Shaffer</Authors>
     <Description>A native Windows desktop client for Muse (muse.ai).</Description>
     <ApplicationIcon>muse.ico</ApplicationIcon>

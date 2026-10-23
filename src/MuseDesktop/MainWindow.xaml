@@ -45,6 +45,8 @@
                             ToolTip="More options" Click="OnMenu" AutomationProperties.Name="More options">
                         <Button.ContextMenu>
                             <ContextMenu x:Name="MoreMenu">
+                                <MenuItem x:Name="ProfileItem" Header="Profile: Default" IsEnabled="False" Visibility="Collapsed"/>
+                                <Separator x:Name="ProfileSeparator" Visibility="Collapsed"/>
                                 <MenuItem Header="Settings…" Click="OnSettings"
                                           ToolTip="Startup, downloads, updates, memory, and data options"/>
                                 <MenuItem x:Name="UpdateItem" Header="Check for updates" Click="OnCheckForUpdates"
