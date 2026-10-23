@@ -6,6 +6,10 @@ Muse ships apps for iOS, Android and macOS, and a web app at muse.ai — but no 
 
 > MuseDesktop is an independent open-source project. It is not made by, endorsed by, or affiliated with Meta. "Muse" is a product of Meta; this app simply displays muse.ai in a native window.
 
+## TL;DR
+
+Muse has no Windows app, so this is one: a small native program that opens muse.ai in its own window, keeps you signed in, and lives in the system tray. It adds the desktop touches a browser tab can't — downloads with progress and cancel, multiple sign-in profiles, a settings window, update notices, and sensible link handling. Free, open source (MIT), no telemetry; you only need Windows 10/11 and the WebView2 Runtime (usually already installed). Download the installer from Releases and run it.
+
 ## What you get
 
 - **A real app, not a tab** — its own window, taskbar icon, and Alt-Tab entry; no browser chrome competing for space.
@@ -15,7 +19,7 @@ Muse ships apps for iOS, Android and macOS, and a web app at muse.ai — but no 
 - **Settings window** — one place (⋯ menu → *Settings…*) for startup behavior, close-to-tray, default zoom, downloads, update checks, tray memory saving, and **clear browsing data / sign out**.
 - **Update notices** — the app checks GitHub Releases once per launch and quietly tells you in the status bar when a newer version is out (you can turn this off in Settings).
 - **Multiple accounts** — profiles (Settings → *Account profiles*) keep separate Muse sign-ins on one PC, each with its own session data; switch from Settings (the app restarts into the chosen profile).
-- **Sensible link handling** — Muse and sign-in pages stay in the app; ordinary web links from chats open in your default browser; dangerous schemes (`file:`, `javascript:`, …) are refused.
+- **Sensible link handling** — Muse and sign-in pages stay in the app; ordinary web links from chats open in your default browser; dangerous schemes (`file:`, `javascript:`, …) are refused. Right-clicking a link adds *Open link in browser* and *Copy link address*.
 - **Voice and alerts** — Muse origins get microphone (voice dictation) and notification permission; every other permission request is denied rather than silently granted.
 - **Keyboard-friendly** — Back/Forward/Reload/Home in the toolbar, zoom controls with a % readout (Ctrl + / − / 0), F11 full screen, and standard browser accelerators inside the page.
 - **Private by construction** — no telemetry, no accounts of its own, no data collection. The only files it writes are its settings, a rolling local log, and the WebView2 profile (cookies/local storage) — all under your user profile, all deletable by you at any time.
@@ -54,7 +58,7 @@ Either way: the app is not code-signed yet, so Windows SmartScreen may warn on f
 | --- | --- |
 | Settings | `%APPDATA%\MuseDesktop\settings.json` |
 | Diagnostic log | `%APPDATA%\MuseDesktop\logs\musedesktop.log` (1 MB, single rollover; URLs are logged host-and-path only, never with query strings) |
-| Web profile (login session) | `%LOCALAPPDATA%\MuseDesktop\WebView2` |
+| Web profile (login session) | `%LOCALAPPDATA%\MuseDesktop\WebView2` for the default profile; extra profiles get sibling folders (`WebView2-<id>`) |
 | Downloads | Your Downloads folder, or the folder chosen in Settings |
 
 ## Keyboard shortcuts
@@ -78,7 +82,11 @@ dotnet test tests\MuseDesktop.Core.Tests -c Release
 dotnet publish src\MuseDesktop\MuseDesktop.csproj -c Release -r win-x64 --self-contained true
 ```
 
-Architecture: `MuseDesktop.Core` holds all testable logic (URL policy, settings, zoom, update checks, paths, logging) as plain .NET 10 with no Windows dependencies; the WPF app in `src\MuseDesktop` is a thin shell over Microsoft's WebView2 control. See [DECISIONS.md](DECISIONS.md) and [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md).
+Architecture: `MuseDesktop.Core` holds all testable logic (URL policy, settings, profiles, zoom, update checks, paths, logging) as plain .NET 10 with no Windows dependencies; the WPF app in `src\MuseDesktop` is a thin shell over Microsoft's WebView2 control. See [DECISIONS.md](DECISIONS.md) and [KNOWN_LIMITATIONS.md](KNOWN_LIMITATIONS.md).
+
+## Contributing
+
+Issues and pull requests are welcome. Keep changes small and focused, put testable logic in `MuseDesktop.Core` with tests, and run the project gate before opening a PR: `dotnet build MuseDesktop.sln -c Release` with zero errors and the full core test suite passing (see [AGENTS.md](AGENTS.md)). By contributing, you agree your work ships under the project's MIT license.
 
 ## License
 
