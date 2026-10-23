@@ -256,7 +256,9 @@ public partial class MainWindow : Window
                     && Uri.TryCreate(source, UriKind.Absolute, out var u)
                     && UrlPolicy.IsInAppHost(u.Host))
                 {
-                    _settings.LastUrl = source;
+                    // Per-profile restore (v0.3.1): never record one
+                    // profile's page as another profile's start page.
+                    _settings.LastUrlByProfile[_settings.ActiveProfileId] = source;
                 }
             }
             SettingsStore.Save(AppPaths.SettingsPath, _settings);

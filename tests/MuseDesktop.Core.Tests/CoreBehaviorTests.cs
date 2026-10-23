@@ -46,7 +46,10 @@ public class CoreBehaviorTests
                 WindowMaximized = true,
                 ZoomFactor = 1.25,
                 CloseToTray = true,
-                LastUrl = "https://muse.ai/chat/xyz",
+                LastUrlByProfile = new Dictionary<string, string>
+                {
+                    [Profiles.DefaultId] = "https://muse.ai/chat/xyz",
+                },
             };
             SettingsStore.Save(path, saved);
             Assert.False(File.Exists(path + ".tmp"), "atomic save must not leave the temp file behind");
@@ -57,7 +60,7 @@ public class CoreBehaviorTests
             Assert.True(loaded.WindowMaximized);
             Assert.Equal(1.25, loaded.ZoomFactor);
             Assert.True(loaded.CloseToTray);
-            Assert.Equal("https://muse.ai/chat/xyz", loaded.LastUrl);
+            Assert.Equal("https://muse.ai/chat/xyz", loaded.ActiveLastUrl);
             Assert.Equal("https://muse.ai/chat/xyz", loaded.StartupUrl);
         }
         finally { dir.Delete(recursive: true); }
@@ -97,6 +100,55 @@ public class CoreBehaviorTests
         Assert.Equal(860, s.WindowHeight);
         Assert.Equal(2.0, s.ZoomFactor);
         Assert.Null(s.LastUrl);
+        Assert.Empty(s.LastUrlByProfile);
+    }
+
+    // ---- v0.3.1: per-profile session restore ----
+
+    [Fact]
+    public void Settings_MigratesLegacyLastUrlToDefaultProfile()
+    {
+        var s = new AppSettings { LastUrl = "https://muse.ai/chat/legacy" }.Sanitized();
+        Assert.Null(s.LastUrl);
+        Assert.Equal("https://muse.ai/chat/legacy", s.LastUrlByProfile[Profiles.DefaultId]);
+        Assert.Equal("https://muse.ai/chat/legacy", s.StartupUrl);
+    }
+
+    [Fact]
+    public void Settings_LastUrl_IsPerProfile()
+    {
+        var s = new AppSettings
+        {
+            Profiles = new List<AccountProfile>
+            {
+                new(),
+                new() { Id = "work", Name = "Work" },
+            },
+            LastUrlByProfile = new Dictionary<string, string>
+            {
+                [Profiles.DefaultId] = "https://muse.ai/chat/personal",
+                ["work"] = "https://muse.ai/chat/workchat",
+            },
+            ActiveProfileId = "work",
+        }.Sanitized();
+        Assert.Equal("https://muse.ai/chat/workchat", s.StartupUrl);
+        s.ActiveProfileId = Profiles.DefaultId;
+        Assert.Equal("https://muse.ai/chat/personal", s.StartupUrl);
+    }
+
+    [Fact]
+    public void Settings_Sanitized_DropsForeignPerProfileUrls()
+    {
+        var s = new AppSettings
+        {
+            LastUrlByProfile = new Dictionary<string, string>
+            {
+                [Profiles.DefaultId] = "https://example.com/nope",
+                ["work"] = "https://muse.ai/chat/ok",
+            },
+        }.Sanitized();
+        Assert.False(s.LastUrlByProfile.ContainsKey(Profiles.DefaultId));
+        Assert.Equal("https://muse.ai/chat/ok", s.LastUrlByProfile["work"]);
     }
 
     [Fact]

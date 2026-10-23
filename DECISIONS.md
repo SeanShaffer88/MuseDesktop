@@ -2,6 +2,11 @@
 
 A living log of significant architecture, UX, security, and dependency decisions.
 
+## 2026-10-23 — Per-profile last page; single-file publishing measured and rejected (v0.3.1)
+
+- **Last page is per-profile state, not app state.** v0.3.0's profiles shared `LastUrl`, leaking one account's last chat into another account's launch. Session state follows the profile (like cookies do); preferences (zoom, downloads) stay shared. Migration is one-way and lossless: the legacy value becomes the default profile's entry in `Sanitized()`, so no downgrade/upgrade dance can resurrect the leak.
+- **Single-file publish: rejected on measurement.** `PublishSingleFile + EnableCompressionInSingleFile` produces a 69.8 MB exe vs the 70.3 MB folder zip — the "saving" is rounding error, and it buys temp-extraction on every launch plus a WebView2Loader resolution risk we can't runtime-test from the build VM. Revisit only if the runtime payload shrinks materially (e.g. a future .NET trimming story for WPF).
+
 ## 2026-10-23 — v0.3.0: account profiles, and an NSIS installer built from the verified artifact
 
 SEAN directed: implement the remaining improvements, and include installers on the next publish.

@@ -2,6 +2,23 @@
 
 Run before publishing any release. CI covers the automated half; this is the on-machine half that automation can't prove — it exists because v0.1.0 passed every automated check and crashed on first launch.
 
+## Catch-up pass — v0.2.0 + v0.3.0 + v0.3.1 behaviors (one sitting, ~25 minutes)
+
+The per-release items below accumulated faster than on-machine passes ran. This ordered pass clears the whole backlog against the current release; after it, delete this section and rely on the per-release items again.
+
+1. Install the current release with the **installer** (per-user, no admin prompt). Launch from the finish page; sign in.
+2. **Update notifier loop:** install v0.1.3 from its release, launch once — the status bar should offer v0.2.0+ and the ⋯ item should open the release page. Then install current: ⋯ → *Check for updates* reports "up to date".
+3. **Downloads:** have Muse produce a file. Watch % + ETA; cancel with ✕ and confirm the partial file/state is sane; download again, click the completion line to open the file. In Settings, set a custom downloads folder → next file lands there; enable *Ask where to save* → Save-As appears, and cancelling it cancels the download.
+4. **Settings window:** toggle close-to-tray off → window close quits; back on → hides to tray with the one-time balloon. Start-with-Windows on → sign out/in of Windows → app arrives in the tray; off → Run entry removed. Change default zoom → applies on OK; reopen, change, Cancel → nothing changed.
+5. **Tray suspend:** hide to tray, wait 6+ minutes, reopen — log shows "suspended" then "resumed"; send a message to confirm the page is alive.
+6. **Clear data:** Settings → *Clear browsing data and sign out* → confirm → Muse asks for sign-in; sign back in; chats intact.
+7. **Profiles:** add a "Work" profile, switch (app restarts) — separate sign-in; browse to a chat; switch back to Default — the *original* profile restores *its own* last page, not Work's (v0.3.1). ⋯ menu shows "Profile: …"; tray tooltip names the active profile.
+8. **Context menu:** right-click a link in a chat → *Open link in browser* works; *Copy link address* pastes the URL.
+9. **Base behaviors:** tray Open/Reload/Exit + double-click; second launch wakes the window; voice dictation; F11 + Esc; resize/move → relaunch restores placement and zoom.
+10. **Installer lifecycle:** run the installer again (upgrade) → still signed in; uninstall answering **No** → program gone, data remains; reinstall, uninstall answering **Yes** → `%APPDATA%\MuseDesktop` and profile folders gone.
+11. **Screenshots** (README list): ⋯ menu, download in flight, tray menu, Settings window — supply to the maintainer for the README.
+12. **Log review:** `%APPDATA%\MuseDesktop\logs\musedesktop.log` — startup lines present, no ERROR entries beyond explained ones.
+
 ## Automated (CI must be green first)
 
 - [ ] Build (Release) — 0 errors

@@ -1,5 +1,22 @@
 # Changelog
 
+All notable changes to MuseDesktop. Format follows Keep a Changelog; versions use semantic versioning.
+
+## [0.3.1] — 2026-10-23
+
+### Fixed
+
+- **Session restore is now per profile.** In v0.3.0 the "reopen the last page" setting was shared across profiles, so switching accounts reopened the *other* account's last Muse page — wrong-account content or a dead chat link, since chat URLs are account-scoped. Each profile now restores its own last page (`LastUrlByProfile` in settings); the old shared value migrates into the default profile on first load. New Core tests cover migration, isolation, and invalid-entry cleanup (suite now 86).
+
+### Added
+
+- `RELEASE_CHECKLIST.md` gains a consolidated **catch-up pass**: one ordered ~25-minute on-machine session that clears the accumulated v0.2.0–v0.3.1 runtime-verification backlog.
+
+### Notes
+
+- Evaluated and **not** adopted: single-file compressed publishing. Measured locally, the single-file exe is 69.8 MB versus the current 70.3 MB zip — a saving too small to pay for the extraction startup cost and WebView2-loader risk. The v0.3.0 satellite trim remains the size story.
+- No other behavior changes. This is also the update notifier's first live test: v0.3.0 installs should offer this release in the status bar.
+
 ## [0.3.0] — 2026-10-23
 
 ### Added

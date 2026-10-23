@@ -48,8 +48,19 @@ public sealed class AppSettings
     /// <summary>The profile this launch uses. Switching profiles restarts the app with the other folder.</summary>
     public string ActiveProfileId { get; set; } = global::MuseDesktop.Core.Profiles.DefaultId;
 
-    /// <summary>Last in-app page, restored on launch when it is still a Muse page.</summary>
+    /// <summary>Legacy shared last-page (pre-v0.3.1). Migrated into LastUrlByProfile for the default profile on load, then cleared.</summary>
     public string? LastUrl { get; set; }
+
+    /// <summary>
+    /// Last in-app page per profile (v0.3.1). Session restore is per
+    /// profile on purpose: Muse chat URLs are account-scoped, so one
+    /// profile must never reopen another profile's last page.
+    /// </summary>
+    public Dictionary<string, string> LastUrlByProfile { get; set; } = new();
+
+    /// <summary>The active profile's last page, or null.</summary>
+    public string? ActiveLastUrl =>
+        LastUrlByProfile.TryGetValue(ActiveProfileId, out var url) ? url : null;
 
     /// <summary>Clamp/repair values that cannot be trusted (hand-edited or corrupt files).</summary>
     public AppSettings Sanitized()
@@ -62,17 +73,31 @@ public sealed class AppSettings
             DownloadsFolder = null;
         else
             DownloadsFolder = DownloadsFolder.Trim();
-        if (LastUrl is not null &&
-            (UrlPolicy.ClassifyNavigation(LastUrl) != LinkDisposition.InApp ||
-             !UrlPolicy.IsInAppHost(new Uri(LastUrl).Host)))
+        LastUrlByProfile ??= new Dictionary<string, string>();
+        // Migrate the pre-v0.3.1 shared last page into the default profile.
+        if (LastUrl is not null)
         {
+            if (IsRestorableUrl(LastUrl) && !LastUrlByProfile.ContainsKey(global::MuseDesktop.Core.Profiles.DefaultId))
+                LastUrlByProfile[global::MuseDesktop.Core.Profiles.DefaultId] = LastUrl;
             LastUrl = null;
+        }
+        // Drop per-profile entries that are not restorable Muse pages.
+        foreach (var key in LastUrlByProfile.Keys.ToList())
+        {
+            if (!IsRestorableUrl(LastUrlByProfile[key]))
+                LastUrlByProfile.Remove(key);
         }
         return this;
     }
 
-    /// <summary>The page to open at launch: the restored page when valid, else home.</summary>
-    public string StartupUrl => LastUrl ?? UrlPolicy.HomeUrl;
+    private static bool IsRestorableUrl(string? url) =>
+        url is not null &&
+        UrlPolicy.ClassifyNavigation(url) == LinkDisposition.InApp &&
+        Uri.TryCreate(url, UriKind.Absolute, out var u) &&
+        UrlPolicy.IsInAppHost(u.Host);
+
+    /// <summary>The page to open at launch: the active profile's restored page when valid, else home.</summary>
+    public string StartupUrl => ActiveLastUrl ?? UrlPolicy.HomeUrl;
 
     /// <summary>Deep copy (JSON round-trip) — the Settings window edits a clone so Cancel can discard cleanly.</summary>
     public AppSettings Clone() =>
