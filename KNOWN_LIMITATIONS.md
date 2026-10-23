@@ -25,7 +25,7 @@ Honest list of what MuseDesktop does not do or has not proven yet. Kept current 
 
 ## Documentation
 
-- **README screenshots are partially complete.** The main-window shot (real v0.1.2 run, conversations blurred) is wired in; the remaining captures (⋯ menu, download progress, tray menu) are listed in the README's Screenshots section and land as they're captured. No placeholder imagery is used.
+- **README screenshots are partially complete.** The main-window shot (real v0.3.1 run, conversations blurred) and the Settings window are wired in; the remaining captures (⋯ menu, download progress, tray menu) are listed in the README's Screenshots section and land as they're captured. No placeholder imagery is used.
 
 ## Accessibility notes
 

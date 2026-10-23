@@ -27,16 +27,19 @@ Muse has no Windows app, so this is one: a small native program that opens muse.
 
 ## Screenshots
 
-The main window, signed in to Muse — from a real run of v0.1.2 on Windows (conversation content blurred):
+The main window, signed in to Muse — from a real run of v0.3.1 on Windows (conversation content blurred):
 
 ![MuseDesktop main window](docs/screenshots/main-window.png)
+
+The Settings window, from the same machine — behavior, account profiles, zoom, downloads, and data controls:
+
+![MuseDesktop Settings window](docs/screenshots/settings.png)
 
 Still to capture from a real run:
 
 1. The **⋯** (More options) menu open, showing Settings… / Check for updates.
 2. A file downloading from Muse, showing the status-bar progress % and ETA (and the ✕ cancel button).
 3. The tray icon's right-click menu.
-4. The Settings window (since v0.2.0).
 
 ## Requirements
 
