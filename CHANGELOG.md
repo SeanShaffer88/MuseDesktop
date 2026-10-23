@@ -2,6 +2,20 @@
 
 All notable changes to MuseDesktop. Format follows Keep a Changelog; versions use semantic versioning.
 
+## [0.1.3] — 2026-10-23
+
+### Changed
+
+- **Closing the window now minimizes to the tray by default.** Set by SEAN after v0.1.2's on-machine verification — a Muse client is a resident app, and the tray is its home. The **⋯** menu's *Close window to tray* toggle still turns it off. Note for existing installs: the setting is stored per user, so an install that already saved a preference keeps it — the new default applies to fresh installs (and the toggle is one click either way).
+
+### Added
+
+- README screenshot of the main window from a real v0.1.2 run (conversation content blurred for publication).
+
+### Verified
+
+- **v0.1.2 confirmed working on a real Windows machine (2026-10-23):** clean startups in the log (`WebView2 155.0.4283.62 ready`, no errors), sign-in and voice confirmed by the user. This closes the runtime-verification gate the 0.1.x line had been carrying since the v0.1.0 startup crash.
+
 ## [0.1.2] — 2026-10-21
 
 ### Changed

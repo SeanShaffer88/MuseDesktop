@@ -2,6 +2,10 @@
 
 A living log of significant architecture, UX, security, and dependency decisions.
 
+## 2026-10-23 — Close minimizes to tray by default (v0.1.3)
+
+v0.1.2 passed its on-machine verification (clean startup log, sign-in and voice confirmed by SEAN). His direction from that session: **closing the window minimizes to the tray by default** — MuseDesktop is a resident companion app, so the X means "put it away," and Exit lives on the tray menu where it always has. The default applies to fresh installs; existing installs keep their saved preference (settings are per-user and the ⋯ toggle is one click). If real-world feedback says the default confuses people, it's a one-line change in `AppSettings`.
+
 ## 2026-10-21 — Public product; .NET 10; self-contained download (v0.1.2)
 
 SEAN set the audience to **public product** (not personal tool) and approved the review's top recommendations. Consequences:

@@ -1,10 +1,11 @@
 # Known limitations
 
-Honest list of what v0.1.0 does not do or has not proven yet. Kept current as work proceeds.
+Honest list of what MuseDesktop does not do or has not proven yet. Kept current as work proceeds.
 
-## Unverified (release gate)
+## Verification status
 
-- **No on-machine Windows run yet.** CI compiles the app and runs the core-logic tests on a Windows runner, but nobody has launched the exe on a real Windows 10/11 PC: sign-in flow, tray behavior, close-to-tray, autostart, downloads, voice permission, and full-screen are all **unverified at runtime** until that first manual session. Do not treat CI green as "it works".
+- **Verified on a real Windows machine (2026-10-23, v0.1.2):** startup (clean log, WebView2 ready), sign-in, and voice — confirmed by the user with the app log. (v0.1.0 crashed at startup; v0.1.1 fixed it; v0.1.2 is the first fully verified line.)
+- **Still unverified at runtime:** tray menu items exercised end-to-end, close-to-tray, Start-with-Windows autostart, a completed download with progress/ETA, and F11 full screen — these run through `RELEASE_CHECKLIST.md` on the next on-machine pass. CI green alone is never treated as "it works".
 
 ## Behavior
 
@@ -19,8 +20,8 @@ Honest list of what v0.1.0 does not do or has not proven yet. Kept current as wo
 
 ## Documentation
 
-- **README screenshots are outstanding.** Per project convention, screenshots come from a real run on SEAN's Windows machine; the capture list lives in the README's Screenshots section. No screenshots are included until those captures exist — the section is a list, not placeholder imagery.
+- **README screenshots are partially complete.** The main-window shot (real v0.1.2 run, conversations blurred) is wired in; the remaining captures (⋯ menu, download progress, tray menu) are listed in the README's Screenshots section and land as they're captured. No placeholder imagery is used.
 
 ## Accessibility notes
 
-- Toolbar buttons carry tooltips and AutomationProperties names, and zoom level is text (not color-only). A full screen-reader pass over the shell and a keyboard-only end-to-end run are still outstanding (they need the on-machine session above).
+- Toolbar buttons carry tooltips and AutomationProperties names, and zoom level is text (not color-only). A full screen-reader pass over the shell and a keyboard-only end-to-end run are still outstanding.

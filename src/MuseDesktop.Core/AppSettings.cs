@@ -20,8 +20,8 @@ public sealed class AppSettings
 
     public double ZoomFactor { get; set; } = 1.0;
 
-    /// <summary>When true, closing the window hides to the tray instead of exiting.</summary>
-    public bool CloseToTray { get; set; }
+    /// <summary>When true, closing the window hides to the tray instead of exiting. Default since v0.1.3 (SEAN's direction after field verification); existing installs keep their saved value.</summary>
+    public bool CloseToTray { get; set; } = true;
 
     /// <summary>Start with Windows (HKCU Run). Off by default; user opt-in only.</summary>
     public bool StartWithWindows { get; set; }

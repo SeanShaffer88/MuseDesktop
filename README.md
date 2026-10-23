@@ -10,7 +10,7 @@ Muse ships apps for iOS, Android and macOS, and a web app at muse.ai — but no 
 
 - **A real app, not a tab** — its own window, taskbar icon, and Alt-Tab entry; no browser chrome competing for space.
 - **Stay signed in** — a dedicated WebView2 profile on your PC keeps your Muse session between launches, and the app reopens the last Muse page you were on.
-- **Tray support** — always-available tray icon (Open / Reload / Exit); optional *Close window to tray* and *Start with Windows* (quiet tray launch) in the **⋯** menu.
+- **Tray support** — always-available tray icon (Open / Reload / Exit); closing the window minimizes to the tray by default (toggle *Close window to tray* in the **⋯** menu); optional *Start with Windows* (quiet tray launch).
 - **Downloads with progress** — files Muse makes for you download into your Downloads folder with live progress % and an estimated time remaining in the status bar, instead of a browser flyout.
 - **Sensible link handling** — Muse and sign-in pages stay in the app; ordinary web links from chats open in your default browser; dangerous schemes (`file:`, `javascript:`, …) are refused.
 - **Voice and alerts** — Muse origins get microphone (voice dictation) and notification permission; every other permission request is denied rather than silently granted.
@@ -20,12 +20,15 @@ Muse ships apps for iOS, Android and macOS, and a web app at muse.ai — but no 
 
 ## Screenshots
 
-Captures from a real run will be added here. Needed shots (from SEAN's Windows machine — this project's GUI can't be rendered in the build environment, and no placeholder images are used):
+The main window, signed in to Muse — from a real run of v0.1.2 on Windows (conversation content blurred):
 
-1. Main window signed in to Muse, full window at 100% scaling — black/red toolbar visible.
-2. The **⋯** (More options) menu open, showing Close to tray / Start with Windows.
-3. A file downloading from Muse, showing the status-bar progress % and ETA.
-4. The tray icon's right-click menu.
+![MuseDesktop main window](docs/screenshots/main-window.png)
+
+Still to capture from a real run:
+
+1. The **⋯** (More options) menu open, showing Close to tray / Start with Windows.
+2. A file downloading from Muse, showing the status-bar progress % and ETA.
+3. The tray icon's right-click menu.
 
 ## Requirements
 
