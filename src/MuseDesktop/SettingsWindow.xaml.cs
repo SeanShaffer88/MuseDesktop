@@ -43,11 +43,45 @@ public partial class SettingsWindow : Window
         _switchProfile = switchProfile;
         InitializeComponent();
 
+        // S5 #48: reopen at the remembered size; the last section is
+        // restored on Loaded (once layout exists to scroll).
+        Width = _working.SettingsWindowWidth;
+        if (_working.SettingsWindowHeight > 0)
+            Height = _working.SettingsWindowHeight;
+        SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(this);
+        Loaded += OnSettingsLoaded;
+
+        // The section registry (S5 #41/#48): id ↔ container ↔ header,
+        // in layout order — shared by search and the scroll tracker.
+        _sections = new (string, System.Windows.Controls.StackPanel, System.Windows.Controls.TextBlock)[]
+        {
+            (SettingsSearch.BehaviorId, SectionBehavior, HeaderBehavior),
+            (SettingsSearch.TrayId, SectionTray, HeaderTray),
+            (SettingsSearch.ProfilesId, SectionProfiles, HeaderProfiles),
+            (SettingsSearch.AppearanceId, SectionAppearance, HeaderAppearance),
+            (SettingsSearch.ZoomId, SectionZoom, HeaderZoom),
+            (SettingsSearch.DownloadsId, SectionDownloads, HeaderDownloads),
+            (SettingsSearch.DataId, SectionData, HeaderData),
+        };
+
         foreach (var step in ZoomMath.Steps)
         {
             ZoomCombo.Items.Add(ZoomMath.FormatPercent(step));
             ProfileZoomCombo.Items.Add(ZoomMath.FormatPercent(step));
         }
+
+        // S5 (#43/#44/#46): theme choices in ThemeMode order, accent
+        // keys parallel to AccentCombo's items, text-scale factors.
+        ThemeCombo.Items.Add("Dark");
+        ThemeCombo.Items.Add("Light");
+        ThemeCombo.Items.Add("Follow Windows");
+        foreach (var (key, _, _) in AccentPalette.Palette)
+        {
+            _accentKeys.Add(key);
+            AccentCombo.Items.Add(key);
+        }
+        foreach (var factor in ShellTextScale.Allowed)
+            TextScaleCombo.Items.Add(ShellTextScale.FormatPercent(factor));
 
         // S3 #24: accent-color choices — "None" then the fixed palette.
         _colorKeys.Add(null);
@@ -111,7 +145,22 @@ public partial class SettingsWindow : Window
         var current = ZoomMath.FormatPercent(_working.ZoomFactor);
         ZoomCombo.SelectedItem = ZoomCombo.Items.Contains(current) ? current : "100%";
 
+        // S5: appearance controls + the toolbar editor + the data note.
+        ThemeCombo.SelectedIndex = (int)_working.Theme;
+        var accentIndex = _accentKeys.IndexOf(_working.AccentColor);
+        AccentCombo.SelectedIndex = accentIndex >= 0 ? accentIndex : 0;
+        TextScaleCombo.SelectedItem = ShellTextScale.FormatPercent(_working.ShellFontScale);
+        RebuildToolbarEditor();
+        PortableNote.Text = AppPaths.IsPortable
+            ? $"Portable mode is ON: settings, download history, and logs live in {AppPaths.RootDir} — a data folder beside the app. Sign-in data still lives in your user profile (see README, “Where things live”)."
+            : $"Settings, download history, and logs live in {AppPaths.RootDir}. For portable use, put an empty file named portable.txt beside MuseDesktop.exe and restart: settings then live in a data folder beside the app and start fresh there — nothing is moved automatically.";
+
         RefreshProfileCombo(_working.ActiveProfileId);
+
+        // S5 #46: the Settings window's own text follows the scale
+        // (re-applied after every LoadControls — the design sizes are
+        // remembered, so this never compounds).
+        ShellTextScaling.Apply(this, _working.ShellFontScale);
     }
 
     /// <summary>Read the plain controls back into the working settings (OK and Export share this).</summary>
@@ -146,6 +195,24 @@ public partial class SettingsWindow : Window
         {
             _working.ZoomFactor = value / 100.0;
         }
+        // S5 appearance (the toolbar layout itself is write-through —
+        // see the toolbar editor handlers).
+        if (ThemeCombo.SelectedIndex >= 0 && ThemeCombo.SelectedIndex <= (int)Core.ThemeMode.FollowSystem)
+            _working.Theme = (Core.ThemeMode)ThemeCombo.SelectedIndex;
+        if (AccentCombo.SelectedIndex >= 0 && AccentCombo.SelectedIndex < _accentKeys.Count)
+            _working.AccentColor = _accentKeys[AccentCombo.SelectedIndex];
+        if (TextScaleCombo.SelectedItem is string scaleText &&
+            int.TryParse(scaleText.TrimEnd('%'), out var scaleValue))
+        {
+            _working.ShellFontScale = scaleValue / 100.0;
+        }
+        // S5 #48: remember where Settings was left (size + section).
+        if (ActualWidth > 0)
+            _working.SettingsWindowWidth = ActualWidth;
+        if (ActualHeight > 0)
+            _working.SettingsWindowHeight = ActualHeight;
+        if (_currentSectionId is not null)
+            _working.SettingsLastSection = _currentSectionId;
     }
 
     // ───────────────────────── profiles (v0.3.0) ─────────────────────────
@@ -194,10 +261,18 @@ public partial class SettingsWindow : Window
                                          && selected.Id != _working.ActiveProfileId
                                          && _working.Profiles.Count > 1;
         CreateShortcutButton.IsEnabled = selected is not null;
-        _syncingProfileStartHome = true;
-        ProfileStartHomeCheck.IsChecked = selected?.StartAtHome == true;
-        _syncingProfileStartHome = false;
-        ProfileStartHomeCheck.IsEnabled = selected is not null;
+        // S5 #47: the 3-way start-page choice (replaces the old
+        // StartAtHome checkbox; EnsureValid keeps the bool in sync).
+        _syncingStartPage = true;
+        ProfileStartLastRadio.IsChecked = selected?.StartPage == StartPageMode.LastPage;
+        ProfileStartHomeRadio.IsChecked = selected?.StartPage == StartPageMode.Home;
+        ProfileStartCustomRadio.IsChecked = selected?.StartPage == StartPageMode.Custom;
+        ProfileCustomUrlText.Text = selected?.CustomStartUrl ?? "";
+        _syncingStartPage = false;
+        ProfileStartLastRadio.IsEnabled = selected is not null;
+        ProfileStartHomeRadio.IsEnabled = selected is not null;
+        ProfileStartCustomRadio.IsEnabled = selected is not null;
+        UpdateStartPageControls();
         // S2 #20: the selected profile's downloads-folder override.
         ProfileDownloadsFolderText.Text = selected?.DownloadsFolder ?? "";
         BrowseProfileFolderButton.IsEnabled = selected is not null;
@@ -248,14 +323,43 @@ public partial class SettingsWindow : Window
         ClearProfileFolderButton.IsEnabled = false;
     }
 
-    private bool _syncingProfileStartHome;
+    // ── S5 #47: start-page write-through, like the other per-profile controls ──
+    private bool _syncingStartPage;
 
-    private void OnProfileStartHomeChanged(object sender, RoutedEventArgs e)
+    private void OnProfileStartModeChanged(object sender, RoutedEventArgs e)
     {
-        if (_syncingProfileStartHome)
+        if (_syncingStartPage)
             return;
-        if (SelectedProfile is { } selected)
-            selected.StartAtHome = ProfileStartHomeCheck.IsChecked == true;
+        if (SelectedProfile is not { } selected)
+            return;
+        selected.StartPage = ProfileStartCustomRadio.IsChecked == true
+            ? StartPageMode.Custom
+            : ProfileStartHomeRadio.IsChecked == true
+                ? StartPageMode.Home
+                : StartPageMode.LastPage;
+        selected.StartAtHome = selected.StartPage == StartPageMode.Home;
+        UpdateStartPageControls();
+    }
+
+    private void OnProfileCustomUrlLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (SelectedProfile is not { } selected)
+            return;
+        var text = ProfileCustomUrlText.Text.Trim();
+        selected.CustomStartUrl = text.Length == 0 ? null : text;
+        UpdateStartPageControls();
+    }
+
+    /// <summary>The custom-URL box is editable only in Custom mode, and its note always says plainly whether the address will be used or will fall back to Home.</summary>
+    private void UpdateStartPageControls()
+    {
+        var selected = SelectedProfile;
+        ProfileCustomUrlText.IsEnabled = selected is not null && selected.StartPage == StartPageMode.Custom;
+        ProfileCustomUrlNote.Text = selected is null || selected.StartPage != StartPageMode.Custom
+            ? ""
+            : StartPagePolicy.IsValidCustomUrl(selected.CustomStartUrl)
+                ? "This profile will start at that Muse page."
+                : "That address can't be used — it must be an https:// muse.ai page. Until it is fixed, this profile starts at the Muse home page instead.";
     }
 
     // ── S3: color palette keys parallel to ProfileColorCombo items ──
@@ -442,6 +546,202 @@ public partial class SettingsWindow : Window
         DialogResult = true;
     }
 
+    // ───────────────────────── S5: search, memory, appearance, reset, wizard ─────────────────────────
+
+    /// <summary>Section registry (S5 #41/#48), built in the constructor: (Core section id, container, header) in layout order.</summary>
+    private readonly (string Id, System.Windows.Controls.StackPanel Container, System.Windows.Controls.TextBlock Header)[] _sections = null!;
+
+    /// <summary>Accent keys parallel to AccentCombo's items (S5 #44).</summary>
+    private readonly List<string> _accentKeys = new();
+
+    /// <summary>The section currently at the top of the viewport (S5 #48), tracked by the scroll handler.</summary>
+    private string? _currentSectionId;
+
+    private void OnSettingsLoaded(object sender, RoutedEventArgs e)
+    {
+        // S5 #48: scroll back to the section Settings was left on.
+        if (_working.SettingsLastSection is { } last)
+        {
+            foreach (var (id, container, _) in _sections)
+            {
+                if (id == last)
+                {
+                    _currentSectionId = last;
+                    Dispatcher.BeginInvoke(new Action(() => container.BringIntoView()));
+                    break;
+                }
+            }
+        }
+    }
+
+    private void OnSettingsScrolled(object sender, System.Windows.Controls.ScrollChangedEventArgs e)
+    {
+        // The current section is the last visible one whose top has
+        // reached the viewport top (within a small slack) — the same
+        // "where am I" a reader would report.
+        try
+        {
+            string? current = null;
+            foreach (var (id, container, _) in _sections)
+            {
+                if (container.Visibility != Visibility.Visible)
+                    continue;
+                if (container.TranslatePoint(new System.Windows.Point(0, 0), SettingsScroller).Y <= 24)
+                    current = id;
+            }
+            if (current is not null)
+                _currentSectionId = current;
+        }
+        catch { /* layout not ready — the previous value stands */ }
+    }
+
+    // ── #41 search: section-level filter + highlight ──
+
+    private void OnSearchTextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) =>
+        ApplySearch();
+
+    private void ApplySearch()
+    {
+        var query = SettingsSearchText.Text;
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            foreach (var (_, container, header) in _sections)
+            {
+                container.Visibility = Visibility.Visible;
+                header.Background = null;
+            }
+            SearchSummary.Text = "";
+            return;
+        }
+        var matches = SettingsSearch.Search(query);
+        var matchIds = new HashSet<string>(matches.Select(m => m.Id));
+        System.Windows.FrameworkElement? firstMatch = null;
+        foreach (var (id, container, header) in _sections)
+        {
+            var hit = matchIds.Contains(id);
+            container.Visibility = hit ? Visibility.Visible : Visibility.Collapsed;
+            header.Background = hit ? SearchHighlightBrush() : null;
+            if (hit && firstMatch is null)
+                firstMatch = container;
+        }
+        SearchSummary.Text = matches.Count == 0
+            ? "No section matches that search — clear the search box to see everything again."
+            : $"{matches.Count} of {_sections.Length} sections match — the others are hidden while you search.";
+        if (firstMatch is not null)
+            Dispatcher.BeginInvoke(new Action(() => firstMatch.BringIntoView()));
+    }
+
+    /// <summary>A translucent wash of the current accent behind a matched section's header.</summary>
+    private static System.Windows.Media.Brush SearchHighlightBrush()
+    {
+        if (System.Windows.Application.Current?.Resources["AccentBrush"] is System.Windows.Media.SolidColorBrush accent)
+        {
+            var color = accent.Color;
+            color.A = 0x40;
+            return new System.Windows.Media.SolidColorBrush(color);
+        }
+        return System.Windows.Media.Brushes.Transparent;
+    }
+
+    // ── #45 toolbar editor: write-through into the working settings ──
+
+    private void RebuildToolbarEditor()
+    {
+        ToolbarList.Items.Clear();
+        foreach (var id in _working.ToolbarOrder)
+        {
+            var item = ToolbarLayout.Find(id);
+            if (item is null)
+                continue;
+            var check = new System.Windows.Controls.CheckBox
+            {
+                Content = item.DisplayName,
+                IsChecked = !_working.ToolbarHidden.Contains(id),
+                IsEnabled = item.CanHide,
+                Tag = id,
+            };
+            check.Click += OnToolbarItemToggle;
+            ToolbarList.Items.Add(new System.Windows.Controls.ListBoxItem { Content = check, Tag = id });
+        }
+    }
+
+    private void OnToolbarItemToggle(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.CheckBox check || check.Tag is not string id)
+            return;
+        if (check.IsChecked == true)
+            _working.ToolbarHidden.Remove(id);
+        else if (ToolbarLayout.Find(id)?.CanHide == true && !_working.ToolbarHidden.Contains(id))
+            _working.ToolbarHidden.Add(id);
+    }
+
+    private void OnToolbarMoveUp(object sender, RoutedEventArgs e) => MoveToolbarSelection(-1);
+
+    private void OnToolbarMoveDown(object sender, RoutedEventArgs e) => MoveToolbarSelection(+1);
+
+    private void MoveToolbarSelection(int delta)
+    {
+        var index = ToolbarList.SelectedIndex;
+        var target = index + delta;
+        if (index < 0 || target < 0 || target >= _working.ToolbarOrder.Count)
+            return;
+        (_working.ToolbarOrder[index], _working.ToolbarOrder[target]) =
+            (_working.ToolbarOrder[target], _working.ToolbarOrder[index]);
+        RebuildToolbarEditor();
+        ToolbarList.SelectedIndex = target;
+    }
+
+    private void OnToolbarReset(object sender, RoutedEventArgs e)
+    {
+        _working.ToolbarOrder = ToolbarLayout.DefaultOrder();
+        _working.ToolbarHidden = new List<string>();
+        RebuildToolbarEditor();
+    }
+
+    // ── #50 re-run the setup wizard against the working clone ──
+
+    private void OnRunSetupWizard(object sender, RoutedEventArgs e)
+    {
+        HarvestControls();
+        var wizard = new SetupWizardWindow(_working, markCompletedOnSkip: false) { Owner = this };
+        if (wizard.ShowDialog() == true)
+            LoadControls(); // the wizard's four choices refresh this window
+    }
+
+    // ── #42 reset all settings (backup first, always) ──
+
+    private void OnResetSettings(object sender, RoutedEventArgs e)
+    {
+        HarvestControls();
+        var backupName = SettingsReset.BackupFileName(DateTimeOffset.Now);
+        var backupPath = Path.Combine(AppPaths.RootDir, backupName);
+        var confirm = System.Windows.MessageBox.Show(this,
+            "Reset all settings to their defaults?\n\n" +
+            $"First, your current settings are saved to a backup file:\n{backupPath}\n\n" +
+            "Preferences (startup, theme, downloads, tray, zoom…) return to defaults, and the setup wizard " +
+            "will offer itself again next launch. Your profiles, sign-ins, last pages, and downloaded files " +
+            "are NOT touched — and you can Import the backup at any time to undo this.",
+            "Reset all settings", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        if (confirm != MessageBoxResult.Yes)
+            return;
+        try
+        {
+            Directory.CreateDirectory(AppPaths.RootDir);
+            File.WriteAllText(backupPath, SettingsStore.Export(_working));
+        }
+        catch (Exception ex)
+        {
+            // No backup, no reset — forgiving means never destructive.
+            ResetNote.Text = $"Couldn't write the backup file ({ex.Message}) — your settings were NOT reset.";
+            _log.Warn($"Settings reset aborted — backup failed: {ex.Message}");
+            return;
+        }
+        SettingsReset.ApplyDefaults(_working);
+        LoadControls();
+        ResetNote.Text = $"Settings reset to defaults. Backup saved as {backupName} in the settings folder — Import it any time to undo.";
+        _log.Info("Settings reset to defaults from Settings window (backup written first)");
+    }
+
     // ───────────────────────── settings export / import (v0.4.0) ─────────────────────────
 
     private void OnExportSettings(object sender, RoutedEventArgs e)
@@ -531,5 +831,15 @@ public partial class SettingsWindow : Window
         target.PendingProfileFolderDeletions = source.PendingProfileFolderDeletions;
         target.LastUrl = source.LastUrl;
         target.LastUrlByProfile = source.LastUrlByProfile;
+        // S5 fields (appearance, Settings-window memory, first-run flag).
+        target.Theme = source.Theme;
+        target.AccentColor = source.AccentColor;
+        target.ShellFontScale = source.ShellFontScale;
+        target.ToolbarOrder = source.ToolbarOrder;
+        target.ToolbarHidden = source.ToolbarHidden;
+        target.SettingsLastSection = source.SettingsLastSection;
+        target.SettingsWindowWidth = source.SettingsWindowWidth;
+        target.SettingsWindowHeight = source.SettingsWindowHeight;
+        target.FirstRunCompleted = source.FirstRunCompleted;
     }
 }

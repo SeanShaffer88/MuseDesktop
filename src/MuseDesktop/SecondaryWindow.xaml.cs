@@ -25,6 +25,15 @@ public partial class SecondaryWindow : Window
         _log = log;
         _initialUrl = initialUrl;
         InitializeComponent();
+        // S5 #43: the second window follows the shell palette too (its
+        // XAML colors are the dark defaults; light theme overrides here).
+        var palette = ThemeManager.CurrentPalette;
+        Background = new System.Windows.Media.SolidColorBrush(
+            (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(palette.Bg));
+        Foreground = new System.Windows.Media.SolidColorBrush(
+            (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(palette.Text));
+        Browser.DefaultBackgroundColor = ThemeManager.BrowserBackground;
+        SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(this);
         Loaded += OnLoaded;
     }
 

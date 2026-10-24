@@ -3,8 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:MuseDesktop"
         Title="MuseDesktop Settings"
-        Width="480" SizeToContent="Height" MaxHeight="720"
-        ResizeMode="NoResize" WindowStartupLocation="CenterOwner"
+        Width="480" Height="660" MinWidth="440" MinHeight="420" MaxHeight="1000"
+        ResizeMode="CanResize" WindowStartupLocation="CenterOwner"
         Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
     <Window.Resources>
         <local:ProfileColorBrushConverter x:Key="ProfileColorBrush"/>
@@ -13,6 +13,7 @@
             <Setter Property="FontWeight" Value="SemiBold"/>
             <Setter Property="Foreground" Value="{StaticResource AccentBrush}"/>
             <Setter Property="Margin" Value="0,14,0,4"/>
+            <Setter Property="Padding" Value="2,1"/>
         </Style>
         <Style x:Key="Note" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11"/>
@@ -24,166 +25,248 @@
             <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
             <Setter Property="Margin" Value="0,5,0,0"/>
         </Style>
+        <Style TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
+            <Setter Property="Margin" Value="0,4,0,0"/>
+        </Style>
     </Window.Resources>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="18,6,18,16">
-            <TextBlock Text="Behavior" Style="{StaticResource SectionHeader}"/>
-            <CheckBox x:Name="StartWithWindowsCheck" Content="Start with Windows"
-                      ToolTip="Launch MuseDesktop when you sign in to Windows (the usual per-user Run entry)"/>
-            <CheckBox x:Name="StartMinimizedCheck" Content="When starting with Windows, open in the tray (not on screen)"
-                      ToolTip="Only affects the sign-in launch: on = MuseDesktop waits in the tray; off = the window opens like a normal launch. Double-clicking the app always opens the window"/>
-            <CheckBox x:Name="CloseToTrayCheck" Content="Close window to tray (instead of quitting)"
-                      ToolTip="The X button hides the window; Exit lives on the tray menu"/>
-            <CheckBox x:Name="SuspendInTrayCheck" Content="Save memory while hidden in the tray"
-                      ToolTip="After the time below, the web view is suspended until you come back. Suspend never happens during a download, and stays out of the way after the microphone has been used (a voice session may be live)"/>
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
-                <TextBlock Text="Suspend after hidden for:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                <ComboBox x:Name="SuspendTimeoutCombo" Width="130"
-                          ToolTip="How long the window may sit hidden in the tray before the web view suspends"/>
-            </StackPanel>
-            <CheckBox x:Name="CheckUpdatesCheck" Content="Check for updates when the app starts"
-                      ToolTip="One silent request to GitHub Releases per launch; failures are ignored"/>
-            <TextBlock Style="{StaticResource Note}"
-                       Text="Changes apply when you choose OK. Start-with-Windows writes the usual per-user Run entry; nothing here phones home beyond the update check you control."/>
-
-            <TextBlock Text="Tray &amp; notifications" Style="{StaticResource SectionHeader}"/>
-            <CheckBox x:Name="TraySingleClickCheck" Content="Single-click the tray icon to reopen (instead of double-click)"
-                      ToolTip="On: one click on the tray icon brings the window back. Off: double-click, as always"/>
-            <CheckBox x:Name="FlashOnAttentionCheck" Content="Flash the taskbar button when Muse needs attention while I'm away"
-                      ToolTip="When Muse's title shows an unread count (like (2) Muse) and you're not looking at the window, the taskbar button flashes a few times — it never steals focus. Off by default"/>
-            <CheckBox x:Name="QuietHoursCheck" Content="Quiet hours: keep MuseDesktop's balloons and flashes silent"
-                      ToolTip="During quiet hours MuseDesktop shows no tray balloons and no taskbar flash (the suppression is written to the log, never silent). Your Windows Do Not Disturb setting is always respected too"/>
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
-                <TextBlock Text="Quiet from:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                <ComboBox x:Name="QuietStartCombo" Width="90"
-                          ToolTip="Quiet hours begin (on the hour)"/>
-                <TextBlock Text="to:" VerticalAlignment="Center" Margin="12,0,8,0"/>
-                <ComboBox x:Name="QuietEndCombo" Width="90"
-                          ToolTip="Quiet hours end (on the hour) — earlier than the start is fine; the window wraps midnight"/>
-            </StackPanel>
-            <TextBlock Style="{StaticResource Note}"
-                       Text="Muse's own in-page notifications are governed by Windows and Muse, not by these settings. The tray icon also shows your active profile's accent color as a small dot, and an unread-count badge when Muse's title provides one."/>
-
-            <TextBlock Text="Account profiles" Style="{StaticResource SectionHeader}"/>
-            <ComboBox x:Name="ProfileCombo" SelectionChanged="OnProfileSelectionChanged"
-                      ToolTip="Sign-in profiles — each keeps its own Muse session">
-                <ComboBox.ItemTemplate>
-                    <DataTemplate>
-                        <StackPanel Orientation="Horizontal">
-                            <Ellipse Width="10" Height="10" Margin="0,0,6,0" VerticalAlignment="Center"
-                                     Fill="{Binding DisplayColor, Converter={StaticResource ProfileColorBrush}}"/>
-                            <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </DataTemplate>
-                </ComboBox.ItemTemplate>
-            </ComboBox>
-            <TextBlock Style="{StaticResource Note}" Margin="0,8,0,2"
-                       Text="Name (rename the selected profile):"/>
-            <TextBox x:Name="ProfileNameText" LostFocus="OnProfileNameLostFocus"
-                     ToolTip="The selected profile's name, shown in menus and the tray"/>
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
-                <TextBlock Text="Accent color:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                <ComboBox x:Name="ProfileColorCombo" Width="140" SelectionChanged="OnProfileColorChanged"
-                          ToolTip="A small color dot next to this profile's name in menus, the tray, and here"/>
-            </StackPanel>
-            <CheckBox x:Name="ProfileStartHomeCheck" Content="Start this profile at the Muse home page"
-                      Checked="OnProfileStartHomeChanged" Unchecked="OnProfileStartHomeChanged"
-                      ToolTip="On: this profile opens at Muse's home page. Off: it reopens the page it was last on"/>
-            <CheckBox x:Name="ProfileZoomCheck" Content="Use a custom zoom for this profile"
-                      Checked="OnProfileZoomChanged" Unchecked="OnProfileZoomChanged"
-                      ToolTip="On: this profile zooms independently. Off: it uses the shared default zoom below. Zooming in the app updates the custom zoom while it's on"/>
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
-                <TextBlock Text="Profile zoom:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                <ComboBox x:Name="ProfileZoomCombo" Width="90" SelectionChanged="OnProfileZoomComboChanged"/>
-            </StackPanel>
-            <TextBlock x:Name="ProfileDataText" Style="{StaticResource Note}" Margin="0,8,0,0"/>
-            <TextBlock Style="{StaticResource Note}" Margin="0,8,0,2"
-                       Text="Downloads folder for this profile (optional — overrides the shared folder below):"/>
-            <DockPanel LastChildFill="True">
-                <Button x:Name="ClearProfileFolderButton" DockPanel.Dock="Right" Content="Clear" Width="56" Margin="8,0,0,0"
-                        Click="OnClearProfileDownloadsFolder"
-                        ToolTip="Remove this profile's downloads-folder override"/>
-                <Button x:Name="BrowseProfileFolderButton" DockPanel.Dock="Right" Content="Browse…" Width="76" Margin="8,0,0,0"
-                        Click="OnBrowseProfileDownloadsFolder"/>
-                <TextBox x:Name="ProfileDownloadsFolderText" IsReadOnly="True"
-                         ToolTip="This profile's downloads land here; empty uses the shared Downloads folder"/>
-            </DockPanel>
-            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                <Button x:Name="SwitchProfileButton" Content="Switch to this profile" Width="150" Click="OnSwitchProfile"
-                        ToolTip="Restarts MuseDesktop signed in with the selected profile"/>
-                <Button x:Name="RemoveProfileButton" Content="Remove" Width="76" Margin="8,0,0,0" Click="OnRemoveProfile"
-                        ToolTip="Removes the profile; its local sign-in data is deleted when you choose OK"/>
-                <Button x:Name="CreateShortcutButton" Content="Create desktop shortcut" Width="164" Margin="8,0,0,0" Click="OnCreateProfileShortcut"
-                        ToolTip="Puts a shortcut on the Desktop that opens MuseDesktop with this profile"/>
-            </StackPanel>
-            <TextBlock x:Name="ProfileNote" Style="{StaticResource Note}"/>
-            <TextBlock Style="{StaticResource Note}" Margin="0,8,0,2"
-                       Text="New profile — optionally copy settings (start page, downloads folder, zoom, color) from an existing one. Sign-ins are never copied:"/>
-            <ComboBox x:Name="CopyFromCombo" SelectionChanged="OnCopyFromChanged"
-                      ToolTip="Copy the new profile's settings from this profile; its sign-in is never copied"/>
-            <DockPanel LastChildFill="True" Margin="0,6,0,0">
-                <Button x:Name="AddProfileButton" DockPanel.Dock="Right" Content="Add" Width="76" Margin="8,0,0,0"
-                        Click="OnAddProfile"/>
-                <TextBox x:Name="NewProfileNameText" ToolTip="Name for a new profile, e.g. Work"/>
-            </DockPanel>
-            <TextBlock Style="{StaticResource Note}"
-                       Text="Each profile is a separate Muse sign-in (its own cookies and data on this PC). Switching restarts the app immediately, discarding other unsaved changes in this window. You can't remove the profile you're currently using."/>
-
-            <TextBlock Text="Zoom" Style="{StaticResource SectionHeader}"/>
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="Default zoom:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                <ComboBox x:Name="ZoomCombo" Width="90"/>
-            </StackPanel>
-            <TextBlock Style="{StaticResource Note}"
-                       Text="Applies immediately at OK and is where the toolbar zoom starts next launch."/>
-
-            <TextBlock Text="Downloads" Style="{StaticResource SectionHeader}"/>
-            <DockPanel LastChildFill="True">
-                <Button x:Name="BrowseFolderButton" DockPanel.Dock="Right" Content="Browse…" Width="76" Margin="8,0,0,0"
-                        Click="OnBrowseDownloadsFolder"/>
-                <TextBox x:Name="DownloadsFolderText" IsReadOnly="True"
-                         ToolTip="Where downloads are saved"/>
-            </DockPanel>
-            <TextBlock Style="{StaticResource Note}"
-                       Text="Empty means your Windows Downloads folder. Changing it does not move files already downloaded."/>
-            <CheckBox x:Name="AskWhereToSaveCheck" Content="Ask where to save each download"
-                      ToolTip="Shows a Save-As dialog for every file"/>
-            <CheckBox x:Name="NotifyDownloadCompleteCheck" Content="Tell me when a download finishes while the window is hidden"
-                      ToolTip="Shows a tray balloon naming the file. Off by default; never makes a sound"/>
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
-                <TextBlock Text="If the file already exists:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                <ComboBox x:Name="CollisionPolicyCombo" Width="210"
-                          ToolTip="Save under a new name automatically, or ask where to save that file"/>
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
-                <TextBlock Text="Keep download history:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                <ComboBox x:Name="HistoryCapCombo" Width="120"
-                          ToolTip="How many finished downloads the Downloads window remembers"/>
-            </StackPanel>
-            <TextBlock Style="{StaticResource Note}"
-                       Text="History keeps names, sizes, dates, and paths only — never the addresses files came from. Failed downloads are listed too."/>
-
-            <TextBlock Text="Data" Style="{StaticResource SectionHeader}"/>
-            <Button x:Name="ClearDataButton" Content="Clear browsing data and sign out…" Width="230"
-                    HorizontalAlignment="Left" Click="OnClearData"
-                    ToolTip="Removes cookies, cache, and site data from MuseDesktop's own profile"/>
-            <TextBlock x:Name="ClearDataNote" Style="{StaticResource Note}"
-                       Text="Deletes cookies, cache, and site data stored by MuseDesktop — you will sign in to Muse again. Your chats live in your Muse account and are not affected."/>
-            <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                <Button Content="Export settings…" Width="130" Click="OnExportSettings"
-                        ToolTip="Save these settings to a file you can keep or move to another PC"/>
-                <Button Content="Import settings…" Width="130" Margin="8,0,0,0" Click="OnImportSettings"
-                        ToolTip="Replace these settings with ones from an exported file"/>
-            </StackPanel>
-            <TextBlock x:Name="ImportNote" Style="{StaticResource Note}"
-                       Text="Export saves the settings shown here (including profiles and per-profile start pages) as a small JSON file. Sign-ins themselves are not exported — those stay in each profile's own data."/>
-
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
-                <Button Content="OK" Width="86" Height="30" IsDefault="True" Click="OnOk"
-                        Background="{StaticResource AccentBrush}" Foreground="White" BorderThickness="0"/>
-                <Button Content="Cancel" Width="86" Height="30" Margin="8,0,0,0" IsCancel="True"/>
-            </StackPanel>
+    <DockPanel>
+        <!-- Settings search (S5 #41): section-level filter + highlight. -->
+        <StackPanel DockPanel.Dock="Top" Margin="18,12,18,0">
+            <TextBlock Text="Search settings:" Margin="0,0,0,4"/>
+            <TextBox x:Name="SettingsSearchText" TextChanged="OnSearchTextChanged"
+                     ToolTip="Type to jump to a setting — matching sections stay visible and are highlighted; the rest hide while you search"/>
+            <TextBlock x:Name="SearchSummary" Style="{StaticResource Note}"/>
         </StackPanel>
-    </ScrollViewer>
+
+        <ScrollViewer x:Name="SettingsScroller" VerticalScrollBarVisibility="Auto"
+                      ScrollChanged="OnSettingsScrolled">
+            <StackPanel x:Name="SectionsPanel" Margin="18,6,18,16">
+                <StackPanel x:Name="SectionBehavior">
+                    <TextBlock x:Name="HeaderBehavior" Text="Behavior" Style="{StaticResource SectionHeader}"/>
+                    <CheckBox x:Name="StartWithWindowsCheck" Content="Start with Windows"
+                              ToolTip="Launch MuseDesktop when you sign in to Windows (the usual per-user Run entry)"/>
+                    <CheckBox x:Name="StartMinimizedCheck" Content="When starting with Windows, open in the tray (not on screen)"
+                              ToolTip="Only affects the sign-in launch: on = MuseDesktop waits in the tray; off = the window opens like a normal launch. Double-clicking the app always opens the window"/>
+                    <CheckBox x:Name="CloseToTrayCheck" Content="Close window to tray (instead of quitting)"
+                              ToolTip="The X button hides the window; Exit lives on the tray menu"/>
+                    <CheckBox x:Name="SuspendInTrayCheck" Content="Save memory while hidden in the tray"
+                              ToolTip="After the time below, the web view is suspended until you come back. Suspend never happens during a download, and stays out of the way after the microphone has been used (a voice session may be live)"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
+                        <TextBlock Text="Suspend after hidden for:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="SuspendTimeoutCombo" Width="130"
+                                  ToolTip="How long the window may sit hidden in the tray before the web view suspends"/>
+                    </StackPanel>
+                    <CheckBox x:Name="CheckUpdatesCheck" Content="Check for updates when the app starts"
+                              ToolTip="One silent request to GitHub Releases per launch; failures are ignored"/>
+                    <Button Content="Run the setup wizard again…" Width="210" HorizontalAlignment="Left"
+                            Margin="0,10,0,0" Click="OnRunSetupWizard"
+                            ToolTip="Re-run the one-screen first-run setup (close-to-tray, start with Windows, downloads folder, update checks)"/>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="Changes apply when you choose OK. Start-with-Windows writes the usual per-user Run entry; nothing here phones home beyond the update check you control."/>
+                </StackPanel>
+
+                <StackPanel x:Name="SectionTray">
+                    <TextBlock x:Name="HeaderTray" Text="Tray &amp; notifications" Style="{StaticResource SectionHeader}"/>
+                    <CheckBox x:Name="TraySingleClickCheck" Content="Single-click the tray icon to reopen (instead of double-click)"
+                              ToolTip="On: one click on the tray icon brings the window back. Off: double-click, as always"/>
+                    <CheckBox x:Name="FlashOnAttentionCheck" Content="Flash the taskbar button when Muse needs attention while I'm away"
+                              ToolTip="When Muse's title shows an unread count (like (2) Muse) and you're not looking at the window, the taskbar button flashes a few times — it never steals focus. Off by default"/>
+                    <CheckBox x:Name="QuietHoursCheck" Content="Quiet hours: keep MuseDesktop's balloons and flashes silent"
+                              ToolTip="During quiet hours MuseDesktop shows no tray balloons and no taskbar flash (the suppression is written to the log, never silent). Your Windows Do Not Disturb setting is always respected too"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
+                        <TextBlock Text="Quiet from:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="QuietStartCombo" Width="90"
+                                  ToolTip="Quiet hours begin (on the hour)"/>
+                        <TextBlock Text="to:" VerticalAlignment="Center" Margin="12,0,8,0"/>
+                        <ComboBox x:Name="QuietEndCombo" Width="90"
+                                  ToolTip="Quiet hours end (on the hour) — earlier than the start is fine; the window wraps midnight"/>
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="Muse's own in-page notifications are governed by Windows and Muse, not by these settings. The tray icon also shows your active profile's accent color as a small dot, and an unread-count badge when Muse's title provides one."/>
+                </StackPanel>
+
+                <StackPanel x:Name="SectionProfiles">
+                    <TextBlock x:Name="HeaderProfiles" Text="Account profiles" Style="{StaticResource SectionHeader}"/>
+                    <ComboBox x:Name="ProfileCombo" SelectionChanged="OnProfileSelectionChanged"
+                              ToolTip="Sign-in profiles — each keeps its own Muse session">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <Ellipse Width="10" Height="10" Margin="0,0,6,0" VerticalAlignment="Center"
+                                             Fill="{Binding DisplayColor, Converter={StaticResource ProfileColorBrush}}"/>
+                                    <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                    <TextBlock Style="{StaticResource Note}" Margin="0,8,0,2"
+                               Text="Name (rename the selected profile):"/>
+                    <TextBox x:Name="ProfileNameText" LostFocus="OnProfileNameLostFocus"
+                             ToolTip="The selected profile's name, shown in menus and the tray"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
+                        <TextBlock Text="Accent color:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="ProfileColorCombo" Width="140" SelectionChanged="OnProfileColorChanged"
+                                  ToolTip="A small color dot next to this profile's name in menus, the tray, and here"/>
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Note}" Margin="0,10,0,0"
+                               Text="When this profile starts:"/>
+                    <RadioButton x:Name="ProfileStartLastRadio" GroupName="ProfileStartPage"
+                                 Content="Reopen the page it was last on" Checked="OnProfileStartModeChanged"
+                                 ToolTip="The profile picks up where it left off (the long-standing behavior)"/>
+                    <RadioButton x:Name="ProfileStartHomeRadio" GroupName="ProfileStartPage"
+                                 Content="Start at the Muse home page" Checked="OnProfileStartModeChanged"
+                                 ToolTip="This profile always opens at Muse's home page"/>
+                    <RadioButton x:Name="ProfileStartCustomRadio" GroupName="ProfileStartPage"
+                                 Content="Start at a specific Muse page:" Checked="OnProfileStartModeChanged"
+                                 ToolTip="This profile opens at the muse.ai page below — validated before use; an address MuseDesktop can't open falls back to the home page"/>
+                    <TextBox x:Name="ProfileCustomUrlText" Margin="18,4,0,0" LostFocus="OnProfileCustomUrlLostFocus"
+                             ToolTip="A muse.ai page address, e.g. https://muse.ai/chat/… — only Muse pages are accepted"/>
+                    <TextBlock x:Name="ProfileCustomUrlNote" Style="{StaticResource Note}" Margin="18,2,0,0"/>
+                    <CheckBox x:Name="ProfileZoomCheck" Content="Use a custom zoom for this profile"
+                              Checked="OnProfileZoomChanged" Unchecked="OnProfileZoomChanged"
+                              ToolTip="On: this profile zooms independently. Off: it uses the shared default zoom below. Zooming in the app updates the custom zoom while it's on"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
+                        <TextBlock Text="Profile zoom:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="ProfileZoomCombo" Width="90" SelectionChanged="OnProfileZoomComboChanged"/>
+                    </StackPanel>
+                    <TextBlock x:Name="ProfileDataText" Style="{StaticResource Note}" Margin="0,8,0,0"/>
+                    <TextBlock Style="{StaticResource Note}" Margin="0,8,0,2"
+                               Text="Downloads folder for this profile (optional — overrides the shared folder below):"/>
+                    <DockPanel LastChildFill="True">
+                        <Button x:Name="ClearProfileFolderButton" DockPanel.Dock="Right" Content="Clear" Width="56" Margin="8,0,0,0"
+                                Click="OnClearProfileDownloadsFolder"
+                                ToolTip="Remove this profile's downloads-folder override"/>
+                        <Button x:Name="BrowseProfileFolderButton" DockPanel.Dock="Right" Content="Browse…" Width="76" Margin="8,0,0,0"
+                                Click="OnBrowseProfileDownloadsFolder"/>
+                        <TextBox x:Name="ProfileDownloadsFolderText" IsReadOnly="True"
+                                 ToolTip="This profile's downloads land here; empty uses the shared Downloads folder"/>
+                    </DockPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <Button x:Name="SwitchProfileButton" Content="Switch to this profile" Width="150" Click="OnSwitchProfile"
+                                ToolTip="Restarts MuseDesktop signed in with the selected profile"/>
+                        <Button x:Name="RemoveProfileButton" Content="Remove" Width="76" Margin="8,0,0,0" Click="OnRemoveProfile"
+                                ToolTip="Removes the profile; its local sign-in data is deleted when you choose OK"/>
+                        <Button x:Name="CreateShortcutButton" Content="Create desktop shortcut" Width="164" Margin="8,0,0,0" Click="OnCreateProfileShortcut"
+                                ToolTip="Puts a shortcut on the Desktop that opens MuseDesktop with this profile"/>
+                    </StackPanel>
+                    <TextBlock x:Name="ProfileNote" Style="{StaticResource Note}"/>
+                    <TextBlock Style="{StaticResource Note}" Margin="0,8,0,2"
+                               Text="New profile — optionally copy settings (start page, downloads folder, zoom, color) from an existing one. Sign-ins are never copied:"/>
+                    <ComboBox x:Name="CopyFromCombo" SelectionChanged="OnCopyFromChanged"
+                              ToolTip="Copy the new profile's settings from this profile; its sign-in is never copied"/>
+                    <DockPanel LastChildFill="True" Margin="0,6,0,0">
+                        <Button x:Name="AddProfileButton" DockPanel.Dock="Right" Content="Add" Width="76" Margin="8,0,0,0"
+                                Click="OnAddProfile"/>
+                        <TextBox x:Name="NewProfileNameText" ToolTip="Name for a new profile, e.g. Work"/>
+                    </DockPanel>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="Each profile is a separate Muse sign-in (its own cookies and data on this PC). Switching restarts the app immediately, discarding other unsaved changes in this window. You can't remove the profile you're currently using."/>
+                </StackPanel>
+
+                <StackPanel x:Name="SectionAppearance">
+                    <TextBlock x:Name="HeaderAppearance" Text="Appearance &amp; toolbar" Style="{StaticResource SectionHeader}"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Shell theme:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="ThemeCombo" Width="170"
+                                  ToolTip="Dark is the family black/red identity; Light is a light shell; Follow Windows matches your Windows app theme. Muse's page itself is never restyled"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,6,0,0">
+                        <TextBlock Text="Accent color:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="AccentCombo" Width="170"
+                                  ToolTip="Colors MuseDesktop's own highlights (section titles, buttons). Each accent is checked for readable contrast on both shell themes. This is separate from profile colors"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,6,0,0">
+                        <TextBlock Text="Shell text size:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="TextScaleCombo" Width="170"
+                                  ToolTip="Scales MuseDesktop's own text (toolbar, menus, Settings) — separate from page zoom. The tray menu is drawn by Windows and keeps its system size"/>
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="Theme, accent, and text size restyle MuseDesktop's own windows only — never the Muse page."/>
+                    <TextBlock Style="{StaticResource Note}" Margin="0,10,0,2"
+                               Text="Toolbar buttons — tick to show, select then move with ↑ / ↓ (the ⋯ menu is always there, last):"/>
+                    <ListBox x:Name="ToolbarList" Height="148"
+                             Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
+                             BorderBrush="{StaticResource HairlineBrush}"
+                             ToolTip="The main window's toolbar buttons, in order, grouped as they appear (Back…Home on the left, zoom…browser on the right)"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <Button Content="↑ Move up" Width="92" Click="OnToolbarMoveUp"/>
+                        <Button Content="↓ Move down" Width="98" Margin="8,0,0,0" Click="OnToolbarMoveDown"/>
+                        <Button Content="Reset layout" Width="104" Margin="8,0,0,0" Click="OnToolbarReset"
+                                ToolTip="Back to the standard toolbar: every button shown, in the original order"/>
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="Back always stays — the toolbar must always offer navigation."/>
+                </StackPanel>
+
+                <StackPanel x:Name="SectionZoom">
+                    <TextBlock x:Name="HeaderZoom" Text="Zoom" Style="{StaticResource SectionHeader}"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Default zoom:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="ZoomCombo" Width="90"/>
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="Applies immediately at OK and is where the toolbar zoom starts next launch."/>
+                </StackPanel>
+
+                <StackPanel x:Name="SectionDownloads">
+                    <TextBlock x:Name="HeaderDownloads" Text="Downloads" Style="{StaticResource SectionHeader}"/>
+                    <DockPanel LastChildFill="True">
+                        <Button x:Name="BrowseFolderButton" DockPanel.Dock="Right" Content="Browse…" Width="76" Margin="8,0,0,0"
+                                Click="OnBrowseDownloadsFolder"/>
+                        <TextBox x:Name="DownloadsFolderText" IsReadOnly="True"
+                                 ToolTip="Where downloads are saved"/>
+                    </DockPanel>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="Empty means your Windows Downloads folder. Changing it does not move files already downloaded."/>
+                    <CheckBox x:Name="AskWhereToSaveCheck" Content="Ask where to save each download"
+                              ToolTip="Shows a Save-As dialog for every file"/>
+                    <CheckBox x:Name="NotifyDownloadCompleteCheck" Content="Tell me when a download finishes while the window is hidden"
+                              ToolTip="Shows a tray balloon naming the file. Off by default; never makes a sound"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
+                        <TextBlock Text="If the file already exists:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="CollisionPolicyCombo" Width="210"
+                                  ToolTip="Save under a new name automatically, or ask where to save that file"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
+                        <TextBlock Text="Keep download history:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="HistoryCapCombo" Width="120"
+                                  ToolTip="How many finished downloads the Downloads window remembers"/>
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="History keeps names, sizes, dates, and paths only — never the addresses files came from. Failed downloads are listed too."/>
+                </StackPanel>
+
+                <StackPanel x:Name="SectionData">
+                    <TextBlock x:Name="HeaderData" Text="Data" Style="{StaticResource SectionHeader}"/>
+                    <Button x:Name="ClearDataButton" Content="Clear browsing data and sign out…" Width="230"
+                            HorizontalAlignment="Left" Click="OnClearData"
+                            ToolTip="Removes cookies, cache, and site data from MuseDesktop's own profile"/>
+                    <TextBlock x:Name="ClearDataNote" Style="{StaticResource Note}"
+                               Text="Deletes cookies, cache, and site data stored by MuseDesktop — you will sign in to Muse again. Your chats live in your Muse account and are not affected."/>
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button Content="Export settings…" Width="130" Click="OnExportSettings"
+                                ToolTip="Save these settings to a file you can keep or move to another PC"/>
+                        <Button Content="Import settings…" Width="130" Margin="8,0,0,0" Click="OnImportSettings"
+                                ToolTip="Replace these settings with ones from an exported file"/>
+                    </StackPanel>
+                    <TextBlock x:Name="ImportNote" Style="{StaticResource Note}"
+                               Text="Export saves the settings shown here (including profiles and per-profile start pages) as a small JSON file. Sign-ins themselves are not exported — those stay in each profile's own data."/>
+                    <Button Content="Reset all settings to defaults…" Width="230" HorizontalAlignment="Left"
+                            Margin="0,12,0,0" Click="OnResetSettings"
+                            ToolTip="Restores every preference to its default. Your current settings are exported to a backup file first; profiles, sign-ins, and downloads are not touched"/>
+                    <TextBlock x:Name="ResetNote" Style="{StaticResource Note}"
+                               Text="Reset restores preferences only — profiles, sign-ins, last pages, and downloaded files stay exactly as they are. A backup of your current settings is saved first, so Import can undo it."/>
+                    <TextBlock x:Name="PortableNote" Style="{StaticResource Note}" Margin="0,10,0,0"/>
+                </StackPanel>
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+                    <Button Content="OK" Width="86" Height="30" IsDefault="True" Click="OnOk"
+                            Background="{StaticResource AccentFillBrush}" Foreground="White" BorderThickness="0"/>
+                    <Button Content="Cancel" Width="86" Height="30" Margin="8,0,0,0" IsCancel="True"/>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </DockPanel>
 </Window>

@@ -9,6 +9,10 @@
         <SolidColorBrush x:Key="RaisedBrush" Color="#1D1D21"/>
         <SolidColorBrush x:Key="HairlineBrush" Color="#2C2C31"/>
         <SolidColorBrush x:Key="AccentBrush" Color="#E50914"/>
+        <!-- Fill accent for buttons carrying white text (S5 #44): ThemeManager
+             recolors both accent brushes at startup and on theme changes —
+             the fill is always the deep, white-text-safe variant. -->
+        <SolidColorBrush x:Key="AccentFillBrush" Color="#D21F26"/>
         <SolidColorBrush x:Key="TextBrush" Color="#F5F5F7"/>
         <SolidColorBrush x:Key="MutedBrush" Color="#A7A7AD"/>
         <SolidColorBrush x:Key="FaintBrush" Color="#6E6E75"/>

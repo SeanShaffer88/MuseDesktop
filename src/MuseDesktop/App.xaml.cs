@@ -1,6 +1,7 @@
 using System.IO;
 using System.Threading;
 using System.Windows;
+using Microsoft.Win32;
 using MuseDesktop.Core;
 
 namespace MuseDesktop;
@@ -58,12 +59,32 @@ public partial class App : System.Windows.Application
             return;
         }
 
+        var settingsFileExisted = File.Exists(AppPaths.SettingsPath);
         Settings = SettingsStore.Load(AppPaths.SettingsPath);
+        // Upgrade vs first run (S5 #50): a settings file written by a
+        // pre-v0.9.0 build (schema < 2, no firstRunCompleted in it)
+        // belongs to an existing user — that is an upgrade, not a
+        // first run, and the wizard must not nag them. A file with
+        // schema 2 and the flag false is a genuine first run (or a
+        // post-reset state, which deliberately re-offers the wizard).
+        if (settingsFileExisted && Settings.SchemaVersion < 2 && !Settings.FirstRunCompleted)
+            Settings.FirstRunCompleted = true;
+        Settings.SchemaVersion = Math.Max(Settings.SchemaVersion, 2);
+        // Shell theme (v0.9.0, S5 #43): apply before any window exists,
+        // and keep following Windows while the app runs when the mode
+        // says so.
+        ThemeManager.Apply(Settings);
+        SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
+        if (AppPaths.IsPortable)
+            Log.Info($"Portable mode (S5 #49): settings live in {AppPaths.RootDir}");
+        // First run (S5 #50): the setup wizard shows once — a first run
+        // never starts hidden, the wizard needs a visible owner.
+        var firstRun = !Settings.FirstRunCompleted;
         // Start-in-tray (S4 #40) is its own toggle, separate from
         // Start-with-Windows: it decides only what a background
         // (autostart-style) launch does. --settings wins over a hidden
         // start — a Settings window needs a visible owner.
-        var startHidden = !options.OpenSettings
+        var startHidden = !options.OpenSettings && !firstRun
                           && LaunchVisibility.ShouldStartHidden(options.Background, Settings.StartMinimizedToTray);
         Log.Info($"MuseDesktop {typeof(App).Assembly.GetName().Version} starting" +
                  (options.Background ? (startHidden ? " (background, in tray)" : " (background)") : ""));
@@ -133,6 +154,45 @@ public partial class App : System.Windows.Application
             var window = _window;
             Dispatcher.BeginInvoke(new Action(() => window.OpenSettingsWindow()));
         }
+        if (firstRun)
+        {
+            var window = _window;
+            Dispatcher.BeginInvoke(new Action(() => RunFirstRunWizard(window)));
+        }
+    }
+
+    /// <summary>Follow-Windows theme mode (S5 #43): when the OS theme flips, re-resolve the shell palette.</summary>
+    private void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
+    {
+        if (Settings.Theme != MuseDesktop.Core.ThemeMode.FollowSystem)
+            return;
+        Dispatcher.BeginInvoke(new Action(() => ThemeManager.Apply(Settings)));
+    }
+
+    /// <summary>
+    /// The first-run setup wizard (S5 #50), shown once per settings
+    /// file. It edits a clone; Save adopts the four choices, and ANY
+    /// exit (Save, Skip, or the X) records completion so the wizard
+    /// never nags twice. Adoption writes the live settings object the
+    /// main window already holds, then persists.
+    /// </summary>
+    private void RunFirstRunWizard(MainWindow owner)
+    {
+        var target = Settings.Clone();
+        var wizard = new SetupWizardWindow(target, markCompletedOnSkip: false) { Owner = owner };
+        var saved = wizard.ShowDialog() == true;
+        if (saved)
+        {
+            Settings.CloseToTray = target.CloseToTray;
+            Settings.StartWithWindows = target.StartWithWindows;
+            Settings.DownloadsFolder = target.DownloadsFolder;
+            Settings.CheckForUpdates = target.CheckForUpdates;
+        }
+        Settings.FirstRunCompleted = true;
+        Autostart.Sync(Settings.StartWithWindows);
+        try { SettingsStore.Save(AppPaths.SettingsPath, Settings); }
+        catch (Exception ex) { Log.Warn($"Saving settings after the first-run wizard failed: {ex.Message}"); }
+        Log.Info(saved ? "First-run setup wizard completed" : "First-run setup wizard skipped");
     }
 
     /// <summary>
