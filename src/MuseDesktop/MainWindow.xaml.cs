@@ -48,6 +48,12 @@ public partial class MainWindow : Window
     // v0.3.0 — the active profile's WebView2 data folder (per-profile sign-ins).
     private readonly string _profileDir;
 
+    // v0.6.0 (S2) — taskbar progress mirror (#19), its latched failure
+    // state, and the hidden retry web view's readiness (#15).
+    private TaskbarProgress? _taskbar;
+    private bool _downloadError;
+    private bool _retryWebReady;
+
     public MainWindow(AppSettings settings, DiagnosticLog log)
     {
         _settings = settings;
@@ -57,15 +63,22 @@ public partial class MainWindow : Window
 
         _downloads = new DownloadTracker(_log, SetStatus, record =>
         {
-            try { DownloadHistoryStore.Add(AppPaths.DownloadsHistoryPath, record); }
+            // Completed AND failed records land in history (S2 #16),
+            // honoring the configured cap.
+            try { DownloadHistoryStore.Add(AppPaths.DownloadsHistoryPath, record, _settings.DownloadHistoryCap); }
             catch (Exception ex) { _log.Warn($"Download history save failed: {ex.Message}"); }
-        });
+        }, NotifyDownloadComplete);
         _downloads.ActiveChanged += active =>
         {
             CancelDownloadButton.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
             if (active) StatusText.ToolTip = "";
         };
         _downloads.Completed += () => StatusText.ToolTip = "Click to open the file";
+        // S2 #19: taskbar progress mirror. A failure latches the Error
+        // state until the next download starts.
+        _downloads.Started += () => { _downloadError = false; UpdateTaskbarProgress(); };
+        _downloads.Failed += () => { _downloadError = true; UpdateTaskbarProgress(); };
+        _downloads.Changed += UpdateTaskbarProgress;
 
         _tray = new TrayController(
             _log, Dispatcher,
@@ -74,7 +87,7 @@ public partial class MainWindow : Window
             ExitApp,
             () => _settings.SuspendWhenInTray,
             () => _webReady,
-            () => _downloads.IsActive,
+            () => _downloads.IsTransferring,
             TrySuspendWebViewAsync,
             ResumeWebView);
 
@@ -128,6 +141,11 @@ public partial class MainWindow : Window
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         ApplyDarkTitleBar();
+        try
+        {
+            _taskbar = new TaskbarProgress(new WindowInteropHelper(this).Handle, _log);
+        }
+        catch (Exception ex) { _log.Warn($"Taskbar progress init failed: {ex.Message}"); }
         await InitWebViewAsync();
         if (_settings.CheckForUpdates)
             _ = CheckForUpdatesAsync(manual: false);
@@ -491,24 +509,38 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>Show the Save-As dialog for one download; null means the user cancelled.</summary>
+    private string? ShowSaveDownloadDialog(string suggestedName, string initialDirectory)
+    {
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            FileName = suggestedName,
+            InitialDirectory = initialDirectory,
+            Title = "Save download",
+        };
+        return dialog.ShowDialog(this) == true ? dialog.FileName : null;
+    }
+
     private void OnDownloadStarting(object? sender, CoreWebView2DownloadStartingEventArgs e)
     {
         // We report progress in the status bar, so suppress WebView2's own
-        // download flyout and follow the operation ourselves.
+        // download flyout and follow the operation ourselves. This handler
+        // serves BOTH the main web view and the hidden retry view (S2 #15):
+        // a retried download gets exactly the same destination policy.
         var suggestedName = Path.GetFileName(e.ResultFilePath);
 
-        // v0.2.0: honor the downloads folder / ask-where-to-save settings.
+        // S2 #20: the effective folder is the active profile's override,
+        // else the shared downloads folder, else WebView2's default (the
+        // system Downloads folder — e.ResultFilePath already points there).
+        var effectiveFolder = _settings.EffectiveDownloadsFolder();
+
         if (_settings.AskWhereToSave)
         {
-            var dialog = new Microsoft.Win32.SaveFileDialog
+            // v0.2.0: ask where to save every download.
+            var chosen = ShowSaveDownloadDialog(suggestedName, effectiveFolder ?? AppPaths.DownloadsHint);
+            if (chosen is not null)
             {
-                FileName = suggestedName,
-                InitialDirectory = _settings.DownloadsFolder ?? AppPaths.DownloadsHint,
-                Title = "Save download",
-            };
-            if (dialog.ShowDialog(this) == true)
-            {
-                e.ResultFilePath = dialog.FileName;
+                e.ResultFilePath = chosen;
             }
             else
             {
@@ -518,28 +550,147 @@ public partial class MainWindow : Window
                 return;
             }
         }
-        else if (!string.IsNullOrWhiteSpace(_settings.DownloadsFolder))
+        else
         {
+            var candidate = e.ResultFilePath;
+            if (!string.IsNullOrWhiteSpace(effectiveFolder))
+            {
+                try
+                {
+                    Directory.CreateDirectory(effectiveFolder);
+                    candidate = Path.Combine(effectiveFolder, suggestedName);
+                }
+                catch (Exception ex)
+                {
+                    _log.Warn($"Downloads folder unusable, keeping default: {ex.Message}");
+                }
+            }
+
+            // S2 #21: filename-collision policy when the target exists.
             try
             {
-                Directory.CreateDirectory(_settings.DownloadsFolder);
-                e.ResultFilePath = Path.Combine(_settings.DownloadsFolder, suggestedName);
+                if (File.Exists(candidate))
+                {
+                    if (_settings.CollisionPolicy == DownloadCollisionPolicy.AskWhereToSave)
+                    {
+                        var dir = Path.GetDirectoryName(candidate) ?? AppPaths.DownloadsHint;
+                        var chosen = ShowSaveDownloadDialog(suggestedName, dir);
+                        if (chosen is null)
+                        {
+                            e.Cancel = true;
+                            _log.Info($"Download cancelled at collision save prompt: {suggestedName}");
+                            SetStatus("Download cancelled");
+                            return;
+                        }
+                        candidate = chosen;
+                    }
+                    else
+                    {
+                        candidate = UniqueFileName.ForPath(candidate);
+                    }
+                }
             }
             catch (Exception ex)
             {
-                _log.Warn($"Downloads folder unusable, keeping default: {ex.Message}");
+                _log.Warn($"Collision handling failed, keeping the original target: {ex.Message}");
             }
+            e.ResultFilePath = candidate;
         }
 
         e.Handled = true;
         // Destination decided above; the tracker follows the operation
-        // (progress, cancel, completion, history) from here.
+        // (progress, cancel, pause/resume, completion, history) from here.
         _downloads.Attach(e.DownloadOperation);
+    }
+
+    /// <summary>
+    /// Retry a download that failed in this session (S2 #15): navigate a
+    /// hidden WebView2 — created from the SAME environment/profile, so the
+    /// sign-in applies — to the failed URI held in memory by the tracker.
+    /// Its DownloadStarting is this class's own handler, which takes the
+    /// operation over and applies the normal destination policy; the
+    /// hidden view itself is never shown, and if the server answers with
+    /// a page instead of a file that page loads invisibly and is dropped
+    /// when the next retry (or app exit) disposes of it.
+    /// </summary>
+    private async Task RetryFailedDownloadAsync(string sessionFailedId)
+    {
+        var failed = _downloads.TakeSessionFailed(sessionFailedId);
+        if (failed is null)
+        {
+            SetStatus("That download can't be retried anymore (retries last for this session only)");
+            return;
+        }
+        if (!_webReady || Browser.CoreWebView2 is null)
+        {
+            SetStatus("Wait for Muse to load, then retry the download");
+            return;
+        }
+        try
+        {
+            if (!_retryWebReady)
+            {
+                await RetryBrowser.EnsureCoreWebView2Async(Browser.CoreWebView2.Environment);
+                RetryBrowser.CoreWebView2.DownloadStarting += OnDownloadStarting;
+                _retryWebReady = true;
+            }
+            // Log host+path only — the full URI may carry a signed token.
+            _log.Info($"Retrying download: {failed.FileName} from {UrlPolicy.RedactForLog(failed.Uri)}");
+            SetStatus($"Retrying download: {failed.FileName}…");
+            RetryBrowser.CoreWebView2.Navigate(failed.Uri);
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Retry download failed to start: {ex.Message}");
+            SetStatus($"Couldn't retry {failed.FileName}");
+        }
+    }
+
+    /// <summary>S2 #18: opt-in completion balloon, only while the window is hidden in the tray.</summary>
+    private void NotifyDownloadComplete(string fileName)
+    {
+        if (_settings.NotifyWhenDownloadCompletes && !IsVisible)
+            _tray.ShowDownloadComplete(fileName);
+    }
+
+    /// <summary>Mirror the aggregate download state onto the taskbar button (S2 #19).</summary>
+    private void UpdateTaskbarProgress()
+    {
+        if (_taskbar is null)
+            return;
+        if (_downloadError && !_downloads.IsTransferring)
+        {
+            _taskbar.SetError();
+            return;
+        }
+        if (_downloads.IsTransferring)
+        {
+            if (_downloads.OverallFraction is { } fraction)
+                _taskbar.Set(fraction);
+            else
+                _taskbar.SetIndeterminate();
+        }
+        else if (_downloads.AnyPaused)
+        {
+            _taskbar.SetPaused(_downloads.OverallFraction);
+        }
+        else
+        {
+            _taskbar.Clear();
+        }
     }
 
     private void OnCancelDownload(object sender, RoutedEventArgs e) => _downloads.Cancel();
 
-    private void OnStatusTextClick(object sender, MouseButtonEventArgs e) => _downloads.TryOpenCompleted();
+    private void OnStatusTextClick(object sender, MouseButtonEventArgs e)
+    {
+        // While downloads are running, the status text opens the manager
+        // (S2 #13); once one has completed, it keeps its click-to-open.
+        if (_downloads.IsActive)
+            OnDownloads(this, new RoutedEventArgs());
+        else
+            _downloads.TryOpenCompleted();
+    }
 
     private void OnTitleChanged(object? sender, object e)
     {
@@ -682,6 +833,9 @@ public partial class MainWindow : Window
         _settings.SuspendWhenInTray = clone.SuspendWhenInTray;
         _settings.CheckForUpdates = clone.CheckForUpdates;
         _settings.AskWhereToSave = clone.AskWhereToSave;
+        _settings.NotifyWhenDownloadCompletes = clone.NotifyWhenDownloadCompletes;
+        _settings.DownloadHistoryCap = clone.DownloadHistoryCap;
+        _settings.CollisionPolicy = clone.CollisionPolicy;
         _settings.DownloadsFolder = clone.DownloadsFolder;
         _settings.ZoomFactor = clone.ZoomFactor;
         _settings.Profiles = clone.Profiles;
@@ -1125,7 +1279,8 @@ public partial class MainWindow : Window
 
     private void OnDownloads(object sender, RoutedEventArgs e)
     {
-        new DownloadsWindow(_log) { Owner = this }.ShowDialog();
+        new DownloadsWindow(_log, _downloads, RetryFailedDownloadAsync, _settings.DownloadHistoryCap)
+            { Owner = this }.ShowDialog();
     }
 
     private void OnOpenLogFolder(object sender, RoutedEventArgs e)

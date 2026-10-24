@@ -86,6 +86,27 @@ public sealed class TrayController : IDisposable
         }
     }
 
+    /// <summary>
+    /// Download-complete balloon (S2 #18): shown only when the caller has
+    /// checked the opt-in setting and that the window is hidden. No sound
+    /// (NotifyIcon balloons are silent unless the app asks otherwise — it
+    /// doesn't), and a failure here is cosmetic.
+    /// </summary>
+    public void ShowDownloadComplete(string fileName)
+    {
+        try
+        {
+            if (_icon is null) return;
+            _icon.BalloonTipTitle = "Download complete";
+            _icon.BalloonTipText = fileName;
+            _icon.ShowBalloonTip(4000);
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Download-complete balloon failed: {ex.Message}");
+        }
+    }
+
     /// <summary>Tray tooltip (the profile indicator when several profiles exist).</summary>
     public void SetText(string text)
     {
