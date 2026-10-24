@@ -44,6 +44,17 @@
             <CheckBox x:Name="ProfileStartHomeCheck" Content="Start this profile at the Muse home page"
                       Checked="OnProfileStartHomeChanged" Unchecked="OnProfileStartHomeChanged"
                       ToolTip="On: this profile opens at Muse's home page. Off: it reopens the page it was last on"/>
+            <TextBlock Style="{StaticResource Note}" Margin="0,8,0,2"
+                       Text="Downloads folder for this profile (optional — overrides the shared folder below):"/>
+            <DockPanel LastChildFill="True">
+                <Button x:Name="ClearProfileFolderButton" DockPanel.Dock="Right" Content="Clear" Width="56" Margin="8,0,0,0"
+                        Click="OnClearProfileDownloadsFolder"
+                        ToolTip="Remove this profile's downloads-folder override"/>
+                <Button x:Name="BrowseProfileFolderButton" DockPanel.Dock="Right" Content="Browse…" Width="76" Margin="8,0,0,0"
+                        Click="OnBrowseProfileDownloadsFolder"/>
+                <TextBox x:Name="ProfileDownloadsFolderText" IsReadOnly="True"
+                         ToolTip="This profile's downloads land here; empty uses the shared Downloads folder"/>
+            </DockPanel>
             <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                 <Button x:Name="SwitchProfileButton" Content="Switch to this profile" Width="150" Click="OnSwitchProfile"
                         ToolTip="Restarts MuseDesktop signed in with the selected profile"/>
@@ -77,6 +88,20 @@
                        Text="Empty means your Windows Downloads folder. Changing it does not move files already downloaded."/>
             <CheckBox x:Name="AskWhereToSaveCheck" Content="Ask where to save each download"
                       ToolTip="Shows a Save-As dialog for every file"/>
+            <CheckBox x:Name="NotifyDownloadCompleteCheck" Content="Tell me when a download finishes while the window is hidden"
+                      ToolTip="Shows a tray balloon naming the file. Off by default; never makes a sound"/>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
+                <TextBlock Text="If the file already exists:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <ComboBox x:Name="CollisionPolicyCombo" Width="210"
+                          ToolTip="Save under a new name automatically, or ask where to save that file"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
+                <TextBlock Text="Keep download history:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <ComboBox x:Name="HistoryCapCombo" Width="120"
+                          ToolTip="How many finished downloads the Downloads window remembers"/>
+            </StackPanel>
+            <TextBlock Style="{StaticResource Note}"
+                       Text="History keeps names, sizes, dates, and paths only — never the addresses files came from. Failed downloads are listed too."/>
 
             <TextBlock Text="Data" Style="{StaticResource SectionHeader}"/>
             <Button x:Name="ClearDataButton" Content="Clear browsing data and sign out…" Width="230"

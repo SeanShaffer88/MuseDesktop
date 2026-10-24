@@ -119,6 +119,10 @@
         <!-- Web content. The first-run / error overlay sits above it until the page loads. -->
         <Grid Grid.Row="2">
             <wv2:WebView2 x:Name="Browser" DefaultBackgroundColor="#0B0B0D"/>
+            <!-- Hidden retry view (S2 #15): same environment/profile, used only to
+                 re-issue a download that failed in this session. Never shown. -->
+            <wv2:WebView2 x:Name="RetryBrowser" Width="1" Height="1" Visibility="Hidden"
+                          IsHitTestVisible="False" DefaultBackgroundColor="#0B0B0D"/>
             <Border x:Name="Overlay" Background="{StaticResource BgBrush}" Visibility="Visible">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520">
                     <TextBlock x:Name="OverlayTitle" Text="Connecting to Muse…" FontSize="20"
@@ -137,7 +141,7 @@
                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,1,0,0">
             <DockPanel LastChildFill="True" Margin="8,0">
                 <Button x:Name="CancelDownloadButton" DockPanel.Dock="Right" Content="&#x2715;" Width="22" Height="18"
-                        Visibility="Collapsed" ToolTip="Cancel this download" Click="OnCancelDownload"
+                        Visibility="Collapsed" ToolTip="Cancel the most recent download (Downloads… manages each one)" Click="OnCancelDownload"
                         Background="Transparent" Foreground="{StaticResource MutedBrush}" BorderThickness="0"
                         AutomationProperties.Name="Cancel download"/>
                 <TextBlock x:Name="StatusRight" DockPanel.Dock="Right" FontSize="11"

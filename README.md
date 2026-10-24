@@ -15,7 +15,7 @@ Muse has no Windows app, so this is one: a small native program that opens muse.
 - **A real app, not a tab** — its own window, taskbar icon, and Alt-Tab entry; no browser chrome competing for space.
 - **Stay signed in** — a dedicated WebView2 profile on your PC keeps your Muse session between launches, and the app reopens the last Muse page you were on.
 - **Tray support** — always-available tray icon (Open / Reload / Exit); closing the window minimizes to the tray by default, and after 5 minutes hidden the web view suspends to free memory until you come back.
-- **Downloads with progress and control** — files Muse makes for you download with live progress % and an estimated time remaining in the status bar; cancel from the status bar, click a finished download to open it, and choose the folder (or ask-where-to-save) in Settings. The ⋯ menu's **Downloads…** window keeps a history of finished downloads with Open / Show in folder.
+- **Downloads with progress and control** — files Muse makes for you download in parallel with live progress %, an estimated time remaining, and a transfer speed in the status bar; the taskbar button mirrors overall progress. The ⋯ menu's **Downloads…** window is a small manager: every active download with its own pause/resume/cancel (plus retry for a download that failed in this session), and a searchable history — filter completed/failed, sort by date, size, or name — with Open / Show in folder / Copy path / Open with… / Delete file. Choose the folder (shared or per profile), ask-where-to-save, what happens when a file name collides, how much history to keep (50/200/1000), and whether a tray balloon tells you a download finished while you were away, all in Settings.
 - **Settings window** — one place (⋯ menu → *Settings…*, or Ctrl+,) for startup behavior, close-to-tray, default zoom, downloads, update checks, tray memory saving, **clear browsing data / sign out**, and **export/import** of your settings. Each profile can start at the Muse home page instead of reopening its last page.
 - **Update notices** — the app checks GitHub Releases once per launch and quietly tells you in the status bar when a newer version is out (you can turn this off in Settings).
 - **Multiple accounts** — profiles (Settings → *Account profiles*) keep separate Muse sign-ins on one PC, each with its own session data; switch from Settings (the app restarts into the chosen profile).
@@ -61,7 +61,7 @@ Either way: the app is not code-signed yet, so Windows SmartScreen may warn on f
 | What | Where |
 | --- | --- |
 | Settings | `%APPDATA%\MuseDesktop\settings.json` |
-| Download history | `%APPDATA%\MuseDesktop\downloads.json` (names, sizes, dates, and paths of finished downloads — never their source URLs) |
+| Download history | `%APPDATA%\MuseDesktop\downloads.json` (names, sizes, dates, paths, and completed/failed state of downloads — never their source URLs) |
 | Diagnostic log | `%APPDATA%\MuseDesktop\logs\musedesktop.log` (1 MB, single rollover; URLs are logged host-and-path only, never with query strings) |
 | Web profile (login session) | `%LOCALAPPDATA%\MuseDesktop\WebView2` for the default profile; extra profiles get sibling folders (`WebView2-<id>`) |
 | Downloads | Your Downloads folder, or the folder chosen in Settings |

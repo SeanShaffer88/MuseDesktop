@@ -30,6 +30,12 @@ public partial class SettingsWindow : Window
         foreach (var step in ZoomMath.Steps)
             ZoomCombo.Items.Add(ZoomMath.FormatPercent(step));
 
+        // S2 (#16/#21): collision-policy and history-cap choices.
+        CollisionPolicyCombo.Items.Add("Save as a new name");
+        CollisionPolicyCombo.Items.Add("Ask where to save");
+        foreach (var cap in DownloadHistoryStore.AllowedCaps)
+            HistoryCapCombo.Items.Add(cap.ToString());
+
         LoadControls();
     }
 
@@ -41,6 +47,9 @@ public partial class SettingsWindow : Window
         SuspendInTrayCheck.IsChecked = _working.SuspendWhenInTray;
         CheckUpdatesCheck.IsChecked = _working.CheckForUpdates;
         AskWhereToSaveCheck.IsChecked = _working.AskWhereToSave;
+        NotifyDownloadCompleteCheck.IsChecked = _working.NotifyWhenDownloadCompletes;
+        CollisionPolicyCombo.SelectedIndex = _working.CollisionPolicy == DownloadCollisionPolicy.AskWhereToSave ? 1 : 0;
+        HistoryCapCombo.SelectedItem = DownloadHistoryStore.SanitizeCap(_working.DownloadHistoryCap).ToString();
         DownloadsFolderText.Text = _working.DownloadsFolder ?? "";
 
         var current = ZoomMath.FormatPercent(_working.ZoomFactor);
@@ -57,6 +66,12 @@ public partial class SettingsWindow : Window
         _working.SuspendWhenInTray = SuspendInTrayCheck.IsChecked == true;
         _working.CheckForUpdates = CheckUpdatesCheck.IsChecked == true;
         _working.AskWhereToSave = AskWhereToSaveCheck.IsChecked == true;
+        _working.NotifyWhenDownloadCompletes = NotifyDownloadCompleteCheck.IsChecked == true;
+        _working.CollisionPolicy = CollisionPolicyCombo.SelectedIndex == 1
+            ? DownloadCollisionPolicy.AskWhereToSave
+            : DownloadCollisionPolicy.AutoRename;
+        if (HistoryCapCombo.SelectedItem is string capText && int.TryParse(capText, out var cap))
+            _working.DownloadHistoryCap = cap;
         _working.DownloadsFolder = string.IsNullOrWhiteSpace(DownloadsFolderText.Text)
             ? null
             : DownloadsFolderText.Text.Trim();
@@ -93,6 +108,38 @@ public partial class SettingsWindow : Window
         ProfileStartHomeCheck.IsChecked = selected?.StartAtHome == true;
         _syncingProfileStartHome = false;
         ProfileStartHomeCheck.IsEnabled = selected is not null;
+        // S2 #20: the selected profile's downloads-folder override.
+        ProfileDownloadsFolderText.Text = selected?.DownloadsFolder ?? "";
+        BrowseProfileFolderButton.IsEnabled = selected is not null;
+        ClearProfileFolderButton.IsEnabled = selected is not null && !string.IsNullOrWhiteSpace(selected.DownloadsFolder);
+    }
+
+    private void OnBrowseProfileDownloadsFolder(object sender, RoutedEventArgs e)
+    {
+        if (SelectedProfile is not { } selected)
+            return;
+        var dialog = new OpenFolderDialog
+        {
+            Title = $"Choose where profile \"{selected.Name}\" saves downloads",
+            InitialDirectory = Directory.Exists(ProfileDownloadsFolderText.Text)
+                ? ProfileDownloadsFolderText.Text
+                : AppPaths.DownloadsHint,
+        };
+        if (dialog.ShowDialog(this) == true)
+        {
+            selected.DownloadsFolder = dialog.FolderName;
+            ProfileDownloadsFolderText.Text = dialog.FolderName;
+            ClearProfileFolderButton.IsEnabled = true;
+        }
+    }
+
+    private void OnClearProfileDownloadsFolder(object sender, RoutedEventArgs e)
+    {
+        if (SelectedProfile is not { } selected)
+            return;
+        selected.DownloadsFolder = null;
+        ProfileDownloadsFolderText.Text = "";
+        ClearProfileFolderButton.IsEnabled = false;
     }
 
     private bool _syncingProfileStartHome;
@@ -261,6 +308,11 @@ public partial class SettingsWindow : Window
         target.StartWithWindows = source.StartWithWindows;
         target.DownloadsFolder = source.DownloadsFolder;
         target.AskWhereToSave = source.AskWhereToSave;
+        target.NotifyWhenDownloadCompletes = source.NotifyWhenDownloadCompletes;
+        target.DownloadHistoryCap = source.DownloadHistoryCap;
+        target.CollisionPolicy = source.CollisionPolicy;
+        target.AlwaysOnTop = source.AlwaysOnTop;
+        target.WindowPlacementByProfile = source.WindowPlacementByProfile;
         target.CheckForUpdates = source.CheckForUpdates;
         target.SuspendWhenInTray = source.SuspendWhenInTray;
         target.Profiles = source.Profiles;

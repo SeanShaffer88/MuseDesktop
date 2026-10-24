@@ -2,11 +2,21 @@ using System.Text.Json;
 
 namespace MuseDesktop.Core;
 
+/// <summary>What a download history entry represents (v0.6.0, S2 #16).</summary>
+public enum DownloadRecordState
+{
+    Completed,
+    Failed,
+}
+
 /// <summary>
 /// One finished download, remembered so the Downloads window can offer
 /// Open / Show-in-folder after the status-bar message has moved on
 /// (v0.4.0). Only the file name, path, size, and time are kept — never
-/// the URL it came from.
+/// the URL it came from. Since v0.6.0 (S2 #16) failures are recorded too
+/// (<see cref="DownloadRecordState.Failed"/>); files written by older
+/// builds have no state field and deserialize as Completed, which is
+/// what they all were.
 /// </summary>
 public sealed class DownloadRecord
 {
@@ -14,6 +24,10 @@ public sealed class DownloadRecord
     public string FullPath { get; set; } = "";
     public long SizeBytes { get; set; }
     public DateTimeOffset CompletedUtc { get; set; }
+    public DownloadRecordState State { get; set; } = DownloadRecordState.Completed;
+
+    /// <summary>For a failed download, the interrupt reason name (e.g. "NetworkFailed") — never a URL.</summary>
+    public string? FailureReason { get; set; }
 }
 
 /// <summary>
@@ -21,10 +35,18 @@ public sealed class DownloadRecord
 /// newest first, capped so it can never grow without bound. Loading a
 /// missing or corrupt file yields an empty history — this is a
 /// convenience record, not user data worth preserving heroics for.
+/// The cap is configurable since v0.6.0 (S2 #16): 50 (the historical
+/// default), 200, or 1000 — see <see cref="AppSettings.DownloadHistoryCap"/>.
+/// Existing callers that omit the cap keep the old 50-entry behavior.
 /// </summary>
 public static class DownloadHistoryStore
 {
     public const int MaxEntries = 50;
+
+    /// <summary>The only cap values the settings UI offers; anything else sanitizes back to the default.</summary>
+    public static readonly int[] AllowedCaps = { 50, 200, 1000 };
+
+    public static int SanitizeCap(int cap) => AllowedCaps.Contains(cap) ? cap : MaxEntries;
 
     private static readonly JsonSerializerOptions Options = new()
     {
@@ -32,8 +54,9 @@ public static class DownloadHistoryStore
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
-    public static List<DownloadRecord> Load(string path)
+    public static List<DownloadRecord> Load(string path, int cap = MaxEntries)
     {
+        cap = Math.Max(1, cap);
         try
         {
             if (!File.Exists(path))
@@ -43,7 +66,7 @@ public static class DownloadHistoryStore
             records.RemoveAll(r => r is null || string.IsNullOrWhiteSpace(r.FullPath));
             return records
                 .OrderByDescending(r => r.CompletedUtc)
-                .Take(MaxEntries)
+                .Take(cap)
                 .ToList();
         }
         catch (Exception)
@@ -52,25 +75,283 @@ public static class DownloadHistoryStore
         }
     }
 
-    public static void Save(string path, List<DownloadRecord> records)
+    public static void Save(string path, List<DownloadRecord> records, int cap = MaxEntries)
     {
+        cap = Math.Max(1, cap);
         var dir = Path.GetDirectoryName(path);
         if (!string.IsNullOrEmpty(dir))
             Directory.CreateDirectory(dir);
         var tmp = path + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(records.Take(MaxEntries).ToList(), Options));
+        File.WriteAllText(tmp, JsonSerializer.Serialize(records.Take(cap).ToList(), Options));
         File.Move(tmp, path, overwrite: true);
     }
 
     /// <summary>Prepend a finished download and persist, keeping the cap.</summary>
-    public static void Add(string path, DownloadRecord record)
+    public static void Add(string path, DownloadRecord record, int cap = MaxEntries)
     {
-        var records = Load(path);
+        var records = Load(path, cap);
         records.Insert(0, record);
-        Save(path, records);
+        Save(path, records, cap);
+    }
+
+    /// <summary>Remove one entry (the Downloads window's Delete-file action, S2 #17). Returns true when an entry was removed.</summary>
+    public static bool Remove(string path, DownloadRecord record, int cap = MaxEntries)
+    {
+        var records = Load(path, cap);
+        var removed = records.RemoveAll(r =>
+            string.Equals(r.FullPath, record.FullPath, StringComparison.OrdinalIgnoreCase)
+            && r.CompletedUtc == record.CompletedUtc) > 0;
+        if (removed)
+            Save(path, records, cap);
+        return removed;
     }
 
     public static void Clear(string path) => Save(path, new List<DownloadRecord>());
+}
+
+/// <summary>State filter for the Downloads window history list (S2 #16).</summary>
+public enum DownloadStateFilter
+{
+    All,
+    Completed,
+    Failed,
+}
+
+/// <summary>Sort order for the Downloads window history list (S2 #16).</summary>
+public enum DownloadHistorySort
+{
+    NewestFirst,
+    LargestFirst,
+    NameAscending,
+}
+
+/// <summary>
+/// Pure search / filter / sort over history records for the Downloads
+/// window (S2 #16): search matches the file name (case-insensitive),
+/// the filter selects by <see cref="DownloadRecordState"/>, and the
+/// sort is date (newest first), size (largest first), or name (A–Z).
+/// </summary>
+public static class DownloadHistoryQuery
+{
+    public static List<DownloadRecord> Apply(
+        IEnumerable<DownloadRecord> records,
+        string? search,
+        DownloadStateFilter filter,
+        DownloadHistorySort sort)
+    {
+        IEnumerable<DownloadRecord> query = records;
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim();
+            query = query.Where(r => r.FileName.Contains(term, StringComparison.OrdinalIgnoreCase));
+        }
+        query = filter switch
+        {
+            DownloadStateFilter.Completed => query.Where(r => r.State == DownloadRecordState.Completed),
+            DownloadStateFilter.Failed => query.Where(r => r.State == DownloadRecordState.Failed),
+            _ => query,
+        };
+        return sort switch
+        {
+            DownloadHistorySort.LargestFirst => query.OrderByDescending(r => r.SizeBytes).ToList(),
+            DownloadHistorySort.NameAscending => query.OrderBy(r => r.FileName, StringComparer.OrdinalIgnoreCase).ToList(),
+            _ => query.OrderByDescending(r => r.CompletedUtc).ToList(),
+        };
+    }
+}
+
+/// <summary>What to do when a download's target file already exists (S2 #21).</summary>
+public enum DownloadCollisionPolicy
+{
+    /// <summary>Save as "name (1).ext", "name (2).ext", … (default).</summary>
+    AutoRename,
+
+    /// <summary>Fall back to the Save-As dialog for that file so the user chooses.</summary>
+    AskWhereToSave,
+}
+
+/// <summary>
+/// Effective downloads folder (S2 #20): a per-profile override wins over
+/// the shared downloads folder; when neither is set the result is null,
+/// meaning "the system Downloads folder" (WebView2's own default), so
+/// a user who moved their Windows Downloads folder is still honored.
+/// </summary>
+public static class DownloadFolderResolver
+{
+    public static string? Resolve(string? profileOverride, string? sharedFolder)
+    {
+        if (!string.IsNullOrWhiteSpace(profileOverride))
+            return profileOverride.Trim();
+        if (!string.IsNullOrWhiteSpace(sharedFolder))
+            return sharedFolder.Trim();
+        return null;
+    }
+}
+
+/// <summary>
+/// Collision-free file names (S2 #21): "report.pdf" that already exists
+/// becomes "report (1).pdf", then "(2)", and so on — the Windows
+/// Explorer convention. The existence check is injectable for tests.
+/// </summary>
+public static class UniqueFileName
+{
+    public static string ForPath(string fullPath) => ForPath(fullPath, File.Exists);
+
+    public static string ForPath(string fullPath, Func<string, bool> exists)
+    {
+        if (!exists(fullPath))
+            return fullPath;
+        var dir = Path.GetDirectoryName(fullPath) ?? "";
+        var name = Path.GetFileNameWithoutExtension(fullPath);
+        var ext = Path.GetExtension(fullPath);
+        for (var i = 1; i < 10000; i++)
+        {
+            var candidate = Path.Combine(dir, $"{name} ({i}){ext}");
+            if (!exists(candidate))
+                return candidate;
+        }
+        return fullPath;
+    }
+}
+
+/// <summary>Live state of one active download, for the manager UI (S2 #13).</summary>
+public enum DownloadActivityState
+{
+    InProgress,
+    Paused,
+    Completed,
+    Failed,
+    Cancelled,
+}
+
+/// <summary>
+/// One active (or just-finished) download as a plain model the shell
+/// keeps in step with the WebView2 operation (S2 #13). The session-only
+/// identity is <see cref="Id"/>; nothing here is persisted, and there is
+/// deliberately no source-URL field — the URL lives only in the shell's
+/// in-memory retry record.
+/// </summary>
+public sealed class ActiveDownload
+{
+    public string Id { get; set; } = "";
+    public string FileName { get; set; } = "";
+    public string FullPath { get; set; } = "";
+    public long BytesReceived { get; set; }
+    public long? TotalBytes { get; set; }
+    public DateTimeOffset? EstimatedEnd { get; set; }
+    public DownloadActivityState State { get; set; } = DownloadActivityState.InProgress;
+    public bool CanResume { get; set; }
+    public double SpeedBytesPerSecond { get; set; }
+
+    /// <summary>Whole percent complete, or null when the total is unknown.</summary>
+    public int? Percent => TotalBytes is { } total && total > 0
+        ? (int)Math.Clamp(BytesReceived * 100L / total, 0, 100)
+        : null;
+}
+
+/// <summary>
+/// The set of downloads currently in flight (S2 #13): add / remove /
+/// find, plus the aggregate progress the status bar and taskbar show
+/// when more than one download runs at once.
+/// </summary>
+public sealed class ActiveDownloadSet
+{
+    private readonly List<ActiveDownload> _items = new();
+
+    public IReadOnlyList<ActiveDownload> Items => _items;
+    public int Count => _items.Count;
+
+    public void Add(ActiveDownload download) => _items.Add(download);
+
+    public bool Remove(string id) => _items.RemoveAll(d => d.Id == id) > 0;
+
+    public ActiveDownload? Find(string id) => _items.FirstOrDefault(d => d.Id == id);
+
+    public bool AnyTransferring => _items.Any(d => d.State == DownloadActivityState.InProgress);
+    public bool AnyPaused => _items.Any(d => d.State == DownloadActivityState.Paused);
+
+    /// <summary>
+    /// Overall completion across the downloads whose totals are known:
+    /// summed bytes over summed totals. Null when no download has a
+    /// known total (the shell shows an indeterminate state instead).
+    /// </summary>
+    public double? OverallFraction
+    {
+        get
+        {
+            long bytes = 0, total = 0;
+            foreach (var d in _items)
+            {
+                if (d.State is not (DownloadActivityState.InProgress or DownloadActivityState.Paused))
+                    continue;
+                if (d.TotalBytes is { } t && t > 0)
+                {
+                    bytes += d.BytesReceived;
+                    total += t;
+                }
+            }
+            return total > 0 ? Math.Clamp((double)bytes / total, 0, 1) : null;
+        }
+    }
+
+    /// <summary>Total current transfer speed across in-progress downloads (bytes/sec).</summary>
+    public double TotalSpeed => _items
+        .Where(d => d.State == DownloadActivityState.InProgress)
+        .Sum(d => d.SpeedBytesPerSecond);
+}
+
+/// <summary>
+/// A smoothed download rate (S2 #22): samples byte counts over time and
+/// blends each instantaneous rate into an exponential moving average
+/// (alpha 0.3), so the readout doesn't flicker with every progress tick.
+/// </summary>
+public sealed class DownloadRateSampler
+{
+    public const double Alpha = 0.3;
+
+    private long _lastBytes;
+    private DateTimeOffset _lastTime;
+    private bool _hasSample;
+    private double _rate;
+
+    public double BytesPerSecond => _rate;
+
+    /// <summary>Feed a new byte count; returns the smoothed rate (bytes/sec).</summary>
+    public double Sample(long bytesReceived, DateTimeOffset now)
+    {
+        if (!_hasSample)
+        {
+            _lastBytes = bytesReceived;
+            _lastTime = now;
+            _hasSample = true;
+            return 0;
+        }
+        var dt = (now - _lastTime).TotalSeconds;
+        if (dt <= 0.05)
+            return _rate;
+        var delta = bytesReceived - _lastBytes;
+        if (delta < 0)
+        {
+            // The operation restarted its count (e.g. a no-range resume):
+            // restart the sampler rather than reporting a negative rate.
+            _lastBytes = bytesReceived;
+            _lastTime = now;
+            _rate = 0;
+            return 0;
+        }
+        var instant = delta / dt;
+        _rate = _rate <= 0 ? instant : _rate + Alpha * (instant - _rate);
+        _lastBytes = bytesReceived;
+        _lastTime = now;
+        return _rate;
+    }
+
+    /// <summary>Forget all samples (e.g. after a pause/resume).</summary>
+    public void Reset()
+    {
+        _hasSample = false;
+        _rate = 0;
+    }
 }
 
 /// <summary>
@@ -105,6 +386,14 @@ public static class DownloadText
         return $"{text} {units[unit]}";
     }
 
+    /// <summary>Transfer speed for the manager and status bar (S2 #22): "512 B/s", "1.5 KB/s", "2.3 MB/s".</summary>
+    public static string FormatSpeed(double bytesPerSecond)
+    {
+        if (double.IsNaN(bytesPerSecond) || bytesPerSecond <= 0)
+            return "0 B/s";
+        return FormatBytes((long)Math.Round(bytesPerSecond)) + "/s";
+    }
+
     /// <summary>
     /// The status-bar pair (main text, right-aligned detail) for an
     /// in-progress download — byte-for-byte the wording the app has
@@ -123,5 +412,101 @@ public static class DownloadText
                     $"{bytesReceived / 1024} KB of {total / 1024} KB");
         }
         return ($"Downloading {fileName}…", $"{bytesReceived / 1024} KB received");
+    }
+
+    /// <summary>
+    /// Progress with a speed readout (S2 #22): the main text is
+    /// byte-identical to <see cref="ProgressStatus(string, long, long?, DateTimeOffset?, DateTimeOffset)"/>;
+    /// a known speed is appended to the right-hand detail.
+    /// </summary>
+    public static (string Text, string Right) ProgressStatus(
+        string fileName, long bytesReceived, long? totalBytes, DateTimeOffset? estimatedEnd, DateTimeOffset now,
+        double speedBytesPerSecond)
+    {
+        var (text, right) = ProgressStatus(fileName, bytesReceived, totalBytes, estimatedEnd, now);
+        if (speedBytesPerSecond > 0)
+            right = $"{right} · {FormatSpeed(speedBytesPerSecond)}";
+        return (text, right);
+    }
+
+    /// <summary>
+    /// The status-bar pair when several downloads run at once (S2 #13):
+    /// an aggregate, never a claim about any single file.
+    /// </summary>
+    public static (string Text, string Right) AggregateStatus(ActiveDownloadSet set, DateTimeOffset now)
+    {
+        var active = set.Items
+            .Where(d => d.State is DownloadActivityState.InProgress or DownloadActivityState.Paused)
+            .ToList();
+        var count = active.Count;
+        if (count == 0)
+            return ("", "");
+
+        string text;
+        if (!set.AnyTransferring)
+        {
+            text = count == 1 ? "Download paused" : $"Downloads paused — {count} files";
+        }
+        else if (set.OverallFraction is { } fraction)
+        {
+            text = $"Downloading {count} files — {(int)(fraction * 100)}%";
+        }
+        else
+        {
+            text = $"Downloading {count} files…";
+        }
+
+        var parts = new List<string>();
+        long bytes = active.Sum(d => d.BytesReceived);
+        long total = active.Sum(d => d.TotalBytes ?? 0);
+        if (total > 0)
+            parts.Add($"{FormatBytes(bytes)} of {FormatBytes(total)}");
+        else if (bytes > 0)
+            parts.Add($"{FormatBytes(bytes)} received");
+        if (set.AnyTransferring && set.TotalSpeed > 0)
+            parts.Add(FormatSpeed(set.TotalSpeed));
+        // An ETA only makes sense for the soonest-finishing known estimate.
+        var eta = active
+            .Where(d => d.State == DownloadActivityState.InProgress && d.EstimatedEnd is not null)
+            .Select(d => d.EstimatedEnd!.Value - now)
+            .Where(t => t > TimeSpan.Zero)
+            .OrderBy(t => t)
+            .FirstOrDefault();
+        if (eta > TimeSpan.Zero)
+            parts.Add($"about {FormatEta(eta)} left");
+        return (text, string.Join(" · ", parts));
+    }
+
+    /// <summary>
+    /// One-line detail for a row in the downloads manager (S2 #13):
+    /// percent / bytes, ETA, and speed, or the paused/failed wording.
+    /// </summary>
+    public static string ActiveDetail(ActiveDownload download, DateTimeOffset now)
+    {
+        switch (download.State)
+        {
+            case DownloadActivityState.Paused:
+                return download.Percent is { } pausedPct
+                    ? $"Paused — {pausedPct}% · {FormatBytes(download.BytesReceived)} of {FormatBytes(download.TotalBytes ?? 0)}"
+                    : $"Paused — {FormatBytes(download.BytesReceived)} received";
+            case DownloadActivityState.Failed:
+                return "Failed";
+            case DownloadActivityState.Cancelled:
+                return "Cancelled";
+            case DownloadActivityState.Completed:
+                return "Complete";
+            default:
+                var parts = new List<string>();
+                if (download.Percent is { } pct)
+                    parts.Add($"{pct}%");
+                parts.Add(download.TotalBytes is { } total && total > 0
+                    ? $"{FormatBytes(download.BytesReceived)} of {FormatBytes(total)}"
+                    : $"{FormatBytes(download.BytesReceived)} received");
+                if (download.EstimatedEnd is { } end && end - now is { } eta && eta > TimeSpan.Zero)
+                    parts.Add($"about {FormatEta(eta)} left");
+                if (download.SpeedBytesPerSecond > 0)
+                    parts.Add(FormatSpeed(download.SpeedBytesPerSecond));
+                return string.Join(" · ", parts);
+        }
     }
 }

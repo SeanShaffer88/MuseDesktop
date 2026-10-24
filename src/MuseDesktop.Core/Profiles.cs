@@ -15,6 +15,9 @@ public sealed class AccountProfile
 
     /// <summary>Start this profile at the Muse home page instead of reopening its last page (v0.4.0).</summary>
     public bool StartAtHome { get; set; }
+
+    /// <summary>Optional downloads folder for this profile only (S2 #20); null = the shared downloads folder (or the system Downloads folder).</summary>
+    public string? DownloadsFolder { get; set; }
 }
 
 /// <summary>Invariants and helpers for the profile list stored in settings.</summary>
@@ -50,6 +53,9 @@ public static class Profiles
             p.Name = p.Name.Trim();
             if (p.Name.Length > 40)
                 p.Name = p.Name[..40];
+            p.DownloadsFolder = string.IsNullOrWhiteSpace(p.DownloadsFolder)
+                ? null
+                : p.DownloadsFolder.Trim();
         }
         while (settings.Profiles.Count > MaxProfiles)
             settings.Profiles.RemoveAt(settings.Profiles.Count - 1);

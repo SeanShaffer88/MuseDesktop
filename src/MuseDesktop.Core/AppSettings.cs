@@ -73,6 +73,25 @@ public sealed class AppSettings
     /// <summary>Ask where to save each download (Save-As dialog per file).</summary>
     public bool AskWhereToSave { get; set; }
 
+    /// <summary>Show a tray balloon when a download completes while the window is hidden (S2 #18). Off by default — no nagging, no sound.</summary>
+    public bool NotifyWhenDownloadCompletes { get; set; }
+
+    /// <summary>How many entries the download history keeps: 50, 200, or 1000 (S2 #16). Sanitized to one of those.</summary>
+    public int DownloadHistoryCap { get; set; } = DownloadHistoryStore.MaxEntries;
+
+    /// <summary>What to do when a download's target file already exists (S2 #21).</summary>
+    public DownloadCollisionPolicy CollisionPolicy { get; set; } = DownloadCollisionPolicy.AutoRename;
+
+    /// <summary>
+    /// The folder this launch's downloads land in (S2 #20): the active
+    /// profile's override wins over the shared <see cref="DownloadsFolder"/>;
+    /// null means the system Downloads folder (WebView2's default).
+    /// </summary>
+    public string? EffectiveDownloadsFolder() =>
+        DownloadFolderResolver.Resolve(
+            Profiles.FirstOrDefault(p => p.Id == ActiveProfileId)?.DownloadsFolder,
+            DownloadsFolder);
+
     // Updates (v0.2.0).
     /// <summary>Check GitHub Releases for a newer version once per launch. On by default; the check is silent on failure (offline-first).</summary>
     public bool CheckForUpdates { get; set; } = true;
@@ -113,6 +132,9 @@ public sealed class AppSettings
             DownloadsFolder = null;
         else
             DownloadsFolder = DownloadsFolder.Trim();
+        DownloadHistoryCap = DownloadHistoryStore.SanitizeCap(DownloadHistoryCap);
+        if (!Enum.IsDefined(CollisionPolicy))
+            CollisionPolicy = DownloadCollisionPolicy.AutoRename;
         LastUrlByProfile ??= new Dictionary<string, string>();
         // Migrate the pre-v0.3.1 shared last page into the default profile.
         if (LastUrl is not null)

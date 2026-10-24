@@ -61,6 +61,20 @@ The per-release items below accumulated faster than on-machine passes ran. This 
 
 Record the outcome per item (pass / fail / not run) in the release notes working file. A "not run" item is reported as unverified — never silently treated as a pass.
 
+## v0.6.0 — Slice 2 (downloads) on-machine items
+
+- [ ] **S2 #13 Parallel manager:** start two downloads at once — the status bar switches to an aggregate ("Downloading 2 files — N%"); ⋯ → *Downloads…* shows both in *Active downloads* with individual %/ETA/speed; clicking the status text while they run opens the manager; each completes and lands in history
+- [ ] **S2 #14 Pause/resume:** pause the larger download from the manager — its row says Paused (not Failed), no history record appears; Resume continues it to completion; the status bar for a single paused download says "Download paused: …"; note in the log which interrupt reason a pause actually produced (`UserPaused` expected)
+- [ ] **S2 #15 Retry:** force a failure (e.g. go offline mid-download) — history gains a Failed entry with a reason, and the manager offers Retry for it in the same session; Retry starts a fresh download of the same file to the policy folder; quit and relaunch — the retry offer is gone (in-memory only)
+- [ ] **S2 #16 History query + cap:** search narrows by file name; filter Failed shows only failures; sorts by size and name work; set the history cap to 200 in Settings → OK, download past 50 total entries across sessions — history now keeps up to 200
+- [ ] **S2 #17 History actions:** *Copy path* pastes the full path; *Open with…* shows the Windows Open-with dialog; *Delete file* (confirmed) removes the file from disk AND its history row; *Clear history* still leaves files in place
+- [ ] **S2 #18 Completion balloon:** enable the notify setting, hide the app to the tray, have Muse produce a file — a tray balloon names the file, with no sound; with the setting off, no balloon appears
+- [ ] **S2 #19 Taskbar progress:** during a download the taskbar button fills proportionally; pause the only download — the button turns yellow/paused; fail a download — red until the next download starts; idle — no progress shown
+- [ ] **S2 #20 Per-profile folder:** give a second profile its own downloads folder in Settings, switch to it, download — the file lands in the profile's folder, not the shared one; clear the override — the shared folder applies again
+- [ ] **S2 #21 Collisions:** download the same file twice — the second lands as "name (1).ext"; switch the collision setting to *Ask where to save*, download it again — a Save-As dialog appears, and cancelling it cancels that download
+- [ ] **S2 #22 Speed:** during a download the status-bar right side and the manager row show a speed (e.g. "1.5 MB/s") alongside %/ETA, and it settles rather than flickering wildly on a steady connection
+- [ ] **S2 regressions:** single-download status wording matches v0.5.0 exactly apart from the speed detail; status-bar ✕ cancels the most recent download; tray suspend still waits while a download transfers but may suspend with only a paused download; click-to-open after completion still works
+
 ## v0.5.0 — Slice 1 (window & navigation) on-machine items
 
 - [ ] **S1 #1 Find:** Ctrl+F opens the find bar; typing shows a live match count (e.g. "3 of 12"); Enter/Shift+Enter move between matches and the page scrolls/highlights; Esc closes the bar and clears highlighting

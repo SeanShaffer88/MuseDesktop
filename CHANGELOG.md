@@ -2,6 +2,27 @@
 
 All notable changes to MuseDesktop. Format follows Keep a Changelog; versions use semantic versioning.
 
+## [0.6.0] — Unreleased
+
+Slice 2 (items 13–22) of the 100-enhancement program: downloads.
+
+### Added
+
+- **Parallel downloads manager (#13)** — the Downloads window now opens with an *Active downloads* list: every in-flight download with its own progress, ETA, speed, and controls. The status bar keeps the exact single-download wording when one file runs and switches to an aggregate ("Downloading 3 files — 42%") when several do; clicking the status text while downloads run opens the manager.
+- **Pause / resume (#14)** — Pause and Resume buttons in the manager, riding WebView2's own `Pause()`/`Resume()`/`CanResume` (verified present in the pinned SDK 1.0.4258.31). A paused download shows as *Paused*, never as a failure.
+- **Retry failed downloads (#15)** — a download that fails can be re-issued from the manager **during the same session**: the app navigates a hidden WebView2 on the same sign-in to the failed address and takes over the new download. The address is held in memory only — never written to disk or logged in full — so the retry offer ends when the app exits.
+- **History search, filter, sort, and a configurable cap (#16)** — search by file name, filter All / Completed / Failed, sort by date, size, or name. Failed downloads are now recorded in history (with the failure reason). Settings → Downloads chooses how much history to keep: 50 (as before), 200, or 1000 entries.
+- **History file actions (#17)** — *Copy path*, *Open with…*, and *Delete file* (confirmed; deletes the file and removes its history entry) join Open / Show in folder.
+- **Completion notification (#18)** — optional Settings toggle (off by default): when a download finishes while the window is hidden in the tray, a tray balloon names the file. No sound.
+- **Taskbar progress (#19)** — the Windows taskbar button mirrors overall download progress (normal while transferring, yellow when only paused downloads remain, red after a failure until the next download starts, cleared when idle).
+- **Per-profile downloads folder (#20)** — each profile can override where its downloads land (Settings → Account profiles → select a profile → Browse); the shared folder remains the fallback.
+- **Filename-collision handling (#21)** — if the target file exists, the download is saved as "name (1).ext" automatically, or — with the new Settings choice — you're asked where to save that file instead.
+- **Download speed readout (#22)** — a smoothed transfer speed ("1.5 MB/s") alongside % and ETA in the manager and in the status-bar detail. The status line's main wording is unchanged; the one intentional change is the speed appended to its right-hand detail (pinned by new Core tests; the previous `ProgressStatus` tests are untouched and still pass).
+
+### Notes
+
+- Core test suite grows by 51 cases (143 → 194). All v0.6.0 runtime behavior is **Unverified** on a real Windows machine pending the `RELEASE_CHECKLIST.md` S2 pass.
+
 ## [0.5.0] — 2026-10-24
 
 Slice 1 (items 1–12) of the 100-enhancement program: window & navigation.
