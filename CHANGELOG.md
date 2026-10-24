@@ -2,6 +2,29 @@
 
 All notable changes to MuseDesktop. Format follows Keep a Changelog; versions use semantic versioning.
 
+## [0.5.0] — Unreleased
+
+Slice 1 (items 1–12) of the 100-enhancement program: window & navigation.
+
+### Added
+
+- **Find in page (Ctrl+F)** — a find bar (match count, previous/next, Esc to close) built on WebView2's `CoreWebView2.Find` API, present in the pinned SDK 1.0.4258.31.
+- **Print (Ctrl+P) and Save as PDF** — ⋯ menu / Ctrl+P opens WebView2's print UI; *Save as PDF…* writes a PDF via `PrintToPdfAsync` to a file you choose.
+- **Back/Forward history dropdowns** — right-click or long-press Back/Forward to jump through this session's pages (new Core `NavigationHistory` model, capped at 50, consecutive duplicates collapsed).
+- **⋯ menu: Copy page address and Open in browser** acting on the current page.
+- **Always-on-top pin** — toolbar 📌 button or ⋯ menu toggle, persisted (`AlwaysOnTop`, off by default).
+- **Focus mode (F8)** — hides the toolbar and status bar for a distraction-free window; F8 or Esc exits. Session-only, never persisted; separate from F11 full screen.
+- **Open in new window** — a lightweight second window on the same WebView2 environment/profile (same sign-in), for viewing a second page alongside the main window.
+- **Per-profile window placement** — each profile remembers its own window size/position/maximized state; existing installs migrate their current placement into the default profile automatically.
+- **Ctrl+Shift+T** — restore the last page you navigated away from (or the page showing when a load failed / the web view crashed).
+- **Smarter load-failure messages** — failures are classified in plain language (offline, server unreachable, DNS, certificate, other) instead of a raw error code, and the app retries once automatically when your network connection changes back.
+- **Window title shows the profile** — with more than one profile, the title bar/taskbar reads "page — profile — MuseDesktop".
+
+### Notes
+
+- Middle-click / Ctrl+click link audit (item 11): those gestures reach the app through the same WebView2 new-window path as every other link, so the existing link policy already covers them; Core tests now pin that classification for every host class. No behavior change.
+- Core test suite grows by 34 cases (110 → 144). All v0.5.0 runtime behavior is **Unverified** on a real Windows machine pending the `RELEASE_CHECKLIST.md` S1 pass.
+
 ## [0.4.0] — 2026-10-23
 
 ### Added

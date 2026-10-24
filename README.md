@@ -22,6 +22,7 @@ Muse has no Windows app, so this is one: a small native program that opens muse.
 - **Sensible link handling** — Muse and sign-in pages stay in the app; ordinary web links from chats open in your default browser; dangerous schemes (`file:`, `javascript:`, …) are refused. Right-clicking a link adds *Open link in browser* and *Copy link address*.
 - **Voice and alerts** — Muse origins get microphone (voice dictation) and notification permission; every other permission request is denied rather than silently granted.
 - **Keyboard-friendly** — Back/Forward/Reload/Home in the toolbar, zoom controls with a % readout (Ctrl + / − / 0), F11 full screen, and standard browser accelerators inside the page.
+- **Find, print, and focus (v0.5.0)** — Ctrl+F finds text in the page with a match count; Ctrl+P prints and *Save as PDF…* exports the page; F8 focus mode hides the toolbar and status bar; a 📌 pin keeps the window on top; *Open in new window* shows the current page in a lightweight second window on the same sign-in; right-click or long-press Back/Forward jumps through this session's history, and Ctrl+Shift+T reopens the last page you left. Each profile remembers its own window placement, and load failures now explain themselves in plain words (offline, DNS, certificate…) and retry once when your connection comes back.
 - **Private by construction** — no telemetry, no accounts of its own, no data collection. The only files it writes are its settings, a rolling local log, and the WebView2 profile (cookies/local storage) — all under your user profile, all deletable by you at any time.
 - **Forgiving** — second launches wake the running window instead of opening a duplicate; a corrupted settings file is preserved as a backup and defaults are used; load failures explain themselves and offer a retry.
 
@@ -70,6 +71,11 @@ Either way: the app is not code-signed yet, so Windows SmartScreen may warn on f
 | Keys | Action |
 | --- | --- |
 | Alt+Left / Alt+Right | Back / Forward |
+| Right-click / long-press Back or Forward | Jump through this session's page history |
+| Ctrl+Shift+T | Restore the last closed page |
+| Ctrl+F | Find in page (Enter next, Shift+Enter previous, Esc closes) |
+| Ctrl+P | Print (⋯ menu also has Save as PDF…) |
+| F8 | Focus mode — hide the toolbar and status bar (Esc exits) |
 | Ctrl+R or F5 | Reload |
 | Ctrl+Plus / Ctrl+Minus | Zoom in / out |
 | Ctrl+0 | Reset zoom to 100% |
