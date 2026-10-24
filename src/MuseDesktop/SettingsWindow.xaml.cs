@@ -1,7 +1,10 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Text;
 using System.Windows;
 using System.Windows.Data;
+using Microsoft.Web.WebView2.Core;
 using Microsoft.Win32;
 using MuseDesktop.Core;
 
@@ -23,23 +26,26 @@ public sealed class ProfileColorBrushConverter : IValueConverter
 
 /// <summary>
 /// Edits a CLONE of the app settings (see AppSettings.Clone): OK adopts the
-/// clone, Cancel discards it. The one live action in here is clearing
-/// browsing data, which the main window performs via the callback — it acts
-/// on the WebView2 profile, not on settings.
+/// clone, Cancel discards it. The live actions live in the Privacy &amp;
+/// security section (S7): clear-data, permissions, and site data run
+/// against the WebView2 profiles through the main window's
+/// <see cref="WebPrivacyGateway"/> — they act on profile data, not on
+/// settings, so they take effect immediately and Cancel can't undo them
+/// (each one confirms first and says exactly what it will do).
 /// </summary>
 public partial class SettingsWindow : Window
 {
     private readonly AppSettings _working;
     private readonly DiagnosticLog _log;
-    private readonly Func<Task<bool>> _clearBrowsingData;
+    private readonly WebPrivacyGateway? _privacy;
     private readonly Action<AppSettings, string> _switchProfile;
 
-    public SettingsWindow(AppSettings working, DiagnosticLog log, Func<Task<bool>> clearBrowsingData,
+    public SettingsWindow(AppSettings working, DiagnosticLog log, WebPrivacyGateway? privacy,
         Action<AppSettings, string> switchProfile)
     {
         _working = working;
         _log = log;
-        _clearBrowsingData = clearBrowsingData;
+        _privacy = privacy;
         _switchProfile = switchProfile;
         InitializeComponent();
 
@@ -63,6 +69,7 @@ public partial class SettingsWindow : Window
             (SettingsSearch.AccessibilityId, SectionAccessibility, HeaderAccessibility),
             (SettingsSearch.DownloadsId, SectionDownloads, HeaderDownloads),
             (SettingsSearch.DataId, SectionData, HeaderData),
+            (SettingsSearch.PrivacyId, SectionPrivacy, HeaderPrivacy),
         };
 
         // S6 #57: the zoom lists come from the step table for the
@@ -100,6 +107,15 @@ public partial class SettingsWindow : Window
         foreach (var cap in DownloadHistoryStore.AllowedCaps)
             HistoryCapCombo.Items.Add(cap.ToString());
 
+        // S7 #61: the clear-data choices, titled by Core's plan model
+        // so the UI and the confirm dialog always agree.
+        foreach (var choice in ClearChoices)
+            ClearChoiceCombo.Items.Add(ClearDataPlan.Title(choice));
+        ClearScopeCombo.Items.Add("This profile only");
+        ClearScopeCombo.Items.Add("All profiles");
+        ClearChoiceCombo.SelectedIndex = 2; // All site data — the pre-v0.11.0 behavior, one click away
+        ClearScopeCombo.SelectedIndex = 0;
+
         // S4 (#34/#38): suspend-timeout and quiet-hours choices. The
         // quiet-hours combos offer whole hours only — minute precision
         // would be settings-file-only precision theatre.
@@ -113,6 +129,12 @@ public partial class SettingsWindow : Window
 
         LoadControls();
     }
+
+    /// <summary>Clear-data choices in display order (S7 #61), parallel to ClearChoiceCombo's items.</summary>
+    private static readonly ClearDataChoice[] ClearChoices =
+    {
+        ClearDataChoice.Cookies, ClearDataChoice.Cache, ClearDataChoice.AllSiteData,
+    };
 
     /// <summary>Suspend-timeout choices in display order (S4 #34), parallel to SuspendTimeoutCombo's items.</summary>
     private static readonly (SuspendTimeout Value, string Label)[] SuspendTimeoutChoices =
@@ -165,6 +187,18 @@ public partial class SettingsWindow : Window
             : $"Settings, download history, and logs live in {AppPaths.RootDir}. For portable use, put an empty file named portable.txt beside MuseDesktop.exe and restart: settings then live in a data folder beside the app and start fresh there — nothing is moved automatically.";
 
         RefreshProfileCombo(_working.ActiveProfileId);
+
+        // S7: privacy section state — the autofill toggles (#68), the
+        // clear-data plan note (#61), the app lock (#64), the privacy
+        // report (#67), and the two live reads (#62/#63, fire-and-
+        // forget: they fill their rows when WebView2 answers).
+        PasswordAutosaveCheck.IsChecked = _working.PasswordAutosaveEnabled;
+        GeneralAutofillCheck.IsChecked = _working.GeneralAutofillEnabled;
+        UpdateClearPlanNote();
+        RefreshLockUi();
+        RefreshPrivacyReport();
+        _ = RefreshPermissionsAsync();
+        _ = RefreshSiteDataAsync();
 
         // S5 #46: the Settings window's own text follows the scale
         // (re-applied after every LoadControls — the design sizes are
@@ -224,6 +258,15 @@ public partial class SettingsWindow : Window
         {
             _working.ShellFontScale = scaleValue / 100.0;
         }
+        // S7: the autofill toggles (#68) and the app lock's tray-hide
+        // switch (#64). The lock's on/off comes from its checkbox too,
+        // but the credential fields are write-through from the lock
+        // dialogs — and the switch only counts with a record present
+        // (AppLock.IsLockActive enforces the same rule everywhere).
+        _working.PasswordAutosaveEnabled = PasswordAutosaveCheck.IsChecked == true;
+        _working.GeneralAutofillEnabled = GeneralAutofillCheck.IsChecked == true;
+        _working.AppLockEnabled = AppLockEnabledCheck.IsChecked == true && AppLock.HasValidRecord(_working);
+        _working.AppLockOnTrayHide = AppLockTrayHideCheck.IsChecked == true;
         // S5 #48: remember where Settings was left (size + section).
         if (ActualWidth > 0)
             _working.SettingsWindowWidth = ActualWidth;
@@ -553,30 +596,388 @@ public partial class SettingsWindow : Window
             DownloadsFolderText.Text = dialog.FolderName;
     }
 
-    private async void OnClearData(object sender, RoutedEventArgs e)
+    // ───────────────────────── S7: privacy & security ─────────────────────────
+
+    private ClearDataChoice SelectedClearChoice =>
+        ClearChoiceCombo.SelectedIndex >= 0 && ClearChoiceCombo.SelectedIndex < ClearChoices.Length
+            ? ClearChoices[ClearChoiceCombo.SelectedIndex]
+            : ClearDataChoice.AllSiteData;
+
+    private ClearDataScope SelectedClearScope =>
+        ClearScopeCombo.SelectedIndex == 1 ? ClearDataScope.AllProfiles : ClearDataScope.ActiveProfile;
+
+    private string ActiveProfileName =>
+        _working.Profiles.FirstOrDefault(p => p.Id == _working.ActiveProfileId)?.Name ?? "Default";
+
+    private void OnClearChoiceChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) =>
+        UpdateClearPlanNote();
+
+    /// <summary>The note under the clear controls always states the current choice's consequence + scope (#61) — before anything is deleted.</summary>
+    private void UpdateClearPlanNote()
+    {
+        if (ClearPlanNote is null)
+            return;
+        ClearPlanNote.Text = ClearDataPlan.Describe(SelectedClearChoice) + " " +
+            ClearDataPlan.DescribeScope(SelectedClearScope, ActiveProfileName, _working.Profiles.Count);
+    }
+
+    private async void OnClearDataGranular(object sender, RoutedEventArgs e)
+    {
+        if (_privacy is null)
+        {
+            ClearResultNote.Text = "The web view isn't running yet — try again once Muse has loaded.";
+            return;
+        }
+        var choice = SelectedClearChoice;
+        var scope = SelectedClearScope;
+        var targets = scope == ClearDataScope.AllProfiles
+            ? _working.Profiles.Select(p => (p.Id, p.Name)).ToList()
+            : new List<(string, string)> { (_working.ActiveProfileId, ActiveProfileName) };
+        var invoker = FocusReturn.Capture();
+        var confirm = System.Windows.MessageBox.Show(this,
+            $"{ClearDataPlan.Title(choice)} — {ClearDataPlan.DescribeScope(scope, ActiveProfileName, _working.Profiles.Count)}\n\n" +
+            ClearDataPlan.Describe(choice),
+            "Clear browsing data", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        FocusReturn.Restore(invoker);
+        if (confirm != MessageBoxResult.Yes)
+            return;
+        ClearNowButton.IsEnabled = false;
+        try
+        {
+            var result = await _privacy.ClearAsync(choice, targets);
+            ClearResultNote.Text = result.Summary;
+            _ = RefreshSiteDataAsync();
+            // The pre-v0.11.0 flow, preserved: a successful clear that
+            // signed the RUNNING profile out closes Settings (adopting
+            // the edits) while the main window lands on Home.
+            if (result.Success && result.ActiveProfileTouched && ClearDataPlan.SignsOut(choice))
+                DialogResult = true;
+        }
+        finally
+        {
+            ClearNowButton.IsEnabled = true;
+        }
+    }
+
+    // #62: the running profile's saved permission choices, read live.
+    private void OnRefreshPermissions(object sender, RoutedEventArgs e) => _ = RefreshPermissionsAsync();
+
+    private async Task RefreshPermissionsAsync()
+    {
+        PermissionRows.Children.Clear();
+        if (_privacy is null || !_privacy.IsLiveReady)
+        {
+            PermissionsNote.Text = "The web view isn't running yet, so saved permissions can't be read. " +
+                "MuseDesktop's own policy stands either way: microphone and notifications are granted to muse.ai when the page asks; everything else is denied.";
+            return;
+        }
+        try
+        {
+            var rows = await _privacy.GetPermissionsAsync();
+            PermissionsNote.Text = rows.Count == 0
+                ? "No site has a saved permission choice in this profile. MuseDesktop's own policy: microphone and notifications are granted to muse.ai when the page asks; everything else is denied."
+                : "Saved choices in this profile (from any site the profile has visited). Allow / Block change the saved choice; Forget returns it to asking MuseDesktop's policy each time:";
+            foreach (var row in rows)
+            {
+                var line = new System.Windows.Controls.StackPanel
+                {
+                    Orientation = System.Windows.Controls.Orientation.Horizontal,
+                    Margin = new Thickness(0, 2, 0, 2),
+                };
+                line.Children.Add(new System.Windows.Controls.TextBlock
+                {
+                    Text = $"{row.Kind} — {row.Host} — {row.State}",
+                    Width = 218,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                });
+                line.Children.Add(PermissionButton("Allow", row, CoreWebView2PermissionState.Allow));
+                line.Children.Add(PermissionButton("Block", row, CoreWebView2PermissionState.Deny));
+                line.Children.Add(PermissionButton("Forget", row, CoreWebView2PermissionState.Default));
+                PermissionRows.Children.Add(line);
+            }
+        }
+        catch (Exception ex)
+        {
+            PermissionsNote.Text = $"Couldn't read saved permissions ({ex.Message}).";
+        }
+    }
+
+    private System.Windows.Controls.Button PermissionButton(string label, PermissionRow row, CoreWebView2PermissionState state)
+    {
+        var button = new System.Windows.Controls.Button
+        {
+            Content = label,
+            Width = 58,
+            Margin = new Thickness(4, 0, 0, 0),
+            Tag = (row, state),
+            ToolTip = $"{label} {row.Kind} for {row.Host}",
+        };
+        button.Click += OnPermissionButton;
+        return button;
+    }
+
+    private async void OnPermissionButton(object sender, RoutedEventArgs e)
+    {
+        if (_privacy is null || sender is not System.Windows.Controls.Button { Tag: (PermissionRow row, CoreWebView2PermissionState state) })
+            return;
+        try
+        {
+            await _privacy.SetPermissionAsync(row.Kind, row.Origin, state);
+            await RefreshPermissionsAsync();
+        }
+        catch (Exception ex)
+        {
+            PermissionsNote.Text = $"Couldn't change that permission ({ex.Message}).";
+        }
+    }
+
+    // #63: per-profile site data (folder size + cookie counts).
+    private void OnRefreshSiteData(object sender, RoutedEventArgs e) => _ = RefreshSiteDataAsync();
+
+    private async Task RefreshSiteDataAsync()
+    {
+        SiteDataRows.Children.Clear();
+        foreach (var profile in _working.Profiles.ToList())
+        {
+            var label = new System.Windows.Controls.TextBlock
+            {
+                Text = $"{profile.Name} — measuring…",
+                Width = 300,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+            };
+            var clearButton = new System.Windows.Controls.Button
+            {
+                Content = "Clear this profile…",
+                Width = 118,
+                Margin = new Thickness(4, 0, 0, 0),
+                Tag = profile.Id,
+                ToolTip = $"Clear all site data for {profile.Name} (signs that profile out of Muse)",
+            };
+            clearButton.Click += OnClearOneProfile;
+            var line = new System.Windows.Controls.StackPanel
+            {
+                Orientation = System.Windows.Controls.Orientation.Horizontal,
+                Margin = new Thickness(0, 2, 0, 2),
+            };
+            line.Children.Add(label);
+            line.Children.Add(clearButton);
+            SiteDataRows.Children.Add(line);
+
+            var bytes = ProfileDataInfo.MeasureFolderBytes(AppPaths.ProfileDir(profile.Id));
+            var sizeText = bytes is { } b ? DownloadText.FormatBytes(b) : "no data folder yet";
+            var cookieText = " · cookie count unavailable";
+            if (_privacy is not null && await _privacy.GetCookieSummaryAsync(profile.Id) is { } cookies)
+            {
+                cookieText = cookies.Count == 0
+                    ? " · no cookies"
+                    : $" · {cookies.Count} cookies across {cookies.Domains.Count} site(s)";
+            }
+            label.Text = $"{profile.Name} — {sizeText}{cookieText}";
+        }
+    }
+
+    private async void OnClearOneProfile(object sender, RoutedEventArgs e)
+    {
+        if (_privacy is null || sender is not System.Windows.Controls.Button { Tag: string profileId })
+            return;
+        var profile = _working.Profiles.FirstOrDefault(p => p.Id == profileId);
+        if (profile is null)
+            return;
+        var invoker = FocusReturn.Capture();
+        var confirm = System.Windows.MessageBox.Show(this,
+            $"Clear all site data for {profile.Name}?\n\n" + ClearDataPlan.Describe(ClearDataChoice.AllSiteData),
+            "Clear this profile", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+        FocusReturn.Restore(invoker);
+        if (confirm != MessageBoxResult.Yes)
+            return;
+        var result = await _privacy.ClearAsync(
+            ClearDataChoice.AllSiteData, new List<(string, string)> { (profile.Id, profile.Name) });
+        ClearResultNote.Text = result.Summary;
+        _ = RefreshSiteDataAsync();
+        if (result.Success && result.ActiveProfileTouched)
+            DialogResult = true; // the running profile signed out — same close-and-adopt as the old clear
+    }
+
+    // #67: the counts-only privacy report (+ the #62 recent denials).
+    private void RefreshPrivacyReport()
+    {
+        PrivacyStats stats;
+        try { stats = PrivacyStatsStore.Load(AppPaths.PrivacyStatsPath); }
+        catch { stats = new PrivacyStats(); }
+        var sb = new StringBuilder();
+        var since = stats.SinceUtc is { } sinceUtc ? $"Since {sinceUtc.LocalDateTime:yyyy-MM-dd}, on" : "On";
+        sb.AppendLine($"{since} this PC (all profiles combined), MuseDesktop has blocked:");
+        sb.AppendLine($"• {stats.Total(PrivacyEventCategory.BlockedNavigation)} page navigations it won't open");
+        sb.AppendLine($"• {stats.Total(PrivacyEventCategory.BlockedNewWindow)} pop-up / new-window requests");
+        sb.AppendLine($"• {stats.Total(PrivacyEventCategory.DeniedPermission)} permission requests");
+        var rows = stats.Rows().Take(6).ToList();
+        if (rows.Count > 0)
+        {
+            sb.AppendLine("Most common:");
+            foreach (var row in rows)
+            {
+                var what = row.Category switch
+                {
+                    nameof(PrivacyEventCategory.BlockedNavigation) => "blocked navigation",
+                    nameof(PrivacyEventCategory.BlockedNewWindow) => "blocked new window",
+                    nameof(PrivacyEventCategory.DeniedPermission) => "denied permission",
+                    _ => row.Category,
+                };
+                sb.AppendLine($"• {row.Count}× {what} — {row.Kind}" +
+                              (string.IsNullOrEmpty(row.Host) ? "" : $" — {row.Host}"));
+            }
+        }
+        PrivacyReportText.Text = sb.ToString().TrimEnd();
+        PermissionDenialsText.Text = stats.RecentDenials.Count == 0
+            ? "Recently denied by MuseDesktop: nothing yet."
+            : "Recently denied by MuseDesktop (this PC, all profiles):\n" + string.Join("\n",
+                stats.RecentDenials.Take(8).Select(d =>
+                    $"• {d.TimeUtc.LocalDateTime:MMM d, HH:mm} — {d.Kind} — {(string.IsNullOrEmpty(d.Host) ? "(unknown site)" : d.Host)}"));
+    }
+
+    private void OnResetPrivacyStats(object sender, RoutedEventArgs e)
     {
         var invoker = FocusReturn.Capture();
         var confirm = System.Windows.MessageBox.Show(this,
-            "Clear all browsing data stored by MuseDesktop and sign out of Muse?\n\n" +
-            "Your chats are stored in your Muse account and are not affected.",
-            "Clear browsing data", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-        if (confirm != MessageBoxResult.Yes)
-        {
-            FocusReturn.Restore(invoker);
-            return;
-        }
+            "Start the privacy report's counts over from today? The recent-denials list clears too. Nothing else is affected.",
+            "Reset privacy counters", MessageBoxButton.YesNo, MessageBoxImage.Question);
         FocusReturn.Restore(invoker);
+        if (confirm != MessageBoxResult.Yes)
+            return;
+        try
+        {
+            PrivacyStatsStore.Save(AppPaths.PrivacyStatsPath, new PrivacyStats());
+            _log.Info("Privacy report counters reset from Settings");
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Privacy report reset failed: {ex.Message}");
+        }
+        RefreshPrivacyReport();
+    }
 
-        ClearDataButton.IsEnabled = false;
-        var ok = await _clearBrowsingData();
-        ClearDataNote.Text = ok
-            ? "Done — browsing data cleared. You'll be asked to sign in to Muse again."
-            : "Couldn't clear data because the web view isn't running yet. Try again once Muse has loaded.";
-        _log.Info($"Clear browsing data requested from Settings: {(ok ? "done" : "web view not ready")}");
-        if (ok)
-            DialogResult = true; // adopt settings too; the main window navigates home
-        else
-            ClearDataButton.IsEnabled = true;
+    private void OnViewLog(object sender, RoutedEventArgs e)
+    {
+        var dialog = new LogViewerWindow { Owner = this };
+        ShellTextScaling.Apply(dialog, _working.ShellFontScale);
+        FocusReturn.ShowDialog(dialog);
+    }
+
+    // #70: data-folder shortcut + the backup guide.
+    private void OnOpenDataFolder(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            Directory.CreateDirectory(AppPaths.RootDir);
+            Process.Start(new ProcessStartInfo("explorer.exe", AppPaths.RootDir) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Open data folder failed: {ex.Message}");
+            ImportNote.Text = $"Couldn't open the data folder ({ex.Message}). It is at {AppPaths.RootDir}.";
+        }
+    }
+
+    private void OnBackupGuide(object sender, RoutedEventArgs e)
+    {
+        var webViewRoot = Path.GetDirectoryName(AppPaths.WebViewDataDir) ?? AppPaths.WebViewDataDir;
+        var invoker = FocusReturn.Capture();
+        System.Windows.MessageBox.Show(this,
+            BackupGuide.Compose(AppPaths.RootDir, webViewRoot),
+            "Back up MuseDesktop", MessageBoxButton.OK, MessageBoxImage.Information);
+        FocusReturn.Restore(invoker);
+    }
+
+    // #64: the app lock — set/change/remove + the two switches. The
+    // credential fields on the clone are write-through from these
+    // dialogs (like the toolbar editor); OK adopts them, Cancel
+    // discards them, exactly like every other setting here.
+    private bool _syncingLockControls;
+
+    private void RefreshLockUi()
+    {
+        var hasRecord = AppLock.HasValidRecord(_working);
+        _syncingLockControls = true;
+        AppLockEnabledCheck.IsChecked = _working.AppLockEnabled && hasRecord;
+        AppLockTrayHideCheck.IsChecked = _working.AppLockOnTrayHide;
+        _syncingLockControls = false;
+        AppLockTrayHideCheck.IsEnabled = hasRecord;
+        RemoveLockPasswordButton.Visibility = hasRecord ? Visibility.Visible : Visibility.Collapsed;
+        AppLockStatusText.Text = hasRecord
+            ? _working.AppLockEnabled
+                ? "App lock is ON — your password or PIN is asked at startup, from Lock now (tray and ⋯ menus), and when the window hides to the tray if that switch is on."
+                : "A password is set, but the lock is OFF — tick “Require my app password or PIN” to use it."
+            : "App lock is off. Set a password or PIN to require it before MuseDesktop opens.";
+    }
+
+    private void OnAppLockEnabledChanged(object sender, RoutedEventArgs e)
+    {
+        if (_syncingLockControls)
+            return;
+        if (AppLockEnabledCheck.IsChecked == true && !AppLock.HasValidRecord(_working))
+        {
+            // Can't enable with no credential: go straight to setting one.
+            if (!PromptSetLockPassword())
+            {
+                _syncingLockControls = true;
+                AppLockEnabledCheck.IsChecked = false;
+                _syncingLockControls = false;
+            }
+        }
+        _working.AppLockEnabled = AppLockEnabledCheck.IsChecked == true && AppLock.HasValidRecord(_working);
+        RefreshLockUi();
+    }
+
+    private void OnSetLockPassword(object sender, RoutedEventArgs e)
+    {
+        // Changing an existing password first proves the current one —
+        // the app is unlocked, but a walk-up user shouldn't be able to
+        // swap the lock's password from an unattended unlocked session.
+        if (AppLock.TryGetRecord(_working, out var existing) && existing is not null)
+        {
+            var current = new PasswordPromptWindow(
+                "Type your CURRENT app password or PIN first:", confirm: false) { Owner = this };
+            if (FocusReturn.ShowDialog(current) != true)
+                return;
+            if (!AppLock.Verify(current.Password, existing))
+            {
+                AppLockNote.Text = "That's not the current password — nothing was changed.";
+                return;
+            }
+        }
+        PromptSetLockPassword();
+    }
+
+    /// <summary>Ask for a new lock password (twice) and store its record on the clone. True when one was set.</summary>
+    private bool PromptSetLockPassword()
+    {
+        var prompt = new PasswordPromptWindow(
+            "Choose an app password or PIN (4–64 characters — a PIN is fine; 6 or more characters is better). " +
+            "You'll type it whenever MuseDesktop starts locked.",
+            confirm: true, AppLock.MinCredentialLength, AppLock.MaxCredentialLength) { Owner = this };
+        if (FocusReturn.ShowDialog(prompt) != true)
+            return false;
+        AppLock.SetCredential(_working, prompt.Password);
+        AppLockNote.Text = "App password set — the lock is on. It takes effect when you choose OK.";
+        RefreshLockUi();
+        return true;
+    }
+
+    private void OnRemoveLockPassword(object sender, RoutedEventArgs e)
+    {
+        var invoker = FocusReturn.Capture();
+        var confirm = System.Windows.MessageBox.Show(this,
+            "Remove the app password and turn the app lock off?\n\n" +
+            "MuseDesktop will open without asking for anything. You can set a new password here any time.",
+            "Remove app password", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        FocusReturn.Restore(invoker);
+        if (confirm != MessageBoxResult.Yes)
+            return;
+        AppLock.RemoveCredential(_working);
+        AppLockNote.Text = "App password removed — the lock is off once you choose OK.";
+        RefreshLockUi();
     }
 
     private void OnOk(object sender, RoutedEventArgs e)
@@ -957,11 +1358,42 @@ public partial class SettingsWindow : Window
         FocusReturn.Restore(invoker);
         if (!chosen)
             return;
+        // S7 #65: offer the encrypted form first (it's the safer
+        // default for a file that may leave this PC). The unencrypted
+        // warning is stated before the file is written, not after.
+        invoker = FocusReturn.Capture();
+        var encrypt = System.Windows.MessageBox.Show(this,
+            "Encrypt this export with a password?\n\n" +
+            "Yes — the file can only be opened with the password (you'll choose it next). Recommended if the file will leave this PC.\n" +
+            "No — a plain settings file. Anyone who can read it can read your profile names and start pages" +
+            (AppLock.HasValidRecord(_working) ? ", and it includes your app-lock password hash (never the password itself)" : "") + ".",
+            "Export settings", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+        FocusReturn.Restore(invoker);
+        if (encrypt == MessageBoxResult.Cancel)
+            return;
+        string contents;
+        if (encrypt == MessageBoxResult.Yes)
+        {
+            var prompt = new PasswordPromptWindow(
+                "Choose a password for this encrypted export. You'll need it to import the file — it can't be recovered.",
+                confirm: true) { Owner = this };
+            if (FocusReturn.ShowDialog(prompt) != true)
+                return;
+            contents = EncryptedExport.Encrypt(SettingsStore.Export(_working), prompt.Password);
+        }
+        else
+        {
+            contents = SettingsStore.Export(_working);
+        }
         try
         {
-            File.WriteAllText(dialog.FileName, SettingsStore.Export(_working));
-            ImportNote.Text = $"Settings exported to {dialog.FileName}.";
-            _log.Info("Settings exported from Settings window");
+            File.WriteAllText(dialog.FileName, contents);
+            ImportNote.Text = encrypt == MessageBoxResult.Yes
+                ? $"Encrypted settings exported to {dialog.FileName}."
+                : $"Settings exported to {dialog.FileName} — unencrypted: profile names and start pages in it are readable by anyone who opens the file.";
+            _log.Info(encrypt == MessageBoxResult.Yes
+                ? "Settings exported (encrypted) from Settings window"
+                : "Settings exported from Settings window");
         }
         catch (Exception ex)
         {
@@ -991,6 +1423,24 @@ public partial class SettingsWindow : Window
         {
             ImportNote.Text = $"Couldn't read that file ({ex.Message}).";
             return;
+        }
+        // S7 #65: an encrypted export is detected by its envelope and
+        // asks for its password; wrong password and damaged file are
+        // different messages, from Core's format code.
+        if (EncryptedExport.IsEncrypted(json))
+        {
+            var prompt = new PasswordPromptWindow(
+                "This settings export is encrypted. Type its password to import it:",
+                confirm: false) { Owner = this };
+            if (FocusReturn.ShowDialog(prompt) != true)
+                return;
+            if (!EncryptedExport.TryDecrypt(json, prompt.Password, out var plain, out _, out var decryptMessage)
+                || plain is null)
+            {
+                ImportNote.Text = decryptMessage ?? "That file couldn't be decrypted.";
+                return;
+            }
+            json = plain;
         }
         if (!SettingsStore.TryImport(json, out var imported, out var error) || imported is null)
         {
@@ -1050,5 +1500,17 @@ public partial class SettingsWindow : Window
         target.ShortcutOverrides = source.ShortcutOverrides;
         target.ReduceMotion = source.ReduceMotion;
         target.ExtendedZoomRange = source.ExtendedZoomRange;
+        // S7 fields (autofill toggles #68, app lock #64 — the record
+        // travels with exports/imports like everything else; a plain
+        // export exposes the salted hash, never a password, and the
+        // fail-open sanitize means a bad record can never lock
+        // anyone out).
+        target.PasswordAutosaveEnabled = source.PasswordAutosaveEnabled;
+        target.GeneralAutofillEnabled = source.GeneralAutofillEnabled;
+        target.AppLockEnabled = source.AppLockEnabled;
+        target.AppLockSalt = source.AppLockSalt;
+        target.AppLockHash = source.AppLockHash;
+        target.AppLockIterations = source.AppLockIterations;
+        target.AppLockOnTrayHide = source.AppLockOnTrayHide;
     }
 }

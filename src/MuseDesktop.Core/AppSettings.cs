@@ -176,6 +176,47 @@ public sealed class AppSettings
     /// <summary>Extended zoom range (S6 #57): 25%–500% instead of 50%–200%, for low-vision users. Off by default.</summary>
     public bool ExtendedZoomRange { get; set; }
 
+    // Privacy & security (v0.11.0, S7).
+    /// <summary>
+    /// Let Muse (and its sign-in pages) save passwords in WebView2 and
+    /// offer them back (S7 #68). This is WebView2's own default (on);
+    /// the app hardcoded it on before v0.11.0. Applied to each profile's
+    /// web view at init and live when changed in Settings.
+    /// </summary>
+    public bool PasswordAutosaveEnabled { get; set; } = true;
+
+    /// <summary>Let WebView2 remember and refill ordinary form fields (S7 #68). WebView2's default (on), like password autosave.</summary>
+    public bool GeneralAutofillEnabled { get; set; } = true;
+
+    // App lock (v0.11.0, S7 #64). The credential itself is NEVER stored —
+    // only the AppLock record: a random salt + PBKDF2 hash + iteration
+    // count. Off by default; IsLockActive also requires a valid record,
+    // and Sanitized() repairs an enabled-but-recordless state to off,
+    // so a damaged settings file can never lock the user out.
+    /// <summary>App lock on/off (S7 #64). Only meaningful with a valid credential record — see <see cref="AppLock"/>.</summary>
+    public bool AppLockEnabled { get; set; }
+
+    /// <summary>App-lock credential salt, base64 (16 bytes). Null = no credential set.</summary>
+    public string? AppLockSalt { get; set; }
+
+    /// <summary>App-lock credential PBKDF2-HMAC-SHA256 hash, base64 (32 bytes). Null = no credential set.</summary>
+    public string? AppLockHash { get; set; }
+
+    /// <summary>App-lock PBKDF2 iteration count stored with the record (0 = no credential).</summary>
+    public int AppLockIterations { get; set; }
+
+    /// <summary>Lock when the window hides to the tray (S7 #64). Default ON per the item's "lock on hide/start"; only the at-startup lock is unconditional.</summary>
+    public bool AppLockOnTrayHide { get; set; } = true;
+
+    /// <summary>
+    /// Set by <see cref="Sanitized"/> when it had to disable a broken
+    /// app-lock record (enabled but missing/malformed), so the shell
+    /// can log the repair. Not persisted (JsonIgnore) — it's a
+    /// diagnostic about THIS load, not a setting.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool AppLockWasRepaired { get; set; }
+
     // Account profiles (v0.3.0).
     /// <summary>Sign-in profiles; each has its own WebView2 data folder. Always contains at least the default profile (see Profiles.EnsureValid).</summary>
     public List<AccountProfile> Profiles { get; set; } = new() { new AccountProfile() };
@@ -253,6 +294,18 @@ public sealed class AppSettings
         // nothing; sizes clamped to what a real monitor could show.
         if (!SettingsSearch.IsKnownSection(SettingsLastSection))
             SettingsLastSection = null;
+        // S7 #64: an enabled app lock with a missing/malformed
+        // credential record can never be satisfied — disable it
+        // (fail-open) rather than lock the user out of their own app.
+        // The shell logs the repair via AppLockWasRepaired.
+        if (AppLockEnabled && !AppLock.HasValidRecord(this))
+        {
+            AppLockEnabled = false;
+            AppLockSalt = null;
+            AppLockHash = null;
+            AppLockIterations = 0;
+            AppLockWasRepaired = true;
+        }
         SettingsWindowWidth = SettingsWindowWidth is >= 420 and <= 2000 ? SettingsWindowWidth : 480;
         SettingsWindowHeight = SettingsWindowHeight == 0 || SettingsWindowHeight is >= 400 and <= 2000
             ? SettingsWindowHeight

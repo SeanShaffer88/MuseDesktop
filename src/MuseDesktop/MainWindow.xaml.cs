@@ -62,10 +62,37 @@ public partial class MainWindow : Window
     private AttentionSignal _lastAttention = AttentionSignal.None;
     private bool _micGrantedThisSession;
 
-    public MainWindow(AppSettings settings, DiagnosticLog log)
+    // v0.11.0 (S7) — privacy: the Settings gateway to the live profile,
+    // the counts-only privacy report state, and this session's
+    // certificate-error decisions (#69: per host, session-only, never
+    // persisted — a restart forgets every "continue anyway").
+    private readonly WebPrivacyGateway _privacyGateway;
+    private readonly PrivacyStats _privacyStats;
+    private readonly Dictionary<string, bool> _certDecisions = new();
+
+    // S7 #64 — app lock state. _isLocked is the gate every surface
+    // checks; _initDeferred marks the startup case (locked before the
+    // web view ever initialized — unlock runs the deferred init, so no
+    // page ever renders or navigates pre-unlock); _lockThrottle is
+    // shared by every lock screen this session, so closing and
+    // reopening one doesn't reset the wrong-try count.
+    private bool _isLocked;
+    private bool _initDeferred;
+    private readonly AppLockThrottle _lockThrottle = new();
+    private LockWindow? _lockWindow;
+
+    /// <summary>True while the app lock is engaged (the shell checks this before showing any content surface).</summary>
+    public bool IsLocked => _isLocked;
+
+    public MainWindow(AppSettings settings, DiagnosticLog log, bool lockedAtStart = false)
     {
         _settings = settings;
         _log = log;
+        // Locked-at-start is only ever the background (tray) launch
+        // path — visible launches pass App's modal startup gate first.
+        // The double check keeps a stray flag from locking an app
+        // whose lock was removed.
+        _isLocked = lockedAtStart && AppLock.IsLockActive(settings);
         _profileDir = AppPaths.ProfileDir(settings.ActiveProfileId);
         InitializeComponent();
 
@@ -78,6 +105,17 @@ public partial class MainWindow : Window
         ApplyToolbarLayout();
         ShellTextScaling.Apply(this, _settings.ShellFontScale);
         ThemeManager.Changed += OnThemeChanged;
+
+        // S7: the privacy gateway Settings talks to (clear data,
+        // permissions, site data), and the privacy report's counters.
+        _privacyGateway = new WebPrivacyGateway(
+            () => _webReady ? Browser.CoreWebView2 : null,
+            () => _settings.ActiveProfileId,
+            () => new System.Windows.Interop.WindowInteropHelper(this).Handle,
+            _log,
+            OnActiveProfileCleared);
+        try { _privacyStats = PrivacyStatsStore.Load(AppPaths.PrivacyStatsPath); }
+        catch { _privacyStats = new PrivacyStats(); }
 
         _downloads = new DownloadTracker(_log, SetStatus, record =>
         {
@@ -119,7 +157,10 @@ public partial class MainWindow : Window
             () => _settings.TraySuspendTimeout,
             () => _micGrantedThisSession,
             () => _settings.TraySingleClickRestore,
-            CurrentNotificationSuppression);
+            CurrentNotificationSuppression,
+            () => _isLocked,
+            () => AppLock.IsLockActive(_settings),
+            LockNow);
 
         // S6 #54: live regions for assistive-tech announcements, and
         // the download events that feed them (the wording is Core's).
@@ -147,6 +188,8 @@ public partial class MainWindow : Window
         SetWindowIcon();
         ApplySavedPlacement();
         _tray.Build();
+        if (_isLocked)
+            _tray.SetLocked(true);
         RefreshProfileIndicator();
         Loaded += OnLoaded;
         Closing += OnClosing;
@@ -237,6 +280,15 @@ public partial class MainWindow : Window
             _taskbar = new TaskbarProgress(new WindowInteropHelper(this).Handle, _log);
         }
         catch (Exception ex) { _log.Warn($"Taskbar progress init failed: {ex.Message}"); }
+        // S7 #64: locked at start (background launch) — the web view
+        // does not initialize, let alone navigate, until unlock. The
+        // deferred work runs in OnAppUnlocked.
+        if (_isLocked)
+        {
+            _initDeferred = true;
+            _log.Info("App lock is on — web view initialization waits for unlock");
+            return;
+        }
         await InitWebViewAsync();
         if (_settings.CheckForUpdates)
             _ = CheckForUpdatesAsync(manual: false);
@@ -251,6 +303,13 @@ public partial class MainWindow : Window
 
     public void ShowFromTray()
     {
+        // S7 #64: while locked, "show the window" means the lock
+        // screen — the main window (and its page) stays hidden.
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
         _tray.OnShown();
         Show();
         if (WindowState == WindowState.Minimized)
@@ -263,6 +322,11 @@ public partial class MainWindow : Window
     {
         Hide();
         _tray.OnHidden(showBalloon);
+        // S7 #64 trigger (c): hiding to the tray locks the app when
+        // the sub-setting is on (it is by default). No lock UI yet —
+        // it appears when the user next asks for the window.
+        if (!_isLocked && _settings.AppLockOnTrayHide && AppLock.IsLockActive(_settings))
+            EngageLock(presentUi: false);
     }
 
     // ── tray delegates (v0.8.0, S4 #32): the tray menu's window actions.
@@ -272,6 +336,12 @@ public partial class MainWindow : Window
 
     private void OpenDownloadsFromTray()
     {
+        // S7 #64: the Downloads window is behind the lock too.
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
         ShowFromTray();
         OnDownloads(this, new RoutedEventArgs());
     }
@@ -279,6 +349,11 @@ public partial class MainWindow : Window
     /// <summary>Open Settings on a visible window (tray menu and the --settings launch flag, S4 #32/#33).</summary>
     public void OpenSettingsWindow()
     {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
         ShowFromTray();
         OnSettings(this, new RoutedEventArgs());
     }
@@ -520,13 +595,20 @@ public partial class MainWindow : Window
         core.Settings.IsBuiltInErrorPageEnabled = false;
         core.Settings.IsZoomControlEnabled = true;
         core.Settings.AreBrowserAcceleratorKeysEnabled = true;
-        core.Settings.IsGeneralAutofillEnabled = true;
-        core.Settings.IsPasswordAutosaveEnabled = true;
+        // S7 #68: password autosave / general autofill are the user's
+        // choice now (both default to WebView2's defaults — on). The
+        // value is shared per profile, so this one application covers
+        // every web view this profile ever creates.
+        core.Settings.IsGeneralAutofillEnabled = _settings.GeneralAutofillEnabled;
+        core.Settings.IsPasswordAutosaveEnabled = _settings.PasswordAutosaveEnabled;
 
         core.NavigationStarting += OnNavigationStarting;
         core.NavigationCompleted += OnNavigationCompleted;
         core.NewWindowRequested += OnNewWindowRequested;
         core.PermissionRequested += OnPermissionRequested;
+        // S7 #69: certificate errors get the app's plain-language
+        // dialog (ask every time; "continue" is per-host, session-only).
+        core.ServerCertificateErrorDetected += OnServerCertificateErrorDetected;
         core.DownloadStarting += OnDownloadStarting;
         core.ContextMenuRequested += OnContextMenuRequested;
         core.DocumentTitleChanged += OnTitleChanged;
@@ -597,6 +679,7 @@ public partial class MainWindow : Window
         {
             e.Cancel = true;
             _log.Warn($"Blocked navigation: {UrlPolicy.RedactForLog(e.Uri)}");
+            RecordPrivacy(PrivacyEventCategory.BlockedNavigation, SchemeOf(e.Uri), HostOf(e.Uri));
             SetStatus("That link can't open inside MuseDesktop");
         }
     }
@@ -670,6 +753,7 @@ public partial class MainWindow : Window
                 break;
             default:
                 _log.Warn($"Blocked new-window request: {UrlPolicy.RedactForLog(e.Uri)}");
+                RecordPrivacy(PrivacyEventCategory.BlockedNewWindow, SchemeOf(e.Uri), HostOf(e.Uri));
                 SetStatus("That link was blocked");
                 break;
         }
@@ -703,6 +787,7 @@ public partial class MainWindow : Window
             e.State = CoreWebView2PermissionState.Deny;
             e.Handled = true;
             _log.Info($"Denied {e.PermissionKind} for {UrlPolicy.RedactForLog(e.Uri)}");
+            RecordPrivacy(PrivacyEventCategory.DeniedPermission, e.PermissionKind.ToString(), HostOf(e.Uri));
         }
     }
 
@@ -846,6 +931,10 @@ public partial class MainWindow : Window
     /// <summary>S2 #18: opt-in completion balloon, only while the window is hidden in the tray.</summary>
     private void NotifyDownloadComplete(string fileName)
     {
+        // S7 #64: while locked, no balloon naming the file — the
+        // download itself finishes normally behind the lock.
+        if (_isLocked)
+            return;
         if (_settings.NotifyWhenDownloadCompletes && !IsVisible)
             _tray.ShowDownloadComplete(fileName);
     }
@@ -1117,6 +1206,11 @@ public partial class MainWindow : Window
         // Pop-up menus live outside the window's tree, so S5 #46 scales
         // this one explicitly each time it opens.
         ShellTextScaling.Apply(MoreMenu, _settings.ShellFontScale);
+        // S7 #64: "Lock now" exists only while a lock is set (and this
+        // menu can't be open while locked — the window is hidden then).
+        LockNowItem.Visibility = AppLock.IsLockActive(_settings) && !_isLocked
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         MoreMenu.PlacementTarget = MenuButton;
         MoreMenu.IsOpen = true;
     }
@@ -1126,7 +1220,7 @@ public partial class MainWindow : Window
     private void OnSettings(object sender, RoutedEventArgs e)
     {
         var clone = _settings.Clone();
-        var dialog = new SettingsWindow(clone, _log, ClearBrowsingDataAsync, SwitchToProfile) { Owner = this };
+        var dialog = new SettingsWindow(clone, _log, _privacyGateway, SwitchToProfile) { Owner = this };
         // S6 #56: closing Settings returns focus to whatever invoked it
         // (usually the page itself).
         if (FocusReturn.ShowDialog(dialog) != true)
@@ -1173,7 +1267,26 @@ public partial class MainWindow : Window
         _settings.ShortcutOverrides = clone.ShortcutOverrides;
         _settings.ReduceMotion = clone.ReduceMotion;
         _settings.ExtendedZoomRange = clone.ExtendedZoomRange;
+        // S7: the autofill toggles (#68, applied live just below) and
+        // the app-lock record + switches (#64 — write-through from the
+        // Privacy section's own dialogs, adopted here like everything
+        // else so Cancel in Settings discards a removal too).
+        _settings.PasswordAutosaveEnabled = clone.PasswordAutosaveEnabled;
+        _settings.GeneralAutofillEnabled = clone.GeneralAutofillEnabled;
+        _settings.AppLockEnabled = clone.AppLockEnabled;
+        _settings.AppLockSalt = clone.AppLockSalt;
+        _settings.AppLockHash = clone.AppLockHash;
+        _settings.AppLockIterations = clone.AppLockIterations;
+        _settings.AppLockOnTrayHide = clone.AppLockOnTrayHide;
         _settings.Sanitized();
+        if (_webReady)
+        {
+            // #68 live apply: the value is shared per WebView2
+            // profile, so setting it on the running view covers the
+            // profile (see DECISIONS).
+            Browser.CoreWebView2.Settings.IsPasswordAutosaveEnabled = _settings.PasswordAutosaveEnabled;
+            Browser.CoreWebView2.Settings.IsGeneralAutofillEnabled = _settings.GeneralAutofillEnabled;
+        }
         Topmost = _settings.AlwaysOnTop;
         PinItem.IsChecked = _settings.AlwaysOnTop;
         Autostart.Sync(_settings.StartWithWindows);
@@ -1370,29 +1483,247 @@ public partial class MainWindow : Window
         }
     }
 
+    // ─────────────────── v0.11.0 Slice 7 (privacy & security) ───────────────────
+
+    /// <summary>The host of a URL for the privacy counters ("" when unparsable — the counter then reads as scheme-only).</summary>
+    private static string? HostOf(string? url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.Host : null;
+
+    /// <summary>The scheme of a URL for the privacy counters ("unknown" when unparsable).</summary>
+    private static string SchemeOf(string? url) =>
+        Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.Scheme : "unknown";
+
     /// <summary>
-    /// Wipes the WebView2 profile's cookies/cache/site data (the Settings
-    /// window's clear-data action). Muse's chats live server-side; this is a
-    /// local sign-out + reset.
+    /// Count one blocked thing for the privacy report (#67) and persist
+    /// immediately — the file is tiny and blocks are rare, so durability
+    /// beats batching. Counts + host only, by construction of the model.
     /// </summary>
-    public async Task<bool> ClearBrowsingDataAsync()
+    private void RecordPrivacy(PrivacyEventCategory category, string kind, string? host)
     {
-        if (!_webReady || Browser.CoreWebView2 is null)
-            return false;
         try
         {
-            await Browser.CoreWebView2.Profile.ClearBrowsingDataAsync(
-                CoreWebView2BrowsingDataKinds.AllProfile);
-            _log.Info("Browsing data cleared from Settings");
-            Browser.CoreWebView2.Navigate(UrlPolicy.HomeUrl);
-            SetStatus("Browsing data cleared — sign in to Muse to continue");
-            return true;
+            _privacyStats.Record(category, kind, host, DateTimeOffset.UtcNow);
+            PrivacyStatsStore.Save(AppPaths.PrivacyStatsPath, _privacyStats);
         }
         catch (Exception ex)
         {
-            _log.Error($"Clear browsing data failed: {ex.Message}");
-            return false;
+            _log.Warn($"Privacy report save failed: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// The gateway's callback after the RUNNING profile was cleared
+    /// (#61): a cookies/all clear signed this profile out, so land on
+    /// the home page like the old all-or-nothing clear did; a cache
+    /// clear needs no navigation.
+    /// </summary>
+    private void OnActiveProfileCleared(ClearDataChoice choice)
+    {
+        if (choice == ClearDataChoice.Cache || !_webReady)
+            return;
+        Browser.CoreWebView2.Navigate(UrlPolicy.HomeUrl);
+        SetStatus("Browsing data cleared — sign in to Muse to continue");
+    }
+
+    /// <summary>
+    /// Certificate errors (#69): ask, every time, in plain language.
+    /// "Continue anyway" is remembered per host for THIS session only
+    /// (WebView2 also caches an AlwaysAllow for the session; the app's
+    /// own cache mirrors it so repeat errors don't re-ask) — nothing
+    /// is persisted, so a restart forgets it. The default is Go back.
+    /// </summary>
+    private void OnServerCertificateErrorDetected(
+        object? sender, CoreWebView2ServerCertificateErrorDetectedEventArgs e)
+    {
+        var deferral = e.GetDeferral();
+        try
+        {
+            var host = HostOf(e.RequestUri) ?? "(unknown host)";
+            if (_certDecisions.TryGetValue(host, out var remembered))
+            {
+                e.Action = remembered
+                    ? CoreWebView2ServerCertificateErrorAction.AlwaysAllow
+                    : CoreWebView2ServerCertificateErrorAction.Cancel;
+                return;
+            }
+            _log.Warn($"Certificate error for {host}: {e.ErrorStatus}");
+            var details = "";
+            try
+            {
+                var cert = e.ServerCertificate;
+                details = $"\n\nCertificate: {cert.Subject}\nIssued by: {cert.Issuer}\n" +
+                          $"Valid: {cert.ValidFrom:yyyy-MM-dd} to {cert.ValidTo:yyyy-MM-dd}";
+            }
+            catch { /* the explainer + error name still carry the dialog */ }
+            var invoker = FocusReturn.Capture();
+            var answer = System.Windows.MessageBox.Show(this,
+                $"A certificate problem was found for {host}.\n\n" +
+                $"{ConnectionInfo.CertificateErrorExplainer}\n\n" +
+                $"{ConnectionInfo.DescribeCertificateError(e.ErrorStatus.ToString())}{details}\n\n" +
+                "Go back (recommended), or continue anyway? Continuing applies to this site " +
+                "for the rest of this session only — restarting MuseDesktop forgets it.",
+                "Certificate warning", MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                MessageBoxResult.No);
+            FocusReturn.Restore(invoker);
+            var proceed = answer == MessageBoxResult.Yes;
+            _certDecisions[host] = proceed;
+            _log.Info(proceed
+                ? $"User continued past a certificate error for {host} (this session only)"
+                : $"User went back at a certificate error for {host}");
+            e.Action = proceed
+                ? CoreWebView2ServerCertificateErrorAction.AlwaysAllow
+                : CoreWebView2ServerCertificateErrorAction.Cancel;
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Certificate dialog failed; blocking the page: {ex.Message}");
+            e.Action = CoreWebView2ServerCertificateErrorAction.Cancel;
+        }
+        finally
+        {
+            deferral.Complete();
+        }
+    }
+
+    /// <summary>The padlock dialog (#69): the current connection's facts, from the ⋯ menu.</summary>
+    private async void OnConnectionSecurity(object sender, RoutedEventArgs e)
+    {
+        var url = _webReady ? Browser.Source?.ToString() : null;
+        var lines = ConnectionInfo.SecurityLine(url);
+        var version = _privacyGateway.RuntimeVersion;
+        lines += $"\n\nWebView2 runtime: {version ?? "(unknown)"}";
+        var continuedHosts = _certDecisions.Where(kv => kv.Value).Select(kv => kv.Key).ToList();
+        if (continuedHosts.Count > 0)
+        {
+            lines += $"\n\nThis session, you chose to continue past certificate warnings for: " +
+                     $"{string.Join(", ", continuedHosts)}. Restarting MuseDesktop forgets those choices.";
+        }
+        var canForget = continuedHosts.Count > 0 && _webReady;
+        var invoker = FocusReturn.Capture();
+        var answer = System.Windows.MessageBox.Show(this, lines, "Connection security",
+            canForget ? MessageBoxButton.YesNo : MessageBoxButton.OK,
+            MessageBoxImage.Information);
+        FocusReturn.Restore(invoker);
+        if (canForget && answer == MessageBoxResult.Yes)
+        {
+            try
+            {
+                await Browser.CoreWebView2.ClearServerCertificateErrorActionsAsync();
+                _certDecisions.Clear();
+                _log.Info("Session certificate-error choices forgotten from the connection dialog");
+                SetStatus("Certificate choices forgotten — you'll be asked again");
+            }
+            catch (Exception ex)
+            {
+                _log.Warn($"Forgetting certificate choices failed: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>The log viewer (#66): the log itself plus its redaction audit.</summary>
+    private void OnViewLog(object sender, RoutedEventArgs e)
+    {
+        var dialog = new LogViewerWindow { Owner = this };
+        dialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(dialog);
+        ShellTextScaling.Apply(dialog, _settings.ShellFontScale);
+        FocusReturn.ShowDialog(dialog);
+    }
+
+    // ─────────────────── #64 app lock ───────────────────
+    //
+    // The lock gates SURFACES, not the engine: the window hides, every
+    // other window closes, the tray goes plain, and downloads in
+    // flight keep running behind the lock. WebView2 is never touched
+    // by a mid-session lock; at startup it isn't even created until
+    // unlock (App's gate for visible launches; the deferred-init path
+    // below for tray launches).
+
+    /// <summary>"Lock now" (⋯ menu + tray menu): engage the lock and show the lock screen.</summary>
+    private void LockNow()
+    {
+        if (_isLocked || !AppLock.IsLockActive(_settings))
+            return;
+        EngageLock(presentUi: true);
+    }
+
+    private void OnLockNow(object sender, RoutedEventArgs e) => LockNow();
+
+    /// <summary>
+    /// Engage the lock: hide the window (through the tray path, so the
+    /// suspend timer arms as usual), close every other window (a
+    /// secondary window or the Downloads window must not stay readable
+    /// behind the lock), and flip the tray to its locked presentation.
+    /// </summary>
+    private void EngageLock(bool presentUi)
+    {
+        if (_isLocked)
+            return;
+        _isLocked = true;
+        _log.Info("App locked");
+        foreach (var other in System.Windows.Application.Current.Windows.OfType<Window>().ToList())
+        {
+            if (other == this || other is LockWindow)
+                continue;
+            try { other.Close(); }
+            catch (Exception ex) { _log.Warn($"Closing a window for the app lock failed: {ex.Message}"); }
+        }
+        _tray.SetLocked(true);
+        if (IsVisible)
+        {
+            Hide();
+            _tray.OnHidden(showBalloon: false);
+        }
+        if (presentUi)
+            PresentLockWindow();
+    }
+
+    /// <summary>Show (or re-focus) the lock screen. Closing it without unlocking leaves the app locked in the tray.</summary>
+    private void PresentLockWindow()
+    {
+        if (_lockWindow is not null)
+        {
+            _lockWindow.Activate();
+            return;
+        }
+        if (!AppLock.TryGetRecord(_settings, out var record) || record is null)
+        {
+            // The record vanished under us (settings edited while
+            // running): fail open rather than strand the user.
+            _log.Warn("App lock record missing while locked — unlocking (fail-open)");
+            _isLocked = false;
+            _tray.SetLocked(false);
+            ShowFromTray();
+            return;
+        }
+        var window = new LockWindow(record, _lockThrottle, exitOnClose: false) { Owner = this };
+        ShellTextScaling.Apply(window, _settings.ShellFontScale);
+        _lockWindow = window;
+        window.Closed += (_, _) =>
+        {
+            _lockWindow = null;
+            if (window.Unlocked)
+                OnAppUnlocked();
+            // Not unlocked: the app stays in the tray, locked — the
+            // tray icon reopens this screen (ShowFromTray routes here).
+        };
+        window.Show();
+        window.Activate();
+    }
+
+    /// <summary>Unlock: restore the tray presentation, run the deferred startup init if this was a locked launch, and show the window.</summary>
+    private async void OnAppUnlocked()
+    {
+        _isLocked = false;
+        _tray.SetLocked(false);
+        _log.Info("App unlocked");
+        if (_initDeferred)
+        {
+            _initDeferred = false;
+            await InitWebViewAsync();
+            if (_settings.CheckForUpdates)
+                _ = CheckForUpdatesAsync(manual: false);
+        }
+        ShowFromTray();
     }
 
     // ───────────────────────── update check (v0.2.0) ─────────────────────────
