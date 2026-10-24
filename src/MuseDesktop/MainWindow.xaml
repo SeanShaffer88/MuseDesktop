@@ -11,6 +11,7 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="40"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="24"/>
         </Grid.RowDefinitions>
@@ -21,9 +22,13 @@
             <DockPanel LastChildFill="True" Margin="6,0">
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button x:Name="BackButton" Style="{StaticResource BarButton}" Content="&#x2190;"
-                            ToolTip="Back (Alt+Left)" Click="OnBack" AutomationProperties.Name="Back"/>
+                            ToolTip="Back (Alt+Left). Right-click for history." Click="OnBack" AutomationProperties.Name="Back"
+                            PreviewMouseRightButtonUp="OnBackHistoryMenu"
+                            PreviewMouseLeftButtonDown="OnNavButtonPress" PreviewMouseLeftButtonUp="OnNavButtonRelease"/>
                     <Button x:Name="ForwardButton" Style="{StaticResource BarButton}" Content="&#x2192;"
-                            ToolTip="Forward (Alt+Right)" Click="OnForward" AutomationProperties.Name="Forward"/>
+                            ToolTip="Forward (Alt+Right). Right-click for history." Click="OnForward" AutomationProperties.Name="Forward"
+                            PreviewMouseRightButtonUp="OnForwardHistoryMenu"
+                            PreviewMouseLeftButtonDown="OnNavButtonPress" PreviewMouseLeftButtonUp="OnNavButtonRelease"/>
                     <Button x:Name="ReloadButton" Style="{StaticResource BarButton}" Content="&#x27F3;"
                             ToolTip="Reload (Ctrl+R / F5)" Click="OnReload" AutomationProperties.Name="Reload"/>
                     <Button x:Name="HomeButton" Style="{StaticResource BarButton}" Content="&#x2302;"
@@ -38,6 +43,9 @@
                                ToolTip="Current zoom. Ctrl+0 resets."/>
                     <Button x:Name="ZoomInButton" Style="{StaticResource BarButton}" Content="+" Width="28"
                             ToolTip="Zoom in (Ctrl++)" Click="OnZoomIn" AutomationProperties.Name="Zoom in"/>
+                    <Button x:Name="PinButton" Style="{StaticResource BarButton}" Content="&#x1F4CC;" Width="28"
+                            ToolTip="Keep this window on top" Click="OnTogglePin"
+                            AutomationProperties.Name="Always on top"/>
                     <Button x:Name="BrowserButton" Style="{StaticResource BarButton}" Content="&#x2197;"
                             ToolTip="Open this page in your default browser" Click="OnOpenInBrowser"
                             AutomationProperties.Name="Open in browser"/>
@@ -53,6 +61,20 @@
                                           ToolTip="See whether a newer MuseDesktop is available"/>
                                 <MenuItem Header="Downloads…" Click="OnDownloads"
                                           ToolTip="Files Muse has downloaded for you, newest first"/>
+                                <Separator/>
+                                <MenuItem Header="Find in page…" Click="OnFind" InputGestureText="Ctrl+F"/>
+                                <MenuItem Header="Print…" Click="OnPrint" InputGestureText="Ctrl+P"/>
+                                <MenuItem Header="Save as PDF…" Click="OnSaveAsPdf"/>
+                                <MenuItem Header="Copy page address" Click="OnCopyPageAddress"/>
+                                <MenuItem Header="Open in browser" Click="OnOpenInBrowser"/>
+                                <MenuItem Header="Open in new window" Click="OnOpenInNewWindow"
+                                          ToolTip="Open the current page in a second window on the same profile"/>
+                                <Separator/>
+                                <MenuItem x:Name="PinItem" Header="Always on top" IsCheckable="True" Click="OnTogglePin"
+                                          ToolTip="Keep MuseDesktop above other windows"/>
+                                <MenuItem x:Name="FocusItem" Header="Focus mode" IsCheckable="True" Click="OnToggleFocusMode"
+                                          InputGestureText="F8" ToolTip="Hide the toolbar and status bar (F8 or Esc to exit)"/>
+                                <MenuItem Header="Restore last closed page" Click="OnRestoreClosedPage" InputGestureText="Ctrl+Shift+T"/>
                                 <Separator/>
                                 <MenuItem Header="Open log folder" Click="OnOpenLogFolder"/>
                                 <MenuItem Header="About MuseDesktop" Click="OnAbout"/>
@@ -73,8 +95,29 @@
             </DockPanel>
         </Border>
 
+        <!-- Find bar (v0.5.0, S1 #1) -->
+        <Border x:Name="FindBar" Grid.Row="1" Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,0,1"
+                Visibility="Collapsed">
+            <StackPanel Orientation="Horizontal" Margin="6,3" VerticalAlignment="Center">
+                <TextBox x:Name="FindTextBox" Width="220" Height="24" VerticalContentAlignment="Center"
+                         Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}"
+                         BorderBrush="{StaticResource HairlineBrush}"
+                         KeyDown="OnFindTextKeyDown" TextChanged="OnFindTextChanged"
+                         AutomationProperties.Name="Find in page"/>
+                <TextBlock x:Name="FindCountText" Text="" Margin="8,0" VerticalAlignment="Center"
+                           Foreground="{StaticResource MutedBrush}" FontSize="12"/>
+                <Button Style="{StaticResource BarButton}" Content="&#x2191;" Width="28"
+                        ToolTip="Previous match (Shift+Enter)" Click="OnFindPrevious" AutomationProperties.Name="Previous match"/>
+                <Button Style="{StaticResource BarButton}" Content="&#x2193;" Width="28"
+                        ToolTip="Next match (Enter)" Click="OnFindNext" AutomationProperties.Name="Next match"/>
+                <Button Style="{StaticResource BarButton}" Content="&#x2715;" Width="28"
+                        ToolTip="Close find (Esc)" Click="OnFindClose" AutomationProperties.Name="Close find"/>
+            </StackPanel>
+        </Border>
+
         <!-- Web content. The first-run / error overlay sits above it until the page loads. -->
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="2">
             <wv2:WebView2 x:Name="Browser" DefaultBackgroundColor="#0B0B0D"/>
             <Border x:Name="Overlay" Background="{StaticResource BgBrush}" Visibility="Visible">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520">
@@ -90,7 +133,7 @@
         </Grid>
 
         <!-- Status bar -->
-        <Border Grid.Row="2" Background="{StaticResource SurfaceBrush}"
+        <Border x:Name="StatusBar" Grid.Row="3" Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,1,0,0">
             <DockPanel LastChildFill="True" Margin="8,0">
                 <Button x:Name="CancelDownloadButton" DockPanel.Dock="Right" Content="&#x2715;" Width="22" Height="18"

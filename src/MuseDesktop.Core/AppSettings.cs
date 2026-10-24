@@ -18,6 +18,46 @@ public sealed class AppSettings
     public double WindowHeight { get; set; } = 860;
     public bool WindowMaximized { get; set; }
 
+    /// <summary>Keep the window above other windows (v0.5.0, S1 #5). Off by default.</summary>
+    public bool AlwaysOnTop { get; set; }
+
+    /// <summary>
+    /// Window placement per profile (v0.5.0, S1 #8). The legacy global
+    /// Window* fields above remain the fallback/default-profile source and
+    /// are migrated into this map for the default profile on first load;
+    /// the shell reads/writes the active profile's placement from here.
+    /// </summary>
+    public Dictionary<string, WindowPlacement> WindowPlacementByProfile { get; set; } = new();
+
+    /// <summary>The active profile's placement, or the legacy global placement when none is stored.</summary>
+    public WindowPlacement ActivePlacement
+    {
+        get
+        {
+            if (WindowPlacementByProfile.TryGetValue(ActiveProfileId, out var p) && p is not null)
+                return p;
+            return new WindowPlacement
+            {
+                Left = WindowLeft,
+                Top = WindowTop,
+                Width = WindowWidth,
+                Height = WindowHeight,
+                Maximized = WindowMaximized,
+            };
+        }
+    }
+
+    /// <summary>Store the active profile's placement (and mirror it to the legacy global fields for downgrade compat).</summary>
+    public void SetActivePlacement(WindowPlacement placement)
+    {
+        WindowPlacementByProfile[ActiveProfileId] = placement;
+        WindowLeft = placement.Left;
+        WindowTop = placement.Top;
+        WindowWidth = placement.Width;
+        WindowHeight = placement.Height;
+        WindowMaximized = placement.Maximized;
+    }
+
     public double ZoomFactor { get; set; } = 1.0;
 
     /// <summary>When true, closing the window hides to the tray instead of exiting. Default since v0.1.3 (SEAN's direction after field verification); existing installs keep their saved value.</summary>
@@ -87,6 +127,32 @@ public sealed class AppSettings
             if (!IsRestorableUrl(LastUrlByProfile[key]))
                 LastUrlByProfile.Remove(key);
         }
+        // Per-profile window placement (v0.5.0, S1 #8): migrate the legacy
+        // global placement into the default profile's entry on first load,
+        // drop entries for profiles that no longer exist, and clamp sizes.
+        WindowPlacementByProfile ??= new Dictionary<string, WindowPlacement>();
+        if (!WindowPlacementByProfile.ContainsKey(global::MuseDesktop.Core.Profiles.DefaultId))
+        {
+            WindowPlacementByProfile[global::MuseDesktop.Core.Profiles.DefaultId] = new WindowPlacement
+            {
+                Left = WindowLeft,
+                Top = WindowTop,
+                Width = WindowWidth,
+                Height = WindowHeight,
+                Maximized = WindowMaximized,
+            };
+        }
+        foreach (var key in WindowPlacementByProfile.Keys.ToList())
+        {
+            var p = WindowPlacementByProfile[key];
+            if (p is null || Profiles.All(pr => pr.Id != key))
+            {
+                WindowPlacementByProfile.Remove(key);
+                continue;
+            }
+            p.Width = p.Width is >= 480 and <= 10000 ? p.Width : 1280;
+            p.Height = p.Height is >= 320 and <= 10000 ? p.Height : 860;
+        }
         return this;
     }
 
@@ -115,6 +181,16 @@ public sealed class AppSettings
     /// <summary>Deep copy (JSON round-trip) — the Settings window edits a clone so Cancel can discard cleanly.</summary>
     public AppSettings Clone() =>
         JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(this)) ?? new AppSettings();
+}
+
+/// <summary>One profile's remembered window placement (v0.5.0, S1 #8).</summary>
+public sealed class WindowPlacement
+{
+    public double? Left { get; set; }
+    public double? Top { get; set; }
+    public double Width { get; set; } = 1280;
+    public double Height { get; set; } = 860;
+    public bool Maximized { get; set; }
 }
 
 /// <summary>
