@@ -33,7 +33,7 @@ public static class SettingsSearch
         new SettingsSectionInfo(TrayId, "Tray & notifications",
             "tray icon single click double click reopen flash taskbar attention quiet hours do not disturb notifications balloon silent night"),
         new SettingsSectionInfo(ProfilesId, "Account profiles",
-            "profile account sign-in rename accent color dot switch remove add copy settings start page home custom url zoom downloads folder data size last used shortcut desktop"),
+            "profile account sign-in rename accent color dot switch remove add copy settings start page home custom url zoom downloads folder data size last used shortcut desktop storage cap limit cache cleanup"),
         new SettingsSectionInfo(AppearanceId, "Appearance & toolbar",
             "theme dark light follow windows system accent color shell text size font scale toolbar customize reorder hide show buttons layout reset appearance"),
         new SettingsSectionInfo(ZoomId, "Zoom",
@@ -43,7 +43,7 @@ public static class SettingsSearch
         new SettingsSectionInfo(DownloadsId, "Downloads",
             "downloads folder save ask where collision already exists rename history keep cap notify finished balloon"),
         new SettingsSectionInfo(DataId, "Data",
-            "export import backup reset all settings defaults restore portable mode data location usb setup wizard open data folder"),
+            "export import backup backups rotation restore portable mode data location usb setup wizard open data folder reset museDesktop troubleshooting won't start safe mode storage size cap cleanup diagnostics"),
         // S7 (v0.11.0): listed LAST so the older sections keep winning
         // first-match for the queries they already owned (tests pin a
         // few); the privacy words here are distinct enough to find it.

@@ -46,6 +46,12 @@ public static class AppPaths
     /// <summary>Privacy report counters + recent permission denials (v0.11.0, S7 #62/#67) — counts and host names only, beside the settings.</summary>
     public static string PrivacyStatsPath => Path.Combine(RootDir, "privacy-stats.json");
 
+    /// <summary>Automatic rotating backups of settings + download history (v0.12.0, S8 #79).</summary>
+    public static string BackupsDir => Path.Combine(RootDir, "backups");
+
+    /// <summary>The last launches' startup timings (v0.12.0, S8 #73) — measurements only, no content.</summary>
+    public static string StartupTimingsPath => Path.Combine(RootDir, "startup-timings.json");
+
     public static string LogDir => Path.Combine(RootDir, "logs");
     public static string LogPath => Path.Combine(LogDir, "musedesktop.log");
 

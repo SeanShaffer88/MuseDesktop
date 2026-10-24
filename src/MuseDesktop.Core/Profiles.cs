@@ -52,6 +52,22 @@ public sealed class AccountProfile
 
     /// <summary>When this profile was last launched with (S3 #27). Session state — never copied to a new profile (S3 #29).</summary>
     public DateTimeOffset? LastUsedUtc { get; set; }
+
+    /// <summary>
+    /// Optional data size cap for this profile (S8 #75), in bytes:
+    /// 0 = off (default), else one of <see cref="ProfileDataCaps"/>.
+    /// When the profile's folder grows past it, cleanup deletes ONLY
+    /// allowlisted disposable cache folders (see
+    /// <see cref="CacheCleanup"/>) — cookies and sign-in data are never
+    /// in the plan, by construction.
+    /// </summary>
+    public long DataCapBytes { get; set; }
+
+    /// <summary>When the cache cleanup last ran for this profile (S8 #75), shown in the site-data viewer. Session-adjacent state — never copied.</summary>
+    public DateTimeOffset? LastCacheCleanupUtc { get; set; }
+
+    /// <summary>How many bytes the last cache cleanup freed for this profile (S8 #75).</summary>
+    public long LastCacheCleanupFreedBytes { get; set; }
 }
 
 /// <summary>
@@ -162,6 +178,12 @@ public static class Profiles
             // "no override", never a broken factor.
             if (p.ZoomFactor is { } z)
                 p.ZoomFactor = double.IsNaN(z) || z <= 0 ? null : ZoomMath.Clamp(z, extendedZoomRange);
+            // S8 #75: the data cap must be one of the offered sizes —
+            // anything else (hand-edited, negative) means off, never a
+            // surprise cleanup; a negative freed-bytes stamp is nonsense.
+            p.DataCapBytes = ProfileDataCaps.Sanitize(p.DataCapBytes);
+            if (p.LastCacheCleanupFreedBytes < 0)
+                p.LastCacheCleanupFreedBytes = 0;
         }
         while (settings.Profiles.Count > MaxProfiles)
             settings.Profiles.RemoveAt(settings.Profiles.Count - 1);
@@ -209,6 +231,9 @@ public static class Profiles
             DownloadsFolder = source.DownloadsFolder,
             DisplayColor = source.DisplayColor,
             ZoomFactor = source.ZoomFactor,
+            // S8 #75: the data cap is a setting and copies; the cleanup
+            // stamps are this profile's own history and do not.
+            DataCapBytes = source.DataCapBytes,
             LastUsedUtc = null,
         };
 

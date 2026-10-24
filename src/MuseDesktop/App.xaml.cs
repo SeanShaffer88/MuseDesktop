@@ -32,6 +32,19 @@ public partial class App : System.Windows.Application
         // tolerated, never fatal.
         var options = CommandLine.Parse(e.Args);
 
+        // S8 #72/#73: safe mode is the --safe-mode flag, or Shift held
+        // at launch (a rescue for a mouse-only recovery) — the flag is
+        // the contract, Shift the convenience. The startup clock
+        // starts here, before anything else can be measured.
+        var startupClock = new StartupClock();
+        var safeMode = options.SafeMode;
+        try
+        {
+            if (System.Windows.Input.Keyboard.Modifiers.HasFlag(System.Windows.Input.ModifierKeys.Shift))
+                safeMode = true;
+        }
+        catch { /* keyboard state unavailable — the flag carries it */ }
+
         // Smoke-test mode (used by CI): construct the real main window —
         // which runs its XAML — then exit. v0.1.0 compiled and passed every
         // test yet crashed on first launch because nothing ever built the
@@ -87,7 +100,8 @@ public partial class App : System.Windows.Application
         var startHidden = !options.OpenSettings && !firstRun
                           && LaunchVisibility.ShouldStartHidden(options.Background, Settings.StartMinimizedToTray);
         Log.Info($"MuseDesktop {typeof(App).Assembly.GetName().Version} starting" +
-                 (options.Background ? (startHidden ? " (background, in tray)" : " (background)") : ""));
+                 (options.Background ? (startHidden ? " (background, in tray)" : " (background)") : "") +
+                 (safeMode ? " [SAFE MODE]" : ""));
 
         // App lock (S7 #64). A broken lock record was already repaired
         // by Sanitized on load (fail-open, never a lockout) — say so.
@@ -141,6 +155,19 @@ public partial class App : System.Windows.Application
             activeProfile.LastUsedUtc = DateTimeOffset.UtcNow;
 
         RunPendingProfileFolderDeletions();
+        // S8 #75: the startup cache-cap pass — capped profiles over
+        // their cap get their allowlisted caches trimmed, and the
+        // cleanup is stamped so Settings can show it happened (never
+        // silent). Runs before any WebView2 environment exists.
+        try
+        {
+            if (CacheCleanupRunner.RunAllProfiles(Settings, Log))
+                SettingsStore.Save(AppPaths.SettingsPath, Settings);
+        }
+        catch (Exception ex) { Log.Warn($"Startup cache cleanup failed: {ex.Message}"); }
+        // S8 #79: the once-a-day automatic backup also runs here, so
+        // a launch-only session still leaves a fresh backup behind.
+        BackupService.MaybeAutoBackup(Log);
 
         DispatcherUnhandledException += (_, args) =>
         {
@@ -162,7 +189,7 @@ public partial class App : System.Windows.Application
 
         try
         {
-            _window = new MainWindow(Settings, Log, mainWindowStartsLocked);
+            _window = new MainWindow(Settings, Log, mainWindowStartsLocked, safeMode, startupClock);
         }
         catch (Exception ex)
         {

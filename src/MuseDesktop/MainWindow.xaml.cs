@@ -31,7 +31,6 @@ public partial class MainWindow : Window
     // v0.5.0 (S1) — navigation history model, focus mode, find, auto-retry.
     private readonly NavigationHistory _history = new();
     private bool _focusMode;
-    private bool _autoRetried;
     private bool _suppressNavClick;
     private DispatcherTimer? _navPressTimer;
     private string _pageTitle = "";
@@ -81,13 +80,32 @@ public partial class MainWindow : Window
     private readonly AppLockThrottle _lockThrottle = new();
     private LockWindow? _lockWindow;
 
+    // v0.12.0 (S8) — reliability: ONE recovery coordinator (#71/#76)
+    // decides every automatic reload/recreate (the S1 network retry
+    // and the ProcessFailed handler used to keep separate flags); the
+    // hung-page watchdog (#80); safe mode (#72); startup timings
+    // (#73); the tray-suspend memory pair (#74); runtime health (#78).
+    private readonly RecoveryCoordinator _recovery = new();
+    private readonly WatchdogPolicy _watchdog = new();
+    private DispatcherTimer? _watchdogTimer;
+    private readonly bool _safeMode;
+    private readonly StartupClock? _startupClock;
+    private bool _firstNavigationRecorded;
+    private string? _lastGoodUrl;
+    private MemorySnapshot? _memBeforeSuspend;
+    private MemorySnapshot? _memAfterResume;
+    private RuntimeHealthResult? _runtimeHealth;
+
     /// <summary>True while the app lock is engaged (the shell checks this before showing any content surface).</summary>
     public bool IsLocked => _isLocked;
 
-    public MainWindow(AppSettings settings, DiagnosticLog log, bool lockedAtStart = false)
+    public MainWindow(AppSettings settings, DiagnosticLog log, bool lockedAtStart = false,
+        bool safeMode = false, StartupClock? startupClock = null)
     {
         _settings = settings;
         _log = log;
+        _safeMode = safeMode;
+        _startupClock = startupClock;
         // Locked-at-start is only ever the background (tray) launch
         // path — visible launches pass App's modal startup gate first.
         // The double check keeps a stray flag from locking an app
@@ -176,15 +194,20 @@ public partial class MainWindow : Window
 
         // S6 #58: the ring around the web view lights up while
         // keyboard focus is inside the page, so a keyboard user can
-        // always tell page focus from shell focus.
-        Browser.GotKeyboardFocus += (_, _) =>
-            WebFocusRing.BorderBrush = (System.Windows.Media.Brush)FindResource("AccentBrush");
-        Browser.LostKeyboardFocus += (_, _) =>
-            WebFocusRing.BorderBrush = System.Windows.Media.Brushes.Transparent;
+        // always tell page focus from shell focus. (Named handlers,
+        // not lambdas: the S8 #71 recreate path re-attaches them to
+        // the replacement control.)
+        Browser.GotKeyboardFocus += OnBrowserGotKeyboardFocus;
+        Browser.LostKeyboardFocus += OnBrowserLostKeyboardFocus;
 
         PinItem.IsChecked = _settings.AlwaysOnTop;
         Topmost = _settings.AlwaysOnTop;
         NetworkChange.NetworkAddressChanged += OnNetworkChanged;
+        // S8 #76: availability changes and resume-from-sleep feed the
+        // same recovery signal as address changes — one coordinator
+        // decides whether a failed page gets its one automatic reload.
+        NetworkChange.NetworkAvailabilityChanged += OnNetworkChanged;
+        Microsoft.Win32.SystemEvents.PowerModeChanged += OnPowerModeChanged;
         SetWindowIcon();
         ApplySavedPlacement();
         _tray.Build();
@@ -195,6 +218,14 @@ public partial class MainWindow : Window
         Closing += OnClosing;
         PreviewKeyDown += OnPreviewKeyDown;
     }
+
+    // S6 #58 focus-ring handlers (named so S8 #71's recreated web view
+    // control gets the same pair).
+    private void OnBrowserGotKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e) =>
+        WebFocusRing.BorderBrush = (System.Windows.Media.Brush)FindResource("AccentBrush");
+
+    private void OnBrowserLostKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e) =>
+        WebFocusRing.BorderBrush = System.Windows.Media.Brushes.Transparent;
 
     /// <summary>
     /// Rebuild the toolbar button strips from the saved layout (S5 #45):
@@ -275,6 +306,8 @@ public partial class MainWindow : Window
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         ApplyDarkTitleBar();
+        // S8 #73: the window is up — the first startup milestone.
+        _startupClock?.MarkWindowShown();
         try
         {
             _taskbar = new TaskbarProgress(new WindowInteropHelper(this).Handle, _log);
@@ -290,7 +323,8 @@ public partial class MainWindow : Window
             return;
         }
         await InitWebViewAsync();
-        if (_settings.CheckForUpdates)
+        // S8 #72: safe mode skips the automatic update check.
+        if (SafeModePolicy.ShouldCheckForUpdates(_safeMode, _settings.CheckForUpdates))
             _ = CheckForUpdatesAsync(manual: false);
     }
 
@@ -401,6 +435,9 @@ public partial class MainWindow : Window
     {
         try
         {
+            // S8 #74: the "before" half of the suspend memory pair,
+            // captured while the renderer is still fully resident.
+            _memBeforeSuspend = MemoryCollector.Collect(Browser.CoreWebView2.Environment);
             var ok = await Browser.CoreWebView2.TrySuspendAsync();
             _log.Info(ok
                 ? "WebView2 suspended (window hidden in tray)"
@@ -422,6 +459,9 @@ public partial class MainWindow : Window
         {
             Browser.CoreWebView2.Resume();
             _log.Info("WebView2 resumed");
+            // S8 #74: the "after" half of the pair (the Diagnostics
+            // window shows what suspend actually saved).
+            _memAfterResume = MemoryCollector.Collect(Browser.CoreWebView2.Environment);
             return true;
         }
         catch (Exception ex)
@@ -433,6 +473,8 @@ public partial class MainWindow : Window
 
     private void OnClosing(object? sender, CancelEventArgs e)
     {
+        Microsoft.Win32.SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+        _watchdogTimer?.Stop();
         SaveSettings();
         if (!_reallyExit && _settings.CloseToTray)
         {
@@ -538,6 +580,9 @@ public partial class MainWindow : Window
                 }
             }
             SettingsStore.Save(AppPaths.SettingsPath, _settings);
+            // S8 #79: saves are frequent (every navigation), so the
+            // backup service applies its once-a-day throttle itself.
+            BackupService.MaybeAutoBackup(_log);
         }
         catch (Exception ex)
         {
@@ -547,8 +592,14 @@ public partial class MainWindow : Window
 
     // ───────────────────────── WebView2 ─────────────────────────
 
-    private async Task InitWebViewAsync()
+    /// <summary>
+    /// Build (or, for S8 #71 recovery, rebuild) the web view.
+    /// <paramref name="restoreUrl"/> is the recovery path's last page —
+    /// when given, it wins over the start-page resolution.
+    /// </summary>
+    private async Task InitWebViewAsync(string? restoreUrl = null)
     {
+        _webInitFailed = false;
         try
         {
             Directory.CreateDirectory(_profileDir);
@@ -632,6 +683,17 @@ public partial class MainWindow : Window
 
         Browser.ZoomFactor = EffectiveZoom();
         _webReady = true;
+        // S8 #73: the second startup milestone.
+        _startupClock?.MarkWebViewReady();
+        // S8 #78: runtime health — version + channel facts, a warning
+        // when the runtime is missing/ancient, and the fixed-version
+        // folder note. Evergreen is what CreateAsync resolves with
+        // browserExecutableFolder: null above.
+        _runtimeHealth = RuntimeHealthCheck.EvaluateCurrent();
+        if (_runtimeHealth.Status == RuntimeHealthStatus.Ok)
+            _log.Info($"Runtime health: {_runtimeHealth.Message}");
+        else
+            _log.Warn($"Runtime health: {_runtimeHealth.Message}");
         _log.Info($"WebView2 {envVersion()} ready; profile {_profileDir}");
         // Start page (S5 #47): an invalid custom page falls back to
         // Home and says so — the stored value is logged redacted only.
@@ -642,8 +704,14 @@ public partial class MainWindow : Window
             _log.Warn($"Profile {_settings.ActiveProfileId} has an unusable custom start page " +
                       $"({UrlPolicy.RedactForLog(active?.CustomStartUrl)}); starting at the Muse home page");
         }
-        core.Navigate(startupUrl);
-        SetStatus("Loading Muse…");
+        // S8 #72: safe mode ignores the start-page resolution entirely
+        // and lands on Home; #71 recovery restores the crashed page.
+        var navigateTo = restoreUrl ?? SafeModePolicy.StartupUrl(_safeMode, startupUrl);
+        if (_safeMode && restoreUrl is null)
+            _log.Info("Safe mode: starting at the Muse home page (no last-page restore, update check skipped)");
+        core.Navigate(navigateTo);
+        SetStatus(_safeMode ? "Safe mode — Loading Muse…" : "Loading Muse…");
+        StartWatchdog();
 
         string envVersion()
         {
@@ -686,21 +754,29 @@ public partial class MainWindow : Window
 
     private void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
+        RecordFirstNavigation();
         if (e.IsSuccess)
         {
             Overlay.Visibility = Visibility.Collapsed;
             SetStatus("Ready");
-            _autoRetried = false;
+            // S8 #71/#76: a successful load closes the recovery
+            // incident and refills both automatic budgets.
+            _recovery.OnPageLoaded();
+            var src = Browser.Source?.ToString();
+            if (src is not null)
+                _lastGoodUrl = src;
             // S4 #35: a new document ends whatever media capture the
             // old one held, so the microphone-grant heuristic resets.
             _micGrantedThisSession = false;
-            var src = Browser.Source?.ToString();
             if (src is not null)
                 _history.Record(src, Browser.CoreWebView2.DocumentTitle);
             SaveSettings();
         }
         else
         {
+            // S8 #76: the coordinator now owns the failed state the
+            // connectivity retry keys on (S1 #10 used a local flag).
+            _recovery.OnLoadFailed();
             // Smarter load-failure overlay (v0.5.0, S1 #10): Core classifies
             // the WebErrorStatus into a plain-language category.
             _log.Warn($"Navigation failed: {e.WebErrorStatus} for {UrlPolicy.RedactForLog(Browser.Source?.ToString())}");
@@ -714,22 +790,56 @@ public partial class MainWindow : Window
         UpdateNavButtons();
     }
 
+    /// <summary>S8 #73: the first navigation of the launch completes the startup timings — record, persist, and log them once.</summary>
+    private void RecordFirstNavigation()
+    {
+        if (_firstNavigationRecorded)
+            return;
+        _firstNavigationRecorded = true;
+        if (_startupClock is null)
+            return;
+        _startupClock.MarkFirstNavigation();
+        try
+        {
+            var runs = StartupTimingsStore.Load(AppPaths.StartupTimingsPath);
+            StartupTimingsStore.Add(runs, _startupClock.Snapshot());
+            StartupTimingsStore.Save(AppPaths.StartupTimingsPath, runs);
+            _log.Info($"Startup timings: {_startupClock.Snapshot().Describe()}");
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Saving startup timings failed: {ex.Message}");
+        }
+    }
+
     /// <summary>
-    /// Auto-retry once (v0.5.0, S1 #10): when the network reports a change
-    /// while a load-failure overlay is showing and connectivity is back,
-    /// reload a single time. The flag resets on the next successful load,
-    /// so a flapping network cannot cause a retry loop.
+    /// Connectivity is back (S1 #10, unified in S8 #76): network
+    /// address/availability changes and resume-from-sleep all land
+    /// here, and the recovery coordinator decides whether the failed
+    /// page gets its one automatic reload — so a flapping network
+    /// cannot cause a retry loop, and no second mechanism can reload
+    /// behind the coordinator's back.
     /// </summary>
-    private void OnNetworkChanged(object? sender, EventArgs e)
+    private void OnNetworkChanged(object? sender, EventArgs e) =>
+        OnConnectivitySignal("Network changed");
+
+    private void OnPowerModeChanged(object sender, Microsoft.Win32.PowerModeChangedEventArgs e)
+    {
+        if (e.Mode == Microsoft.Win32.PowerModes.Resume)
+            OnConnectivitySignal("PC resumed from sleep");
+    }
+
+    private void OnConnectivitySignal(string source)
     {
         Dispatcher.Invoke(() =>
         {
-            if (!_webReady || _autoRetried || Overlay.Visibility != Visibility.Visible)
+            if (!_webReady)
                 return;
             if (!NetworkInterface.GetIsNetworkAvailable())
                 return;
-            _autoRetried = true;
-            _log.Info("Network changed while a load failure was showing; auto-retrying once");
+            if (_recovery.OnConnectivityRestored(DateTimeOffset.UtcNow) != RecoveryDecision.ReloadPage)
+                return;
+            _log.Info($"{source} while a load failure was showing; auto-retrying once");
             OnReload(this, new RoutedEventArgs());
         });
     }
@@ -1104,6 +1214,10 @@ public partial class MainWindow : Window
     {
         var src = Browser.Source?.ToString() ?? "";
         AddressText.Text = Uri.TryCreate(src, UriKind.Absolute, out var u) ? u.Host : src;
+        // S8 #71: the freshest in-app page is what crash recovery
+        // restores — kept current here so it survives the web view.
+        if (src.Length > 0 && UrlPolicy.ClassifyNavigation(src) == LinkDisposition.InApp)
+            _lastGoodUrl = src;
         UpdateNavButtons();
     }
 
@@ -1113,19 +1227,179 @@ public partial class MainWindow : Window
         SetFullScreen(Browser.CoreWebView2.ContainsFullScreenElement);
     }
 
-    private void OnProcessFailed(object? sender, CoreWebView2ProcessFailedEventArgs e)
+    /// <summary>
+    /// Process failures (S8 #71): the recovery coordinator decides —
+    /// one automatic recovery per incident (reload the page for a
+    /// renderer exit, recreate the web view for a browser exit), then
+    /// the overlay. Non-fatal kinds (GPU, utility…) are WebView2's own
+    /// to restart and only get logged; RenderProcessUnresponsive is
+    /// the watchdog's (#80) case, not an automatic reload's.
+    /// </summary>
+    private async void OnProcessFailed(object? sender, CoreWebView2ProcessFailedEventArgs e)
     {
-        _log.Error($"WebView2 process failed: {e.ProcessFailedKind}");
-        _history.NoteClosedPage(Browser.Source?.ToString());
-        if (e.ProcessFailedKind is CoreWebView2ProcessFailedKind.RenderProcessExited
-            or CoreWebView2ProcessFailedKind.BrowserProcessExited)
+        var kind = Enum.TryParse<ProcessFailureKind>(e.ProcessFailedKind.ToString(), out var mapped)
+            ? mapped
+            : ProcessFailureKind.Other;
+        _log.Error($"WebView2 process failed: {e.ProcessFailedKind} ({e.Reason})");
+        var decision = _recovery.OnProcessFailed(kind, DateTimeOffset.UtcNow);
+        switch (decision)
         {
-            ShowOverlay(
-                "The page stopped responding",
-                "Muse's web view closed unexpectedly. Reloading usually fixes it, and your work is saved in the cloud.",
-                "Reload Muse", null);
+            case RecoveryDecision.ReloadPage:
+                _log.Info("Recovery: reloading the page automatically (one automatic recovery per incident)");
+                SetStatus("The page stopped responding — reloading it");
+                try { Browser.CoreWebView2.Navigate(_lastGoodUrl ?? UrlPolicy.HomeUrl); }
+                catch (Exception ex)
+                {
+                    _log.Warn($"Recovery reload failed: {ex.Message}");
+                    ShowCrashOverlay(e.ProcessFailedKind.ToString());
+                }
+                break;
+            case RecoveryDecision.RecreateWebView:
+                _log.Info("Recovery: recreating the web view automatically (one automatic recovery per incident)");
+                SetStatus("The web view stopped — rebuilding it");
+                await RecreateWebViewAsync();
+                break;
+            case RecoveryDecision.ShowFailureOverlay:
+                _log.Warn("Recovery: automatic recovery already used for this incident — showing the failure overlay");
+                ShowCrashOverlay(e.ProcessFailedKind.ToString());
+                break;
+            default:
+                SetStatus($"Web view problem: {e.ProcessFailedKind}");
+                break;
         }
-        SetStatus($"Web view problem: {e.ProcessFailedKind}");
+    }
+
+    private void ShowCrashOverlay(string kindName)
+    {
+        _history.NoteClosedPage(_lastGoodUrl);
+        ShowOverlay(
+            "The page stopped responding",
+            "Muse's web view closed unexpectedly, and the automatic recovery didn't fix it. Reloading usually does, and your work is saved in the cloud.",
+            "Reload Muse", null);
+        SetStatus($"Web view problem: {kindName}");
+    }
+
+    /// <summary>
+    /// Recreate the web view after a browser-process exit (S8 #71):
+    /// the WPF controls bound to the dead environment are disposed and
+    /// replaced with fresh ones (the XAML fields are reassigned — the
+    /// rest of the window only ever talks to the fields), then the
+    /// normal init runs against a new environment and restores the
+    /// last page. The hidden retry view belonged to the dead
+    /// environment too and is replaced alongside.
+    /// </summary>
+    private async Task RecreateWebViewAsync()
+    {
+        var restoreUrl = _lastGoodUrl ?? UrlPolicy.HomeUrl;
+        try
+        {
+            _watchdogTimer?.Stop();
+            var oldBrowser = Browser;
+            WebFocusRing.Child = null;
+            try { oldBrowser.Dispose(); } catch { /* already dead — that's why we're here */ }
+            var fresh = new Microsoft.Web.WebView2.Wpf.WebView2
+            {
+                DefaultBackgroundColor = ThemeManager.BrowserBackground,
+            };
+            System.Windows.Automation.AutomationProperties.SetName(fresh, "Muse web content");
+            fresh.GotKeyboardFocus += OnBrowserGotKeyboardFocus;
+            fresh.LostKeyboardFocus += OnBrowserLostKeyboardFocus;
+            Browser = fresh;
+            WebFocusRing.Child = fresh;
+
+            var oldRetry = RetryBrowser;
+            ContentGrid.Children.Remove(oldRetry);
+            try { oldRetry.Dispose(); } catch { /* same dead environment */ }
+            var freshRetry = new Microsoft.Web.WebView2.Wpf.WebView2
+            {
+                Width = 1,
+                Height = 1,
+                Visibility = Visibility.Hidden,
+                IsHitTestVisible = false,
+                DefaultBackgroundColor = ThemeManager.BrowserBackground,
+            };
+            RetryBrowser = freshRetry;
+            ContentGrid.Children.Add(freshRetry);
+
+            _webReady = false;
+            _retryWebReady = false;
+            await InitWebViewAsync(restoreUrl);
+            _log.Info($"Web view recreated; restored {UrlPolicy.RedactForLog(restoreUrl)}");
+        }
+        catch (Exception ex)
+        {
+            _log.Error($"Web view recreation failed: {ex}");
+            ShowCrashOverlay("BrowserProcessExited");
+        }
+    }
+
+    // ───────────────────── hung-page watchdog (S8 #80) ─────────────────────
+
+    /// <summary>
+    /// The watchdog timer (S8 #80): every 15 s a trivial script ping
+    /// with a 5 s timeout, decided by Core's WatchdogPolicy. It never
+    /// runs while the web view is suspended (a sleeping renderer
+    /// can't answer — that's not a hang), while locked, or after the
+    /// mic was granted this session / while the page plays audio — a
+    /// busy voice page must not be misjudged. Two consecutive misses
+    /// show the Reload/Wait banner; nothing is ever auto-reloaded.
+    /// </summary>
+    private void StartWatchdog()
+    {
+        _watchdogTimer?.Stop();
+        _watchdogTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
+        _watchdogTimer.Tick += OnWatchdogTick;
+        _watchdogTimer.Start();
+    }
+
+    private async void OnWatchdogTick(object? sender, EventArgs e)
+    {
+        if (!_webReady || _isLocked || _tray.IsSuspended)
+            return;
+        if (_micGrantedThisSession)
+            return; // S4 #35's heuristic: a voice session may be live
+        bool alive;
+        try
+        {
+            if (Browser.CoreWebView2.IsDocumentPlayingAudio)
+                return; // streaming/voice playback — not evidence of a hang
+            var ping = Browser.CoreWebView2.ExecuteScriptAsync("1");
+            var finished = await Task.WhenAny(ping, Task.Delay(TimeSpan.FromSeconds(5)));
+            alive = finished == ping && ping.IsCompletedSuccessfully;
+        }
+        catch
+        {
+            alive = false;
+        }
+        var decision = alive
+            ? _watchdog.OnPingSucceeded(DateTimeOffset.UtcNow)
+            : _watchdog.OnPingMissed(DateTimeOffset.UtcNow);
+        if (decision == WatchdogDecision.ShowHungPrompt)
+        {
+            _log.Warn("Watchdog: the page hasn't answered two checks in a row — offering Reload / Wait (nothing is reloaded automatically)");
+            WatchdogBanner.Visibility = Visibility.Visible;
+        }
+        else if (decision == WatchdogDecision.HideHungPrompt)
+        {
+            _log.Info("Watchdog: the page is answering again — banner hidden");
+            WatchdogBanner.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void OnWatchdogReload(object sender, RoutedEventArgs e)
+    {
+        _watchdog.OnReloadChosen();
+        WatchdogBanner.Visibility = Visibility.Collapsed;
+        _log.Info("Watchdog: user chose Reload");
+        OnReload(this, new RoutedEventArgs());
+    }
+
+    private void OnWatchdogWait(object sender, RoutedEventArgs e)
+    {
+        _watchdog.Snooze(DateTimeOffset.UtcNow);
+        WatchdogBanner.Visibility = Visibility.Collapsed;
+        _log.Info("Watchdog: user chose Wait — quiet for 2 minutes");
+        SetStatus("Page left as-is — the responsiveness check is paused for 2 minutes");
     }
 
     // ───────────────────────── UI actions ─────────────────────────
@@ -1720,7 +1994,7 @@ public partial class MainWindow : Window
         {
             _initDeferred = false;
             await InitWebViewAsync();
-            if (_settings.CheckForUpdates)
+            if (SafeModePolicy.ShouldCheckForUpdates(_safeMode, _settings.CheckForUpdates))
                 _ = CheckForUpdatesAsync(manual: false);
         }
         ShowFromTray();
@@ -2098,6 +2372,51 @@ public partial class MainWindow : Window
             "MuseDesktop is an independent open-source project (MIT) and is not made by Meta.",
             "About MuseDesktop", MessageBoxButton.OK, MessageBoxImage.Information);
         FocusReturn.Restore(invoker);
+    }
+
+    /// <summary>
+    /// Diagnostics (S8): the lite readout surface — runtime health
+    /// (#78), Windows proxy (#77), memory (#74 incl. the suspend
+    /// pair), and startup timings (#73) — composed from the Core
+    /// models each time it opens or refreshes, so S10's fuller
+    /// diagnostics can reuse the same pieces.
+    /// </summary>
+    private void OnDiagnostics(object sender, RoutedEventArgs e)
+    {
+        var invoker = FocusReturn.Capture();
+        var window = new DiagnosticsWindow(() => DiagnosticsReport.Compose(BuildDiagnosticsData()))
+        { Owner = this };
+        ThemeManager.ApplyTitleBar(window);
+        ShellTextScaling.Apply(window, _settings.ShellFontScale);
+        window.ShowDialog();
+        FocusReturn.Restore(invoker);
+    }
+
+    private DiagnosticsData BuildDiagnosticsData()
+    {
+        MemorySnapshot? currentMemory = null;
+        if (_webReady)
+        {
+            try { currentMemory = MemoryCollector.Collect(Browser.CoreWebView2.Environment); }
+            catch (Exception ex) { _log.Warn($"Diagnostics memory collection failed: {ex.Message}"); }
+        }
+        List<StartupTimings> runs = new();
+        try { runs = StartupTimingsStore.Load(AppPaths.StartupTimingsPath); }
+        catch (Exception ex) { _log.Warn($"Diagnostics startup-timings read failed: {ex.Message}"); }
+        return new DiagnosticsData
+        {
+            AppVersion = $"{typeof(App).Assembly.GetName().Version}",
+            SafeMode = _safeMode,
+            SettingsPath = AppPaths.SettingsPath,
+            LogPath = AppPaths.LogPath,
+            ProfileDir = _profileDir,
+            Runtime = _runtimeHealth ?? RuntimeHealthCheck.EvaluateCurrent(),
+            Proxy = ProxyReader.Read(),
+            Memory = currentMemory,
+            MemoryBeforeSuspend = _memBeforeSuspend,
+            MemoryAfterResume = _memAfterResume,
+            StartupRuns = runs,
+        };
     }
 
     private static void OpenExternal(string url)
