@@ -39,4 +39,6 @@ Honest list of what MuseDesktop does not do or has not proven yet. Kept current 
 
 ## Accessibility notes
 
-- Toolbar buttons carry tooltips and AutomationProperties names, and zoom level is text (not color-only). A full screen-reader pass over the shell and a keyboard-only end-to-end run are still outstanding.
+- **v0.10.0 (S6) did the shell accessibility pass in code:** every shell control carries an accessible name (guarded by an automated XAML audit in the test suite), focus is visibly outlined everywhere via an explicit focus-visual style, Windows High Contrast repaints the shell from system colors, download/update events are announced through UIA live regions, dialogs return focus to their invoker, the web view shows a focus ring while keyboard focus is in the page, and three shortcuts are remappable in Settings. Zoom level is text (not color-only), as before.
+- **Still outstanding — machine verification, not code:** a full Narrator pass over the shell and a keyboard-only end-to-end run have NOT been done yet; both are spelled out step-by-step in `RELEASE_CHECKLIST.md` (v0.10.0 section). Until that pass runs, all v0.10.0 accessibility behavior is **Unverified** on a real Windows machine.
+- The tray menu is drawn by Windows (WinForms) and follows the system theme/size; it does not take the shell's theme, text size, or high-contrast palette beyond what Windows itself applies.

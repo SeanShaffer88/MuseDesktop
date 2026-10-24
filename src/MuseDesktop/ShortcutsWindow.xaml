@@ -1,0 +1,52 @@
+<Window x:Class="MuseDesktop.ShortcutsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Keyboard shortcuts"
+        Width="560" Height="520" MinWidth="430" MinHeight="330"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
+    <Window.Resources>
+        <Style x:Key="Note" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,6,0,0"/>
+        </Style>
+    </Window.Resources>
+
+    <DockPanel Margin="14,12,14,12">
+        <StackPanel DockPanel.Dock="Top">
+            <TextBlock Text="Search shortcuts:" Margin="0,0,0,4"/>
+            <TextBox x:Name="SearchText" TextChanged="OnSearchChanged"
+                     ToolTip="Filter by action name or key"
+                     AutomationProperties.Name="Search shortcuts"/>
+            <TextBlock x:Name="SummaryText" Style="{StaticResource Note}"/>
+        </StackPanel>
+
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button Content="Close" Width="86" Height="30" IsCancel="True" Click="OnClose"/>
+        </StackPanel>
+
+        <ListBox x:Name="ShortcutList" Margin="0,10,0,0"
+                 Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
+                 BorderBrush="{StaticResource HairlineBrush}"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 AutomationProperties.Name="Shortcuts list">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Grid Margin="4,3">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="150"/>
+                            <ColumnDefinition Width="170"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Grid.Column="0" Text="{Binding Name}" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Grid.Column="1" Text="{Binding Keys}" FontSize="13" FontWeight="SemiBold"/>
+                        <TextBlock Grid.Column="2" Text="{Binding Kind}" FontSize="11"
+                                   Foreground="{StaticResource MutedBrush}"/>
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </DockPanel>
+</Window>

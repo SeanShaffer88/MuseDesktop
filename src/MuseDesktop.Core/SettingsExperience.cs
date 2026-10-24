@@ -21,6 +21,7 @@ public static class SettingsSearch
     public const string ProfilesId = "profiles";
     public const string AppearanceId = "appearance";
     public const string ZoomId = "zoom";
+    public const string AccessibilityId = "accessibility";
     public const string DownloadsId = "downloads";
     public const string DataId = "data";
 
@@ -35,7 +36,9 @@ public static class SettingsSearch
         new SettingsSectionInfo(AppearanceId, "Appearance & toolbar",
             "theme dark light follow windows system accent color shell text size font scale toolbar customize reorder hide show buttons layout reset appearance"),
         new SettingsSectionInfo(ZoomId, "Zoom",
-            "zoom default percent bigger smaller text size page"),
+            "zoom default percent bigger smaller text size page extended range low vision 500"),
+        new SettingsSectionInfo(AccessibilityId, "Keyboard & accessibility",
+            "keyboard shortcuts keys remap rebind change hotkey reduce motion animation effects announcements screen reader narrator focus dialog extended zoom range low vision accessibility"),
         new SettingsSectionInfo(DownloadsId, "Downloads",
             "downloads folder save ask where collision already exists rename history keep cap notify finished balloon"),
         new SettingsSectionInfo(DataId, "Data",
@@ -118,6 +121,12 @@ public static class SettingsReset
         target.QuietHoursEnabled = fresh.QuietHoursEnabled;
         target.QuietHoursStartMinutes = fresh.QuietHoursStartMinutes;
         target.QuietHoursEndMinutes = fresh.QuietHoursEndMinutes;
+        // S6 fields (v0.10.0): remapped shortcuts return to their
+        // catalog defaults, reduce motion follows Windows again, and
+        // the zoom range returns to standard.
+        target.ShortcutOverrides = fresh.ShortcutOverrides;
+        target.ReduceMotion = fresh.ReduceMotion;
+        target.ExtendedZoomRange = fresh.ExtendedZoomRange;
         // S5 fields.
         target.Theme = fresh.Theme;
         target.AccentColor = fresh.AccentColor;

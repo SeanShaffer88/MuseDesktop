@@ -60,15 +60,17 @@ public partial class SettingsWindow : Window
             (SettingsSearch.ProfilesId, SectionProfiles, HeaderProfiles),
             (SettingsSearch.AppearanceId, SectionAppearance, HeaderAppearance),
             (SettingsSearch.ZoomId, SectionZoom, HeaderZoom),
+            (SettingsSearch.AccessibilityId, SectionAccessibility, HeaderAccessibility),
             (SettingsSearch.DownloadsId, SectionDownloads, HeaderDownloads),
             (SettingsSearch.DataId, SectionData, HeaderData),
         };
 
-        foreach (var step in ZoomMath.Steps)
-        {
-            ZoomCombo.Items.Add(ZoomMath.FormatPercent(step));
-            ProfileZoomCombo.Items.Add(ZoomMath.FormatPercent(step));
-        }
+        // S6 #57: the zoom lists come from the step table for the
+        // working extended-range choice; the toggle rebuilds them.
+        RebuildZoomCombos();
+        // S6 #53: key capture for the shortcut editor runs at window
+        // level (tunneling), active only while a capture is armed.
+        PreviewKeyDown += OnSettingsPreviewKeyDown;
 
         // S5 (#43/#44/#46): theme choices in ThemeMode order, accent
         // keys parallel to AccentCombo's items, text-scale factors.
@@ -142,6 +144,13 @@ public partial class SettingsWindow : Window
         HistoryCapCombo.SelectedItem = DownloadHistoryStore.SanitizeCap(_working.DownloadHistoryCap).ToString();
         DownloadsFolderText.Text = _working.DownloadsFolder ?? "";
 
+        // S6: extended zoom range (its handler rebuilds the step lists
+        // when it changes), reduce motion, the shortcut editor rows.
+        ExtendedZoomCheck.IsChecked = _working.ExtendedZoomRange;
+        RebuildZoomCombos();
+        ReduceMotionCombo.SelectedIndex = (int)_working.ReduceMotion;
+        RebuildShortcutRows();
+
         var current = ZoomMath.FormatPercent(_working.ZoomFactor);
         ZoomCombo.SelectedItem = ZoomCombo.Items.Contains(current) ? current : "100%";
 
@@ -195,6 +204,15 @@ public partial class SettingsWindow : Window
         {
             _working.ZoomFactor = value / 100.0;
         }
+        // S6: reduce motion + extended zoom (shortcut overrides are
+        // write-through in the editor handlers, like the toolbar).
+        _working.ExtendedZoomRange = ExtendedZoomCheck.IsChecked == true;
+        _working.ReduceMotion = ReduceMotionCombo.SelectedIndex switch
+        {
+            1 => ReduceMotionSetting.On,
+            2 => ReduceMotionSetting.Off,
+            _ => ReduceMotionSetting.FollowSystem,
+        };
         // S5 appearance (the toolbar layout itself is write-through —
         // see the toolbar editor handlers).
         if (ThemeCombo.SelectedIndex >= 0 && ThemeCombo.SelectedIndex <= (int)Core.ThemeMode.FollowSystem)
@@ -306,7 +324,10 @@ public partial class SettingsWindow : Window
                 ? ProfileDownloadsFolderText.Text
                 : AppPaths.DownloadsHint,
         };
-        if (dialog.ShowDialog(this) == true)
+        var invoker = FocusReturn.Capture();
+        var chosen = dialog.ShowDialog(this) == true;
+        FocusReturn.Restore(invoker);
+        if (chosen)
         {
             selected.DownloadsFolder = dialog.FolderName;
             ProfileDownloadsFolderText.Text = dialog.FolderName;
@@ -448,22 +469,28 @@ public partial class SettingsWindow : Window
     {
         if (_working.Profiles.Count >= Profiles.MaxProfiles)
         {
+            var capInvoker = FocusReturn.Capture();
             System.Windows.MessageBox.Show(this,
                 $"MuseDesktop supports up to {Profiles.MaxProfiles} profiles.",
                 "Profiles", MessageBoxButton.OK, MessageBoxImage.Information);
+            FocusReturn.Restore(capInvoker);
             return;
         }
         // S3 #30: past the soft threshold, adding is a deliberate choice —
         // every profile keeps its own sign-in data on this PC.
         if (_working.Profiles.Count >= Profiles.SoftProfileWarningThreshold)
         {
+            var warnInvoker = FocusReturn.Capture();
             var warn = System.Windows.MessageBox.Show(this,
                 $"You already have {_working.Profiles.Count} profiles. " +
                 "Each profile keeps its own Muse sign-in data on this PC, so many profiles use more disk.\n\n" +
                 "Add another profile?",
                 "Profiles", MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (warn != MessageBoxResult.Yes)
+            {
+                FocusReturn.Restore(warnInvoker);
                 return;
+            }
         }
         var name = string.IsNullOrWhiteSpace(NewProfileNameText.Text)
             ? $"Profile {_working.Profiles.Count + 1}"
@@ -495,13 +522,17 @@ public partial class SettingsWindow : Window
         var selected = SelectedProfile;
         if (selected is null || selected.Id == _working.ActiveProfileId)
             return;
+        var invoker = FocusReturn.Capture();
         var confirm = System.Windows.MessageBox.Show(this,
             $"Switch to profile \"{selected.Name}\"?\n\n" +
             "MuseDesktop restarts now with that profile's sign-in. " +
             "Any other unsaved changes in this window are discarded.",
             "Switch profile", MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (confirm != MessageBoxResult.Yes)
+        {
+            FocusReturn.Restore(invoker);
             return;
+        }
         _switchProfile(_working, selected.Id);
         // The app is exiting for the restart; this window goes with it.
     }
@@ -515,18 +546,26 @@ public partial class SettingsWindow : Window
                 ? DownloadsFolderText.Text
                 : AppPaths.DownloadsHint,
         };
-        if (dialog.ShowDialog(this) == true)
+        var invoker = FocusReturn.Capture();
+        var chosen = dialog.ShowDialog(this) == true;
+        FocusReturn.Restore(invoker);
+        if (chosen)
             DownloadsFolderText.Text = dialog.FolderName;
     }
 
     private async void OnClearData(object sender, RoutedEventArgs e)
     {
+        var invoker = FocusReturn.Capture();
         var confirm = System.Windows.MessageBox.Show(this,
             "Clear all browsing data stored by MuseDesktop and sign out of Muse?\n\n" +
             "Your chats are stored in your Muse account and are not affected.",
             "Clear browsing data", MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (confirm != MessageBoxResult.Yes)
+        {
+            FocusReturn.Restore(invoker);
             return;
+        }
+        FocusReturn.Restore(invoker);
 
         ClearDataButton.IsEnabled = false;
         var ok = await _clearBrowsingData();
@@ -544,6 +583,161 @@ public partial class SettingsWindow : Window
     {
         HarvestControls();
         DialogResult = true;
+    }
+
+    // ───────────────────────── S6: zoom range + shortcut remapping ─────────────────────────
+
+    /// <summary>(Re)fill both zoom combos from the step table for the working extended-range choice (S6 #57), keeping any current selections by percent text.</summary>
+    private void RebuildZoomCombos()
+    {
+        var zoomText = ZoomCombo.SelectedItem as string;
+        var profileText = ProfileZoomCombo.SelectedItem as string;
+        ZoomCombo.Items.Clear();
+        ProfileZoomCombo.Items.Clear();
+        foreach (var step in ZoomMath.StepsFor(_working.ExtendedZoomRange))
+        {
+            ZoomCombo.Items.Add(ZoomMath.FormatPercent(step));
+            ProfileZoomCombo.Items.Add(ZoomMath.FormatPercent(step));
+        }
+        if (zoomText is not null && ZoomCombo.Items.Contains(zoomText))
+            ZoomCombo.SelectedItem = zoomText;
+        if (profileText is not null && ProfileZoomCombo.Items.Contains(profileText))
+            ProfileZoomCombo.SelectedItem = profileText;
+    }
+
+    /// <summary>Extended zoom range toggle (S6 #57): write-through, and both zoom combos rebuild from the matching step table.</summary>
+    private void OnExtendedZoomChanged(object sender, RoutedEventArgs e)
+    {
+        _working.ExtendedZoomRange = ExtendedZoomCheck.IsChecked == true;
+        RebuildZoomCombos();
+        var current = ZoomMath.FormatPercent(_working.ZoomFactor);
+        ZoomCombo.SelectedItem = ZoomCombo.Items.Contains(current) ? current : "100%";
+        UpdateProfileButtons();
+    }
+
+    /// <summary>The action whose key is being captured right now (S6 #53), or null.</summary>
+    private string? _capturingActionId;
+
+    private void RebuildShortcutRows()
+    {
+        ShortcutRows.Children.Clear();
+        foreach (var action in ShortcutCatalog.Remappable)
+        {
+            var gesture = ShortcutBindings.EffectiveGesture(action.Id, _working.ShortcutOverrides);
+            var hasOverride = _working.ShortcutOverrides.ContainsKey(action.Id);
+            var row = new System.Windows.Controls.StackPanel
+            {
+                Orientation = System.Windows.Controls.Orientation.Horizontal,
+                Margin = new Thickness(0, 3, 0, 3),
+            };
+            row.Children.Add(new System.Windows.Controls.TextBlock
+            {
+                Text = action.Name,
+                Width = 170,
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+            var keyButton = new System.Windows.Controls.Button
+            {
+                Content = gesture.DisplayText(),
+                Width = 150,
+                Tag = action.Id,
+                ToolTip = $"Click, then press the new keys for {action.Name}",
+            };
+            keyButton.Click += OnCaptureShortcut;
+            row.Children.Add(keyButton);
+            var reset = new System.Windows.Controls.Button
+            {
+                Content = "Reset",
+                Width = 64,
+                Margin = new Thickness(8, 0, 0, 0),
+                IsEnabled = hasOverride,
+                Tag = action.Id,
+                ToolTip = $"Put {action.Name} back to {action.DisplayGestures}",
+            };
+            reset.Click += OnResetShortcut;
+            row.Children.Add(reset);
+            ShortcutRows.Children.Add(row);
+        }
+    }
+
+    private void OnCaptureShortcut(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button button || button.Tag is not string actionId)
+            return;
+        _capturingActionId = actionId;
+        button.Content = "Press keys… (Esc cancels)";
+        ShortcutStatus.Text = "";
+        button.Focus();
+    }
+
+    /// <summary>
+    /// Window-level capture: while a shortcut button is armed, the next
+    /// real key press becomes that action's gesture (Esc cancels, Tab
+    /// just leaves capture so keyboard users are never trapped).
+    /// Modifier-only presses are ignored — a gesture needs a real key.
+    /// </summary>
+    private void OnSettingsPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (_capturingActionId is not { } actionId)
+            return;
+        var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
+        if (key == System.Windows.Input.Key.Tab)
+        {
+            _capturingActionId = null;
+            RebuildShortcutRows();
+            return; // not handled — focus moves on as usual
+        }
+        e.Handled = true;
+        if (key == System.Windows.Input.Key.Escape)
+        {
+            _capturingActionId = null;
+            RebuildShortcutRows();
+            return;
+        }
+        if (key is System.Windows.Input.Key.LeftCtrl or System.Windows.Input.Key.RightCtrl
+            or System.Windows.Input.Key.LeftAlt or System.Windows.Input.Key.RightAlt
+            or System.Windows.Input.Key.LeftShift or System.Windows.Input.Key.RightShift
+            or System.Windows.Input.Key.LWin or System.Windows.Input.Key.RWin
+            or System.Windows.Input.Key.System)
+            return; // wait for the real key
+        var keyboard = System.Windows.Input.Keyboard.Modifiers;
+        var mods = GestureModifiers.None;
+        if (keyboard.HasFlag(System.Windows.Input.ModifierKeys.Control)) mods |= GestureModifiers.Control;
+        if (keyboard.HasFlag(System.Windows.Input.ModifierKeys.Alt)) mods |= GestureModifiers.Alt;
+        if (keyboard.HasFlag(System.Windows.Input.ModifierKeys.Shift)) mods |= GestureModifiers.Shift;
+        var ok = ShortcutBindings.TrySet(
+            _working.ShortcutOverrides, actionId, new ShortcutGesture(mods, key.ToString()),
+            out var updated, out var error);
+        if (ok)
+            _working.ShortcutOverrides = updated;
+        _capturingActionId = null;
+        RebuildShortcutRows();
+        ShortcutStatus.Text = ok
+            ? $"{ShortcutCatalog.Find(actionId)?.Name} now uses {ShortcutBindings.EffectiveGesture(actionId, _working.ShortcutOverrides).DisplayText()}."
+            : error ?? "";
+    }
+
+    private void OnResetShortcut(object sender, RoutedEventArgs e)
+    {
+        if (sender is System.Windows.Controls.Button { Tag: string actionId })
+        {
+            _working.ShortcutOverrides = ShortcutBindings.Without(_working.ShortcutOverrides, actionId);
+            ShortcutStatus.Text = "";
+            RebuildShortcutRows();
+        }
+    }
+
+    private void OnResetAllShortcuts(object sender, RoutedEventArgs e)
+    {
+        _working.ShortcutOverrides.Clear();
+        ShortcutStatus.Text = "All shortcuts are back to their defaults.";
+        RebuildShortcutRows();
+    }
+
+    private void OnOpenShortcutsList(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ShortcutsWindow(_working) { Owner = this };
+        FocusReturn.ShowDialog(dialog);
     }
 
     // ───────────────────────── S5: search, memory, appearance, reset, wizard ─────────────────────────
@@ -704,7 +898,7 @@ public partial class SettingsWindow : Window
     {
         HarvestControls();
         var wizard = new SetupWizardWindow(_working, markCompletedOnSkip: false) { Owner = this };
-        if (wizard.ShowDialog() == true)
+        if (FocusReturn.ShowDialog(wizard) == true)
             LoadControls(); // the wizard's four choices refresh this window
     }
 
@@ -715,6 +909,7 @@ public partial class SettingsWindow : Window
         HarvestControls();
         var backupName = SettingsReset.BackupFileName(DateTimeOffset.Now);
         var backupPath = Path.Combine(AppPaths.RootDir, backupName);
+        var invoker = FocusReturn.Capture();
         var confirm = System.Windows.MessageBox.Show(this,
             "Reset all settings to their defaults?\n\n" +
             $"First, your current settings are saved to a backup file:\n{backupPath}\n\n" +
@@ -723,7 +918,11 @@ public partial class SettingsWindow : Window
             "are NOT touched — and you can Import the backup at any time to undo this.",
             "Reset all settings", MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (confirm != MessageBoxResult.Yes)
+        {
+            FocusReturn.Restore(invoker);
             return;
+        }
+        FocusReturn.Restore(invoker);
         try
         {
             Directory.CreateDirectory(AppPaths.RootDir);
@@ -753,7 +952,10 @@ public partial class SettingsWindow : Window
             Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
             Title = "Export MuseDesktop settings",
         };
-        if (dialog.ShowDialog(this) != true)
+        var invoker = FocusReturn.Capture();
+        var chosen = dialog.ShowDialog(this) == true;
+        FocusReturn.Restore(invoker);
+        if (!chosen)
             return;
         try
         {
@@ -775,7 +977,10 @@ public partial class SettingsWindow : Window
             Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
             Title = "Import MuseDesktop settings",
         };
-        if (dialog.ShowDialog(this) != true)
+        var invoker = FocusReturn.Capture();
+        var chosen = dialog.ShowDialog(this) == true;
+        FocusReturn.Restore(invoker);
+        if (!chosen)
             return;
         string json;
         try
@@ -841,5 +1046,9 @@ public partial class SettingsWindow : Window
         target.SettingsWindowWidth = source.SettingsWindowWidth;
         target.SettingsWindowHeight = source.SettingsWindowHeight;
         target.FirstRunCompleted = source.FirstRunCompleted;
+        // S6 fields (shortcut remaps, reduce motion, extended zoom).
+        target.ShortcutOverrides = source.ShortcutOverrides;
+        target.ReduceMotion = source.ReduceMotion;
+        target.ExtendedZoomRange = source.ExtendedZoomRange;
     }
 }

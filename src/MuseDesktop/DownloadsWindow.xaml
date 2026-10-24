@@ -33,7 +33,8 @@
             <ListBox x:Name="ActiveList" Height="104" Background="{StaticResource SurfaceBrush}"
                      Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource HairlineBrush}"
                      SelectionChanged="OnActiveSelectionChanged"
-                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     AutomationProperties.Name="Active downloads">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <StackPanel Margin="4,3">
@@ -79,7 +80,8 @@
             <ListBox x:Name="DownloadsList" Background="{StaticResource SurfaceBrush}"
                      Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource HairlineBrush}"
                      MouseDoubleClick="OnOpen" SelectionChanged="OnSelectionChanged"
-                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     AutomationProperties.Name="Download history">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <StackPanel Margin="4,3">
@@ -98,7 +100,7 @@
                        Text="Files Muse downloaded for you, newest first. The list is kept on this PC only."/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
                 <Button x:Name="OpenButton" Content="Open" Width="76" Height="30" Click="OnOpen"
-                        Background="{StaticResource AccentBrush}" Foreground="White" BorderThickness="0"/>
+                        Background="{StaticResource AccentBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0"/>
                 <Button x:Name="FolderButton" Content="Show in folder" Width="104" Height="30" Margin="8,0,0,0" Click="OnShowInFolder"/>
                 <Button x:Name="CopyPathButton" Content="Copy path" Width="84" Height="30" Margin="8,0,0,0" Click="OnCopyPath"/>
                 <Button x:Name="OpenWithButton" Content="Open with…" Width="92" Height="30" Margin="8,0,0,0" Click="OnOpenWith"/>

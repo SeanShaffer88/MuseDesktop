@@ -2,6 +2,27 @@
 
 All notable changes to MuseDesktop. Format follows Keep a Changelog; versions use semantic versioning.
 
+## [0.10.0] — Unreleased
+
+Slice 6 (items 51–60) of the 100-enhancement program: accessibility, keyboard & focus.
+
+### Added
+
+- **Accessibility pass over the shell (#51)** — every shell control carries an accessible name (the ⋯ menu's icon-only items, the find bar, the toolbar — now including the two download lists and zoom pickers the pass caught), focus is always visible (an explicit focus-visual style the app applies everywhere, including inside Settings' own local styles), and Windows **High Contrast** is honored: with HC on, the shell paints from the system colors Windows guarantees readable, and accent-filled buttons pair the system highlight with its matching text color. Toggling HC in Windows repaints the shell live.
+- **Keyboard shortcuts window (#52)** — **Ctrl+/** (or the ⋯ menu) opens a searchable list of every shortcut MuseDesktop binds. The list is rendered from one catalog in code, so it can't drift from what the keys actually do.
+- **Changeable shortcuts (#53)** — Settings → *Keyboard & accessibility*: remap **Open Settings** (default Ctrl+,), **Open Downloads** (new default Ctrl+Shift+D), and **Go to Muse home** (new default Alt+Home). Click a key button and press the new combination; conflicts — with a fixed shortcut or another action — are refused with a plain explanation, and every key can be reset individually or all at once. Honest scope note: MuseDesktop has never had a global (works-anywhere-in-Windows) hotkey — show/hide is the tray icon — so there is no global key to remap; the three in-app actions above are the remappable set.
+- **Screen-reader announcements (#54)** — download completed, download interrupted, and update-available events are announced through accessibility live regions, so Narrator/NVDA speak them instead of the news sitting silently in the status bar.
+- **Reduce motion (#55)** — Settings → *Keyboard & accessibility* → Reduce motion: Follow Windows (the default; reads the Windows animation-effects setting), On, or Off. Honest surface: the shell has no animations of its own to disable — what this quiets is the taskbar attention flash from v0.8.0. Animation inside the Muse page already follows Windows' own setting.
+- **Focus returns after dialogs (#56)** — Settings, Downloads, the shortcuts list, file/folder pickers, and confirm dialogs now give keyboard focus back to whatever invoked them — including back into the web page — instead of dropping you at the top of the window.
+- **Finer zoom steps + extended zoom range (#57)** — zoom steps are now 5% apart between 75% and 125% (bigger jumps outside). Settings → Zoom → *Extended zoom range* widens zoom to **25%–500%** for low-vision use, instead of the standard 50%–200%. Per-profile zoom keeps working exactly as before, clamped to whichever range is on.
+- **Web-view focus ring (#58)** — when keyboard focus is inside the Muse page, a ring in the accent color appears around the web view; when focus is on the shell chrome, it's gone. The web view also carries the accessible name "Claude web content".
+- **High-DPI / multi-monitor placement clamp (#60)** — the app manifest now declares PerMonitorV2 DPI awareness explicitly, and a saved window position is checked against the monitors actually connected (each at its own display scale): a window saved on a monitor that's no longer there comes back on the primary monitor instead of off-screen.
+
+### Notes
+
+- An automated audit (#59) now runs in the test suite: it scans every shell XAML file and fails if an interactive control lacks an accessible name, tooltip, or text — the pass above fixed everything it flagged, and it guards against regressions.
+- Core test suite grows by 61 cases (324 → 385). All v0.10.0 runtime behavior is **Unverified** on a real Windows machine pending the `RELEASE_CHECKLIST.md` S6 pass — this slice above all needs the keyboard-only and Narrator runs spelled out there.
+
 ## [0.9.0] — Unreleased
 
 Slice 5 (items 41–50) of the 100-enhancement program: settings, appearance & personalization.

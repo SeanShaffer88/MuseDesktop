@@ -24,10 +24,13 @@
         <Style TargetType="CheckBox">
             <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
             <Setter Property="Margin" Value="0,5,0,0"/>
+            <!-- S6 #51: window-local styles must not lose the focus visual. -->
+            <Setter Property="FocusVisualStyle" Value="{StaticResource ShellFocusVisual}"/>
         </Style>
         <Style TargetType="RadioButton">
             <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
             <Setter Property="Margin" Value="0,4,0,0"/>
+            <Setter Property="FocusVisualStyle" Value="{StaticResource ShellFocusVisual}"/>
         </Style>
     </Window.Resources>
 
@@ -129,7 +132,8 @@
                               ToolTip="On: this profile zooms independently. Off: it uses the shared default zoom below. Zooming in the app updates the custom zoom while it's on"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
                         <TextBlock Text="Profile zoom:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                        <ComboBox x:Name="ProfileZoomCombo" Width="90" SelectionChanged="OnProfileZoomComboChanged"/>
+                        <ComboBox x:Name="ProfileZoomCombo" Width="90" SelectionChanged="OnProfileZoomComboChanged"
+                                  ToolTip="This profile's own zoom (used while the custom-zoom box above is ticked)"/>
                     </StackPanel>
                     <TextBlock x:Name="ProfileDataText" Style="{StaticResource Note}" Margin="0,8,0,0"/>
                     <TextBlock Style="{StaticResource Note}" Margin="0,8,0,2"
@@ -204,10 +208,42 @@
                     <TextBlock x:Name="HeaderZoom" Text="Zoom" Style="{StaticResource SectionHeader}"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="Default zoom:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                        <ComboBox x:Name="ZoomCombo" Width="90"/>
+                        <ComboBox x:Name="ZoomCombo" Width="90"
+                                  ToolTip="The shared default zoom — applies at OK and is where the toolbar zoom starts next launch"/>
                     </StackPanel>
                     <TextBlock Style="{StaticResource Note}"
                                Text="Applies immediately at OK and is where the toolbar zoom starts next launch."/>
+                    <CheckBox x:Name="ExtendedZoomCheck" Content="Extended zoom range (25%–500%)"
+                              Checked="OnExtendedZoomChanged" Unchecked="OnExtendedZoomChanged"
+                              ToolTip="Widens the zoom range and its steps for low-vision use: 25% to 500% instead of the standard 50% to 200%"/>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="Zoom steps get finer near 100% either way; the extended range adds the extremes."/>
+                </StackPanel>
+
+                <!-- Keyboard & accessibility (v0.10.0, S6) -->
+                <StackPanel x:Name="SectionAccessibility">
+                    <TextBlock x:Name="HeaderAccessibility" Text="Keyboard &amp; accessibility" Style="{StaticResource SectionHeader}"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Reduce motion:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="ReduceMotionCombo" Width="190"
+                                  ToolTip="Follow Windows reads the Windows animation-effects setting; On keeps the shell's effects off regardless">
+                            <ComboBoxItem Content="Follow Windows"/>
+                            <ComboBoxItem Content="On (reduce motion)"/>
+                            <ComboBoxItem Content="Off (full motion)"/>
+                        </ComboBox>
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="MuseDesktop's shell has almost no animation of its own; this setting quiets the one effect it does have — the taskbar attention flash. Animation inside the Muse page follows Windows' own setting."/>
+                    <TextBlock Style="{StaticResource Note}" Margin="0,10,0,2"
+                               Text="Changeable shortcuts — click a key button, then press the new combination (it must include Ctrl or Alt). Reset puts one key back to its default:"/>
+                    <StackPanel x:Name="ShortcutRows"/>
+                    <TextBlock x:Name="ShortcutStatus" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <Button Content="All shortcuts…" Width="130" Click="OnOpenShortcutsList"
+                                ToolTip="Open the searchable list of every shortcut (Ctrl+/)"/>
+                        <Button Content="Reset all keys" Width="120" Margin="8,0,0,0" Click="OnResetAllShortcuts"
+                                ToolTip="Put every changed shortcut back to its default"/>
+                    </StackPanel>
                 </StackPanel>
 
                 <StackPanel x:Name="SectionDownloads">
@@ -263,7 +299,7 @@
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
                     <Button Content="OK" Width="86" Height="30" IsDefault="True" Click="OnOk"
-                            Background="{StaticResource AccentFillBrush}" Foreground="White" BorderThickness="0"/>
+                            Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0"/>
                     <Button Content="Cancel" Width="86" Height="30" Margin="8,0,0,0" IsCancel="True"/>
                 </StackPanel>
             </StackPanel>

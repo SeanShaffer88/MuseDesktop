@@ -68,6 +68,8 @@
                                           ToolTip="Files Muse has downloaded for you, newest first"/>
                                 <Separator/>
                                 <MenuItem Header="Find in page…" Click="OnFind" InputGestureText="Ctrl+F"/>
+                                <MenuItem Header="Keyboard shortcuts…" Click="OnShortcuts" InputGestureText="Ctrl+/"
+                                          ToolTip="Every keyboard shortcut in one searchable list; three of them can be changed in Settings"/>
                                 <MenuItem Header="Print…" Click="OnPrint" InputGestureText="Ctrl+P"/>
                                 <MenuItem Header="Save as PDF…" Click="OnSaveAsPdf"/>
                                 <MenuItem Header="Copy page address" Click="OnCopyPageAddress"/>
@@ -123,7 +125,14 @@
 
         <!-- Web content. The first-run / error overlay sits above it until the page loads. -->
         <Grid Grid.Row="2">
-            <wv2:WebView2 x:Name="Browser" DefaultBackgroundColor="#0B0B0D"/>
+            <!-- Focus ring (S6 #58): the border is always 2px (so the
+                 page never shifts); its brush turns accent-colored
+                 while keyboard focus is inside the page, transparent
+                 while focus is on the shell chrome. -->
+            <Border x:Name="WebFocusRing" BorderThickness="2" BorderBrush="Transparent">
+                <wv2:WebView2 x:Name="Browser" DefaultBackgroundColor="#0B0B0D"
+                              AutomationProperties.Name="Muse web content"/>
+            </Border>
             <!-- Hidden retry view (S2 #15): same environment/profile, used only to
                  re-issue a download that failed in this session. Never shown. -->
             <wv2:WebView2 x:Name="RetryBrowser" Width="1" Height="1" Visibility="Hidden"
@@ -136,7 +145,7 @@
                                Foreground="{StaticResource MutedBrush}" TextAlignment="Center" TextWrapping="Wrap"/>
                     <Button x:Name="OverlayButton" Content="Retry" Width="110" Height="32" Margin="0,18,0,0"
                             Visibility="Collapsed" Click="OnReload" HorizontalAlignment="Center"
-                            Background="{StaticResource AccentFillBrush}" Foreground="White" BorderThickness="0"/>
+                            Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0"/>
                 </StackPanel>
             </Border>
         </Grid>
@@ -149,6 +158,13 @@
                         Visibility="Collapsed" ToolTip="Cancel the most recent download (Downloads… manages each one)" Click="OnCancelDownload"
                         Background="Transparent" Foreground="{StaticResource MutedBrush}" BorderThickness="0"
                         AutomationProperties.Name="Cancel download"/>
+                <!-- Live regions (S6 #54): zero-width, invisible, not
+                     hit-testable — present in the UIA tree only, so
+                     screen readers speak download/update events. -->
+                <TextBlock x:Name="LiveRegionPolite" DockPanel.Dock="Right" Width="0" Opacity="0"
+                           IsHitTestVisible="False" AutomationProperties.LiveSetting="Polite"/>
+                <TextBlock x:Name="LiveRegionAssertive" DockPanel.Dock="Right" Width="0" Opacity="0"
+                           IsHitTestVisible="False" AutomationProperties.LiveSetting="Assertive"/>
                 <TextBlock x:Name="StatusRight" DockPanel.Dock="Right" FontSize="11"
                            Foreground="{StaticResource FaintBrush}" VerticalAlignment="Center"/>
                 <TextBlock x:Name="StatusText" Text="Starting…" FontSize="11"

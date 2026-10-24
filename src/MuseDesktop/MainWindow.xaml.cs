@@ -121,6 +121,26 @@ public partial class MainWindow : Window
             () => _settings.TraySingleClickRestore,
             CurrentNotificationSuppression);
 
+        // S6 #54: live regions for assistive-tech announcements, and
+        // the download events that feed them (the wording is Core's).
+        Announcer.Register(LiveRegionPolite, LiveRegionAssertive);
+        _downloads.Completed += () =>
+        {
+            if (_downloads.CompletedPath is { } path)
+                Announcer.Polite(AnnouncementText.DownloadCompleted(Path.GetFileName(path)));
+        };
+        _downloads.Failed += () =>
+            Announcer.Assertive(AnnouncementText.DownloadFailed(
+                _downloads.LastFailedName ?? "A download", _downloads.LastFailedReason));
+
+        // S6 #58: the ring around the web view lights up while
+        // keyboard focus is inside the page, so a keyboard user can
+        // always tell page focus from shell focus.
+        Browser.GotKeyboardFocus += (_, _) =>
+            WebFocusRing.BorderBrush = (System.Windows.Media.Brush)FindResource("AccentBrush");
+        Browser.LostKeyboardFocus += (_, _) =>
+            WebFocusRing.BorderBrush = System.Windows.Media.Brushes.Transparent;
+
         PinItem.IsChecked = _settings.AlwaysOnTop;
         Topmost = _settings.AlwaysOnTop;
         NetworkChange.NetworkAddressChanged += OnNetworkChanged;
@@ -359,8 +379,9 @@ public partial class MainWindow : Window
     private AccountProfile? ActiveProfile() =>
         _settings.Profiles.FirstOrDefault(p => p.Id == _settings.ActiveProfileId);
 
-    /// <summary>The zoom this launch runs at (S3 #26): the active profile's override, else the shared zoom.</summary>
-    private double EffectiveZoom() => Profiles.EffectiveZoom(ActiveProfile(), _settings.ZoomFactor);
+    /// <summary>The zoom this launch runs at (S3 #26): the active profile's override, else the shared zoom. S6 #57: clamped to the extended range when that setting is on.</summary>
+    private double EffectiveZoom() =>
+        Profiles.EffectiveZoom(ActiveProfile(), _settings.ZoomFactor, _settings.ExtendedZoomRange);
 
     /// <summary>
     /// Where a zoom value belongs (S3 #26): when the active profile has a
@@ -372,9 +393,9 @@ public partial class MainWindow : Window
     {
         var active = ActiveProfile();
         if (active?.ZoomFactor is not null)
-            active.ZoomFactor = ZoomMath.Clamp(zoom);
+            active.ZoomFactor = ZoomMath.Clamp(zoom, _settings.ExtendedZoomRange);
         else
-            _settings.ZoomFactor = ZoomMath.Clamp(zoom);
+            _settings.ZoomFactor = ZoomMath.Clamp(zoom, _settings.ExtendedZoomRange);
     }
 
     // ───────────────────────── placement / settings ─────────────────────────
@@ -386,14 +407,21 @@ public partial class MainWindow : Window
         var placement = _settings.ActivePlacement;
         Width = placement.Width;
         Height = placement.Height;
-        if (placement.Left is { } left && placement.Top is { } top
-            && left + 80 >= SystemParameters.VirtualScreenLeft
-            && top + 40 >= SystemParameters.VirtualScreenTop
-            && left <= SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth - 80
-            && top <= SystemParameters.VirtualScreenTop + SystemParameters.VirtualScreenHeight - 40)
+        if (placement.Left is { } left && placement.Top is { } top)
         {
-            Left = left;
-            Top = top;
+            // Multi-monitor clamp (S6 #60): the saved spot is checked
+            // against the monitors connected NOW (each converted to
+            // DIPs at its own scale). A monitor that has gone away
+            // since the placement was saved pulls the window onto the
+            // primary instead of restoring it into the void; the
+            // 80x40 minimum-visible rule matches the old virtual-screen
+            // check this replaces.
+            var saved = new ScreenRect(left, top, placement.Width, placement.Height);
+            var clamped = PlacementClamp.Clamp(saved, MonitorRects.AllInDip());
+            Left = clamped.Left;
+            Top = clamped.Top;
+            if (clamped != saved)
+                _log.Info("Saved window placement was off the connected monitors; clamped onto the primary monitor");
         }
         else
         {
@@ -888,6 +916,14 @@ public partial class MainWindow : Window
             return; // the user is already looking at Muse
         if (!_settings.FlashTaskbarOnAttention)
             return;
+        // Reduce motion (S6 #55): the flash is the one attention effect
+        // the shell produces, and it is exactly the kind of effect the
+        // setting exists to quiet.
+        if (MotionPolicy.IsReduced(_settings.ReduceMotion, SystemMotion.AnimationsEnabled()))
+        {
+            _log.Info("Taskbar attention flash not shown: reduce motion is on");
+            return;
+        }
         var suppression = CurrentNotificationSuppression();
         if (suppression != NotificationSuppression.None)
         {
@@ -1062,12 +1098,12 @@ public partial class MainWindow : Window
 
     private void OnZoomIn(object sender, RoutedEventArgs e)
     {
-        if (_webReady) Browser.ZoomFactor = ZoomMath.StepUp(Browser.ZoomFactor);
+        if (_webReady) Browser.ZoomFactor = ZoomMath.StepUp(Browser.ZoomFactor, _settings.ExtendedZoomRange);
     }
 
     private void OnZoomOut(object sender, RoutedEventArgs e)
     {
-        if (_webReady) Browser.ZoomFactor = ZoomMath.StepDown(Browser.ZoomFactor);
+        if (_webReady) Browser.ZoomFactor = ZoomMath.StepDown(Browser.ZoomFactor, _settings.ExtendedZoomRange);
     }
 
     private void OnOpenInBrowser(object sender, RoutedEventArgs e)
@@ -1091,7 +1127,9 @@ public partial class MainWindow : Window
     {
         var clone = _settings.Clone();
         var dialog = new SettingsWindow(clone, _log, ClearBrowsingDataAsync, SwitchToProfile) { Owner = this };
-        if (dialog.ShowDialog() != true)
+        // S6 #56: closing Settings returns focus to whatever invoked it
+        // (usually the page itself).
+        if (FocusReturn.ShowDialog(dialog) != true)
             return;
 
         var removedProfileIds = _settings.Profiles
@@ -1131,6 +1169,10 @@ public partial class MainWindow : Window
         _settings.SettingsWindowWidth = clone.SettingsWindowWidth;
         _settings.SettingsWindowHeight = clone.SettingsWindowHeight;
         _settings.FirstRunCompleted = clone.FirstRunCompleted;
+        // S6: shortcut remaps, reduce motion, extended zoom range.
+        _settings.ShortcutOverrides = clone.ShortcutOverrides;
+        _settings.ReduceMotion = clone.ReduceMotion;
+        _settings.ExtendedZoomRange = clone.ExtendedZoomRange;
         _settings.Sanitized();
         Topmost = _settings.AlwaysOnTop;
         PinItem.IsChecked = _settings.AlwaysOnTop;
@@ -1229,12 +1271,16 @@ public partial class MainWindow : Window
         var target = _settings.Profiles.FirstOrDefault(p => p.Id == targetProfileId);
         if (target is null || targetProfileId == _settings.ActiveProfileId)
             return;
+        var invoker = FocusReturn.Capture();
         var confirm = System.Windows.MessageBox.Show(this,
             $"Switch to profile \"{target.Name}\"?\n\n" +
             "MuseDesktop restarts now with that profile's sign-in.",
             "Switch profile", MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (confirm != MessageBoxResult.Yes)
+        {
+            FocusReturn.Restore(invoker);
             return;
+        }
         SwitchToProfile(_settings, targetProfileId);
     }
 
@@ -1385,6 +1431,8 @@ public partial class MainWindow : Window
                     UpdateItem.Header = $"⬆ Update available: {outcome.Tag}";
                     UpdateItem.ToolTip = "Open the release page";
                     SetStatus($"MuseDesktop {outcome.Tag} is available — see the ⋯ menu");
+                    // S6 #54: screen readers hear the update notice too.
+                    Announcer.Polite(AnnouncementText.UpdateAvailable(outcome.Tag ?? "new version"));
                     break;
                 case UpdateOutcomeKind.UpToDate:
                     if (manual) SetStatus($"You're up to date (v{version.ToString(3)})");
@@ -1410,6 +1458,43 @@ public partial class MainWindow : Window
     // ─────────────────── v0.5.0 Slice 1 (items 1–12) ───────────────────
 
     // #1 Find in page — CoreWebView2.Find (pinned SDK 1.0.4258.31).
+    /// <summary>
+    /// Run a remappable action (S6 #53): if the pressed gesture matches
+    /// an action's effective gesture (the user's override or the
+    /// default), run it and report handled. Settings writes overrides
+    /// in Core's canonical text and effective gestures are parsed back,
+    /// so this is a plain equality check per action.
+    /// </summary>
+    private bool TryRemappedShortcut(Key key, ModifierKeys modifiers)
+    {
+        if ((modifiers & (ModifierKeys.Control | ModifierKeys.Alt)) == 0)
+            return false;
+        var gesture = new ShortcutGesture(ToGestureModifiers(modifiers), key.ToString());
+        foreach (var action in ShortcutCatalog.Remappable)
+        {
+            if (!ShortcutBindings.EffectiveGesture(action.Id, _settings.ShortcutOverrides).Equals(gesture))
+                continue;
+            switch (action.Id)
+            {
+                case ShortcutCatalog.SettingsId: OnSettings(this, new RoutedEventArgs()); break;
+                case ShortcutCatalog.DownloadsId: OnDownloads(this, new RoutedEventArgs()); break;
+                case ShortcutCatalog.HomeId: OnHome(this, new RoutedEventArgs()); break;
+                default: break;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private static GestureModifiers ToGestureModifiers(ModifierKeys modifiers)
+    {
+        var result = GestureModifiers.None;
+        if (modifiers.HasFlag(ModifierKeys.Control)) result |= GestureModifiers.Control;
+        if (modifiers.HasFlag(ModifierKeys.Alt)) result |= GestureModifiers.Alt;
+        if (modifiers.HasFlag(ModifierKeys.Shift)) result |= GestureModifiers.Shift;
+        return result;
+    }
+
     private void OnFind(object sender, RoutedEventArgs e) => ShowFindBar();
 
     private void ShowFindBar()
@@ -1504,7 +1589,11 @@ public partial class MainWindow : Window
             FileName = "muse-page.pdf",
             Title = "Save page as PDF",
         };
-        if (dialog.ShowDialog(this) != true) return;
+        // S6 #56: even a common dialog returns focus to the invoker.
+        var invoker = FocusReturn.Capture();
+        var chosen = dialog.ShowDialog(this) == true;
+        FocusReturn.Restore(invoker);
+        if (!chosen) return;
         try
         {
             var printSettings = Browser.CoreWebView2.Environment.CreatePrintSettings();
@@ -1644,7 +1733,15 @@ public partial class MainWindow : Window
         // (their brushes resolve at parse; title bar and fonts are ours).
         dialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(dialog);
         ShellTextScaling.Apply(dialog, _settings.ShellFontScale);
-        dialog.ShowDialog();
+        // S6 #56: focus returns to the invoker when the manager closes.
+        FocusReturn.ShowDialog(dialog);
+    }
+
+    /// <summary>The shortcuts window (S6 #52): the Core catalog, rendered with the user's remaps applied.</summary>
+    private void OnShortcuts(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ShortcutsWindow(_settings) { Owner = this };
+        FocusReturn.ShowDialog(dialog);
     }
 
     private void OnOpenLogFolder(object sender, RoutedEventArgs e)
@@ -1660,6 +1757,7 @@ public partial class MainWindow : Window
     private void OnAbout(object sender, RoutedEventArgs e)
     {
         var version = typeof(App).Assembly.GetName().Version;
+        var invoker = FocusReturn.Capture();
         System.Windows.MessageBox.Show(this,
             $"MuseDesktop {version}\n\n" +
             "A native Windows client for Muse at muse.ai.\n" +
@@ -1668,6 +1766,7 @@ public partial class MainWindow : Window
             $"Web profile: {_profileDir}\n\n" +
             "MuseDesktop is an independent open-source project (MIT) and is not made by Meta.",
             "About MuseDesktop", MessageBoxButton.OK, MessageBoxImage.Information);
+        FocusReturn.Restore(invoker);
     }
 
     private static void OpenExternal(string url)
@@ -1713,6 +1812,30 @@ public partial class MainWindow : Window
             e.Handled = true;
             return;
         }
+        // S6 #52/#53: normalized key (Alt-held keys arrive as Key.System
+        // with the real key in SystemKey) and the remappable actions.
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        var modifiers = Keyboard.Modifiers;
+        // "?" alone opens the shortcuts list too — but never while the
+        // user is typing (in the page or in a shell text box).
+        if (key == Key.OemQuestion && modifiers == ModifierKeys.Shift
+            && !Browser.IsKeyboardFocusWithin
+            && Keyboard.FocusedElement is not System.Windows.Controls.TextBox)
+        {
+            OnShortcuts(this, e);
+            e.Handled = true;
+            return;
+        }
+        // Remappable actions dispatch on their EFFECTIVE gesture before
+        // the fixed bindings. Core guarantees an override can never
+        // equal a fixed gesture, so this cannot shadow a built-in; and
+        // every effective gesture carries Ctrl or Alt, so plain typing
+        // in the find box can't trigger one.
+        if (TryRemappedShortcut(key, modifiers))
+        {
+            e.Handled = true;
+            return;
+        }
         if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
         {
             switch (e.Key)
@@ -1722,7 +1845,7 @@ public partial class MainWindow : Window
                 case Key.P: OnPrint(this, e); e.Handled = true; break;
                 case Key.T when Keyboard.Modifiers.HasFlag(ModifierKeys.Shift):
                     OnRestoreClosedPage(this, e); e.Handled = true; break;
-                case Key.OemComma: OnSettings(this, e); e.Handled = true; break;
+                case Key.OemQuestion: OnShortcuts(this, e); e.Handled = true; break;
                 case Key.OemPlus or Key.Add: OnZoomIn(this, e); e.Handled = true; break;
                 case Key.OemMinus or Key.Subtract: OnZoomOut(this, e); e.Handled = true; break;
                 case Key.D0 or Key.NumPad0:

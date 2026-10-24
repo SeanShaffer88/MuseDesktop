@@ -38,7 +38,7 @@
                   ToolTip="One silent request to GitHub Releases per launch; failures are ignored"/>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
             <Button Content="Save setup" Width="96" Height="30" IsDefault="True" Click="OnSave"
-                    Background="{StaticResource AccentFillBrush}" Foreground="White" BorderThickness="0"/>
+                    Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0"/>
             <Button Content="Skip" Width="86" Height="30" Margin="8,0,0,0" IsCancel="True" Click="OnSkip"/>
         </StackPanel>
     </StackPanel>

@@ -161,11 +161,15 @@ public partial class App : System.Windows.Application
         }
     }
 
-    /// <summary>Follow-Windows theme mode (S5 #43): when the OS theme flips, re-resolve the shell palette.</summary>
+    /// <summary>
+    /// OS preference changes re-resolve the shell palette (S5 #43 made
+    /// this Follow-Windows-only; S6 #51 widened it): a High Contrast
+    /// toggle must also repaint the shell even in Dark/Light mode, and
+    /// re-applying is cheap and idempotent, so every preference change
+    /// simply re-applies.
+    /// </summary>
     private void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
     {
-        if (Settings.Theme != MuseDesktop.Core.ThemeMode.FollowSystem)
-            return;
         Dispatcher.BeginInvoke(new Action(() => ThemeManager.Apply(Settings)));
     }
 
@@ -180,7 +184,7 @@ public partial class App : System.Windows.Application
     {
         var target = Settings.Clone();
         var wizard = new SetupWizardWindow(target, markCompletedOnSkip: false) { Owner = owner };
-        var saved = wizard.ShowDialog() == true;
+        var saved = FocusReturn.ShowDialog(wizard) == true;
         if (saved)
         {
             Settings.CloseToTray = target.CloseToTray;

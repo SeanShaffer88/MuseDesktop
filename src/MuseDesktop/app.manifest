@@ -2,10 +2,16 @@
 <assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
   <assemblyIdentity version="0.3.1.0" name="MuseDesktop.app" />
 
-  <!-- DPI awareness is handled by WPF (.NET defaults to PerMonitorV2). -->
+  <!-- DPI awareness (verified S6 #60): declared explicitly rather than
+       left to the .NET default, so the PerMonitorV2 contract is in the
+       binary where anyone (or any tool) can check it. Placement restore
+       converts each monitor's physical rect to DIPs with that monitor's
+       own scale before clamping (see DisplayPlacement in Core). -->
   <application xmlns="urn:schemas-microsoft-com:asm.v3">
     <windowsSettings>
       <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">true/PM</dpiAware>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2,PerMonitor</dpiAwareness>
     </windowsSettings>
   </application>
 

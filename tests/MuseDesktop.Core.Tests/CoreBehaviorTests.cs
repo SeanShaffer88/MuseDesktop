@@ -5,16 +5,19 @@ namespace MuseDesktop.Core.Tests;
 
 public class CoreBehaviorTests
 {
+    // The step table gained 5% steps around 100% in v0.10.0 (S6 #57):
+    // 1.00 now steps to 1.05 (was 1.10), 1.10 to 1.15 (was 1.25),
+    // and 1.00 down to 0.95 (was 0.90).
     [Theory]
-    [InlineData(1.0, 1.10)]
-    [InlineData(1.10, 1.25)]
+    [InlineData(1.0, 1.05)]
+    [InlineData(1.10, 1.15)]
     [InlineData(2.0, 2.0)]
     [InlineData(0.95, 1.0)]
     public void Zoom_StepUp(double from, double to) =>
         Assert.Equal(to, ZoomMath.StepUp(from), precision: 3);
 
     [Theory]
-    [InlineData(1.0, 0.90)]
+    [InlineData(1.0, 0.95)]
     [InlineData(0.50, 0.50)]
     [InlineData(1.05, 1.0)]
     public void Zoom_StepDown(double from, double to) =>

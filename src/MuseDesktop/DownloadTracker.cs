@@ -85,6 +85,10 @@ public sealed class DownloadTracker
     /// <summary>The last completed file, for click-to-open in the status bar.</summary>
     public string? CompletedPath { get; private set; }
 
+    /// <summary>The most recent failure's file name + reason (S6 #54), so the announce wiring can name it.</summary>
+    public string? LastFailedName { get; private set; }
+    public string? LastFailedReason { get; private set; }
+
     /// <summary>Raised when the tracked set goes empty ↔ non-empty — drives the ✕ button.</summary>
     public event Action<bool>? ActiveChanged;
 
@@ -308,6 +312,8 @@ public sealed class DownloadTracker
                 // from the operation into memory only — never logged in
                 // full, never persisted.
                 _log.Warn($"Download interrupted: {name} ({reason})");
+                LastFailedName = name;
+                LastFailedReason = reason.ToString();
                 model.State = DownloadActivityState.Failed;
                 var record = new DownloadRecord
                 {
