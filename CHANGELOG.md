@@ -2,6 +2,28 @@
 
 All notable changes to MuseDesktop. Format follows Keep a Changelog; versions use semantic versioning.
 
+## [0.12.0] — Unreleased
+
+Slice 8 (items 71–80) of the 100-enhancement program: performance, reliability & recovery.
+
+### Added
+
+- **Crash recovery (#71)** — when the page's renderer process exits, MuseDesktop now reloads the page you're on automatically, once; when the whole web-view (browser) process exits, it rebuilds the web view and restores your page, once. If recovery doesn't take — or the same thing fails again — the familiar failure screen appears instead. Everything else the web engine reports (a GPU or utility process restarting, which WebView2 handles itself) is just logged. The log now says plainly whether a failure was *recovered* or *given up on*, and which process failed.
+- **Safe mode + guided reset (#72)** — launch with `--safe-mode` (or hold Shift while launching): MuseDesktop starts at the Muse home page instead of restoring your last page, and skips the automatic update check. The app lock still applies — safe mode is a rescue, not a bypass. Settings → Data also gains **Reset MuseDesktop…**, a three-step guided reset for "won't start / won't sign in": your current settings are backed up first (automatically — and if the backup can't be written, the settings reset won't run), then you choose, each explained: reset settings to defaults, clear site data for all profiles, or both.
+- **Startup performance readout (#73)** — every launch now measures process start → window shown → web view ready → first page loaded. The figures land in the log and in the new **Diagnostics** window (⋯ menu), which keeps the last run plus up to ten previous runs.
+- **Memory readout (#74)** — Diagnostics shows the memory MuseDesktop and its web-view processes are using right now, and — after the web view has been suspended in the tray and resumed — what suspend actually saved (before/after pair, kept for the session only).
+- **Per-profile data cap (#75)** — Settings → Account profiles: an optional cap per profile (off by default; 500 MB / 1 GB / 2 GB). When a profile's data folder passes its cap, cleanup empties **only** disposable cache folders (page, code, and GPU caches — an explicit allowlist), oldest first. **Cookies and sign-in/session data are never touched** — they're on a protected list the cleanup can't include, pinned by tests. Cleanup is never silent: it's logged, stamped on the profile, shown in Settings, and also available on demand as **Clean caches** in the site-data viewer.
+- **Network-change resilience (#76)** — the "you're back online" recovery is now one coordinator for everything: network returning, Wi-Fi changing, and the PC waking from sleep all feed the same decision — if the current page is sitting on a load failure, it reloads once. Combined with #71, there's exactly one automatic-recovery budget per incident, so a flapping connection can't cause a reload loop.
+- **Proxy readout (#77)** — Diagnostics shows the proxy Windows is configured to use (from your per-user Internet Settings: server hostnames only — credentials are stripped and never shown or logged — plus whether an automatic configuration script/PAC is set). Audited and confirmed: MuseDesktop never overrides the system proxy anywhere; WebView2 uses the Windows setting as-is. Display only — there's no proxy editor.
+- **Runtime health check (#78)** — at startup MuseDesktop records the WebView2 runtime's version and warns (log + Diagnostics) if it's missing or older than the supported floor (120.0, the first broadly-deployed Chromium-120-era Evergreen runtime — deliberately conservative), or if a fixed-version runtime folder is found beside the app (MuseDesktop ships Evergreen; a fixed folder changes which runtime you actually get, so it's worth knowing).
+- **Rotating backups (#79)** — automatic backups of your settings and downloads history, in a `backups` folder beside your settings: at most one new automatic backup per day (checked on settings saves and at startup), the five most recent of each kind kept. Settings → Data lists them with a **Restore…** each (settings restores go through the same checks as Import), plus a **Back up now** button. This extends — doesn't replace — the reset backup and the `.corrupt` preservation.
+- **Hung-page watchdog (#80)** — every 15 seconds a lightweight check asks the page to answer. Two missed answers in a row and a banner offers **Reload the page** / **Wait** — nothing is ever reloaded automatically, because you might be mid-conversation; **Wait** quiets the checks for 2 minutes, and if the page recovers on its own the banner goes away. The checks pause while the web view is suspended in the tray and while the page is playing audio or may be in a voice session.
+
+### Notes
+
+- All automatic recovery (crash, network, sleep-wake) runs through one coordinator in Core (`RecoveryCoordinator`) with one budget: one automatic recovery per incident, refilled only by a page that loads successfully.
+- Core test suite grows by 33 cases (428 → 461). All v0.12.0 runtime behavior is **Unverified** on a real Windows machine pending the `RELEASE_CHECKLIST.md` S8 pass.
+
 ## [0.11.0] — Unreleased
 
 Slice 7 (items 61–70) of the 100-enhancement program: privacy & security. Everything new lives in a new Settings section, **Privacy & security**, unless said otherwise.

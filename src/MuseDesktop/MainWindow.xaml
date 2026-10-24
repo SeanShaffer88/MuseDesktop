@@ -90,6 +90,8 @@
                                 <MenuItem Header="View log…" Click="OnViewLog"
                                           ToolTip="Read the diagnostic log in the app, with its redaction check"/>
                                 <MenuItem Header="Open log folder" Click="OnOpenLogFolder"/>
+                                <MenuItem Header="Diagnostics…" Click="OnDiagnostics"
+                                          ToolTip="Runtime health, proxy, memory, and startup timings (S8)"/>
                                 <MenuItem Header="About MuseDesktop" Click="OnAbout"/>
                             </ContextMenu>
                         </Button.ContextMenu>
@@ -129,8 +131,10 @@
             </StackPanel>
         </Border>
 
-        <!-- Web content. The first-run / error overlay sits above it until the page loads. -->
-        <Grid Grid.Row="2">
+        <!-- Web content. The first-run / error overlay sits above it until the page loads.
+             ContentGrid is named because S8 #71's recovery replaces the web
+             view controls inside it when the browser process exits. -->
+        <Grid Grid.Row="2" x:Name="ContentGrid">
             <!-- Focus ring (S6 #58): the border is always 2px (so the
                  page never shifts); its brush turns accent-colored
                  while keyboard focus is inside the page, transparent
@@ -143,6 +147,24 @@
                  re-issue a download that failed in this session. Never shown. -->
             <wv2:WebView2 x:Name="RetryBrowser" Width="1" Height="1" Visibility="Hidden"
                           IsHitTestVisible="False" DefaultBackgroundColor="#0B0B0D"/>
+            <!-- S8 #80: the hung-page banner. Non-modal on purpose —
+                 the user may be mid-voice-call; the page is never
+                 reloaded without their say-so. -->
+            <Border x:Name="WatchdogBanner" Visibility="Collapsed"
+                    HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18"
+                    Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource AccentBrush}"
+                    BorderThickness="1" CornerRadius="4" Padding="12,9"
+                    AutomationProperties.Name="Page not responding notice">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" MaxWidth="420"
+                               TextWrapping="Wrap"
+                               Text="The page hasn't answered MuseDesktop's last two checks — it may be busy or hung. Nothing has been reloaded; reload only when it won't interrupt you."/>
+                    <Button Content="Reload the page" Margin="12,0,0,0" Padding="10,4" Click="OnWatchdogReload"
+                            ToolTip="Reload now — chat drafts and scroll position can be lost"/>
+                    <Button Content="Wait" Margin="8,0,0,0" Padding="10,4" Click="OnWatchdogWait"
+                            ToolTip="Leave the page exactly as it is; don't check again for 2 minutes"/>
+                </StackPanel>
+            </Border>
             <Border x:Name="Overlay" Background="{StaticResource BgBrush}" Visibility="Visible">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520">
                     <TextBlock x:Name="OverlayTitle" Text="Connecting to Muse…" FontSize="20"

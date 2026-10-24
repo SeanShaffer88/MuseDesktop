@@ -17,6 +17,9 @@ public sealed class CommandLineOptions
     /// <summary>Open the Settings window once the main window is up (S4 #33 — the taskbar Jump List's Settings task uses this).</summary>
     public bool OpenSettings { get; init; }
 
+    /// <summary>Safe mode (S8 #72): start at the Muse home page (no last-page restore) and skip the update check. The app lock still applies. Holding Shift at launch is the other route in — the shell checks the keyboard state itself.</summary>
+    public bool SafeMode { get; init; }
+
     /// <summary>The --profile value as given, or null when absent/valueless. Validated against the profile list by the caller (Profiles.ResolveLaunchProfile).</summary>
     public string? ProfileId { get; init; }
 
@@ -31,6 +34,7 @@ public static class CommandLine
         var background = false;
         var smokeTest = false;
         var openSettings = false;
+        var safeMode = false;
         string? profileId = null;
         var unknown = new List<string>();
 
@@ -49,6 +53,10 @@ public static class CommandLine
             else if (arg.Equals("--settings", StringComparison.OrdinalIgnoreCase))
             {
                 openSettings = true;
+            }
+            else if (arg.Equals("--safe-mode", StringComparison.OrdinalIgnoreCase))
+            {
+                safeMode = true;
             }
             else if (arg.Equals("--profile", StringComparison.OrdinalIgnoreCase))
             {
@@ -76,6 +84,7 @@ public static class CommandLine
             Background = background,
             SmokeTest = smokeTest,
             OpenSettings = openSettings,
+            SafeMode = safeMode,
             ProfileId = profileId,
             Unknown = unknown,
         };

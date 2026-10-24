@@ -136,6 +136,12 @@
                                   ToolTip="This profile's own zoom (used while the custom-zoom box above is ticked)"/>
                     </StackPanel>
                     <TextBlock x:Name="ProfileDataText" Style="{StaticResource Note}" Margin="0,8,0,0"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
+                        <TextBlock Text="Data size cap:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="ProfileDataCapCombo" Width="150" SelectionChanged="OnProfileDataCapChanged"
+                                  ToolTip="Optional cap on this profile's data folder. When the folder passes the cap, only disposable caches are emptied (oldest first) — cookies and sign-ins are never touched"/>
+                    </StackPanel>
+                    <TextBlock x:Name="ProfileCapNote" Style="{StaticResource Note}"/>
                     <TextBlock Style="{StaticResource Note}" Margin="0,8,0,2"
                                Text="Downloads folder for this profile (optional — overrides the shared folder below):"/>
                     <DockPanel LastChildFill="True">
@@ -297,6 +303,19 @@
                             ToolTip="Restores every preference to its default. Your current settings are exported to a backup file first; profiles, sign-ins, and downloads are not touched"/>
                     <TextBlock x:Name="ResetNote" Style="{StaticResource Note}"
                                Text="Reset restores preferences only — profiles, sign-ins, last pages, and downloaded files stay exactly as they are. A backup of your current settings is saved first, so Import can undo it."/>
+                    <Button Content="Reset MuseDesktop…" Width="230" HorizontalAlignment="Left"
+                            Margin="0,12,0,0" Click="OnOpenResetWizard"
+                            ToolTip="The guided reset: backup first, then choose — reset settings, clear site data for all profiles, or both — each step explained"/>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="Won't start, or won't sign in? The guided reset walks through the fix step by step — a backup of your current settings is written before anything changes."/>
+                    <TextBlock Text="Automatic backups:" Margin="0,12,0,4" FontWeight="SemiBold"/>
+                    <TextBlock Style="{StaticResource Note}" Margin="0,0,0,0"
+                               Text="MuseDesktop keeps the five most recent backups of your settings and your downloads history — at most one new automatic backup per day, plus whenever you choose Back up now. Restoring settings goes through the same checks as Import."/>
+                    <Button Content="Back up now" Width="130" HorizontalAlignment="Left" Margin="0,6,0,0"
+                            Click="OnBackupNow"
+                            ToolTip="Write a fresh backup of settings and downloads history right now"/>
+                    <StackPanel x:Name="BackupRows" Margin="0,6,0,0"/>
+                    <TextBlock x:Name="BackupNote" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
                     <TextBlock x:Name="PortableNote" Style="{StaticResource Note}" Margin="0,10,0,0"/>
                 </StackPanel>
 

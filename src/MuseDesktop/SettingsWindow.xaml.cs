@@ -107,6 +107,11 @@ public partial class SettingsWindow : Window
         foreach (var cap in DownloadHistoryStore.AllowedCaps)
             HistoryCapCombo.Items.Add(cap.ToString());
 
+        // S8 #75: the per-profile data-cap choices (Off / 500 MB /
+        // 1 GB / 2 GB), parallel to ProfileDataCaps.Allowed.
+        foreach (var cap in ProfileDataCaps.Allowed)
+            ProfileDataCapCombo.Items.Add(ProfileDataCaps.Label(cap));
+
         // S7 #61: the clear-data choices, titled by Core's plan model
         // so the UI and the confirm dialog always agree.
         foreach (var choice in ClearChoices)
@@ -199,6 +204,7 @@ public partial class SettingsWindow : Window
         RefreshPrivacyReport();
         _ = RefreshPermissionsAsync();
         _ = RefreshSiteDataAsync();
+        RefreshBackupRows(); // S8 #79: the rotating-backup list
 
         // S5 #46: the Settings window's own text follows the scale
         // (re-applied after every LoadControls — the design sizes are
@@ -350,10 +356,38 @@ public partial class SettingsWindow : Window
         var zoomShown = selected?.ZoomFactor ?? _working.ZoomFactor;
         ProfileZoomCombo.SelectedItem = ZoomMath.FormatPercent(zoomShown);
         ProfileZoomCombo.IsEnabled = selected is not null && selected.ZoomFactor is not null;
+        // S8 #75: the data cap rides the same sync guard.
+        ProfileDataCapCombo.SelectedItem = ProfileDataCaps.Label(selected?.DataCapBytes ?? 0);
+        ProfileDataCapCombo.IsEnabled = selected is not null;
         _syncingProfileControls = false;
         ProfileDataText.Text = selected is null
             ? ""
             : ProfileDataInfo.Describe(AppPaths.ProfileDir(selected.Id), selected);
+        ProfileCapNote.Text = selected is null ? "" : DescribeCap(selected);
+    }
+
+    /// <summary>The #75 cap line for the selected profile: the cap, the promise, and the last cleanup (never silent).</summary>
+    private static string DescribeCap(AccountProfile profile)
+    {
+        var cleaned = profile.LastCacheCleanupUtc is { } utc
+            ? $" Last cleanup: {utc.LocalDateTime:MMM d, HH:mm} — freed {DownloadText.FormatBytes(profile.LastCacheCleanupFreedBytes)}."
+            : "";
+        return profile.DataCapBytes <= 0
+            ? "No size cap: this profile's data folder grows as Muse uses it." + cleaned
+            : $"When this profile's data folder passes {ProfileDataCaps.Label(profile.DataCapBytes)}, only its disposable caches are emptied, oldest first — cookies and sign-ins are never touched." + cleaned;
+    }
+
+    private void OnProfileDataCapChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_syncingProfileControls)
+            return;
+        var selected = SelectedProfile;
+        var index = ProfileDataCapCombo.SelectedIndex;
+        if (selected is null || index < 0 || index >= ProfileDataCaps.Allowed.Count)
+            return;
+        selected.DataCapBytes = ProfileDataCaps.Allowed[index];
+        ProfileCapNote.Text = DescribeCap(selected);
+        _log.Info($"Profile {selected.Id} data cap set to {ProfileDataCaps.Label(selected.DataCapBytes)}");
     }
 
     private void OnBrowseProfileDownloadsFolder(object sender, RoutedEventArgs e)
@@ -756,6 +790,17 @@ public partial class SettingsWindow : Window
                 ToolTip = $"Clear all site data for {profile.Name} (signs that profile out of Muse)",
             };
             clearButton.Click += OnClearOneProfile;
+            // S8 #75: the manual cache cleanup — disposable caches
+            // only, from the same allowlist the automatic cap uses.
+            var cleanButton = new System.Windows.Controls.Button
+            {
+                Content = "Clean caches",
+                Width = 92,
+                Margin = new Thickness(4, 0, 0, 0),
+                Tag = profile.Id,
+                ToolTip = $"Delete only {profile.Name}'s disposable caches (GPU, code, and page caches) — cookies and sign-ins are never touched",
+            };
+            cleanButton.Click += OnCleanProfileCaches;
             var line = new System.Windows.Controls.StackPanel
             {
                 Orientation = System.Windows.Controls.Orientation.Horizontal,
@@ -763,6 +808,7 @@ public partial class SettingsWindow : Window
             };
             line.Children.Add(label);
             line.Children.Add(clearButton);
+            line.Children.Add(cleanButton);
             SiteDataRows.Children.Add(line);
 
             var bytes = ProfileDataInfo.MeasureFolderBytes(AppPaths.ProfileDir(profile.Id));
@@ -774,8 +820,40 @@ public partial class SettingsWindow : Window
                     ? " · no cookies"
                     : $" · {cookies.Count} cookies across {cookies.Domains.Count} site(s)";
             }
-            label.Text = $"{profile.Name} — {sizeText}{cookieText}";
+            // S8 #75: the cap and its last cleanup ride along so the
+            // cleanup is visible here, never silent.
+            var capText = profile.DataCapBytes > 0 ? $" · cap {ProfileDataCaps.Label(profile.DataCapBytes)}" : "";
+            if (profile.LastCacheCleanupUtc is { } cleanedUtc)
+                capText += $" · caches cleaned {cleanedUtc.LocalDateTime:MMM d} (−{DownloadText.FormatBytes(profile.LastCacheCleanupFreedBytes)})";
+            label.Text = $"{profile.Name} — {sizeText}{cookieText}{capText}";
         }
+    }
+
+    /// <summary>
+    /// Manual cache cleanup (S8 #75): the plan comes from Core's
+    /// allowlist model — only disposable cache folders, never cookies
+    /// or session storage — runs off the UI thread, stamps the
+    /// profile, and refreshes the rows so the result is visible.
+    /// </summary>
+    private async void OnCleanProfileCaches(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button { Tag: string profileId })
+            return;
+        var profile = _working.Profiles.FirstOrDefault(p => p.Id == profileId);
+        if (profile is null)
+            return;
+        var profileDir = AppPaths.ProfileDir(profile.Id);
+        var outcome = await Task.Run(() => CacheCleanupRunner.RunManual(profileDir, _log));
+        if (outcome.DeletedCount > 0)
+        {
+            profile.LastCacheCleanupUtc = DateTimeOffset.UtcNow;
+            profile.LastCacheCleanupFreedBytes = outcome.FreedBytes;
+        }
+        ClearResultNote.Text = outcome.DeletedCount == 0
+            ? $"{profile.Name}: no disposable caches to clean."
+            : $"{profile.Name}: cleaned {outcome.DeletedCount} cache folder(s), freed {DownloadText.FormatBytes(outcome.FreedBytes)}. Sign-ins untouched.";
+        _ = RefreshSiteDataAsync();
+        UpdateProfileButtons();
     }
 
     private async void OnClearOneProfile(object sender, RoutedEventArgs e)
@@ -1340,6 +1418,136 @@ public partial class SettingsWindow : Window
         LoadControls();
         ResetNote.Text = $"Settings reset to defaults. Backup saved as {backupName} in the settings folder — Import it any time to undo.";
         _log.Info("Settings reset to defaults from Settings window (backup written first)");
+    }
+
+    // ── #72 guided reset ──
+
+    private void OnOpenResetWizard(object sender, RoutedEventArgs e)
+    {
+        HarvestControls();
+        var wizard = new ResetWizardWindow(_working, _privacy, _log) { Owner = this };
+        ThemeManager.ApplyTitleBar(wizard);
+        FocusReturn.ShowDialog(wizard);
+        if (wizard.SettingsWereReset)
+            LoadControls();
+        // Site data may have been cleared from the wizard — refresh
+        // the live rows either way.
+        _ = RefreshSiteDataAsync();
+    }
+
+    // ── #79 rotating backups ──
+
+    /// <summary>Rebuild the backup list: one row per kept backup (newest first), each with its own Restore.</summary>
+    private void RefreshBackupRows()
+    {
+        BackupRows.Children.Clear();
+        var catalog = BackupRotation.Catalog(BackupService.ExistingNames());
+        if (catalog.Count == 0)
+        {
+            BackupRows.Children.Add(new System.Windows.Controls.TextBlock
+            {
+                Text = "No backups yet — the first automatic one is written today, or use Back up now.",
+                Style = (Style)FindResource("Note"),
+            });
+            return;
+        }
+        foreach (var backup in catalog)
+        {
+            var label = new System.Windows.Controls.TextBlock
+            {
+                Text = $"{(backup.Kind == "settings" ? "Settings" : "Downloads history")} — {backup.Stamp.LocalDateTime:yyyy-MM-dd HH:mm}",
+                Width = 300,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+            };
+            var restore = new System.Windows.Controls.Button
+            {
+                Content = "Restore…",
+                Width = 76,
+                Margin = new Thickness(4, 0, 0, 0),
+                Tag = backup,
+                ToolTip = backup.Kind == "settings"
+                    ? "Replace the settings in this window with this backup (OK still applies them)"
+                    : "Replace the downloads history file with this backup",
+            };
+            restore.Click += OnRestoreBackup;
+            var line = new System.Windows.Controls.StackPanel
+            {
+                Orientation = System.Windows.Controls.Orientation.Horizontal,
+                Margin = new Thickness(0, 2, 0, 2),
+            };
+            line.Children.Add(label);
+            line.Children.Add(restore);
+            BackupRows.Children.Add(line);
+        }
+    }
+
+    private void OnBackupNow(object sender, RoutedEventArgs e)
+    {
+        HarvestControls();
+        if (BackupService.CreateBackup(_log, automatic: false) is { } written)
+        {
+            BackupNote.Text = $"Backed up: {string.Join(", ", written)} — kept in the backups folder next to your settings.";
+            RefreshBackupRows();
+        }
+        else
+        {
+            BackupNote.Text = "The backup couldn't be written — the log has the details.";
+        }
+    }
+
+    private void OnRestoreBackup(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button { Tag: BackupFileInfo backup })
+            return;
+        var path = Path.Combine(AppPaths.BackupsDir, backup.FileName);
+        var invoker = FocusReturn.Capture();
+        if (backup.Kind == "settings")
+        {
+            var confirm = System.Windows.MessageBox.Show(this,
+                $"Restore settings from the {backup.Stamp.LocalDateTime:yyyy-MM-dd HH:mm} backup?\n\n" +
+                "The settings in this window are replaced by the backup's — choose OK here to apply them, Cancel to discard. " +
+                "Sign-ins and profile data folders are not part of a settings backup.",
+                "Restore settings backup", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            FocusReturn.Restore(invoker);
+            if (confirm != MessageBoxResult.Yes)
+                return;
+            string json;
+            try { json = File.ReadAllText(path); }
+            catch (Exception ex)
+            {
+                BackupNote.Text = $"That backup couldn't be read ({ex.Message}).";
+                return;
+            }
+            if (!SettingsStore.TryImport(json, out var imported, out var error) || imported is null)
+            {
+                BackupNote.Text = $"That backup isn't a settings file MuseDesktop can use ({error}).";
+                return;
+            }
+            CopySettingsInto(imported, _working);
+            LoadControls();
+            BackupNote.Text = $"Settings restored from the {backup.Stamp.LocalDateTime:yyyy-MM-dd HH:mm} backup — review them, then OK to apply.";
+            _log.Info($"Settings restored from rotating backup {backup.FileName}");
+            return;
+        }
+        var confirmDownloads = System.Windows.MessageBox.Show(this,
+            $"Restore the downloads history from the {backup.Stamp.LocalDateTime:yyyy-MM-dd HH:mm} backup?\n\n" +
+            "The current history file is replaced. The Downloads window shows the restored history next time it opens.",
+            "Restore downloads history", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        FocusReturn.Restore(invoker);
+        if (confirmDownloads != MessageBoxResult.Yes)
+            return;
+        try
+        {
+            Directory.CreateDirectory(AppPaths.RootDir);
+            File.Copy(path, AppPaths.DownloadsHistoryPath, overwrite: true);
+            BackupNote.Text = $"Downloads history restored from the {backup.Stamp.LocalDateTime:yyyy-MM-dd HH:mm} backup.";
+            _log.Info($"Downloads history restored from rotating backup {backup.FileName}");
+        }
+        catch (Exception ex)
+        {
+            BackupNote.Text = $"The history couldn't be restored ({ex.Message}).";
+        }
     }
 
     // ───────────────────────── settings export / import (v0.4.0) ─────────────────────────
