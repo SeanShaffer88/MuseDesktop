@@ -107,6 +107,14 @@ public sealed class AppSettings
     /// <summary>The profile this launch uses. Switching profiles restarts the app with the other folder.</summary>
     public string ActiveProfileId { get; set; } = global::MuseDesktop.Core.Profiles.DefaultId;
 
+    /// <summary>
+    /// Removed profiles whose data folders could not be deleted at
+    /// removal time (S3 #28) — the folder belonged to the running profile
+    /// or the delete failed. Startup retries these deletions before any
+    /// WebView2 environment exists. Sanitized by Profiles.SanitizePendingDeletions.
+    /// </summary>
+    public List<string> PendingProfileFolderDeletions { get; set; } = new();
+
     /// <summary>Legacy shared last-page (pre-v0.3.1). Migrated into LastUrlByProfile for the default profile on load, then cleared.</summary>
     public string? LastUrl { get; set; }
 
@@ -128,6 +136,9 @@ public sealed class AppSettings
         WindowHeight = WindowHeight is >= 320 and <= 10000 ? WindowHeight : 860;
         ZoomFactor = ZoomMath.Clamp(ZoomFactor);
         global::MuseDesktop.Core.Profiles.EnsureValid(this);
+        // After the profile list is final: pending deletions must never
+        // name a live profile (S3 #28).
+        global::MuseDesktop.Core.Profiles.SanitizePendingDeletions(this);
         if (string.IsNullOrWhiteSpace(DownloadsFolder))
             DownloadsFolder = null;
         else

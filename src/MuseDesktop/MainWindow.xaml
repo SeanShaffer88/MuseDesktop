@@ -55,6 +55,8 @@
                             <ContextMenu x:Name="MoreMenu">
                                 <MenuItem x:Name="ProfileItem" Header="Profile: Default" IsEnabled="False" Visibility="Collapsed"/>
                                 <Separator x:Name="ProfileSeparator" Visibility="Collapsed"/>
+                                <MenuItem x:Name="SwitchProfileItem" Header="Switch profile"
+                                          ToolTip="Restart MuseDesktop signed in with another profile"/>
                                 <MenuItem Header="Settings…" Click="OnSettings" InputGestureText="Ctrl+,"
                                           ToolTip="Startup, downloads, updates, memory, and data options"/>
                                 <MenuItem x:Name="UpdateItem" Header="Check for updates" Click="OnCheckForUpdates"

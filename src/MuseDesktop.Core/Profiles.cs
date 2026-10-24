@@ -18,13 +18,80 @@ public sealed class AccountProfile
 
     /// <summary>Optional downloads folder for this profile only (S2 #20); null = the shared downloads folder (or the system Downloads folder).</summary>
     public string? DownloadsFolder { get; set; }
+
+    /// <summary>
+    /// Accent color for this profile (S3 #24): a key from
+    /// <see cref="ProfileColors"/> (e.g. "Blue"), or null for no color.
+    /// Shown as a small dot next to the profile's name; the app itself
+    /// keeps the black/red family look.
+    /// </summary>
+    public string? DisplayColor { get; set; }
+
+    /// <summary>
+    /// Per-profile zoom override (S3 #26); null = use the shared
+    /// <see cref="AppSettings.ZoomFactor"/>. Sanitized through ZoomMath.
+    /// </summary>
+    public double? ZoomFactor { get; set; }
+
+    /// <summary>When this profile was last launched with (S3 #27). Session state — never copied to a new profile (S3 #29).</summary>
+    public DateTimeOffset? LastUsedUtc { get; set; }
+}
+
+/// <summary>
+/// The fixed accent palette for profiles (S3 #24). Keys are what settings
+/// store; hex values are what the shell paints. Unknown keys sanitize to
+/// "no color" — a hand-edited settings file can never invent a color.
+/// </summary>
+public static class ProfileColors
+{
+    public static readonly IReadOnlyList<(string Key, string Hex)> Palette = new[]
+    {
+        ("Red", "#E50914"),
+        ("Blue", "#3B82F6"),
+        ("Green", "#22A06B"),
+        ("Purple", "#8B5CF6"),
+        ("Orange", "#E8862E"),
+        ("Gray", "#8A8A93"),
+    };
+
+    /// <summary>The canonical palette key for <paramref name="key"/> (case-insensitive), or null when it names no palette color.</summary>
+    public static string? Sanitize(string? key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+            return null;
+        var trimmed = key.Trim();
+        foreach (var (k, _) in Palette)
+            if (string.Equals(k, trimmed, StringComparison.OrdinalIgnoreCase))
+                return k;
+        return null;
+    }
+
+    /// <summary>The hex color for a palette key, or null when unknown/none.</summary>
+    public static string? HexFor(string? key)
+    {
+        var canonical = Sanitize(key);
+        if (canonical is null)
+            return null;
+        foreach (var (k, hex) in Palette)
+            if (k == canonical)
+                return hex;
+        return null;
+    }
 }
 
 /// <summary>Invariants and helpers for the profile list stored in settings.</summary>
 public static class Profiles
 {
     public const string DefaultId = "default";
-    public const int MaxProfiles = 8;
+
+    /// <summary>Hard cap on stored profiles (S3 #30: raised from 8 to 32; EnsureValid truncates beyond it).</summary>
+    public const int MaxProfiles = 32;
+
+    /// <summary>Beyond this many profiles the Settings UI warns before adding another (S3 #30) — each profile keeps its own sign-in data on disk.</summary>
+    public const int SoftProfileWarningThreshold = 8;
+
+    /// <summary>Cap for the pending folder-deletion list (S3 #28) — it can never hold more ids than profiles could exist.</summary>
+    public const int MaxPendingDeletions = MaxProfiles;
 
     private static readonly Regex IdShape = new("^[a-z0-9][a-z0-9_-]{0,31}$", RegexOptions.Compiled);
 
@@ -56,6 +123,13 @@ public static class Profiles
             p.DownloadsFolder = string.IsNullOrWhiteSpace(p.DownloadsFolder)
                 ? null
                 : p.DownloadsFolder.Trim();
+            // S3 #24: unknown color keys become "no color".
+            p.DisplayColor = ProfileColors.Sanitize(p.DisplayColor);
+            // S3 #26: a zoom override is clamped like any zoom; a value
+            // that can't be a zoom at all (NaN, zero, negative) means
+            // "no override", never a broken factor.
+            if (p.ZoomFactor is { } z)
+                p.ZoomFactor = double.IsNaN(z) || z <= 0 ? null : ZoomMath.Clamp(z);
         }
         while (settings.Profiles.Count > MaxProfiles)
             settings.Profiles.RemoveAt(settings.Profiles.Count - 1);
@@ -66,4 +140,159 @@ public static class Profiles
     /// <summary>Folder name (under %LOCALAPPDATA%\MuseDesktop) for a profile's WebView2 data.</summary>
     public static string FolderName(string profileId) =>
         profileId == DefaultId ? "WebView2" : $"WebView2-{profileId}";
+
+    /// <summary>The effective zoom for a launch (S3 #26): the profile's override when it has one, else the shared zoom — always clamped.</summary>
+    public static double EffectiveZoom(AccountProfile? profile, double sharedZoom) =>
+        ZoomMath.Clamp(profile?.ZoomFactor ?? sharedZoom);
+
+    /// <summary>
+    /// The profile's name as shown in menus (S3 #24/#25): a "●" prefix
+    /// when the profile has an accent color, so the dot survives into
+    /// plain-text surfaces like the tray tooltip.
+    /// </summary>
+    public static string MenuLabel(AccountProfile profile) =>
+        profile.DisplayColor is null ? profile.Name : $"● {profile.Name}";
+
+    /// <summary>
+    /// Create a profile carrying <paramref name="source"/>'s SETTINGS
+    /// (S3 #29): start page, downloads folder, zoom override, color.
+    /// Session-adjacent state is never copied — the new profile starts
+    /// with no last-used stamp and (by construction, since last pages live
+    /// in AppSettings.LastUrlByProfile under the profile's own id) no
+    /// restored page and an empty WebView2 folder.
+    /// </summary>
+    public static AccountProfile CopySettingsFrom(AccountProfile source, string newId, string newName) =>
+        new()
+        {
+            Id = newId,
+            Name = newName,
+            StartAtHome = source.StartAtHome,
+            DownloadsFolder = source.DownloadsFolder,
+            DisplayColor = source.DisplayColor,
+            ZoomFactor = source.ZoomFactor,
+            LastUsedUtc = null,
+        };
+
+    // The Windows file-name-hostile set, spelled out: a shortcut is a
+    // Windows artifact, so this must not depend on the host OS's rules
+    // (Path.GetInvalidFileNameChars on Linux allows ':' '*' '?').
+    private static readonly char[] WindowsInvalidFileNameChars =
+        { '<', '>', ':', '"', '/', '\\', '|', '?', '*' };
+
+    /// <summary>Desktop shortcut file name for a profile (S3 #23): the name with any file-name-hostile characters removed.</summary>
+    public static string ShortcutFileName(AccountProfile profile)
+    {
+        var safe = new string((profile.Name ?? "")
+            .Select(c => c < 32 || WindowsInvalidFileNameChars.Contains(c) ? ' ' : c).ToArray()).Trim();
+        while (safe.Contains("  "))
+            safe = safe.Replace("  ", " ");
+        if (safe.Length == 0)
+            safe = "Profile";
+        return $"MuseDesktop - {safe}.lnk";
+    }
+
+    /// <summary>
+    /// Which profile a launch uses (S3 #23): an explicit --profile request
+    /// that names an existing profile wins; a request naming nothing real
+    /// falls back to the saved active profile and reports the fallback so
+    /// the caller can log it. A null request is the ordinary launch.
+    /// </summary>
+    public static (string ProfileId, bool FellBack) ResolveLaunchProfile(AppSettings settings, string? requestedId)
+    {
+        if (requestedId is null)
+            return (settings.ActiveProfileId, false);
+        if (IsValidId(requestedId) && settings.Profiles.Any(p => p.Id == requestedId))
+            return (requestedId, false);
+        return (settings.ActiveProfileId, true);
+    }
+
+    // ── Pending folder deletions (S3 #28) ─────────────────────────────
+    // Removing a profile deletes its data folder right away when the app
+    // can. When it can't (the folder belongs to the running profile, or
+    // the delete fails), the id is queued here and the NEXT launch —
+    // before any WebView2 environment exists — retries the delete.
+
+    /// <summary>Queue a removed profile's folder for deletion at next startup. No-op for live profiles or invalid ids.</summary>
+    public static void QueuePendingDeletion(AppSettings settings, string profileId)
+    {
+        if (!IsValidId(profileId))
+            return;
+        if (settings.Profiles.Any(p => p.Id == profileId))
+            return;
+        settings.PendingProfileFolderDeletions ??= new List<string>();
+        if (!settings.PendingProfileFolderDeletions.Contains(profileId))
+            settings.PendingProfileFolderDeletions.Add(profileId);
+        SanitizePendingDeletions(settings);
+    }
+
+    /// <summary>
+    /// Repair the pending-deletion list: valid ids only, deduped, never
+    /// naming a profile that exists (again) — deleting a live profile's
+    /// folder would sign its user out — and capped. Called from
+    /// AppSettings.Sanitized so every load is safe.
+    /// </summary>
+    public static void SanitizePendingDeletions(AppSettings settings)
+    {
+        settings.PendingProfileFolderDeletions ??= new List<string>();
+        var live = new HashSet<string>(settings.Profiles.Select(p => p.Id));
+        var seen = new HashSet<string>();
+        settings.PendingProfileFolderDeletions.RemoveAll(id =>
+            !IsValidId(id) || live.Contains(id) || !seen.Add(id));
+        while (settings.PendingProfileFolderDeletions.Count > MaxPendingDeletions)
+            settings.PendingProfileFolderDeletions.RemoveAt(settings.PendingProfileFolderDeletions.Count - 1);
+    }
+}
+
+/// <summary>
+/// On-disk facts about one profile's data folder (S3 #27): how big it is
+/// and the Settings line describing it. Measuring is defensive — a folder
+/// that doesn't exist yet is "no data", and files that vanish or are
+/// locked mid-walk are skipped, never fatal.
+/// </summary>
+public static class ProfileDataInfo
+{
+    /// <summary>Total size in bytes of a profile folder (recursive), or null when the folder doesn't exist.</summary>
+    public static long? MeasureFolderBytes(string folderPath)
+    {
+        try
+        {
+            if (!Directory.Exists(folderPath))
+                return null;
+            long total = 0;
+            var stack = new Stack<string>();
+            stack.Push(folderPath);
+            while (stack.Count > 0)
+            {
+                var dir = stack.Pop();
+                try
+                {
+                    foreach (var sub in Directory.EnumerateDirectories(dir))
+                        stack.Push(sub);
+                    foreach (var file in Directory.EnumerateFiles(dir))
+                    {
+                        try { total += new FileInfo(file).Length; }
+                        catch { /* locked or vanished mid-walk — skip the file */ }
+                    }
+                }
+                catch { /* unreadable directory — skip its subtree */ }
+            }
+            return total;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>The Settings line for a profile: "Data: 12.4 MB · Last used: 2026-10-24", or "No data on this PC yet" when the folder doesn't exist.</summary>
+    public static string Describe(string folderPath, AccountProfile profile)
+    {
+        var bytes = MeasureFolderBytes(folderPath);
+        if (bytes is null)
+            return "No data on this PC yet";
+        var text = $"Data: {DownloadText.FormatBytes(bytes.Value)}";
+        if (profile.LastUsedUtc is { } used)
+            text += $" · Last used: {used.ToLocalTime():yyyy-MM-dd}";
+        return text;
+    }
 }
