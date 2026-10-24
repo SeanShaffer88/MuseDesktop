@@ -20,7 +20,10 @@
         <Border x:Name="Toolbar" Grid.Row="0" Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,0,1">
             <DockPanel LastChildFill="True" Margin="6,0">
-                <StackPanel DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
+                <!-- The two button strips are named: S5 #45 rebuilds their
+                     contents from the user's toolbar layout at startup. The
+                     ⋯ menu button stays fixed, last in the right strip. -->
+                <StackPanel x:Name="LeftStrip" DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button x:Name="BackButton" Style="{StaticResource BarButton}" Content="&#x2190;"
                             ToolTip="Back (Alt+Left). Right-click for history." Click="OnBack" AutomationProperties.Name="Back"
                             PreviewMouseRightButtonUp="OnBackHistoryMenu"
@@ -35,7 +38,7 @@
                             ToolTip="Muse home" Click="OnHome" AutomationProperties.Name="Home"/>
                 </StackPanel>
 
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                <StackPanel x:Name="RightStrip" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button x:Name="ZoomOutButton" Style="{StaticResource BarButton}" Content="&#x2212;" Width="28"
                             ToolTip="Zoom out (Ctrl+-)" Click="OnZoomOut" AutomationProperties.Name="Zoom out"/>
                     <TextBlock x:Name="ZoomLabel" Text="100%" Width="42" TextAlignment="Center"
@@ -133,7 +136,7 @@
                                Foreground="{StaticResource MutedBrush}" TextAlignment="Center" TextWrapping="Wrap"/>
                     <Button x:Name="OverlayButton" Content="Retry" Width="110" Height="32" Margin="0,18,0,0"
                             Visibility="Collapsed" Click="OnReload" HorizontalAlignment="Center"
-                            Background="{StaticResource AccentBrush}" Foreground="White" BorderThickness="0"/>
+                            Background="{StaticResource AccentFillBrush}" Foreground="White" BorderThickness="0"/>
                 </StackPanel>
             </Border>
         </Grid>

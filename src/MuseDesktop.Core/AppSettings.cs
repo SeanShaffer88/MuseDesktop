@@ -128,6 +128,39 @@ public sealed class AppSettings
     /// <summary>Quiet-hours end, minutes after local midnight (default 07:00; may be earlier than the start — the window wraps midnight).</summary>
     public int QuietHoursEndMinutes { get; set; } = 7 * 60;
 
+    // Appearance & personalization (v0.9.0, S5).
+    /// <summary>Shell theme (S5 #43): Dark (the family identity), Light, or FollowSystem. Shell chrome only — the Muse page is never restyled. Undefined values sanitize to Dark.</summary>
+    public ThemeMode Theme { get; set; } = ThemeMode.Dark;
+
+    /// <summary>Shell accent color key from <see cref="AccentPalette"/> (S5 #44); sanitized to a palette key, default Red. Profile colors are a separate feature.</summary>
+    public string AccentColor { get; set; } = AccentPalette.DefaultKey;
+
+    /// <summary>Shell UI text scale (S5 #46): 1.0, 1.25, or 1.5 (sanitized to the nearest offered factor). Independent of page zoom.</summary>
+    public double ShellFontScale { get; set; } = 1.0;
+
+    /// <summary>Toolbar button order (S5 #45): every known item id in display order. Sanitized by ToolbarLayout.</summary>
+    public List<string> ToolbarOrder { get; set; } = ToolbarLayout.DefaultOrder();
+
+    /// <summary>Toolbar items the user hid (S5 #45). Sanitized by ToolbarLayout (Back can never be hidden).</summary>
+    public List<string> ToolbarHidden { get; set; } = new();
+
+    // Settings-window memory (v0.9.0, S5 #48).
+    /// <summary>The Settings section last in view (a SettingsSearch section id), so Settings reopens where it was left. Sanitized to a known id or null.</summary>
+    public string? SettingsLastSection { get; set; }
+
+    /// <summary>Settings window width in pixels (S5 #48). Sanitized to a sane range; the default matches the window's long-standing width.</summary>
+    public double SettingsWindowWidth { get; set; } = 480;
+
+    /// <summary>Settings window height in pixels (S5 #48); 0 = the window's default height. Sanitized to 0 or a sane range.</summary>
+    public double SettingsWindowHeight { get; set; }
+
+    /// <summary>
+    /// The first-run setup wizard has been completed or skipped (S5 #50).
+    /// False only on a genuinely fresh settings file — Reset-all-settings
+    /// restores it to false with the other preferences (see SettingsReset).
+    /// </summary>
+    public bool FirstRunCompleted { get; set; }
+
     // Account profiles (v0.3.0).
     /// <summary>Sign-in profiles; each has its own WebView2 data folder. Always contains at least the default profile (see Profiles.EnsureValid).</summary>
     public List<AccountProfile> Profiles { get; set; } = new() { new AccountProfile() };
@@ -184,6 +217,24 @@ public sealed class AppSettings
             QuietHoursStartMinutes = 22 * 60;
             QuietHoursEndMinutes = 7 * 60;
         }
+        // S5: theme/accent/text-scale/toolbar repairs, in the same
+        // spirit — a hand-edited file degrades to the default look,
+        // never to an unusable one.
+        if (!Enum.IsDefined(Theme))
+            Theme = ThemeMode.Dark;
+        AccentColor = AccentPalette.Sanitize(AccentColor);
+        ShellFontScale = ShellTextScale.Sanitize(ShellFontScale);
+        var (order, hidden) = ToolbarLayout.Sanitize(ToolbarOrder, ToolbarHidden);
+        ToolbarOrder = order;
+        ToolbarHidden = hidden;
+        // S5 #48: Settings-window memory — a known section id or
+        // nothing; sizes clamped to what a real monitor could show.
+        if (!SettingsSearch.IsKnownSection(SettingsLastSection))
+            SettingsLastSection = null;
+        SettingsWindowWidth = SettingsWindowWidth is >= 420 and <= 2000 ? SettingsWindowWidth : 480;
+        SettingsWindowHeight = SettingsWindowHeight == 0 || SettingsWindowHeight is >= 400 and <= 2000
+            ? SettingsWindowHeight
+            : 0;
         LastUrlByProfile ??= new Dictionary<string, string>();
         // Migrate the pre-v0.3.1 shared last page into the default profile.
         if (LastUrl is not null)
@@ -234,19 +285,18 @@ public sealed class AppSettings
         UrlPolicy.IsInAppHost(u.Host);
 
     /// <summary>
-    /// The page to open at launch: the Muse home page when the active
-    /// profile asks for it (v0.4.0), else the active profile's restored
-    /// page when valid, else home.
+    /// The page to open at launch, per the active profile's start-page
+    /// choice (v0.4.0 StartAtHome; v0.9.0 S5 #47 the 3-way mode incl. a
+    /// validated custom Muse page). Resolution lives in
+    /// <see cref="StartPagePolicy"/> so the fallback is unit-tested.
     /// </summary>
-    public string StartupUrl
+    public string StartupUrl => ResolveStartupUrl().Url;
+
+    /// <summary>The launch page plus whether a custom start page failed validation and fell back to Home (the shell logs that case, redacted).</summary>
+    public (string Url, bool CustomFellBack) ResolveStartupUrl()
     {
-        get
-        {
-            var active = Profiles.FirstOrDefault(p => p.Id == ActiveProfileId);
-            if (active?.StartAtHome == true)
-                return UrlPolicy.HomeUrl;
-            return ActiveLastUrl ?? UrlPolicy.HomeUrl;
-        }
+        var active = Profiles.FirstOrDefault(p => p.Id == ActiveProfileId);
+        return StartPagePolicy.Resolve(active, ActiveLastUrl);
     }
 
     /// <summary>Deep copy (JSON round-trip) — the Settings window edits a clone so Cancel can discard cleanly.</summary>

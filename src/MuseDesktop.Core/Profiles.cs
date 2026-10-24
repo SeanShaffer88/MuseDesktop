@@ -13,8 +13,25 @@ public sealed class AccountProfile
     public string Id { get; set; } = Profiles.DefaultId;
     public string Name { get; set; } = "Default";
 
-    /// <summary>Start this profile at the Muse home page instead of reopening its last page (v0.4.0).</summary>
+    /// <summary>Start this profile at the Muse home page instead of reopening its last page (v0.4.0). Kept in sync with <see cref="StartPage"/> by Profiles.EnsureValid (v0.9.0, S5 #47) so older builds still read the choice correctly.</summary>
     public bool StartAtHome { get; set; }
+
+    /// <summary>
+    /// The 3-way start-page choice (S5 #47): reopen the last page, the
+    /// Muse home page, or <see cref="CustomStartUrl"/>. Files written
+    /// before v0.9.0 have no mode (LastPage by default) plus the old
+    /// StartAtHome bool; EnsureValid migrates the bool into the mode on
+    /// first load and keeps the two in sync thereafter.
+    /// </summary>
+    public StartPageMode StartPage { get; set; } = StartPageMode.LastPage;
+
+    /// <summary>
+    /// The custom start page for StartPageMode.Custom (S5 #47). Stored
+    /// as typed (trimmed, length-capped by EnsureValid); VALIDITY is a
+    /// launch-time decision (StartPagePolicy) — an invalid value falls
+    /// back to the home page with a log line, never to a broken page.
+    /// </summary>
+    public string? CustomStartUrl { get; set; }
 
     /// <summary>Optional downloads folder for this profile only (S2 #20); null = the shared downloads folder (or the system Downloads folder).</summary>
     public string? DownloadsFolder { get; set; }
@@ -125,6 +142,21 @@ public static class Profiles
                 : p.DownloadsFolder.Trim();
             // S3 #24: unknown color keys become "no color".
             p.DisplayColor = ProfileColors.Sanitize(p.DisplayColor);
+            // S5 #47: migrate + sync the start-page choice. An undefined
+            // mode value (hand-edited file) reads as LastPage; the legacy
+            // bool wins when the mode was never set (pre-v0.9.0 files),
+            // then the bool is rewritten FROM the mode so the two can
+            // never disagree after a load.
+            if (!Enum.IsDefined(p.StartPage))
+                p.StartPage = StartPageMode.LastPage;
+            if (p.StartPage == StartPageMode.LastPage && p.StartAtHome)
+                p.StartPage = StartPageMode.Home;
+            p.StartAtHome = p.StartPage == StartPageMode.Home;
+            p.CustomStartUrl = string.IsNullOrWhiteSpace(p.CustomStartUrl)
+                ? null
+                : p.CustomStartUrl.Trim();
+            if (p.CustomStartUrl is { Length: > 2048 })
+                p.CustomStartUrl = p.CustomStartUrl[..2048];
             // S3 #26: a zoom override is clamped like any zoom; a value
             // that can't be a zoom at all (NaN, zero, negative) means
             // "no override", never a broken factor.
@@ -155,7 +187,8 @@ public static class Profiles
 
     /// <summary>
     /// Create a profile carrying <paramref name="source"/>'s SETTINGS
-    /// (S3 #29): start page, downloads folder, zoom override, color.
+    /// (S3 #29): start page (including the S5 #47 mode + custom URL),
+    /// downloads folder, zoom override, color.
     /// Session-adjacent state is never copied — the new profile starts
     /// with no last-used stamp and (by construction, since last pages live
     /// in AppSettings.LastUrlByProfile under the profile's own id) no
@@ -167,6 +200,8 @@ public static class Profiles
             Id = newId,
             Name = newName,
             StartAtHome = source.StartAtHome,
+            StartPage = source.StartPage,
+            CustomStartUrl = source.CustomStartUrl,
             DownloadsFolder = source.DownloadsFolder,
             DisplayColor = source.DisplayColor,
             ZoomFactor = source.ZoomFactor,

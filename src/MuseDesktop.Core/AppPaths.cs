@@ -1,31 +1,47 @@
 namespace MuseDesktop.Core;
 
 /// <summary>
-/// Where the app's files live. Everything is per-user and portable:
-/// settings and logs under %APPDATA%\MuseDesktop, the WebView2 profile
-/// (cookies / local storage — what keeps you signed in) under
+/// Where the app's files live. Everything is per-user: settings and logs
+/// under %APPDATA%\MuseDesktop, the WebView2 profile (cookies / local
+/// storage — what keeps you signed in) under
 /// %LOCALAPPDATA%\MuseDesktop\WebView2.
-/// Tests can redirect the root via the MUSEDESKTOP_HOME environment variable.
+/// Portable mode (v0.9.0, S5 #49): a <c>portable.txt</c> marker beside
+/// the exe moves the settings root (settings, download history, logs)
+/// to a <c>data</c> folder beside the exe — see
+/// <see cref="SettingsLocation"/>. The WebView2 profile does NOT move.
+/// Tests can redirect the root via the MUSEDESKTOP_HOME environment
+/// variable, which outranks the portable marker (it is a test hook).
 /// </summary>
 public static class AppPaths
 {
-    public static string RootDir
+    private static SettingsLocation? _location;
+
+    /// <summary>The resolved settings location (portable or installed), computed once per process.</summary>
+    public static SettingsLocation Location => _location ??= ResolveLocation();
+
+    /// <summary>True when the portable marker beside the exe put settings in the exe's data folder (S5 #49).</summary>
+    public static bool IsPortable => Location.IsPortable;
+
+    private static SettingsLocation ResolveLocation()
     {
-        get
-        {
-            var overrideDir = Environment.GetEnvironmentVariable("MUSEDESKTOP_HOME");
-            if (!string.IsNullOrWhiteSpace(overrideDir))
-                return overrideDir;
-            return Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "MuseDesktop");
-        }
+        var overrideDir = Environment.GetEnvironmentVariable("MUSEDESKTOP_HOME");
+        if (!string.IsNullOrWhiteSpace(overrideDir))
+            return SettingsLocation.Installed(overrideDir);
+        var exeDir = AppContext.BaseDirectory;
+        var installedRoot = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "MuseDesktop");
+        return SettingsLocation.Resolve(
+            exeDir, installedRoot,
+            File.Exists(Path.Combine(exeDir, SettingsLocation.MarkerFileName)));
     }
 
-    public static string SettingsPath => Path.Combine(RootDir, "settings.json");
+    public static string RootDir => Location.RootDir;
+
+    public static string SettingsPath => Location.SettingsPath;
 
     /// <summary>Finished-download history for the Downloads window (v0.4.0).</summary>
-    public static string DownloadsHistoryPath => Path.Combine(RootDir, "downloads.json");
+    public static string DownloadsHistoryPath => Location.DownloadsHistoryPath;
 
     public static string LogDir => Path.Combine(RootDir, "logs");
     public static string LogPath => Path.Combine(LogDir, "musedesktop.log");

@@ -69,6 +69,16 @@ public partial class MainWindow : Window
         _profileDir = AppPaths.ProfileDir(settings.ActiveProfileId);
         InitializeComponent();
 
+        // v0.9.0 (S5): the web view's pre-load background follows the
+        // shell palette (App applied the theme before constructing us),
+        // the toolbar strips are rebuilt from the user's layout (#45),
+        // shell text is scaled (#46), and later theme changes re-sync
+        // the title bar + web background.
+        Browser.DefaultBackgroundColor = ThemeManager.BrowserBackground;
+        ApplyToolbarLayout();
+        ShellTextScaling.Apply(this, _settings.ShellFontScale);
+        ThemeManager.Changed += OnThemeChanged;
+
         _downloads = new DownloadTracker(_log, SetStatus, record =>
         {
             // Completed AND failed records land in history (S2 #16),
@@ -121,6 +131,47 @@ public partial class MainWindow : Window
         Loaded += OnLoaded;
         Closing += OnClosing;
         PreviewKeyDown += OnPreviewKeyDown;
+    }
+
+    /// <summary>
+    /// Rebuild the toolbar button strips from the saved layout (S5 #45):
+    /// the XAML declares the buttons once (handlers, tooltips, styles);
+    /// this only re-parents them into the user's order and omits the
+    /// hidden ones. The ⋯ menu button is not a layout item — it is
+    /// re-added last, always.
+    /// </summary>
+    private void ApplyToolbarLayout()
+    {
+        var elements = new Dictionary<string, FrameworkElement>
+        {
+            ["back"] = BackButton,
+            ["forward"] = ForwardButton,
+            ["reload"] = ReloadButton,
+            ["home"] = HomeButton,
+            ["zoomout"] = ZoomOutButton,
+            ["zoomlabel"] = ZoomLabel,
+            ["zoomin"] = ZoomInButton,
+            ["pin"] = PinButton,
+            ["browser"] = BrowserButton,
+        };
+        LeftStrip.Children.Clear();
+        foreach (var id in ToolbarLayout.VisibleIds(_settings.ToolbarOrder, _settings.ToolbarHidden, ToolbarGroup.Left))
+            LeftStrip.Children.Add(elements[id]);
+        RightStrip.Children.Clear();
+        foreach (var id in ToolbarLayout.VisibleIds(_settings.ToolbarOrder, _settings.ToolbarHidden, ToolbarGroup.Right))
+            RightStrip.Children.Add(elements[id]);
+        RightStrip.Children.Add(MenuButton);
+    }
+
+    private void OnThemeChanged(object? sender, EventArgs e)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(new Action(() => OnThemeChanged(sender, e)));
+            return;
+        }
+        ApplyDarkTitleBar();
+        Browser.DefaultBackgroundColor = ThemeManager.BrowserBackground;
     }
 
     /// <summary>
@@ -472,7 +523,16 @@ public partial class MainWindow : Window
         Browser.ZoomFactor = EffectiveZoom();
         _webReady = true;
         _log.Info($"WebView2 {envVersion()} ready; profile {_profileDir}");
-        core.Navigate(_settings.StartupUrl);
+        // Start page (S5 #47): an invalid custom page falls back to
+        // Home and says so — the stored value is logged redacted only.
+        var (startupUrl, customFellBack) = _settings.ResolveStartupUrl();
+        if (customFellBack)
+        {
+            var active = ActiveProfile();
+            _log.Warn($"Profile {_settings.ActiveProfileId} has an unusable custom start page " +
+                      $"({UrlPolicy.RedactForLog(active?.CustomStartUrl)}); starting at the Muse home page");
+        }
+        core.Navigate(startupUrl);
         SetStatus("Loading Muse…");
 
         string envVersion()
@@ -1018,6 +1078,9 @@ public partial class MainWindow : Window
 
     private void OnMenu(object sender, RoutedEventArgs e)
     {
+        // Pop-up menus live outside the window's tree, so S5 #46 scales
+        // this one explicitly each time it opens.
+        ShellTextScaling.Apply(MoreMenu, _settings.ShellFontScale);
         MoreMenu.PlacementTarget = MenuButton;
         MoreMenu.IsOpen = true;
     }
@@ -1058,10 +1121,24 @@ public partial class MainWindow : Window
         _settings.LastUrlByProfile = clone.LastUrlByProfile;
         _settings.PendingProfileFolderDeletions = clone.PendingProfileFolderDeletions;
         _settings.AlwaysOnTop = clone.AlwaysOnTop;
+        // S5: appearance + Settings-window memory ride the same adoption.
+        _settings.Theme = clone.Theme;
+        _settings.AccentColor = clone.AccentColor;
+        _settings.ShellFontScale = clone.ShellFontScale;
+        _settings.ToolbarOrder = clone.ToolbarOrder;
+        _settings.ToolbarHidden = clone.ToolbarHidden;
+        _settings.SettingsLastSection = clone.SettingsLastSection;
+        _settings.SettingsWindowWidth = clone.SettingsWindowWidth;
+        _settings.SettingsWindowHeight = clone.SettingsWindowHeight;
+        _settings.FirstRunCompleted = clone.FirstRunCompleted;
         _settings.Sanitized();
         Topmost = _settings.AlwaysOnTop;
         PinItem.IsChecked = _settings.AlwaysOnTop;
         Autostart.Sync(_settings.StartWithWindows);
+        // S5 #43/#44/#45/#46 take effect immediately on OK.
+        ThemeManager.Apply(_settings);
+        ApplyToolbarLayout();
+        ShellTextScaling.Apply(this, _settings.ShellFontScale);
         if (_webReady)
             Browser.ZoomFactor = EffectiveZoom();
         if (!_settings.SuspendWhenInTray)
@@ -1561,8 +1638,13 @@ public partial class MainWindow : Window
 
     private void OnDownloads(object sender, RoutedEventArgs e)
     {
-        new DownloadsWindow(_log, _downloads, RetryFailedDownloadAsync, _settings.DownloadHistoryCap)
-            { Owner = this }.ShowDialog();
+        var dialog = new DownloadsWindow(_log, _downloads, RetryFailedDownloadAsync, _settings.DownloadHistoryCap)
+            { Owner = this };
+        // S5: transient shell windows follow the theme + text scale too
+        // (their brushes resolve at parse; title bar and fonts are ours).
+        dialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(dialog);
+        ShellTextScaling.Apply(dialog, _settings.ShellFontScale);
+        dialog.ShowDialog();
     }
 
     private void OnOpenLogFolder(object sender, RoutedEventArgs e)
@@ -1677,20 +1759,9 @@ public partial class MainWindow : Window
         _isFullScreen = on;
     }
 
-    // ───────────────────────── dark title bar ─────────────────────────
+    // ───────────────────────── title bar ─────────────────────────
+    // Since S5 the title bar follows the shell theme (dark OR light);
+    // the DWM call itself lives in ThemeManager with the other theming.
 
-    [DllImport("dwmapi.dll", PreserveSig = true)]
-    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
-
-    private void ApplyDarkTitleBar()
-    {
-        try
-        {
-            var hwnd = new WindowInteropHelper(this).Handle;
-            var on = 1;
-            // DWMWA_USE_IMMERSIVE_DARK_MODE = 20 (Windows 10 2004+ / Windows 11).
-            _ = DwmSetWindowAttribute(hwnd, 20, ref on, sizeof(int));
-        }
-        catch { /* cosmetic only */ }
-    }
+    private void ApplyDarkTitleBar() => ThemeManager.ApplyTitleBar(this);
 }

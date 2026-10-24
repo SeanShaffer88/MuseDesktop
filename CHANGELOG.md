@@ -2,6 +2,27 @@
 
 All notable changes to MuseDesktop. Format follows Keep a Changelog; versions use semantic versioning.
 
+## [0.9.0] — Unreleased
+
+Slice 5 (items 41–50) of the 100-enhancement program: settings, appearance & personalization.
+
+### Added
+
+- **Search inside Settings (#41)** — a search box at the top of Settings filters by section: matching sections stay visible with their headers highlighted and the window scrolls to the first match; the rest hide until the search is cleared. (Settings is one scrolling window of sections, so search is section-level — see DECISIONS.md.)
+- **Reset all settings to defaults (#42)** — Settings → Data → *Reset all settings to defaults…* After a confirm, your current settings are first exported to a timestamped backup (`settings-backup-*.json` in the settings folder — if the backup can't be written, nothing is reset), then every preference returns to its default. Profiles, sign-ins, last pages, and downloaded files are deliberately untouched; Import brings the backup back.
+- **Shell theme (#43)** — Settings → *Appearance & toolbar* → Shell theme: **Dark** (the family black/red identity), **Light**, or **Follow Windows** (follows your Windows app theme, including while the app runs). Shell windows only — toolbar, menus, Settings, Downloads; the Muse page is never restyled.
+- **Accent color (#44)** — Red (default), Blue, Teal, Purple, or Orange for the shell's own highlights. Every accent is contrast-checked in code (WCAG AA against both shell themes, tests pin the ratios). Separate from profile colors.
+- **Toolbar customization (#45)** — show/hide and reorder the toolbar buttons (Back, Forward, Reload, Home, zoom out / % / in, pin, Open in browser) in Settings → *Appearance & toolbar*, with a Reset layout button. Back always stays; the ⋯ menu is fixed, last.
+- **Shell text size (#46)** — 100 / 125 / 150% for MuseDesktop's own text (toolbar, menus, Settings, Downloads), independent of page zoom. The tray menu is drawn by Windows and keeps the system size.
+- **Custom startup page per profile (#47)** — each profile now chooses: reopen its last page, start at the Muse home page, or start at a specific Muse page. The address is validated (must be an https:// muse.ai page); an unusable address falls back to the home page with a log line, never to a broken page.
+- **Settings remembers itself (#48)** — Settings reopens at the section you left, at the size you left it (the window is resizable now).
+- **Portable mode (#49)** — put an empty `portable.txt` beside `MuseDesktop.exe` (zip build) and settings, download history, and logs live in a `data` folder beside the exe instead of `%APPDATA%`. Nothing is moved automatically — a portable launch starts fresh there. Sign-in data (the WebView2 profiles) still lives in your user profile in this version.
+- **First-run setup wizard (#50)** — a fresh install opens with one welcome screen: close-to-tray, start-with-Windows, downloads folder, update checks — pre-filled, skippable, and never shown twice. Re-run it any time from Settings → Behavior → *Run the setup wizard again…*
+
+### Notes
+
+- Core test suite grows by 56 cases (268 → 324). All v0.9.0 runtime behavior is **Unverified** on a real Windows machine pending the `RELEASE_CHECKLIST.md` S5 pass.
+
 ## [0.8.0] — Unreleased
 
 Slice 4 (items 31–40) of the 100-enhancement program: tray, notifications & presence.
