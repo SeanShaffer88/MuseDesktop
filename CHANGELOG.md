@@ -2,7 +2,7 @@
 
 All notable changes to MuseDesktop. Format follows Keep a Changelog; versions use semantic versioning.
 
-## [0.5.0] — Unreleased
+## [0.5.0] — 2026-10-24
 
 Slice 1 (items 1–12) of the 100-enhancement program: window & navigation.
 
