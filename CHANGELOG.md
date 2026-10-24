@@ -2,6 +2,25 @@
 
 All notable changes to MuseDesktop. Format follows Keep a Changelog; versions use semantic versioning.
 
+## [0.7.0] — Unreleased
+
+Slice 3 (items 23–30) of the 100-enhancement program: profiles & accounts.
+
+### Added
+
+- **Per-profile desktop shortcuts (#23)** — Settings → *Account profiles* → *Create desktop shortcut* puts a shortcut on the Desktop that opens MuseDesktop with that profile (`--profile <id>` — the app's command line is now parsed in Core, unknown arguments tolerated; an unknown id falls back to your usual profile with a log line). Like a Settings switch, the launched profile becomes the active one.
+- **Rename + accent colors (#24)** — profiles can be renamed in Settings and given an accent color from a fixed palette (Red, Blue, Green, Purple, Orange, Gray). The color shows as a dot next to the profile's name in Settings, the ⋯ menu, the tray menu and tooltip, and the window title line.
+- **Quick profile switcher (#25)** — the ⋯ menu and the tray menu both have a *Switch profile* submenu (active profile checked, accent dots shown) that runs the same restart-and-switch as Settings — no Settings trip needed.
+- **Per-profile zoom (#26)** — a profile can carry its own zoom instead of the shared default: Settings → *Account profiles* → *Use a custom zoom for this profile*. While a profile has a custom zoom, zooming in the app (Ctrl +/−/0, toolbar) updates that profile's zoom; the shared default is untouched.
+- **Profile data size + last used (#27)** — Settings shows each profile's on-disk data size and the date it was last launched with.
+- **Deferred folder deletion (#28)** — when a removed profile's data folder can't be deleted at removal time (in use, or the delete fails), the deletion is queued and retried automatically at the next launch, instead of the folder staying on disk forever.
+- **Copy settings on create (#29)** — *Add profile* can copy an existing profile's settings (start page, downloads folder, zoom, color). Sign-ins and session state are never copied — the new profile starts signed out with its own empty data folder.
+- **Profile cap raised to 32 (#30)** — up from 8. Past 8 profiles, adding another asks first (each profile keeps its own sign-in data on disk).
+
+### Notes
+
+- Core test suite grows by 29 cases (194 → 223). All v0.7.0 runtime behavior is **Unverified** on a real Windows machine pending the `RELEASE_CHECKLIST.md` S3 pass.
+
 ## [0.6.0] — Unreleased
 
 Slice 2 (items 13–22) of the 100-enhancement program: downloads.

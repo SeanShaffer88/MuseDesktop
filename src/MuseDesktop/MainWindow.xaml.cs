@@ -89,7 +89,10 @@ public partial class MainWindow : Window
             () => _webReady,
             () => _downloads.IsTransferring,
             TrySuspendWebViewAsync,
-            ResumeWebView);
+            ResumeWebView,
+            () => _settings.Profiles,
+            () => _settings.ActiveProfileId,
+            SwitchToProfileFromMenu);
 
         PinItem.IsChecked = _settings.AlwaysOnTop;
         Topmost = _settings.AlwaysOnTop;
@@ -229,6 +232,28 @@ public partial class MainWindow : Window
         Close();
     }
 
+    /// <summary>The active profile object (never null after Sanitized).</summary>
+    private AccountProfile? ActiveProfile() =>
+        _settings.Profiles.FirstOrDefault(p => p.Id == _settings.ActiveProfileId);
+
+    /// <summary>The zoom this launch runs at (S3 #26): the active profile's override, else the shared zoom.</summary>
+    private double EffectiveZoom() => Profiles.EffectiveZoom(ActiveProfile(), _settings.ZoomFactor);
+
+    /// <summary>
+    /// Where a zoom value belongs (S3 #26): when the active profile has a
+    /// zoom override, zoom changes update the OVERRIDE and the shared
+    /// zoom is left alone; without an override they update the shared
+    /// zoom, as they always have.
+    /// </summary>
+    private void PersistZoom(double zoom)
+    {
+        var active = ActiveProfile();
+        if (active?.ZoomFactor is not null)
+            active.ZoomFactor = ZoomMath.Clamp(zoom);
+        else
+            _settings.ZoomFactor = ZoomMath.Clamp(zoom);
+    }
+
     // ───────────────────────── placement / settings ─────────────────────────
 
     private void ApplySavedPlacement()
@@ -253,7 +278,7 @@ public partial class MainWindow : Window
         }
         if (placement.Maximized)
             WindowState = WindowState.Maximized;
-        ZoomLabel.Text = ZoomMath.FormatPercent(_settings.ZoomFactor);
+        ZoomLabel.Text = ZoomMath.FormatPercent(EffectiveZoom());
     }
 
     private void SaveSettings()
@@ -274,7 +299,7 @@ public partial class MainWindow : Window
             }
             if (_webReady)
             {
-                _settings.ZoomFactor = Browser.ZoomFactor;
+                PersistZoom(Browser.ZoomFactor);
                 var source = Browser.Source?.ToString();
                 if (source is not null
                     && UrlPolicy.ClassifyNavigation(source) == LinkDisposition.InApp
@@ -372,7 +397,7 @@ public partial class MainWindow : Window
             ZoomLabel.Text = ZoomMath.FormatPercent(Browser.ZoomFactor);
         };
 
-        Browser.ZoomFactor = ZoomMath.Clamp(_settings.ZoomFactor);
+        Browser.ZoomFactor = EffectiveZoom();
         _webReady = true;
         _log.Info($"WebView2 {envVersion()} ready; profile {_profileDir}");
         core.Navigate(_settings.StartupUrl);
@@ -841,26 +866,32 @@ public partial class MainWindow : Window
         _settings.Profiles = clone.Profiles;
         _settings.ActiveProfileId = clone.ActiveProfileId;
         _settings.LastUrlByProfile = clone.LastUrlByProfile;
+        _settings.PendingProfileFolderDeletions = clone.PendingProfileFolderDeletions;
         _settings.AlwaysOnTop = clone.AlwaysOnTop;
         _settings.Sanitized();
         Topmost = _settings.AlwaysOnTop;
         PinItem.IsChecked = _settings.AlwaysOnTop;
         Autostart.Sync(_settings.StartWithWindows);
         if (_webReady)
-            Browser.ZoomFactor = ZoomMath.Clamp(_settings.ZoomFactor);
+            Browser.ZoomFactor = EffectiveZoom();
         if (!_settings.SuspendWhenInTray)
             _tray.CancelPendingSuspend();
         SaveSettings();
         RefreshProfileIndicator();
 
-        // Delete the data folders of profiles removed in the dialog — except
-        // the one this process is running (WebView2 holds it open; it stays
-        // orphaned on disk, noted in KNOWN_LIMITATIONS).
+        // Delete the data folders of profiles removed in the dialog. When
+        // a folder can't be deleted now — it's the one this process is
+        // running (WebView2 holds it open), or the delete fails — the id
+        // is queued and the NEXT launch deletes it before any WebView2
+        // environment exists (S3 #28).
+        var queuedAny = false;
         foreach (var id in removedProfileIds)
         {
             if (AppPaths.ProfileDir(id) == _profileDir)
             {
-                _log.Info($"Profile {id} removed while running; its folder is kept until it is no longer in use");
+                _log.Info($"Profile {id} removed while running; folder deletion deferred to next launch");
+                Profiles.QueuePendingDeletion(_settings, id);
+                queuedAny = true;
                 continue;
             }
             try
@@ -872,8 +903,15 @@ public partial class MainWindow : Window
             }
             catch (Exception ex)
             {
-                _log.Warn($"Removing profile {id} folder failed: {ex.Message}");
+                _log.Warn($"Removing profile {id} folder failed (deferred to next launch): {ex.Message}");
+                Profiles.QueuePendingDeletion(_settings, id);
+                queuedAny = true;
             }
+        }
+        if (queuedAny)
+        {
+            try { SettingsStore.Save(AppPaths.SettingsPath, _settings); }
+            catch (Exception ex) { _log.Warn($"Saving deferred-deletion queue failed: {ex.Message}"); }
         }
         _log.Info("Settings updated");
     }
@@ -913,6 +951,55 @@ public partial class MainWindow : Window
         ExitApp();
     }
 
+    /// <summary>
+    /// The ⋯ menu / tray "Switch profile" action (S3 #25): confirms, then
+    /// runs the exact same persist-and-restart flow as the Settings
+    /// switch. The clone argument SwitchToProfile expects is the live
+    /// settings here — it only reads the profile list from it.
+    /// </summary>
+    private void SwitchToProfileFromMenu(string targetProfileId)
+    {
+        var target = _settings.Profiles.FirstOrDefault(p => p.Id == targetProfileId);
+        if (target is null || targetProfileId == _settings.ActiveProfileId)
+            return;
+        var confirm = System.Windows.MessageBox.Show(this,
+            $"Switch to profile \"{target.Name}\"?\n\n" +
+            "MuseDesktop restarts now with that profile's sign-in.",
+            "Switch profile", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (confirm != MessageBoxResult.Yes)
+            return;
+        SwitchToProfile(_settings, targetProfileId);
+    }
+
+    /// <summary>Rebuild the ⋯ menu's Switch-profile submenu (S3 #25): active checked + disabled, accent dot as a real colored ellipse.</summary>
+    private void RebuildSwitchProfileMenu()
+    {
+        SwitchProfileItem.Items.Clear();
+        SwitchProfileItem.IsEnabled = _settings.Profiles.Count > 1;
+        foreach (var p in _settings.Profiles)
+        {
+            var id = p.Id;
+            var item = new MenuItem
+            {
+                Header = Profiles.MenuLabel(p),
+                IsChecked = id == _settings.ActiveProfileId,
+                IsEnabled = id != _settings.ActiveProfileId,
+            };
+            if (ProfileColors.HexFor(p.DisplayColor) is { } hex)
+            {
+                item.Icon = new System.Windows.Shapes.Ellipse
+                {
+                    Width = 10,
+                    Height = 10,
+                    Fill = new System.Windows.Media.SolidColorBrush(
+                        (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hex)),
+                };
+            }
+            item.Click += (_, _) => SwitchToProfileFromMenu(id);
+            SwitchProfileItem.Items.Add(item);
+        }
+    }
+
     /// <summary>Shows the active profile name in the ⋯ menu and tray tooltip when more than one profile exists.</summary>
     private void RefreshProfileIndicator()
     {
@@ -921,8 +1008,9 @@ public partial class MainWindow : Window
         ProfileItem.Visibility = multi ? Visibility.Visible : Visibility.Collapsed;
         ProfileSeparator.Visibility = multi ? Visibility.Visible : Visibility.Collapsed;
         if (multi && active is not null)
-            ProfileItem.Header = $"Profile: {active.Name}";
-        _tray.SetText(multi && active is not null ? $"MuseDesktop — {active.Name}" : "MuseDesktop");
+            ProfileItem.Header = $"Profile: {Profiles.MenuLabel(active)}";
+        _tray.SetText(multi && active is not null ? $"MuseDesktop — {Profiles.MenuLabel(active)}" : "MuseDesktop");
+        RebuildSwitchProfileMenu();
         ApplyWindowTitle();
     }
 

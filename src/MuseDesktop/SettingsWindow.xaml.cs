@@ -1,9 +1,25 @@
+using System.Globalization;
 using System.IO;
 using System.Windows;
+using System.Windows.Data;
 using Microsoft.Win32;
 using MuseDesktop.Core;
 
 namespace MuseDesktop;
+
+/// <summary>Profile accent color key → brush for the profile list dot (S3 #24); "no color" paints transparent.
+/// Media types are fully qualified: the WinForms global usings make the short names ambiguous with System.Drawing.</summary>
+public sealed class ProfileColorBrushConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) =>
+        value is string key && ProfileColors.HexFor(key) is { } hex
+            ? new System.Windows.Media.SolidColorBrush(
+                (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hex))
+            : System.Windows.Media.Brushes.Transparent;
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
+        throw new NotSupportedException();
+}
 
 /// <summary>
 /// Edits a CLONE of the app settings (see AppSettings.Clone): OK adopts the
@@ -28,7 +44,19 @@ public partial class SettingsWindow : Window
         InitializeComponent();
 
         foreach (var step in ZoomMath.Steps)
+        {
             ZoomCombo.Items.Add(ZoomMath.FormatPercent(step));
+            ProfileZoomCombo.Items.Add(ZoomMath.FormatPercent(step));
+        }
+
+        // S3 #24: accent-color choices — "None" then the fixed palette.
+        _colorKeys.Add(null);
+        ProfileColorCombo.Items.Add("None");
+        foreach (var (key, _) in ProfileColors.Palette)
+        {
+            _colorKeys.Add(key);
+            ProfileColorCombo.Items.Add(key);
+        }
 
         // S2 (#16/#21): collision-policy and history-cap choices.
         CollisionPolicyCombo.Items.Add("Save as a new name");
@@ -94,7 +122,30 @@ public partial class SettingsWindow : Window
         ProfileCombo.DisplayMemberPath = nameof(AccountProfile.Name);
         ProfileCombo.SelectedItem = _working.Profiles.FirstOrDefault(p => p.Id == selectId)
                                     ?? _working.Profiles.FirstOrDefault();
+        RefreshCopyFromCombo();
         UpdateProfileButtons();
+    }
+
+    /// <summary>Rebuild the "copy settings from" choices (S3 #29), keeping the current pick by profile id.</summary>
+    private void RefreshCopyFromCombo()
+    {
+        _copyFromIds.Clear();
+        _copyFromIds.Add(null);
+        var items = new List<string> { "Don't copy settings" };
+        foreach (var p in _working.Profiles)
+        {
+            _copyFromIds.Add(p.Id);
+            items.Add(p.Name);
+        }
+        CopyFromCombo.ItemsSource = items;
+        var keep = _copyFromId is null ? 0 : _copyFromIds.IndexOf(_copyFromId);
+        CopyFromCombo.SelectedIndex = keep >= 0 ? keep : 0;
+    }
+
+    private void OnCopyFromChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        var idx = CopyFromCombo.SelectedIndex;
+        _copyFromId = idx >= 0 && idx < _copyFromIds.Count ? _copyFromIds[idx] : null;
     }
 
     private void UpdateProfileButtons()
@@ -104,6 +155,7 @@ public partial class SettingsWindow : Window
         RemoveProfileButton.IsEnabled = selected is not null
                                          && selected.Id != _working.ActiveProfileId
                                          && _working.Profiles.Count > 1;
+        CreateShortcutButton.IsEnabled = selected is not null;
         _syncingProfileStartHome = true;
         ProfileStartHomeCheck.IsChecked = selected?.StartAtHome == true;
         _syncingProfileStartHome = false;
@@ -112,6 +164,22 @@ public partial class SettingsWindow : Window
         ProfileDownloadsFolderText.Text = selected?.DownloadsFolder ?? "";
         BrowseProfileFolderButton.IsEnabled = selected is not null;
         ClearProfileFolderButton.IsEnabled = selected is not null && !string.IsNullOrWhiteSpace(selected.DownloadsFolder);
+        // S3 #24/#26/#27: name, color, per-profile zoom, data facts.
+        _syncingProfileControls = true;
+        ProfileNameText.Text = selected?.Name ?? "";
+        ProfileNameText.IsEnabled = selected is not null;
+        var colorIndex = selected?.DisplayColor is { } color ? _colorKeys.IndexOf(color) : 0;
+        ProfileColorCombo.SelectedIndex = colorIndex >= 0 ? colorIndex : 0;
+        ProfileColorCombo.IsEnabled = selected is not null;
+        ProfileZoomCheck.IsChecked = selected?.ZoomFactor is not null;
+        ProfileZoomCheck.IsEnabled = selected is not null;
+        var zoomShown = selected?.ZoomFactor ?? _working.ZoomFactor;
+        ProfileZoomCombo.SelectedItem = ZoomMath.FormatPercent(zoomShown);
+        ProfileZoomCombo.IsEnabled = selected is not null && selected.ZoomFactor is not null;
+        _syncingProfileControls = false;
+        ProfileDataText.Text = selected is null
+            ? ""
+            : ProfileDataInfo.Describe(AppPaths.ProfileDir(selected.Id), selected);
     }
 
     private void OnBrowseProfileDownloadsFolder(object sender, RoutedEventArgs e)
@@ -152,6 +220,85 @@ public partial class SettingsWindow : Window
             selected.StartAtHome = ProfileStartHomeCheck.IsChecked == true;
     }
 
+    // ── S3: color palette keys parallel to ProfileColorCombo items ──
+    private readonly List<string?> _colorKeys = new();
+    private readonly List<string?> _copyFromIds = new();
+    private string? _copyFromId;
+    private bool _syncingProfileControls;
+
+    /// <summary>Rename (S3 #24): write-through on focus loss, like the other per-profile controls.</summary>
+    private void OnProfileNameLostFocus(object sender, RoutedEventArgs e)
+    {
+        if (SelectedProfile is not { } selected)
+            return;
+        var name = ProfileNameText.Text.Trim();
+        if (name.Length == 0)
+        {
+            ProfileNameText.Text = selected.Name; // a profile always has a name
+            return;
+        }
+        if (name.Length > 40)
+            name = name[..40];
+        if (name != selected.Name)
+        {
+            selected.Name = name;
+            RefreshProfileCombo(selected.Id); // refresh the list label
+        }
+    }
+
+    private void OnProfileColorChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_syncingProfileControls)
+            return;
+        if (SelectedProfile is { } selected)
+        {
+            var idx = ProfileColorCombo.SelectedIndex;
+            selected.DisplayColor = idx >= 0 && idx < _colorKeys.Count ? _colorKeys[idx] : null;
+            RefreshProfileCombo(selected.Id); // refresh the dot in the list
+        }
+    }
+
+    private void OnProfileZoomChanged(object sender, RoutedEventArgs e)
+    {
+        if (_syncingProfileControls)
+            return;
+        if (SelectedProfile is not { } selected)
+            return;
+        if (ProfileZoomCheck.IsChecked == true)
+        {
+            selected.ZoomFactor = ProfileZoomCombo.SelectedItem is string pct
+                                  && int.TryParse(pct.TrimEnd('%'), out var value)
+                ? value / 100.0
+                : _working.ZoomFactor;
+        }
+        else
+        {
+            selected.ZoomFactor = null;
+        }
+        UpdateProfileButtons();
+    }
+
+    private void OnProfileZoomComboChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_syncingProfileControls)
+            return;
+        if (SelectedProfile is { } selected && selected.ZoomFactor is not null
+            && ProfileZoomCombo.SelectedItem is string pct
+            && int.TryParse(pct.TrimEnd('%'), out var value))
+        {
+            selected.ZoomFactor = value / 100.0;
+        }
+    }
+
+    /// <summary>Per-profile desktop shortcut (S3 #23).</summary>
+    private void OnCreateProfileShortcut(object sender, RoutedEventArgs e)
+    {
+        if (SelectedProfile is not { } selected)
+            return;
+        var error = ProfileShortcut.CreateOnDesktop(selected, _log);
+        ProfileNote.Text = error ?? $"Desktop shortcut created: {Profiles.ShortcutFileName(selected)}";
+    }
+
     private void OnProfileSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) =>
         UpdateProfileButtons();
 
@@ -164,10 +311,29 @@ public partial class SettingsWindow : Window
                 "Profiles", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
+        // S3 #30: past the soft threshold, adding is a deliberate choice —
+        // every profile keeps its own sign-in data on this PC.
+        if (_working.Profiles.Count >= Profiles.SoftProfileWarningThreshold)
+        {
+            var warn = System.Windows.MessageBox.Show(this,
+                $"You already have {_working.Profiles.Count} profiles. " +
+                "Each profile keeps its own Muse sign-in data on this PC, so many profiles use more disk.\n\n" +
+                "Add another profile?",
+                "Profiles", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (warn != MessageBoxResult.Yes)
+                return;
+        }
         var name = string.IsNullOrWhiteSpace(NewProfileNameText.Text)
             ? $"Profile {_working.Profiles.Count + 1}"
             : NewProfileNameText.Text.Trim();
-        var profile = new AccountProfile { Id = Profiles.NewId(), Name = name };
+        // S3 #29: optionally seed the new profile's SETTINGS from an
+        // existing one — never its sign-in or session state.
+        var source = _copyFromId is null
+            ? null
+            : _working.Profiles.FirstOrDefault(p => p.Id == _copyFromId);
+        var profile = source is null
+            ? new AccountProfile { Id = Profiles.NewId(), Name = name }
+            : Profiles.CopySettingsFrom(source, Profiles.NewId(), name);
         _working.Profiles.Add(profile);
         NewProfileNameText.Text = "";
         RefreshProfileCombo(profile.Id);
@@ -317,6 +483,7 @@ public partial class SettingsWindow : Window
         target.SuspendWhenInTray = source.SuspendWhenInTray;
         target.Profiles = source.Profiles;
         target.ActiveProfileId = source.ActiveProfileId;
+        target.PendingProfileFolderDeletions = source.PendingProfileFolderDeletions;
         target.LastUrl = source.LastUrl;
         target.LastUrlByProfile = source.LastUrlByProfile;
     }

@@ -1,3 +1,4 @@
+using System.IO;
 using System.Threading;
 using System.Windows;
 using MuseDesktop.Core;
@@ -25,14 +26,16 @@ public partial class App : System.Windows.Application
     {
         base.OnStartup(e);
 
-        var startInBackground = e.Args.Any(a =>
-            a.Equals("--background", StringComparison.OrdinalIgnoreCase));
+        // The command-line surface (S3 #23): --background, --smoke-test,
+        // --profile <id>; anything unknown is tolerated, never fatal.
+        var options = CommandLine.Parse(e.Args);
+        var startInBackground = options.Background;
 
         // Smoke-test mode (used by CI): construct the real main window —
         // which runs its XAML — then exit. v0.1.0 compiled and passed every
         // test yet crashed on first launch because nothing ever built the
         // window; this mode makes CI prove the window constructs.
-        if (e.Args.Any(a => a.Equals("--smoke-test", StringComparison.OrdinalIgnoreCase)))
+        if (options.SmokeTest)
         {
             RunSmokeTest();
             return;
@@ -58,6 +61,27 @@ public partial class App : System.Windows.Application
         Settings = SettingsStore.Load(AppPaths.SettingsPath);
         Log.Info($"MuseDesktop {typeof(App).Assembly.GetName().Version} starting" +
                  (startInBackground ? " (background)" : ""));
+
+        // --profile <id> (S3 #23): a per-profile shortcut lands in that
+        // profile's session. Like a Settings switch, the choice is
+        // persisted as the active profile (that's what the existing
+        // switch flow does — the last-used profile is what plain launches
+        // reopen). An unknown id falls back to the saved active profile.
+        if (options.ProfileId is not null)
+        {
+            var (launchId, fellBack) = Profiles.ResolveLaunchProfile(Settings, options.ProfileId);
+            if (fellBack)
+                Log.Info($"--profile '{options.ProfileId}' names no profile; using '{launchId}'");
+            Settings.ActiveProfileId = launchId;
+        }
+
+        // Stamp the launched profile as last used (S3 #27). Persisted by
+        // the main window's settings saves; harmless if lost in a crash.
+        var activeProfile = Settings.Profiles.FirstOrDefault(p => p.Id == Settings.ActiveProfileId);
+        if (activeProfile is not null)
+            activeProfile.LastUsedUtc = DateTimeOffset.UtcNow;
+
+        RunPendingProfileFolderDeletions();
 
         DispatcherUnhandledException += (_, args) =>
         {
@@ -96,6 +120,44 @@ public partial class App : System.Windows.Application
             _window.StartHidden();
         else
             _window.Show();
+    }
+
+    /// <summary>
+    /// Deferred profile-folder deletion (S3 #28): profiles removed while
+    /// their folder couldn't be deleted (it belonged to the then-running
+    /// profile, or the delete failed) are retried here — after the single-
+    /// instance check, before the main window creates any WebView2
+    /// environment, and never for the profile this launch is using.
+    /// Successes leave the list; failures stay queued for next launch.
+    /// </summary>
+    private void RunPendingProfileFolderDeletions()
+    {
+        if (Settings.PendingProfileFolderDeletions.Count == 0)
+            return;
+        var changed = false;
+        foreach (var id in Settings.PendingProfileFolderDeletions.ToList())
+        {
+            if (id == Settings.ActiveProfileId)
+                continue; // never delete the folder this launch is about to use
+            try
+            {
+                var dir = AppPaths.ProfileDir(id);
+                if (Directory.Exists(dir))
+                    Directory.Delete(dir, recursive: true);
+                Settings.PendingProfileFolderDeletions.Remove(id);
+                changed = true;
+                Log.Info($"Deleted data folder of previously removed profile {id}");
+            }
+            catch (Exception ex)
+            {
+                Log.Warn($"Deferred deletion of profile {id} folder failed (will retry next launch): {ex.Message}");
+            }
+        }
+        if (changed)
+        {
+            try { SettingsStore.Save(AppPaths.SettingsPath, Settings); }
+            catch (Exception ex) { Log.Warn($"Saving settings after deferred deletions failed: {ex.Message}"); }
+        }
     }
 
     private async void RunSmokeTest()

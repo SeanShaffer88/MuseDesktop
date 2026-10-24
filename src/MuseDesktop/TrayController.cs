@@ -26,8 +26,12 @@ public sealed class TrayController : IDisposable
     private readonly Func<bool> _downloadActive;
     private readonly Func<Task<bool>> _trySuspendAsync;
     private readonly Func<bool> _resume;
+    private readonly Func<IReadOnlyList<AccountProfile>> _profiles;
+    private readonly Func<string> _activeProfileId;
+    private readonly Action<string> _switchProfile;
 
     private Forms.NotifyIcon? _icon;
+    private Forms.ToolStripMenuItem? _switchItem;
     private DispatcherTimer? _suspendTimer;
     private bool _hidden;
     private bool _suspended;
@@ -43,7 +47,10 @@ public sealed class TrayController : IDisposable
         Func<bool> webReady,
         Func<bool> downloadActive,
         Func<Task<bool>> trySuspendAsync,
-        Func<bool> resume)
+        Func<bool> resume,
+        Func<IReadOnlyList<AccountProfile>> profiles,
+        Func<string> activeProfileId,
+        Action<string> switchProfile)
     {
         _log = log;
         _dispatcher = dispatcher;
@@ -55,6 +62,9 @@ public sealed class TrayController : IDisposable
         _downloadActive = downloadActive;
         _trySuspendAsync = trySuspendAsync;
         _resume = resume;
+        _profiles = profiles;
+        _activeProfileId = activeProfileId;
+        _switchProfile = switchProfile;
     }
 
     public bool IsSuspended => _suspended;
@@ -74,6 +84,11 @@ public sealed class TrayController : IDisposable
             var menu = new Forms.ContextMenuStrip();
             menu.Items.Add("Open Muse", null, (_, _) => _dispatcher.Invoke(_showWindow));
             menu.Items.Add("Reload", null, (_, _) => _dispatcher.Invoke(_reload));
+            // Switch profile (S3 #25): rebuilt on every open so it always
+            // reflects the current list/active profile.
+            _switchItem = new Forms.ToolStripMenuItem("Switch profile");
+            menu.Items.Add(_switchItem);
+            menu.Opening += (_, _) => RebuildSwitchMenu();
             menu.Items.Add(new Forms.ToolStripSeparator());
             menu.Items.Add("Exit", null, (_, _) => _dispatcher.Invoke(_exitApp));
             _icon.ContextMenuStrip = menu;
@@ -84,6 +99,58 @@ public sealed class TrayController : IDisposable
             _log.Warn($"Tray creation failed: {ex.Message}");
             _icon = null;
         }
+    }
+
+    /// <summary>
+    /// Rebuild the Switch-profile submenu (S3 #25): one item per profile,
+    /// the active one checked and disabled, a real color swatch as the
+    /// item image where the profile has an accent color. The switch
+    /// itself is the main window's restart flow, via the delegate.
+    /// </summary>
+    private void RebuildSwitchMenu()
+    {
+        if (_switchItem is null)
+            return;
+        try
+        {
+            foreach (Forms.ToolStripItem old in _switchItem.DropDownItems)
+            {
+                old.Image?.Dispose();
+                old.Dispose();
+            }
+            _switchItem.DropDownItems.Clear();
+
+            var profiles = _profiles();
+            var activeId = _activeProfileId();
+            _switchItem.Enabled = profiles.Count > 1;
+            foreach (var p in profiles)
+            {
+                var id = p.Id;
+                var item = new Forms.ToolStripMenuItem(Profiles.MenuLabel(p))
+                {
+                    Checked = id == activeId,
+                    Enabled = id != activeId,
+                };
+                if (ProfileColors.HexFor(p.DisplayColor) is { } hex)
+                    item.Image = ColorSwatch(hex);
+                item.Click += (_, _) => _dispatcher.Invoke(() => _switchProfile(id));
+                _switchItem.DropDownItems.Add(item);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Tray switch-profile menu failed: {ex.Message}");
+        }
+    }
+
+    private static System.Drawing.Bitmap ColorSwatch(string hex)
+    {
+        var bmp = new System.Drawing.Bitmap(12, 12);
+        using var g = System.Drawing.Graphics.FromImage(bmp);
+        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        using var brush = new System.Drawing.SolidBrush(System.Drawing.ColorTranslator.FromHtml(hex));
+        g.FillEllipse(brush, 1, 1, 10, 10);
+        return bmp;
     }
 
     /// <summary>
