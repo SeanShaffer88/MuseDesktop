@@ -14,6 +14,9 @@ public sealed class CommandLineOptions
     /// <summary>CI mode: construct the real window, prove WebView2 initializes, exit.</summary>
     public bool SmokeTest { get; init; }
 
+    /// <summary>Open the Settings window once the main window is up (S4 #33 — the taskbar Jump List's Settings task uses this).</summary>
+    public bool OpenSettings { get; init; }
+
     /// <summary>The --profile value as given, or null when absent/valueless. Validated against the profile list by the caller (Profiles.ResolveLaunchProfile).</summary>
     public string? ProfileId { get; init; }
 
@@ -27,6 +30,7 @@ public static class CommandLine
     {
         var background = false;
         var smokeTest = false;
+        var openSettings = false;
         string? profileId = null;
         var unknown = new List<string>();
 
@@ -41,6 +45,10 @@ public static class CommandLine
             else if (arg.Equals("--smoke-test", StringComparison.OrdinalIgnoreCase))
             {
                 smokeTest = true;
+            }
+            else if (arg.Equals("--settings", StringComparison.OrdinalIgnoreCase))
+            {
+                openSettings = true;
             }
             else if (arg.Equals("--profile", StringComparison.OrdinalIgnoreCase))
             {
@@ -67,6 +75,7 @@ public static class CommandLine
         {
             Background = background,
             SmokeTest = smokeTest,
+            OpenSettings = openSettings,
             ProfileId = profileId,
             Unknown = unknown,
         };

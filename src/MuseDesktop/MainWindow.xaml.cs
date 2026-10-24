@@ -54,6 +54,14 @@ public partial class MainWindow : Window
     private bool _downloadError;
     private bool _retryWebReady;
 
+    // v0.8.0 (S4) — attention signal from the page title (#31/#39) and
+    // the microphone-grant heuristic for tray suspend (#35). The pinned
+    // WebView2 SDK exposes no microphone-capture state (see DECISIONS),
+    // so a grant is remembered for the session and treated as "a voice
+    // session may be live" until the page navigates.
+    private AttentionSignal _lastAttention = AttentionSignal.None;
+    private bool _micGrantedThisSession;
+
     public MainWindow(AppSettings settings, DiagnosticLog log)
     {
         _settings = settings;
@@ -92,7 +100,16 @@ public partial class MainWindow : Window
             ResumeWebView,
             () => _settings.Profiles,
             () => _settings.ActiveProfileId,
-            SwitchToProfileFromMenu);
+            SwitchToProfileFromMenu,
+            OpenDownloadsFromTray,
+            OpenSettingsWindow,
+            () => OnOpenInNewWindow(this, new RoutedEventArgs()),
+            OpenRecentDownload,
+            RecentDownloadsForTray,
+            () => _settings.TraySuspendTimeout,
+            () => _micGrantedThisSession,
+            () => _settings.TraySingleClickRestore,
+            CurrentNotificationSuppression);
 
         PinItem.IsChecked = _settings.AlwaysOnTop;
         Topmost = _settings.AlwaysOnTop;
@@ -176,6 +193,61 @@ public partial class MainWindow : Window
         Hide();
         _tray.OnHidden(showBalloon);
     }
+
+    // ── tray delegates (v0.8.0, S4 #32): the tray menu's window actions.
+    // Each shows the window first where the action needs a visible
+    // owner, then runs the exact handler the ⋯ menu uses — no
+    // duplicated logic behind the tray's back.
+
+    private void OpenDownloadsFromTray()
+    {
+        ShowFromTray();
+        OnDownloads(this, new RoutedEventArgs());
+    }
+
+    /// <summary>Open Settings on a visible window (tray menu and the --settings launch flag, S4 #32/#33).</summary>
+    public void OpenSettingsWindow()
+    {
+        ShowFromTray();
+        OnSettings(this, new RoutedEventArgs());
+    }
+
+    /// <summary>Open a finished download from the tray's recent list — the Downloads window's own open behavior.</summary>
+    private void OpenRecentDownload(string fullPath)
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo(fullPath) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Tray open-download failed: {ex.Message}");
+        }
+    }
+
+    private IReadOnlyList<DownloadRecord> RecentDownloadsForTray()
+    {
+        try { return DownloadHistoryStore.Load(AppPaths.DownloadsHistoryPath, 5); }
+        catch (Exception ex)
+        {
+            _log.Warn($"Tray recent-downloads load failed: {ex.Message}");
+            return Array.Empty<DownloadRecord>();
+        }
+    }
+
+    /// <summary>
+    /// The quiet-hours gate (S4 #38): Windows' Do Not Disturb state
+    /// (best-effort registry read) plus the in-app schedule, decided in
+    /// Core. Every MuseDesktop-owned notification surface — balloons
+    /// via the tray, the attention flash here — consults this.
+    /// </summary>
+    private NotificationSuppression CurrentNotificationSuppression() =>
+        NotificationPolicy.Evaluate(
+            SystemNotificationState.DoNotDisturbActive(),
+            _settings.QuietHoursEnabled,
+            _settings.QuietHoursStartMinutes,
+            _settings.QuietHoursEndMinutes,
+            DateTimeOffset.Now);
 
     // ── tray suspend delegates (v0.2.0; the timer lives in TrayController) ──
 
@@ -448,6 +520,9 @@ public partial class MainWindow : Window
             Overlay.Visibility = Visibility.Collapsed;
             SetStatus("Ready");
             _autoRetried = false;
+            // S4 #35: a new document ends whatever media capture the
+            // old one held, so the microphone-grant heuristic resets.
+            _micGrantedThisSession = false;
             var src = Browser.Source?.ToString();
             if (src is not null)
                 _history.Record(src, Browser.CoreWebView2.DocumentTitle);
@@ -525,6 +600,15 @@ public partial class MainWindow : Window
             e.State = CoreWebView2PermissionState.Allow;
             e.Handled = true;
             _log.Info($"Granted {kind} to {UrlPolicy.RedactForLog(e.Uri)}");
+            if (e.PermissionKind == CoreWebView2PermissionKind.Microphone && !_micGrantedThisSession)
+            {
+                // S4 #35: remember the grant for the session — the
+                // pinned SDK has no capture-state signal, so tray
+                // suspend treats this as "voice may be live" until the
+                // page navigates (which ends any capture it held).
+                _micGrantedThisSession = true;
+                _log.Info("Microphone granted this session; tray suspend will stay out of the way until the page navigates");
+            }
         }
         else
         {
@@ -722,7 +806,106 @@ public partial class MainWindow : Window
         _pageTitle = Browser.CoreWebView2.DocumentTitle ?? "";
         TitleText.Text = string.IsNullOrWhiteSpace(_pageTitle) ? "Muse" : _pageTitle;
         ApplyWindowTitle();
+        OnAttentionSignal(AttentionSignal.Parse(_pageTitle));
     }
+
+    /// <summary>
+    /// Attention (S4 #31/#39): the title's leading "(N)" count is the
+    /// only signal trusted. It paints the tray badge + taskbar overlay,
+    /// and — on the rising edge only, while the user isn't looking at
+    /// the window — optionally flashes the taskbar button when the
+    /// (default-off) setting allows and quiet hours permit.
+    /// </summary>
+    private void OnAttentionSignal(AttentionSignal signal)
+    {
+        _tray.SetAttention(signal);
+        UpdateTaskbarOverlay(signal);
+        var risingEdge = signal.HasAttention && !_lastAttention.HasAttention;
+        _lastAttention = signal;
+        if (!risingEdge)
+            return;
+        if (IsVisible && IsActive && WindowState != WindowState.Minimized)
+            return; // the user is already looking at Muse
+        if (!_settings.FlashTaskbarOnAttention)
+            return;
+        var suppression = CurrentNotificationSuppression();
+        if (suppression != NotificationSuppression.None)
+        {
+            _log.Info($"Taskbar attention flash not shown: {NotificationPolicy.ReasonText(suppression)}");
+            return;
+        }
+        FlashTaskbarButton();
+    }
+
+    /// <summary>Mirror the attention badge onto the taskbar button (S4 #31) via WPF's TaskbarItemInfo overlay.</summary>
+    private void UpdateTaskbarOverlay(AttentionSignal signal)
+    {
+        try
+        {
+            TaskbarItemInfo ??= new System.Windows.Shell.TaskbarItemInfo();
+            if (signal.HasAttention)
+            {
+                TaskbarItemInfo.Overlay = TrayIconRenderer.BadgeOverlay(
+                    TrayIconPlanner.Plan(false, signal).BadgeText);
+                TaskbarItemInfo.Description = signal.Kind == AttentionKind.Count
+                    ? TrayIconPlanner.TooltipSuffix(signal).TrimStart(' ', '·')
+                    : "MuseDesktop — attention";
+            }
+            else
+            {
+                TaskbarItemInfo.Overlay = null;
+                TaskbarItemInfo.Description = "MuseDesktop";
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Taskbar attention overlay failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Gentle taskbar flash (S4 #39): three flashes of the taskbar
+    /// button at the default rate. FLASHW_* never steals focus or
+    /// raises the window; a window hidden in the tray has no taskbar
+    /// button, so this only ever fires for a minimized/background one.
+    /// </summary>
+    private void FlashTaskbarButton()
+    {
+        try
+        {
+            if (!IsVisible)
+                return;
+            var info = new FlashWindowInfo
+            {
+                Size = (uint)System.Runtime.InteropServices.Marshal.SizeOf<FlashWindowInfo>(),
+                Hwnd = new WindowInteropHelper(this).Handle,
+                Flags = FlashwTray,
+                Count = 3,
+                Timeout = 0,
+            };
+            FlashWindowEx(ref info);
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Taskbar flash failed: {ex.Message}");
+        }
+    }
+
+    private const uint FlashwTray = 0x0002; // FLASHW_TRAY: flash the taskbar button only
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct FlashWindowInfo
+    {
+        public uint Size;
+        public IntPtr Hwnd;
+        public uint Flags;
+        public uint Count;
+        public uint Timeout;
+    }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool FlashWindowEx(ref FlashWindowInfo info);
 
     /// <summary>OS window title (v0.5.0, S1 #12): composed in Core so the
     /// profile-name rule (only when more than one profile exists) is tested.</summary>
@@ -855,7 +1038,14 @@ public partial class MainWindow : Window
 
         _settings.CloseToTray = clone.CloseToTray;
         _settings.StartWithWindows = clone.StartWithWindows;
+        _settings.StartMinimizedToTray = clone.StartMinimizedToTray;
         _settings.SuspendWhenInTray = clone.SuspendWhenInTray;
+        _settings.TraySuspendTimeout = clone.TraySuspendTimeout;
+        _settings.TraySingleClickRestore = clone.TraySingleClickRestore;
+        _settings.FlashTaskbarOnAttention = clone.FlashTaskbarOnAttention;
+        _settings.QuietHoursEnabled = clone.QuietHoursEnabled;
+        _settings.QuietHoursStartMinutes = clone.QuietHoursStartMinutes;
+        _settings.QuietHoursEndMinutes = clone.QuietHoursEndMinutes;
         _settings.CheckForUpdates = clone.CheckForUpdates;
         _settings.AskWhereToSave = clone.AskWhereToSave;
         _settings.NotifyWhenDownloadCompletes = clone.NotifyWhenDownloadCompletes;
@@ -1010,8 +1200,12 @@ public partial class MainWindow : Window
         if (multi && active is not null)
             ProfileItem.Header = $"Profile: {Profiles.MenuLabel(active)}";
         _tray.SetText(multi && active is not null ? $"MuseDesktop — {Profiles.MenuLabel(active)}" : "MuseDesktop");
+        // S4 #37: the tray icon carries the active profile's tint.
+        _tray.SetProfileColor(active?.DisplayColor);
         RebuildSwitchProfileMenu();
         ApplyWindowTitle();
+        // S4 #33: the Jump List mirrors the profile list.
+        JumpListBuilder.Apply(_settings, _log);
     }
 
     // ───────────────────────── context menu (v0.3.0) ─────────────────────────

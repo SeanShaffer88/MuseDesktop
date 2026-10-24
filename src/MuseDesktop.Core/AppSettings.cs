@@ -100,6 +100,34 @@ public sealed class AppSettings
     /// <summary>Suspend the WebView2 renderer after the window has been hidden in the tray for a while, to free memory/CPU. On by default.</summary>
     public bool SuspendWhenInTray { get; set; } = true;
 
+    // Tray, notifications & presence (v0.8.0, S4).
+    /// <summary>
+    /// Start-in-tray for background (autostart-style) launches (S4 #40):
+    /// separate from StartWithWindows itself. On (default, and the
+    /// behavior autostart launches have always had): a --background
+    /// launch lands in the tray. Off: it shows the window like a manual
+    /// launch. Manual launches always show the window either way.
+    /// </summary>
+    public bool StartMinimizedToTray { get; set; } = true;
+
+    /// <summary>How long hidden-in-tray before the web view suspends (S4 #34); replaces the fixed 5 minutes. Sanitized to a defined option.</summary>
+    public SuspendTimeout TraySuspendTimeout { get; set; } = SuspendTimeout.FiveMinutes;
+
+    /// <summary>Single-click the tray icon reopens the window instead of double-click (S4 #36). Off by default — double-click is the long-standing behavior.</summary>
+    public bool TraySingleClickRestore { get; set; }
+
+    /// <summary>Flash the taskbar button when Muse asks for attention while the window is hidden (S4 #39). Off by default.</summary>
+    public bool FlashTaskbarOnAttention { get; set; }
+
+    /// <summary>In-app quiet hours (S4 #38): while on and inside the window, MuseDesktop's own balloons/flash stay quiet (and say so in the log).</summary>
+    public bool QuietHoursEnabled { get; set; }
+
+    /// <summary>Quiet-hours start, minutes after local midnight (default 22:00). Sanitized to 0–1439.</summary>
+    public int QuietHoursStartMinutes { get; set; } = 22 * 60;
+
+    /// <summary>Quiet-hours end, minutes after local midnight (default 07:00; may be earlier than the start — the window wraps midnight).</summary>
+    public int QuietHoursEndMinutes { get; set; } = 7 * 60;
+
     // Account profiles (v0.3.0).
     /// <summary>Sign-in profiles; each has its own WebView2 data folder. Always contains at least the default profile (see Profiles.EnsureValid).</summary>
     public List<AccountProfile> Profiles { get; set; } = new() { new AccountProfile() };
@@ -146,6 +174,16 @@ public sealed class AppSettings
         DownloadHistoryCap = DownloadHistoryStore.SanitizeCap(DownloadHistoryCap);
         if (!Enum.IsDefined(CollisionPolicy))
             CollisionPolicy = DownloadCollisionPolicy.AutoRename;
+        // S4: the suspend timeout must be one of the offered options,
+        // and quiet-hours bounds must be real minutes-of-day — a bad
+        // pair resets BOTH to the defaults rather than muting oddly.
+        if (!Enum.IsDefined(TraySuspendTimeout))
+            TraySuspendTimeout = SuspendTimeout.FiveMinutes;
+        if (!QuietHours.IsValidMinutes(QuietHoursStartMinutes) || !QuietHours.IsValidMinutes(QuietHoursEndMinutes))
+        {
+            QuietHoursStartMinutes = 22 * 60;
+            QuietHoursEndMinutes = 7 * 60;
+        }
         LastUrlByProfile ??= new Dictionary<string, string>();
         // Migrate the pre-v0.3.1 shared last page into the default profile.
         if (LastUrl is not null)

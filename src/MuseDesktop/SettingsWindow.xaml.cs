@@ -64,15 +64,43 @@ public partial class SettingsWindow : Window
         foreach (var cap in DownloadHistoryStore.AllowedCaps)
             HistoryCapCombo.Items.Add(cap.ToString());
 
+        // S4 (#34/#38): suspend-timeout and quiet-hours choices. The
+        // quiet-hours combos offer whole hours only — minute precision
+        // would be settings-file-only precision theatre.
+        foreach (var option in SuspendTimeoutChoices)
+            SuspendTimeoutCombo.Items.Add(option.Label);
+        for (var hour = 0; hour < 24; hour++)
+        {
+            QuietStartCombo.Items.Add($"{hour:00}:00");
+            QuietEndCombo.Items.Add($"{hour:00}:00");
+        }
+
         LoadControls();
     }
+
+    /// <summary>Suspend-timeout choices in display order (S4 #34), parallel to SuspendTimeoutCombo's items.</summary>
+    private static readonly (SuspendTimeout Value, string Label)[] SuspendTimeoutChoices =
+    {
+        (SuspendTimeout.OneMinute, "1 minute"),
+        (SuspendTimeout.FiveMinutes, "5 minutes"),
+        (SuspendTimeout.FifteenMinutes, "15 minutes"),
+        (SuspendTimeout.Never, "Never"),
+    };
 
     /// <summary>(Re)fill every control from the working settings — at open and after an import.</summary>
     private void LoadControls()
     {
         StartWithWindowsCheck.IsChecked = _working.StartWithWindows;
+        StartMinimizedCheck.IsChecked = _working.StartMinimizedToTray;
         CloseToTrayCheck.IsChecked = _working.CloseToTray;
         SuspendInTrayCheck.IsChecked = _working.SuspendWhenInTray;
+        var timeoutIndex = Array.FindIndex(SuspendTimeoutChoices, c => c.Value == _working.TraySuspendTimeout);
+        SuspendTimeoutCombo.SelectedIndex = timeoutIndex >= 0 ? timeoutIndex : 1;
+        TraySingleClickCheck.IsChecked = _working.TraySingleClickRestore;
+        FlashOnAttentionCheck.IsChecked = _working.FlashTaskbarOnAttention;
+        QuietHoursCheck.IsChecked = _working.QuietHoursEnabled;
+        QuietStartCombo.SelectedIndex = Math.Clamp(_working.QuietHoursStartMinutes / 60, 0, 23);
+        QuietEndCombo.SelectedIndex = Math.Clamp(_working.QuietHoursEndMinutes / 60, 0, 23);
         CheckUpdatesCheck.IsChecked = _working.CheckForUpdates;
         AskWhereToSaveCheck.IsChecked = _working.AskWhereToSave;
         NotifyDownloadCompleteCheck.IsChecked = _working.NotifyWhenDownloadCompletes;
@@ -90,8 +118,18 @@ public partial class SettingsWindow : Window
     private void HarvestControls()
     {
         _working.StartWithWindows = StartWithWindowsCheck.IsChecked == true;
+        _working.StartMinimizedToTray = StartMinimizedCheck.IsChecked == true;
         _working.CloseToTray = CloseToTrayCheck.IsChecked == true;
         _working.SuspendWhenInTray = SuspendInTrayCheck.IsChecked == true;
+        if (SuspendTimeoutCombo.SelectedIndex >= 0 && SuspendTimeoutCombo.SelectedIndex < SuspendTimeoutChoices.Length)
+            _working.TraySuspendTimeout = SuspendTimeoutChoices[SuspendTimeoutCombo.SelectedIndex].Value;
+        _working.TraySingleClickRestore = TraySingleClickCheck.IsChecked == true;
+        _working.FlashTaskbarOnAttention = FlashOnAttentionCheck.IsChecked == true;
+        _working.QuietHoursEnabled = QuietHoursCheck.IsChecked == true;
+        if (QuietStartCombo.SelectedIndex >= 0)
+            _working.QuietHoursStartMinutes = QuietStartCombo.SelectedIndex * 60;
+        if (QuietEndCombo.SelectedIndex >= 0)
+            _working.QuietHoursEndMinutes = QuietEndCombo.SelectedIndex * 60;
         _working.CheckForUpdates = CheckUpdatesCheck.IsChecked == true;
         _working.AskWhereToSave = AskWhereToSaveCheck.IsChecked == true;
         _working.NotifyWhenDownloadCompletes = NotifyDownloadCompleteCheck.IsChecked == true;
@@ -481,6 +519,13 @@ public partial class SettingsWindow : Window
         target.WindowPlacementByProfile = source.WindowPlacementByProfile;
         target.CheckForUpdates = source.CheckForUpdates;
         target.SuspendWhenInTray = source.SuspendWhenInTray;
+        target.StartMinimizedToTray = source.StartMinimizedToTray;
+        target.TraySuspendTimeout = source.TraySuspendTimeout;
+        target.TraySingleClickRestore = source.TraySingleClickRestore;
+        target.FlashTaskbarOnAttention = source.FlashTaskbarOnAttention;
+        target.QuietHoursEnabled = source.QuietHoursEnabled;
+        target.QuietHoursStartMinutes = source.QuietHoursStartMinutes;
+        target.QuietHoursEndMinutes = source.QuietHoursEndMinutes;
         target.Profiles = source.Profiles;
         target.ActiveProfileId = source.ActiveProfileId;
         target.PendingProfileFolderDeletions = source.PendingProfileFolderDeletions;
