@@ -1,5 +1,10 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Net.NetworkInformation;
+using System.Windows.Threading;
+using ContextMenu = System.Windows.Controls.ContextMenu;
+using MenuItem = System.Windows.Controls.MenuItem;
+using TextChangedEventArgs = System.Windows.Controls.TextChangedEventArgs;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -22,6 +27,14 @@ public partial class MainWindow : Window
     private readonly TrayController _tray;
     private bool _reallyExit;
     private bool _webReady;
+
+    // v0.5.0 (S1) — navigation history model, focus mode, find, auto-retry.
+    private readonly NavigationHistory _history = new();
+    private bool _focusMode;
+    private bool _autoRetried;
+    private bool _suppressNavClick;
+    private DispatcherTimer? _navPressTimer;
+    private string _pageTitle = "";
     private bool _webInitFailed;
     private bool _isFullScreen;
     private WindowState _preFullScreenState;
@@ -65,6 +78,9 @@ public partial class MainWindow : Window
             TrySuspendWebViewAsync,
             ResumeWebView);
 
+        PinItem.IsChecked = _settings.AlwaysOnTop;
+        Topmost = _settings.AlwaysOnTop;
+        NetworkChange.NetworkAddressChanged += OnNetworkChanged;
         SetWindowIcon();
         ApplySavedPlacement();
         _tray.Build();
@@ -199,9 +215,12 @@ public partial class MainWindow : Window
 
     private void ApplySavedPlacement()
     {
-        Width = _settings.WindowWidth;
-        Height = _settings.WindowHeight;
-        if (_settings.WindowLeft is { } left && _settings.WindowTop is { } top
+        // Per-profile placement (v0.5.0, S1 #8): the active profile's entry,
+        // migrated from the legacy global fields by Sanitized().
+        var placement = _settings.ActivePlacement;
+        Width = placement.Width;
+        Height = placement.Height;
+        if (placement.Left is { } left && placement.Top is { } top
             && left + 80 >= SystemParameters.VirtualScreenLeft
             && top + 40 >= SystemParameters.VirtualScreenTop
             && left <= SystemParameters.VirtualScreenLeft + SystemParameters.VirtualScreenWidth - 80
@@ -214,7 +233,7 @@ public partial class MainWindow : Window
         {
             WindowStartupLocation = WindowStartupLocation.CenterScreen;
         }
-        if (_settings.WindowMaximized)
+        if (placement.Maximized)
             WindowState = WindowState.Maximized;
         ZoomLabel.Text = ZoomMath.FormatPercent(_settings.ZoomFactor);
     }
@@ -223,14 +242,17 @@ public partial class MainWindow : Window
     {
         try
         {
-            _settings.WindowMaximized = WindowState == WindowState.Maximized;
             var bounds = RestoreBounds;
             if (!bounds.IsEmpty)
             {
-                _settings.WindowLeft = bounds.Left;
-                _settings.WindowTop = bounds.Top;
-                _settings.WindowWidth = bounds.Width;
-                _settings.WindowHeight = bounds.Height;
+                _settings.SetActivePlacement(new WindowPlacement
+                {
+                    Left = bounds.Left,
+                    Top = bounds.Top,
+                    Width = bounds.Width,
+                    Height = bounds.Height,
+                    Maximized = WindowState == WindowState.Maximized,
+                });
             }
             if (_webReady)
             {
@@ -316,6 +338,15 @@ public partial class MainWindow : Window
         core.DocumentTitleChanged += OnTitleChanged;
         core.SourceChanged += OnSourceChanged;
         core.HistoryChanged += (_, _) => UpdateNavButtons();
+        try
+        {
+            // Find in page (v0.5.0, S1 #1): CoreWebView2.Find exists in the
+            // pinned SDK 1.0.4258.31 (StartAsync/FindNext/FindPrevious/Stop,
+            // MatchCount / ActiveMatchIndex + change events).
+            core.Find.MatchCountChanged += (_, _) => UpdateFindCount();
+            core.Find.ActiveMatchIndexChanged += (_, _) => UpdateFindCount();
+        }
+        catch (Exception ex) { _log.Warn($"Find wiring failed: {ex.Message}"); }
         core.ContainsFullScreenElementChanged += OnFullScreenElementChanged;
         core.ProcessFailed += OnProcessFailed;
         Browser.ZoomFactorChanged += (_, _) =>
@@ -373,23 +404,54 @@ public partial class MainWindow : Window
         {
             Overlay.Visibility = Visibility.Collapsed;
             SetStatus("Ready");
+            _autoRetried = false;
+            var src = Browser.Source?.ToString();
+            if (src is not null)
+                _history.Record(src, Browser.CoreWebView2.DocumentTitle);
             SaveSettings();
         }
         else
         {
+            // Smarter load-failure overlay (v0.5.0, S1 #10): Core classifies
+            // the WebErrorStatus into a plain-language category.
             _log.Warn($"Navigation failed: {e.WebErrorStatus} for {UrlPolicy.RedactForLog(Browser.Source?.ToString())}");
+            _history.NoteClosedPage(Browser.Source?.ToString());
             ShowOverlay(
                 "Muse couldn't be reached",
-                $"The page failed to load ({e.WebErrorStatus}). Check your connection, then retry. " +
-                "Your sign-in and chats are stored by Muse in the cloud — nothing is lost.",
+                LoadFailureClassifier.MessageFor(e.WebErrorStatus.ToString()),
                 "Retry", null);
             SetStatus($"Load failed: {e.WebErrorStatus}");
         }
         UpdateNavButtons();
     }
 
+    /// <summary>
+    /// Auto-retry once (v0.5.0, S1 #10): when the network reports a change
+    /// while a load-failure overlay is showing and connectivity is back,
+    /// reload a single time. The flag resets on the next successful load,
+    /// so a flapping network cannot cause a retry loop.
+    /// </summary>
+    private void OnNetworkChanged(object? sender, EventArgs e)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            if (!_webReady || _autoRetried || Overlay.Visibility != Visibility.Visible)
+                return;
+            if (!NetworkInterface.GetIsNetworkAvailable())
+                return;
+            _autoRetried = true;
+            _log.Info("Network changed while a load failure was showing; auto-retrying once");
+            OnReload(this, new RoutedEventArgs());
+        });
+    }
+
     private void OnNewWindowRequested(object? sender, CoreWebView2NewWindowRequestedEventArgs e)
     {
+        // Audit (v0.5.0, S1 #11): middle-click and Ctrl+click on a link surface
+        // here exactly like target=_blank / window.open — WebView2 exposes no
+        // separate gesture path — so they inherit this same UrlPolicy routing.
+        // Core tests (S1Tests.NewWindowPolicy_CoversMiddleAndCtrlClickHosts)
+        // pin the classification for every host class. No gap found.
         e.Handled = true;
         switch (UrlPolicy.ClassifyNewWindow(e.Uri))
         {
@@ -481,9 +543,17 @@ public partial class MainWindow : Window
 
     private void OnTitleChanged(object? sender, object e)
     {
-        var title = Browser.CoreWebView2.DocumentTitle;
-        Title = string.IsNullOrWhiteSpace(title) ? "Muse" : $"Muse — {title}";
-        TitleText.Text = string.IsNullOrWhiteSpace(title) ? "Muse" : title;
+        _pageTitle = Browser.CoreWebView2.DocumentTitle ?? "";
+        TitleText.Text = string.IsNullOrWhiteSpace(_pageTitle) ? "Muse" : _pageTitle;
+        ApplyWindowTitle();
+    }
+
+    /// <summary>OS window title (v0.5.0, S1 #12): composed in Core so the
+    /// profile-name rule (only when more than one profile exists) is tested.</summary>
+    private void ApplyWindowTitle()
+    {
+        var active = _settings.Profiles.FirstOrDefault(p => p.Id == _settings.ActiveProfileId);
+        Title = WindowTitle.Compose(_pageTitle, active?.Name, _settings.Profiles.Count > 1);
     }
 
     private void OnSourceChanged(object? sender, CoreWebView2SourceChangedEventArgs e)
@@ -502,6 +572,7 @@ public partial class MainWindow : Window
     private void OnProcessFailed(object? sender, CoreWebView2ProcessFailedEventArgs e)
     {
         _log.Error($"WebView2 process failed: {e.ProcessFailedKind}");
+        _history.NoteClosedPage(Browser.Source?.ToString());
         if (e.ProcessFailedKind is CoreWebView2ProcessFailedKind.RenderProcessExited
             or CoreWebView2ProcessFailedKind.BrowserProcessExited)
         {
@@ -541,8 +612,17 @@ public partial class MainWindow : Window
 
     private Action? _overlayAction;
 
-    private void OnBack(object sender, RoutedEventArgs e) { if (_webReady && Browser.CanGoBack) Browser.GoBack(); }
-    private void OnForward(object sender, RoutedEventArgs e) { if (_webReady && Browser.CanGoForward) Browser.GoForward(); }
+    private void OnBack(object sender, RoutedEventArgs e)
+    {
+        if (_suppressNavClick) { _suppressNavClick = false; return; }
+        if (_webReady && Browser.CanGoBack) Browser.GoBack();
+    }
+
+    private void OnForward(object sender, RoutedEventArgs e)
+    {
+        if (_suppressNavClick) { _suppressNavClick = false; return; }
+        if (_webReady && Browser.CanGoForward) Browser.GoForward();
+    }
 
     private void OnReload(object sender, RoutedEventArgs e)
     {
@@ -607,7 +687,10 @@ public partial class MainWindow : Window
         _settings.Profiles = clone.Profiles;
         _settings.ActiveProfileId = clone.ActiveProfileId;
         _settings.LastUrlByProfile = clone.LastUrlByProfile;
+        _settings.AlwaysOnTop = clone.AlwaysOnTop;
         _settings.Sanitized();
+        Topmost = _settings.AlwaysOnTop;
+        PinItem.IsChecked = _settings.AlwaysOnTop;
         Autostart.Sync(_settings.StartWithWindows);
         if (_webReady)
             Browser.ZoomFactor = ZoomMath.Clamp(_settings.ZoomFactor);
@@ -686,6 +769,7 @@ public partial class MainWindow : Window
         if (multi && active is not null)
             ProfileItem.Header = $"Profile: {active.Name}";
         _tray.SetText(multi && active is not null ? $"MuseDesktop — {active.Name}" : "MuseDesktop");
+        ApplyWindowTitle();
     }
 
     // ───────────────────────── context menu (v0.3.0) ─────────────────────────
@@ -809,6 +893,236 @@ public partial class MainWindow : Window
         }
     }
 
+
+    // ─────────────────── v0.5.0 Slice 1 (items 1–12) ───────────────────
+
+    // #1 Find in page — CoreWebView2.Find (pinned SDK 1.0.4258.31).
+    private void OnFind(object sender, RoutedEventArgs e) => ShowFindBar();
+
+    private void ShowFindBar()
+    {
+        FindBar.Visibility = Visibility.Visible;
+        FindTextBox.Focus();
+        FindTextBox.SelectAll();
+        if (!string.IsNullOrEmpty(FindTextBox.Text))
+            _ = StartFindAsync();
+    }
+
+    private async Task StartFindAsync()
+    {
+        if (!_webReady) return;
+        try
+        {
+            var find = Browser.CoreWebView2.Find;
+            var term = FindTextBox.Text;
+            if (string.IsNullOrEmpty(term))
+            {
+                find.Stop();
+                FindCountText.Text = "";
+                return;
+            }
+            var options = Browser.CoreWebView2.Environment.CreateFindOptions();
+            options.FindTerm = term;
+            options.ShouldHighlightAllMatches = true;
+            options.SuppressDefaultFindDialog = true;
+            await find.StartAsync(options);
+            UpdateFindCount();
+        }
+        catch (Exception ex) { _log.Warn($"Find failed: {ex.Message}"); }
+    }
+
+    private void UpdateFindCount()
+    {
+        if (!_webReady || Browser.CoreWebView2 is null) return;
+        var find = Browser.CoreWebView2.Find;
+        if (string.IsNullOrEmpty(FindTextBox.Text)) { FindCountText.Text = ""; return; }
+        if (find.MatchCount == 0) { FindCountText.Text = "No results"; return; }
+        FindCountText.Text = find.ActiveMatchIndex >= 0
+            ? $"{find.ActiveMatchIndex + 1} of {find.MatchCount}"
+            : $"{find.MatchCount} found";
+    }
+
+    private void OnFindTextChanged(object sender, TextChangedEventArgs e) => _ = StartFindAsync();
+
+    private void OnFindTextKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter)
+        {
+            if (Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) OnFindPrevious(this, e);
+            else OnFindNext(this, e);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.Escape)
+        {
+            CloseFindBar();
+            e.Handled = true;
+        }
+    }
+
+    private void OnFindNext(object sender, RoutedEventArgs e)
+    { if (_webReady) Browser.CoreWebView2.Find.FindNext(); }
+
+    private void OnFindPrevious(object sender, RoutedEventArgs e)
+    { if (_webReady) Browser.CoreWebView2.Find.FindPrevious(); }
+
+    private void OnFindClose(object sender, RoutedEventArgs e) => CloseFindBar();
+
+    private void CloseFindBar()
+    {
+        try { if (_webReady) Browser.CoreWebView2.Find.Stop(); } catch { /* cosmetic */ }
+        FindBar.Visibility = Visibility.Collapsed;
+        Browser.Focus();
+    }
+
+    // #2 Print / Save as PDF.
+    private void OnPrint(object sender, RoutedEventArgs e)
+    {
+        if (!_webReady) return;
+        try { Browser.CoreWebView2.ShowPrintUI(); }
+        catch (Exception ex) { _log.Warn($"Print failed: {ex.Message}"); SetStatus("Printing isn't available right now"); }
+    }
+
+    private async void OnSaveAsPdf(object sender, RoutedEventArgs e)
+    {
+        if (!_webReady) return;
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Filter = "PDF file (*.pdf)|*.pdf",
+            FileName = "muse-page.pdf",
+            Title = "Save page as PDF",
+        };
+        if (dialog.ShowDialog(this) != true) return;
+        try
+        {
+            var printSettings = Browser.CoreWebView2.Environment.CreatePrintSettings();
+            var ok = await Browser.CoreWebView2.PrintToPdfAsync(dialog.FileName, printSettings);
+            SetStatus(ok ? $"Saved PDF to {Path.GetFileName(dialog.FileName)}" : "Saving the PDF failed");
+            if (!ok) _log.Warn("PrintToPdfAsync reported failure");
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Save as PDF failed: {ex.Message}");
+            SetStatus("Saving the PDF failed");
+        }
+    }
+
+    // #4 Copy page address (Open in browser already exists as OnOpenInBrowser).
+    private void OnCopyPageAddress(object sender, RoutedEventArgs e)
+    {
+        var src = Browser.Source?.ToString();
+        if (string.IsNullOrEmpty(src)) return;
+        try { System.Windows.Clipboard.SetText(src); SetStatus("Page address copied"); }
+        catch { SetStatus("Couldn't copy the page address"); }
+    }
+
+    // #7 Open in new window — a secondary window on the SAME environment.
+    private void OnOpenInNewWindow(object sender, RoutedEventArgs e)
+    {
+        if (!_webReady) return;
+        var src = Browser.Source?.ToString();
+        if (string.IsNullOrEmpty(src)
+            || UrlPolicy.ClassifyNavigation(src) != LinkDisposition.InApp)
+        {
+            SetStatus("There's no in-app page to open in a new window");
+            return;
+        }
+        try
+        {
+            new SecondaryWindow(Browser.CoreWebView2.Environment, _log, src) { Owner = this }.Show();
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Open in new window failed: {ex.Message}");
+            SetStatus("Couldn't open a second window");
+        }
+    }
+
+    // #5 Always-on-top pin.
+    private void OnTogglePin(object sender, RoutedEventArgs e)
+    {
+        _settings.AlwaysOnTop = sender is MenuItem ? PinItem.IsChecked : !_settings.AlwaysOnTop;
+        PinItem.IsChecked = _settings.AlwaysOnTop;
+        Topmost = _settings.AlwaysOnTop;
+        SetStatus(_settings.AlwaysOnTop ? "Window will stay on top" : "Window no longer stays on top");
+        SaveSettings();
+    }
+
+    // #6 Focus / compact mode (F8). Session-only, never persisted.
+    private void OnToggleFocusMode(object sender, RoutedEventArgs e) =>
+        SetFocusMode(sender is MenuItem ? FocusItem.IsChecked : !_focusMode);
+
+    private void SetFocusMode(bool on)
+    {
+        _focusMode = on;
+        FocusItem.IsChecked = on;
+        Toolbar.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
+        StatusBar.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
+        if (on) SetStatus("Focus mode — press F8 or Esc to exit");
+    }
+
+    // #3 Back/Forward history dropdowns (right-click or long-press).
+    private void OnBackHistoryMenu(object sender, MouseButtonEventArgs e)
+    { ShowHistoryMenu(back: true, BackButton); e.Handled = true; }
+
+    private void OnForwardHistoryMenu(object sender, MouseButtonEventArgs e)
+    { ShowHistoryMenu(back: false, ForwardButton); e.Handled = true; }
+
+    private void OnNavButtonPress(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton != MouseButton.Left) return;
+        var back = sender == BackButton;
+        _navPressTimer?.Stop();
+        _navPressTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(550) };
+        _navPressTimer.Tick += (_, _) =>
+        {
+            _navPressTimer?.Stop();
+            _suppressNavClick = true;
+            ShowHistoryMenu(back, back ? BackButton : ForwardButton);
+        };
+        _navPressTimer.Start();
+    }
+
+    private void OnNavButtonRelease(object sender, MouseButtonEventArgs e) => _navPressTimer?.Stop();
+
+    private void ShowHistoryMenu(bool back, System.Windows.FrameworkElement target)
+    {
+        var entries = back ? _history.BackEntries() : _history.ForwardEntries();
+        if (entries.Count == 0)
+        {
+            SetStatus(back ? "No earlier pages in this session" : "No forward pages in this session");
+            return;
+        }
+        var menu = new ContextMenu { PlacementTarget = target, IsOpen = true };
+        foreach (var entry in entries)
+        {
+            var captured = entry;
+            var header = !string.IsNullOrWhiteSpace(captured.Title)
+                ? captured.Title
+                : UrlPolicy.RedactForLog(captured.Url);
+            var item = new MenuItem { Header = header, ToolTip = UrlPolicy.RedactForLog(captured.Url) };
+            item.Click += (_, _) =>
+            {
+                _history.JumpTo(captured);
+                if (_webReady) Browser.CoreWebView2.Navigate(captured.Url);
+            };
+            menu.Items.Add(item);
+        }
+    }
+
+    // #9 Restore the last closed page (Ctrl+Shift+T).
+    private void OnRestoreClosedPage(object sender, RoutedEventArgs e)
+    {
+        var url = _history.LastClosedPageUrl;
+        if (!_webReady || string.IsNullOrEmpty(url)
+            || UrlPolicy.ClassifyNavigation(url) != LinkDisposition.InApp)
+        {
+            SetStatus("No closed page to restore");
+            return;
+        }
+        Browser.CoreWebView2.Navigate(url);
+        SetStatus("Restored the last closed page");
+    }
+
     private void OnDownloads(object sender, RoutedEventArgs e)
     {
         new DownloadsWindow(_log) { Owner = this }.ShowDialog();
@@ -850,6 +1164,24 @@ public partial class MainWindow : Window
 
     private void OnPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
+        if (e.Key == Key.Escape && FindBar.Visibility == Visibility.Visible)
+        {
+            CloseFindBar();
+            e.Handled = true;
+            return;
+        }
+        if (e.Key == Key.F8)
+        {
+            SetFocusMode(!_focusMode);
+            e.Handled = true;
+            return;
+        }
+        if (e.Key == Key.Escape && _focusMode)
+        {
+            SetFocusMode(false);
+            e.Handled = true;
+            return;
+        }
         if (e.Key == Key.F11)
         {
             SetFullScreen(!_isFullScreen);
@@ -867,6 +1199,10 @@ public partial class MainWindow : Window
             switch (e.Key)
             {
                 case Key.R: OnReload(this, e); e.Handled = true; break;
+                case Key.F: ShowFindBar(); e.Handled = true; break;
+                case Key.P: OnPrint(this, e); e.Handled = true; break;
+                case Key.T when Keyboard.Modifiers.HasFlag(ModifierKeys.Shift):
+                    OnRestoreClosedPage(this, e); e.Handled = true; break;
                 case Key.OemComma: OnSettings(this, e); e.Handled = true; break;
                 case Key.OemPlus or Key.Add: OnZoomIn(this, e); e.Handled = true; break;
                 case Key.OemMinus or Key.Subtract: OnZoomOut(this, e); e.Handled = true; break;
@@ -899,7 +1235,7 @@ public partial class MainWindow : Window
         {
             WindowStyle = _preFullScreenStyle;
             WindowState = _preFullScreenState;
-            Toolbar.Visibility = Visibility.Visible;
+            Toolbar.Visibility = _focusMode ? Visibility.Collapsed : Visibility.Visible;
         }
         _isFullScreen = on;
     }

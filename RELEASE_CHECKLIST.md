@@ -60,3 +60,18 @@ The per-release items below accumulated faster than on-machine passes ran. This 
 - [ ] Capture the README screenshots (list in README → Screenshots) if the UI changed
 
 Record the outcome per item (pass / fail / not run) in the release notes working file. A "not run" item is reported as unverified — never silently treated as a pass.
+
+## v0.5.0 — Slice 1 (window & navigation) on-machine items
+
+- [ ] **S1 #1 Find:** Ctrl+F opens the find bar; typing shows a live match count (e.g. "3 of 12"); Enter/Shift+Enter move between matches and the page scrolls/highlights; Esc closes the bar and clears highlighting
+- [ ] **S1 #2 Print/PDF:** Ctrl+P and ⋯ → *Print…* open the print UI; ⋯ → *Save as PDF…* saves a readable PDF of the current page to the chosen file
+- [ ] **S1 #3 History dropdowns:** visit several pages, right-click Back — earlier pages are listed, clicking one jumps to it; same for Forward after going back; long-press (hold ~½ s) Back also opens the list and does not navigate back on release
+- [ ] **S1 #4 Menu items:** ⋯ → *Copy page address* pastes the current page URL; ⋯ → *Open in browser* opens it in the default browser
+- [ ] **S1 #5 Pin:** 📌 toolbar button and ⋯ → *Always on top* keep the window above other apps; state survives a relaunch (persisted)
+- [ ] **S1 #6 Focus mode:** F8 hides toolbar + status bar; F8 and Esc each exit; closing/reopening the app does not leave focus mode stuck on
+- [ ] **S1 #7 Second window:** ⋯ → *Open in new window* opens the current page already signed in; both windows work independently; closing the second window leaves the app running; real Exit from the tray closes everything
+- [ ] **S1 #8 Per-profile placement:** move/resize the window in Default, switch to another profile, move/resize differently, switch back — each profile restores its own placement; an upgraded install's existing placement appears for the default profile
+- [ ] **S1 #9 Restore:** navigate A → B, press Ctrl+Shift+T — page A reopens; after a failed load, Ctrl+Shift+T reopens the failed page
+- [ ] **S1 #10 Load failures:** go offline and reload — the overlay says you're offline in plain words (no raw error code); reconnect — the page retries once automatically without clicking Retry; disconnect again mid-failure — no retry loop
+- [ ] **S1 #11 Middle/Ctrl+click:** middle-click (and Ctrl+click) an in-app Muse link — stays in-app; an external web link — opens in the default browser; a blocked-scheme link — refused
+- [ ] **S1 #12 Title:** with one profile the window title is "page — MuseDesktop"; with 2+ profiles it is "page — profile name — MuseDesktop" in the title bar, taskbar and Alt-Tab
