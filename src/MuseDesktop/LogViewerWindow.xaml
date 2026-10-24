@@ -1,0 +1,42 @@
+<Window x:Class="MuseDesktop.LogViewerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="MuseDesktop log"
+        Width="760" Height="560" MinWidth="520" MinHeight="380"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
+    <Window.Resources>
+        <Style x:Key="Note" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,6,0,0"/>
+        </Style>
+    </Window.Resources>
+
+    <DockPanel Margin="14,12,14,12">
+        <StackPanel DockPanel.Dock="Top">
+            <TextBlock x:Name="AuditText" Style="{StaticResource Note}" Margin="0,0,0,0"
+                       AutomationProperties.Name="Redaction check result"/>
+            <TextBlock x:Name="FindingsText" Style="{StaticResource Note}"
+                       AutomationProperties.Name="Redaction findings by line"/>
+        </StackPanel>
+
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <TextBlock x:Name="CopyNote" Style="{StaticResource Note}" Margin="0,4,10,0"/>
+            <Button Content="Copy redacted log" Width="140" Height="30" Click="OnCopyRedacted"
+                    ToolTip="Copy the log with anything the redaction check flagged removed first"/>
+            <Button Content="Refresh" Width="86" Height="30" Margin="8,0,0,0" Click="OnRefresh"
+                    ToolTip="Read the log file again"/>
+            <Button Content="Close" Width="86" Height="30" Margin="8,0,0,0" IsCancel="True"/>
+        </StackPanel>
+
+        <TextBox x:Name="LogText" Margin="0,10,0,0" IsReadOnly="True"
+                 FontFamily="Consolas" FontSize="12"
+                 Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
+                 BorderBrush="{StaticResource HairlineBrush}"
+                 VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                 TextWrapping="NoWrap"
+                 AutomationProperties.Name="Log contents"/>
+    </DockPanel>
+</Window>

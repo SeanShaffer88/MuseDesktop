@@ -44,11 +44,24 @@ public sealed class TrayController : IDisposable
     private readonly Func<bool> _microphoneGranted;
     private readonly Func<bool> _singleClickRestore;
     private readonly Func<NotificationSuppression> _notificationGate;
+    // App lock (S7 #64): while locked the menu must not leak page
+    // titles, unread counts, or download names, and its window actions
+    // stay disabled (Open still routes — the window answers with the
+    // lock screen). All three are optional: no lock delegates, no lock UI.
+    private readonly Func<bool>? _isLocked;
+    private readonly Func<bool>? _lockConfigured;
+    private readonly Action? _lockNow;
 
     private Forms.NotifyIcon? _icon;
+    private Forms.ToolStripMenuItem? _openItem;
+    private Forms.ToolStripMenuItem? _newWindowItem;
+    private Forms.ToolStripMenuItem? _reloadItem;
+    private Forms.ToolStripMenuItem? _settingsItem;
+    private Forms.ToolStripMenuItem? _lockItem;
     private Forms.ToolStripMenuItem? _switchItem;
     private Forms.ToolStripMenuItem? _downloadsItem;
     private Forms.ToolStripMenuItem? _statusItem;
+    private bool _locked;
     private DispatcherTimer? _suspendTimer;
     private DispatcherTimer? _clickTimer;
     private bool _hidden;
@@ -86,7 +99,10 @@ public sealed class TrayController : IDisposable
         Func<SuspendTimeout> suspendTimeout,
         Func<bool> microphoneGranted,
         Func<bool> singleClickRestore,
-        Func<NotificationSuppression> notificationGate)
+        Func<NotificationSuppression> notificationGate,
+        Func<bool>? isLocked = null,
+        Func<bool>? lockConfigured = null,
+        Action? lockNow = null)
     {
         _log = log;
         _dispatcher = dispatcher;
@@ -110,6 +126,9 @@ public sealed class TrayController : IDisposable
         _microphoneGranted = microphoneGranted;
         _singleClickRestore = singleClickRestore;
         _notificationGate = notificationGate;
+        _isLocked = isLocked;
+        _lockConfigured = lockConfigured;
+        _lockNow = lockNow;
     }
 
     public bool IsSuspended => _suspended;
@@ -128,15 +147,31 @@ public sealed class TrayController : IDisposable
                 Icon = _baseIcon,
             };
             var menu = new Forms.ContextMenuStrip();
-            menu.Items.Add("Open Muse", null, (_, _) => _dispatcher.Invoke(_showWindow));
-            menu.Items.Add("New window", null, (_, _) => _dispatcher.Invoke(_openNewWindow));
-            menu.Items.Add("Reload", null, (_, _) => _dispatcher.Invoke(_reload));
+            _openItem = new Forms.ToolStripMenuItem("Open Muse");
+            _openItem.Click += (_, _) => _dispatcher.Invoke(_showWindow);
+            menu.Items.Add(_openItem);
+            _newWindowItem = new Forms.ToolStripMenuItem("New window");
+            _newWindowItem.Click += (_, _) => _dispatcher.Invoke(_openNewWindow);
+            menu.Items.Add(_newWindowItem);
+            _reloadItem = new Forms.ToolStripMenuItem("Reload");
+            _reloadItem.Click += (_, _) => _dispatcher.Invoke(_reload);
+            menu.Items.Add(_reloadItem);
             menu.Items.Add(new Forms.ToolStripSeparator());
             // Downloads (S4 #32): the window action plus the newest
             // completed files, rebuilt on every open.
             _downloadsItem = new Forms.ToolStripMenuItem("Downloads");
             menu.Items.Add(_downloadsItem);
-            menu.Items.Add("Settings…", null, (_, _) => _dispatcher.Invoke(_openSettings));
+            _settingsItem = new Forms.ToolStripMenuItem("Settings…");
+            _settingsItem.Click += (_, _) => _dispatcher.Invoke(_openSettings);
+            menu.Items.Add(_settingsItem);
+            // App lock (S7 #64): visible only while a lock is set and
+            // the app isn't already locked (refreshed on every open).
+            if (_lockNow is not null)
+            {
+                _lockItem = new Forms.ToolStripMenuItem("Lock now");
+                _lockItem.Click += (_, _) => _dispatcher.Invoke(_lockNow);
+                menu.Items.Add(_lockItem);
+            }
             // Switch profile (S3 #25): rebuilt on every open so it always
             // reflects the current list/active profile.
             _switchItem = new Forms.ToolStripMenuItem("Switch profile");
@@ -148,6 +183,7 @@ public sealed class TrayController : IDisposable
             {
                 RebuildDownloadsMenu();
                 RebuildSwitchMenu();
+                RefreshLockState();
                 RefreshStatusItem();
             };
             menu.Items.Add(new Forms.ToolStripSeparator());
@@ -198,6 +234,45 @@ public sealed class TrayController : IDisposable
         _clickTimer.Start();
     }
 
+    // ───────────────────────── app lock (S7 #64) ─────────────────────────
+
+    /// <summary>
+    /// Push the lock state in (the main window owns it): while locked
+    /// the tooltip goes plain, the attention badge/suffix clear, and
+    /// the menu gates itself on open. Downloads already in flight are
+    /// untouched — the lock gates surfaces, not the engine.
+    /// </summary>
+    public void SetLocked(bool locked)
+    {
+        _locked = locked;
+        if (locked)
+        {
+            _attention = AttentionSignal.None;
+            RefreshIcon();
+        }
+        ApplyText();
+    }
+
+    /// <summary>Re-read the lock delegates and gate the menu (runs on every menu open, after the rebuilds it overrides).</summary>
+    private void RefreshLockState()
+    {
+        var locked = _isLocked?.Invoke() ?? false;
+        if (locked != _locked)
+            SetLocked(locked);
+        if (_lockItem is not null)
+            _lockItem.Visible = (_lockConfigured?.Invoke() ?? false) && !locked;
+        // While locked: nothing that names content or opens a surface
+        // stays enabled. "Open Muse" remains — the main window
+        // answers it with the lock screen. Exit always remains. The
+        // switch item's enabled state is the switch rebuild's business
+        // except while locked, where it is forced off.
+        if (_newWindowItem is not null) _newWindowItem.Enabled = !locked;
+        if (_reloadItem is not null) _reloadItem.Enabled = !locked;
+        if (_downloadsItem is not null) _downloadsItem.Enabled = !locked;
+        if (_settingsItem is not null) _settingsItem.Enabled = !locked;
+        if (locked && _switchItem is not null) _switchItem.Enabled = false;
+    }
+
     /// <summary>
     /// Rebuild the Downloads submenu (S4 #32): open the manager, then
     /// the newest completed downloads (click = open the file). Failed
@@ -212,6 +287,15 @@ public sealed class TrayController : IDisposable
             foreach (Forms.ToolStripItem old in _downloadsItem.DropDownItems)
                 old.Dispose();
             _downloadsItem.DropDownItems.Clear();
+
+            if (_locked)
+            {
+                // File names are content — behind the lock they don't
+                // appear even in a disabled submenu's items.
+                _downloadsItem.DropDownItems.Add(
+                    new Forms.ToolStripMenuItem("Locked") { Enabled = false });
+                return;
+            }
 
             _downloadsItem.DropDownItems.Add("Open Downloads window…", null,
                 (_, _) => _dispatcher.Invoke(_openDownloads));
@@ -289,8 +373,10 @@ public sealed class TrayController : IDisposable
     {
         if (_statusItem is null)
             return;
-        _statusItem.Text = TrayStatusText.SuspendLine(
-            _hidden, _suspended, _suspendEnabled(), _suspendTimeout());
+        _statusItem.Text = _locked
+            ? "Locked — open Muse to unlock"
+            : TrayStatusText.SuspendLine(
+                _hidden, _suspended, _suspendEnabled(), _suspendTimeout());
     }
 
     private static System.Drawing.Bitmap ColorSwatch(string hex)
@@ -368,6 +454,10 @@ public sealed class TrayController : IDisposable
     /// </summary>
     public void SetAttention(AttentionSignal signal)
     {
+        // S7 #64: while locked, attention never reaches the tray — no
+        // unread-count suffix, no badge (the count is content).
+        if (_locked)
+            signal = AttentionSignal.None;
         if (signal == _attention)
             return;
         _attention = signal;
@@ -378,7 +468,9 @@ public sealed class TrayController : IDisposable
     private void ApplyText()
     {
         if (_icon is not null)
-            _icon.Text = _baseText + TrayIconPlanner.TooltipSuffix(_attention);
+            _icon.Text = _locked
+                ? "MuseDesktop — locked"
+                : _baseText + TrayIconPlanner.TooltipSuffix(_attention);
     }
 
     private void RefreshIcon()

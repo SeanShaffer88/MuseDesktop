@@ -276,11 +276,14 @@
 
                 <StackPanel x:Name="SectionData">
                     <TextBlock x:Name="HeaderData" Text="Data" Style="{StaticResource SectionHeader}"/>
-                    <Button x:Name="ClearDataButton" Content="Clear browsing data and sign out…" Width="230"
-                            HorizontalAlignment="Left" Click="OnClearData"
-                            ToolTip="Removes cookies, cache, and site data from MuseDesktop's own profile"/>
-                    <TextBlock x:Name="ClearDataNote" Style="{StaticResource Note}"
-                               Text="Deletes cookies, cache, and site data stored by MuseDesktop — you will sign in to Muse again. Your chats live in your Muse account and are not affected."/>
+                    <TextBlock Style="{StaticResource Note}" Margin="0,0,0,0"
+                               Text="Clearing browsing data (cookies, cache, site data) moved to Privacy &amp; security below, where you can choose exactly what to clear and for which profiles."/>
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <Button Content="Open data folder" Width="130" Click="OnOpenDataFolder"
+                                ToolTip="Open the folder with settings, logs, and download history in File Explorer"/>
+                        <Button Content="Backup guide…" Width="130" Margin="8,0,0,0" Click="OnBackupGuide"
+                                ToolTip="Exactly what to copy to back up your sign-ins, and what an export does and doesn't cover"/>
+                    </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                         <Button Content="Export settings…" Width="130" Click="OnExportSettings"
                                 ToolTip="Save these settings to a file you can keep or move to another PC"/>
@@ -295,6 +298,75 @@
                     <TextBlock x:Name="ResetNote" Style="{StaticResource Note}"
                                Text="Reset restores preferences only — profiles, sign-ins, last pages, and downloaded files stay exactly as they are. A backup of your current settings is saved first, so Import can undo it."/>
                     <TextBlock x:Name="PortableNote" Style="{StaticResource Note}" Margin="0,10,0,0"/>
+                </StackPanel>
+
+                <StackPanel x:Name="SectionPrivacy">
+                    <TextBlock x:Name="HeaderPrivacy" Text="Privacy &amp; security" Style="{StaticResource SectionHeader}"/>
+
+                    <CheckBox x:Name="PasswordAutosaveCheck" Content="Let Muse save passwords in the web view"
+                              ToolTip="WebView2's own password save, on by default. Turning this off stops NEW passwords being saved; ones already saved still fill until you clear site data"/>
+                    <CheckBox x:Name="GeneralAutofillCheck" Content="Let the web view remember and refill form entries"
+                              ToolTip="WebView2's general autofill for ordinary form fields, on by default"/>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="These are the web engine's features, shared by every window in the profile. They apply to the profile MuseDesktop is currently running and take effect as soon as you choose OK."/>
+
+                    <TextBlock Text="Clear browsing data:" Margin="0,12,0,4" FontWeight="SemiBold"/>
+                    <StackPanel Orientation="Horizontal">
+                        <ComboBox x:Name="ClearChoiceCombo" Width="140" SelectionChanged="OnClearChoiceChanged"
+                                  ToolTip="What to clear: cookies only, cache only, or all site data"/>
+                        <ComboBox x:Name="ClearScopeCombo" Width="150" Margin="8,0,0,0" SelectionChanged="OnClearChoiceChanged"
+                                  ToolTip="Clear just the profile you're using, or every profile on this PC"/>
+                        <Button x:Name="ClearNowButton" Content="Clear…" Width="76" Margin="8,0,0,0" Click="OnClearDataGranular"
+                                ToolTip="Clear the chosen data now (you'll be asked to confirm, with exactly what it does)"/>
+                    </StackPanel>
+                    <TextBlock x:Name="ClearPlanNote" Style="{StaticResource Note}"/>
+                    <TextBlock x:Name="ClearResultNote" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
+
+                    <TextBlock Text="Permissions (profile MuseDesktop is currently running):" Margin="0,12,0,4" FontWeight="SemiBold"/>
+                    <TextBlock x:Name="PermissionsNote" Style="{StaticResource Note}" Margin="0,0,0,0"
+                               Text="Reading the saved permission choices…"/>
+                    <StackPanel x:Name="PermissionRows" Margin="0,4,0,0"/>
+                    <Button Content="Refresh permissions" Width="150" HorizontalAlignment="Left" Margin="0,6,0,0"
+                            Click="OnRefreshPermissions"
+                            ToolTip="Read the running profile's saved permission choices again"/>
+                    <TextBlock x:Name="PermissionDenialsText" Style="{StaticResource Note}"/>
+
+                    <TextBlock Text="Site data per profile:" Margin="0,12,0,4" FontWeight="SemiBold"/>
+                    <StackPanel x:Name="SiteDataRows"/>
+                    <Button Content="Refresh site data" Width="150" HorizontalAlignment="Left" Margin="0,6,0,0"
+                            Click="OnRefreshSiteData"
+                            ToolTip="Measure each profile's data folder and count its cookies again"/>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="Cookie counts only — cookie values are never shown anywhere in MuseDesktop."/>
+
+                    <TextBlock Text="App lock:" Margin="0,12,0,4" FontWeight="SemiBold"/>
+                    <TextBlock x:Name="AppLockStatusText" Style="{StaticResource Note}" Margin="0,0,0,0"/>
+                    <CheckBox x:Name="AppLockEnabledCheck" Content="Require my app password or PIN"
+                              Margin="0,6,0,0"
+                              ToolTip="Ask for the app password at startup and whenever the app is locked. Setting the check asks you to create the password if you haven't yet"
+                              Checked="OnAppLockEnabledChanged" Unchecked="OnAppLockEnabledChanged"/>
+                    <CheckBox x:Name="AppLockTrayHideCheck" Content="Also lock when the window hides to the tray"
+                              ToolTip="On by default. Startup locking and Lock now apply either way"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <Button x:Name="SetLockPasswordButton" Content="Set or change password…" Width="170" Click="OnSetLockPassword"
+                                ToolTip="Set a new app password or PIN (4–64 characters; 6 or more is better)"/>
+                        <Button x:Name="RemoveLockPasswordButton" Content="Remove password…" Width="140" Margin="8,0,0,0" Click="OnRemoveLockPassword"
+                                ToolTip="Remove the app password and turn the lock off"/>
+                    </StackPanel>
+                    <TextBlock x:Name="AppLockNote" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="The lock stops casual access to the open app on this PC. It does NOT encrypt your Muse sign-ins on disk. Only a salted one-way hash of the password is stored — the password itself never is. If you forget it: quit MuseDesktop, open the data folder (Data section above) and delete settings.json, then start the app — the lock is gone and settings return to defaults; your default profile stays signed in, because sign-ins live in the separate profile folders, not in settings.json."/>
+
+                    <TextBlock Text="Privacy report:" Margin="0,12,0,4" FontWeight="SemiBold"/>
+                    <TextBlock x:Name="PrivacyReportText" Style="{StaticResource Note}" Margin="0,0,0,0"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <Button Content="Reset counters" Width="120" Click="OnResetPrivacyStats"
+                                ToolTip="Start the privacy report's counts over from today"/>
+                        <Button Content="View log…" Width="120" Margin="8,0,0,0" Click="OnViewLog"
+                                ToolTip="Read the diagnostic log in the app, with its redaction check and a copy-redacted button"/>
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="The report counts only — what kind of thing was blocked, how many times, and which site. No page addresses, no content, and nothing leaves this PC."/>
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">

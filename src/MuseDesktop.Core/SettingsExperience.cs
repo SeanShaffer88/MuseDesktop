@@ -24,6 +24,7 @@ public static class SettingsSearch
     public const string AccessibilityId = "accessibility";
     public const string DownloadsId = "downloads";
     public const string DataId = "data";
+    public const string PrivacyId = "privacy";
 
     public static readonly IReadOnlyList<SettingsSectionInfo> Sections = new[]
     {
@@ -42,7 +43,12 @@ public static class SettingsSearch
         new SettingsSectionInfo(DownloadsId, "Downloads",
             "downloads folder save ask where collision already exists rename history keep cap notify finished balloon"),
         new SettingsSectionInfo(DataId, "Data",
-            "clear browsing data sign out cookies cache export import backup reset all settings defaults restore portable mode data location usb setup wizard"),
+            "export import backup reset all settings defaults restore portable mode data location usb setup wizard open data folder"),
+        // S7 (v0.11.0): listed LAST so the older sections keep winning
+        // first-match for the queries they already owned (tests pin a
+        // few); the privacy words here are distinct enough to find it.
+        new SettingsSectionInfo(PrivacyId, "Privacy & security",
+            "privacy security permissions microphone notifications camera granted denied revoke clear cookies cache site data per profile encrypted export password autosave autofill forms connection certificate padlock log viewer redaction privacy report blocked counts backup guide sign-ins app lock unlock pin locked"),
     };
 
     public static bool IsKnownSection(string? id) =>
@@ -127,6 +133,10 @@ public static class SettingsReset
         target.ShortcutOverrides = fresh.ShortcutOverrides;
         target.ReduceMotion = fresh.ReduceMotion;
         target.ExtendedZoomRange = fresh.ExtendedZoomRange;
+        // S7 fields (v0.11.0): password autosave / general autofill
+        // return to the WebView2 defaults (both on).
+        target.PasswordAutosaveEnabled = fresh.PasswordAutosaveEnabled;
+        target.GeneralAutofillEnabled = fresh.GeneralAutofillEnabled;
         // S5 fields.
         target.Theme = fresh.Theme;
         target.AccentColor = fresh.AccentColor;

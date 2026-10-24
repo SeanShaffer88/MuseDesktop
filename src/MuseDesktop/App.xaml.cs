@@ -89,6 +89,38 @@ public partial class App : System.Windows.Application
         Log.Info($"MuseDesktop {typeof(App).Assembly.GetName().Version} starting" +
                  (options.Background ? (startHidden ? " (background, in tray)" : " (background)") : ""));
 
+        // App lock (S7 #64). A broken lock record was already repaired
+        // by Sanitized on load (fail-open, never a lockout) — say so.
+        if (Settings.AppLockWasRepaired)
+            Log.Warn("App lock was turned off: its stored password record was missing or damaged. " +
+                     "Set a new app password in Settings → Privacy & security to turn it back on.");
+        // The startup gate: for a launch that will SHOW a window, the
+        // lock screen runs before the main window exists — WebView2 is
+        // never created, so no page can render or navigate before
+        // unlock, and cancelling the gate exits the app (no locked
+        // zombie). A hidden tray launch skips the modal — showing a
+        // password prompt for an autostart launch would be a rude
+        // surprise — and the main window starts locked instead: it
+        // defers WebView2 entirely and its lock screen appears when
+        // the window is first requested from the tray.
+        var mainWindowStartsLocked = false;
+        if (AppLock.IsLockActive(Settings) && !startHidden)
+        {
+            if (!AppLock.TryGetRecord(Settings, out var gateRecord) || gateRecord is null
+                || !ShowStartupLockGate(gateRecord))
+            {
+                Log.Info("App lock: startup cancelled at the lock screen — exiting");
+                Shutdown();
+                return;
+            }
+            Log.Info("App lock: unlocked at startup");
+        }
+        else if (AppLock.IsLockActive(Settings))
+        {
+            mainWindowStartsLocked = true;
+            Log.Info("App lock is on — starting locked in the tray (unlock on first show)");
+        }
+
         // --profile <id> (S3 #23): a per-profile shortcut lands in that
         // profile's session. Like a Settings switch, the choice is
         // persisted as the active profile (that's what the existing
@@ -130,7 +162,7 @@ public partial class App : System.Windows.Application
 
         try
         {
-            _window = new MainWindow(Settings, Log);
+            _window = new MainWindow(Settings, Log, mainWindowStartsLocked);
         }
         catch (Exception ex)
         {
@@ -159,6 +191,20 @@ public partial class App : System.Windows.Application
             var window = _window;
             Dispatcher.BeginInvoke(new Action(() => RunFirstRunWizard(window)));
         }
+    }
+
+    /// <summary>
+    /// The startup lock gate (S7 #64): a modal lock screen with no
+    /// owner and no main window behind it. True only when the user
+    /// unlocked; closing it (or its "Exit MuseDesktop" button)
+    /// returns false and the caller shuts down.
+    /// </summary>
+    private bool ShowStartupLockGate(AppLockRecord record)
+    {
+        var gate = new LockWindow(record, new AppLockThrottle(), exitOnClose: true);
+        ShellTextScaling.Apply(gate, Settings.ShellFontScale);
+        FocusReturn.ShowDialog(gate);
+        return gate.Unlocked;
     }
 
     /// <summary>

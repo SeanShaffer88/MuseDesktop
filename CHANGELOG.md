@@ -2,6 +2,29 @@
 
 All notable changes to MuseDesktop. Format follows Keep a Changelog; versions use semantic versioning.
 
+## [0.11.0] — Unreleased
+
+Slice 7 (items 61–70) of the 100-enhancement program: privacy & security. Everything new lives in a new Settings section, **Privacy & security**, unless said otherwise.
+
+### Added
+
+- **Granular clear-data (#61)** — clearing is no longer all-or-nothing: choose **Cookies only** (signs the profile out), **Cache only** (signs nobody out), or **All site data** (the old behavior), scoped to **this profile only** or **all profiles**. The confirm dialog states in plain words what the chosen option deletes and whether it signs anyone out, before anything happens.
+- **Permissions manager (#62)** — the saved permission choices of the profile MuseDesktop is currently running, read live from WebView2, each with **Allow / Block / Forget**. Below it, the app's own recent permission denials (kind + site + time — no page addresses). The app's policy is unchanged and stated in the section: microphone and notifications are granted to muse.ai when the page asks; everything else is denied.
+- **Site-data viewer (#63)** — per profile: data-folder size plus cookie count and how many sites they span, and a **Clear this profile…** action. Cookie **values are never read into the UI** — counts and domain names only.
+- **App lock (#64)** — an optional password or PIN set inside MuseDesktop (SEAN's design choice — not Windows Hello). Off by default. When on, the password is asked **at startup** (before the main window — and WebView2 — exists, so nothing can render first), from **Lock now** in the tray and ⋯ menus, and when the window hides to the tray (that trigger has its own switch, on by default). Only a salted PBKDF2 hash is stored (210,000 iterations, random salt) — never the password. Five wrong tries pause unlocking for 30 seconds; there is no permanent lockout and no data wipe, ever. While locked, the tray shows no page title, unread count, or download names, and the Downloads window stays behind the lock; downloads already running finish normally. **Honest scope: the lock stops casual access to the open app — it does not encrypt your sign-ins on disk.** Forgotten-password recovery is documented in Settings and KNOWN_LIMITATIONS (delete `settings.json`; the lock goes with it).
+- **Encrypted settings export (#65)** — Export offers a password-encrypted file (PBKDF2 + AES-256-GCM, versioned envelope, built-ins only — no new packages). Import detects the envelope and asks for the password; a wrong password and a damaged file get different, plain messages. Choosing the plain export says up front that profile names and start pages in it are readable by anyone who opens the file.
+- **Log viewer with redaction check (#66)** — ⋯ menu → *View log…* (and a button in the Privacy section): the log in-app, read-only, with a redaction audit run over exactly what's on screen — it counts anything that looks like a full address with a query, a token, or an email, by line number, honestly (the log's rules already keep addresses host+path only; the audit is the proof). **Copy redacted log** copies the text with anything flagged removed first.
+- **Privacy report (#67)** — counts of what MuseDesktop has blocked on this PC (navigations it won't open, blocked pop-ups, denied permissions), by kind and site, with a since-date and a reset button. Counts only: no page addresses, no content, nothing leaves the PC.
+- **Password & autofill controls (#68)** — two toggles for WebView2's own password autosave and general autofill (both on, matching WebView2's defaults — the app previously hardcoded them on). Changing them applies to the running profile immediately on OK.
+- **Connection security (#69)** — ⋯ menu → *Connection security…*: the current site's address and HTTPS state, certificate details when on HTTPS, and the WebView2 runtime version. Certificate errors now get a plain-language in-app dialog (previously WebView2's built-in error page carried them): what a certificate problem means, which site, the certificate's issuer and validity, **Go back** (the default) or **Continue anyway — this session only, for that site**, with the choice logged. The connection dialog can forget the session's continue-anyway choices.
+- **Data-folder shortcut + backup guide (#70)** — Settings → Data: **Open data folder**, and a **Backup guide** that says exactly which folders hold your sign-ins (the per-profile WebView2 folders), what a settings export does and doesn't cover, and the honest limit — WebView2 protects sign-in cookies with your Windows user (DPAPI), so sign-ins copied to a different PC or Windows user will not unlock: Muse will simply ask you to sign in again. Your chats are stored in your Muse account and are never at risk either way.
+
+### Notes
+
+- The old **Clear browsing data and sign out** button in Settings → Data is replaced by #61's granular controls in the Privacy & security section; its behavior (All site data, this profile, sign-out, land on Home) is preserved as the pre-selected choice.
+- Privacy counters live in their own small file (`privacy-stats.json`), not in settings — so they never ride a settings export to another PC.
+- Core test suite grows by 43 cases (385 → 428). All v0.11.0 runtime behavior is **Unverified** on a real Windows machine pending the `RELEASE_CHECKLIST.md` S7 pass.
+
 ## [0.10.0] — Unreleased
 
 Slice 6 (items 51–60) of the 100-enhancement program: accessibility, keyboard & focus.

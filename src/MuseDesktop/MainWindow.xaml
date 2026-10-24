@@ -83,6 +83,12 @@
                                           InputGestureText="F8" ToolTip="Hide the toolbar and status bar (F8 or Esc to exit)"/>
                                 <MenuItem Header="Restore last closed page" Click="OnRestoreClosedPage" InputGestureText="Ctrl+Shift+T"/>
                                 <Separator/>
+                                <MenuItem Header="Connection security…" Click="OnConnectionSecurity"
+                                          ToolTip="The current site's connection: address, encryption, and the WebView2 runtime version"/>
+                                <MenuItem x:Name="LockNowItem" Header="Lock now" Click="OnLockNow" Visibility="Collapsed"
+                                          ToolTip="Lock MuseDesktop with your app password until you unlock it"/>
+                                <MenuItem Header="View log…" Click="OnViewLog"
+                                          ToolTip="Read the diagnostic log in the app, with its redaction check"/>
                                 <MenuItem Header="Open log folder" Click="OnOpenLogFolder"/>
                                 <MenuItem Header="About MuseDesktop" Click="OnAbout"/>
                             </ContextMenu>

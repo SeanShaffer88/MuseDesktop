@@ -43,6 +43,9 @@ public static class AppPaths
     /// <summary>Finished-download history for the Downloads window (v0.4.0).</summary>
     public static string DownloadsHistoryPath => Location.DownloadsHistoryPath;
 
+    /// <summary>Privacy report counters + recent permission denials (v0.11.0, S7 #62/#67) — counts and host names only, beside the settings.</summary>
+    public static string PrivacyStatsPath => Path.Combine(RootDir, "privacy-stats.json");
+
     public static string LogDir => Path.Combine(RootDir, "logs");
     public static string LogPath => Path.Combine(LogDir, "musedesktop.log");
 
