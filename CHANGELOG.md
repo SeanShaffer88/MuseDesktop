@@ -2,6 +2,27 @@
 
 All notable changes to MuseDesktop. Format follows Keep a Changelog; versions use semantic versioning.
 
+## [0.8.0] — Unreleased
+
+Slice 4 (items 31–40) of the 100-enhancement program: tray, notifications & presence.
+
+### Added
+
+- **Attention badge (#31)** — when Muse's page title carries an unread count in the standard "(N)" prefix form, the tray icon and the taskbar button show that count as a badge, and the tray tooltip names it. No title count, no badge — the app never invents a number. If Muse doesn't use that title convention, this simply never appears.
+- **A complete tray menu (#32)** — Open, New window, Reload, **Downloads** (the manager window plus your five newest finished files, click to open), **Settings…**, **Switch profile**, a status line showing the web view's suspend state, and Exit. A hidden MuseDesktop is fully operable without opening it.
+- **Taskbar Jump List (#33)** — right-click the taskbar button: *Open Muse*, *Settings* (opens the app with Settings up, via a new `--settings` flag), and your most recently used profiles under *Profiles*. Like the per-profile shortcuts, a profile task can't switch an already-running instance (single-instance still just wakes the window).
+- **Configurable tray suspend timeout (#34)** — Settings → *Suspend after hidden for*: 1, 5 (as before), or 15 minutes, or Never.
+- **No suspend over a possible voice session (#35)** — once the microphone has been granted to Muse in a session, tray suspend stays out of the way until the page navigates. Honest limit: WebView2 exposes no "microphone is capturing right now" signal (verified against the pinned SDK), so this is a deliberate heuristic — see DECISIONS.md — and WebView2's own suspend can still decline on its own for live media.
+- **Single-click tray restore (#36)** — a Settings option: one click on the tray icon reopens the window instead of a double-click.
+- **Tray icon profile tint (#37)** — the tray icon carries a small dot in the active profile's accent color (bottom-left; the attention badge sits top-right, so both can show).
+- **Quiet hours (#38)** — MuseDesktop's own balloons and the attention flash respect Windows Do Not Disturb (best-effort read of the system state) plus an in-app schedule (Settings → *Tray & notifications*, whole hours, wraps midnight). When something is kept quiet, the log says so — nothing is suppressed silently. Muse's own in-page notifications are not affected.
+- **Flash on attention (#39)** — off by default: when Muse's title shows a count while you're not looking at the window, the taskbar button flashes gently a few times. It never steals focus.
+- **Start-in-tray is its own toggle (#40)** — *Start with Windows* and *When starting with Windows, open in the tray* are now separate. The sign-in launch can open the window instead; double-clicking the app always opens the window. The default keeps the long-standing behavior (sign-in launches land in the tray).
+
+### Notes
+
+- Core test suite grows by 45 cases (223 → 268). All v0.8.0 runtime behavior is **Unverified** on a real Windows machine pending the `RELEASE_CHECKLIST.md` S4 pass.
+
 ## [0.7.0] — Unreleased
 
 Slice 3 (items 23–30) of the 100-enhancement program: profiles & accounts.

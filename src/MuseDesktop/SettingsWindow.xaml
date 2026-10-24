@@ -29,16 +29,41 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="18,6,18,16">
             <TextBlock Text="Behavior" Style="{StaticResource SectionHeader}"/>
-            <CheckBox x:Name="StartWithWindowsCheck" Content="Start with Windows (quietly, in the tray)"
-                      ToolTip="Launch MuseDesktop when you sign in to Windows"/>
+            <CheckBox x:Name="StartWithWindowsCheck" Content="Start with Windows"
+                      ToolTip="Launch MuseDesktop when you sign in to Windows (the usual per-user Run entry)"/>
+            <CheckBox x:Name="StartMinimizedCheck" Content="When starting with Windows, open in the tray (not on screen)"
+                      ToolTip="Only affects the sign-in launch: on = MuseDesktop waits in the tray; off = the window opens like a normal launch. Double-clicking the app always opens the window"/>
             <CheckBox x:Name="CloseToTrayCheck" Content="Close window to tray (instead of quitting)"
                       ToolTip="The X button hides the window; Exit lives on the tray menu"/>
             <CheckBox x:Name="SuspendInTrayCheck" Content="Save memory while hidden in the tray"
-                      ToolTip="After 5 minutes hidden, the web view is suspended until you come back"/>
+                      ToolTip="After the time below, the web view is suspended until you come back. Suspend never happens during a download, and stays out of the way after the microphone has been used (a voice session may be live)"/>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
+                <TextBlock Text="Suspend after hidden for:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <ComboBox x:Name="SuspendTimeoutCombo" Width="130"
+                          ToolTip="How long the window may sit hidden in the tray before the web view suspends"/>
+            </StackPanel>
             <CheckBox x:Name="CheckUpdatesCheck" Content="Check for updates when the app starts"
                       ToolTip="One silent request to GitHub Releases per launch; failures are ignored"/>
             <TextBlock Style="{StaticResource Note}"
                        Text="Changes apply when you choose OK. Start-with-Windows writes the usual per-user Run entry; nothing here phones home beyond the update check you control."/>
+
+            <TextBlock Text="Tray &amp; notifications" Style="{StaticResource SectionHeader}"/>
+            <CheckBox x:Name="TraySingleClickCheck" Content="Single-click the tray icon to reopen (instead of double-click)"
+                      ToolTip="On: one click on the tray icon brings the window back. Off: double-click, as always"/>
+            <CheckBox x:Name="FlashOnAttentionCheck" Content="Flash the taskbar button when Muse needs attention while I'm away"
+                      ToolTip="When Muse's title shows an unread count (like (2) Muse) and you're not looking at the window, the taskbar button flashes a few times — it never steals focus. Off by default"/>
+            <CheckBox x:Name="QuietHoursCheck" Content="Quiet hours: keep MuseDesktop's balloons and flashes silent"
+                      ToolTip="During quiet hours MuseDesktop shows no tray balloons and no taskbar flash (the suppression is written to the log, never silent). Your Windows Do Not Disturb setting is always respected too"/>
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
+                <TextBlock Text="Quiet from:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <ComboBox x:Name="QuietStartCombo" Width="90"
+                          ToolTip="Quiet hours begin (on the hour)"/>
+                <TextBlock Text="to:" VerticalAlignment="Center" Margin="12,0,8,0"/>
+                <ComboBox x:Name="QuietEndCombo" Width="90"
+                          ToolTip="Quiet hours end (on the hour) — earlier than the start is fine; the window wraps midnight"/>
+            </StackPanel>
+            <TextBlock Style="{StaticResource Note}"
+                       Text="Muse's own in-page notifications are governed by Windows and Muse, not by these settings. The tray icon also shows your active profile's accent color as a small dot, and an unread-count badge when Muse's title provides one."/>
 
             <TextBlock Text="Account profiles" Style="{StaticResource SectionHeader}"/>
             <ComboBox x:Name="ProfileCombo" SelectionChanged="OnProfileSelectionChanged"

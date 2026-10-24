@@ -26,10 +26,10 @@ public partial class App : System.Windows.Application
     {
         base.OnStartup(e);
 
-        // The command-line surface (S3 #23): --background, --smoke-test,
-        // --profile <id>; anything unknown is tolerated, never fatal.
+        // The command-line surface (S3 #23, S4 #33): --background,
+        // --smoke-test, --profile <id>, --settings; anything unknown is
+        // tolerated, never fatal.
         var options = CommandLine.Parse(e.Args);
-        var startInBackground = options.Background;
 
         // Smoke-test mode (used by CI): construct the real main window —
         // which runs its XAML — then exit. v0.1.0 compiled and passed every
@@ -59,8 +59,14 @@ public partial class App : System.Windows.Application
         }
 
         Settings = SettingsStore.Load(AppPaths.SettingsPath);
+        // Start-in-tray (S4 #40) is its own toggle, separate from
+        // Start-with-Windows: it decides only what a background
+        // (autostart-style) launch does. --settings wins over a hidden
+        // start — a Settings window needs a visible owner.
+        var startHidden = !options.OpenSettings
+                          && LaunchVisibility.ShouldStartHidden(options.Background, Settings.StartMinimizedToTray);
         Log.Info($"MuseDesktop {typeof(App).Assembly.GetName().Version} starting" +
-                 (startInBackground ? " (background)" : ""));
+                 (options.Background ? (startHidden ? " (background, in tray)" : " (background)") : ""));
 
         // --profile <id> (S3 #23): a per-profile shortcut lands in that
         // profile's session. Like a Settings switch, the choice is
@@ -116,10 +122,17 @@ public partial class App : System.Windows.Application
             return;
         }
         MainWindow = _window;
-        if (startInBackground)
+        if (startHidden)
             _window.StartHidden();
         else
             _window.Show();
+        if (options.OpenSettings)
+        {
+            // Jump List Settings task (S4 #33): the window is up; open
+            // Settings once the dispatcher settles.
+            var window = _window;
+            Dispatcher.BeginInvoke(new Action(() => window.OpenSettingsWindow()));
+        }
     }
 
     /// <summary>
