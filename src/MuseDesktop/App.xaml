@@ -13,11 +13,54 @@
              recolors both accent brushes at startup and on theme changes —
              the fill is always the deep, white-text-safe variant. -->
         <SolidColorBrush x:Key="AccentFillBrush" Color="#D21F26"/>
+        <!-- Text that sits ON the accent fill (S6 #51): white normally;
+             under Windows High Contrast ThemeManager swaps it to the
+             system HighlightText so accent buttons stay readable. -->
+        <SolidColorBrush x:Key="AccentTextBrush" Color="White"/>
         <SolidColorBrush x:Key="TextBrush" Color="#F5F5F7"/>
         <SolidColorBrush x:Key="MutedBrush" Color="#A7A7AD"/>
         <SolidColorBrush x:Key="FaintBrush" Color="#6E6E75"/>
 
+        <!-- Visible keyboard focus everywhere (S6 #51): a 2px accent
+             ring drawn by the focus adorner. WPF only renders the focus
+             visual when focus arrives from the keyboard, so mouse users
+             never see it. Applied app-wide via the implicit styles
+             below and explicitly in BarButton (which sets its own
+             style and so misses the implicit one). -->
+        <Style x:Key="ShellFocusVisual">
+            <Setter Property="Control.Template">
+                <Setter.Value>
+                    <ControlTemplate>
+                        <Border BorderBrush="{StaticResource AccentBrush}" BorderThickness="2"
+                                CornerRadius="4" Margin="-2" Background="Transparent"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="FocusVisualStyle" Value="{StaticResource ShellFocusVisual}"/>
+        </Style>
+        <Style TargetType="CheckBox">
+            <Setter Property="FocusVisualStyle" Value="{StaticResource ShellFocusVisual}"/>
+        </Style>
+        <Style TargetType="RadioButton">
+            <Setter Property="FocusVisualStyle" Value="{StaticResource ShellFocusVisual}"/>
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="FocusVisualStyle" Value="{StaticResource ShellFocusVisual}"/>
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="FocusVisualStyle" Value="{StaticResource ShellFocusVisual}"/>
+        </Style>
+        <Style TargetType="ListBox">
+            <Setter Property="FocusVisualStyle" Value="{StaticResource ShellFocusVisual}"/>
+        </Style>
+        <Style TargetType="MenuItem">
+            <Setter Property="FocusVisualStyle" Value="{StaticResource ShellFocusVisual}"/>
+        </Style>
+
         <Style x:Key="BarButton" TargetType="Button">
+            <Setter Property="FocusVisualStyle" Value="{StaticResource ShellFocusVisual}"/>
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="{StaticResource TextBrush}"/>
             <Setter Property="BorderThickness" Value="0"/>

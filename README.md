@@ -82,10 +82,15 @@ In **portable mode** (an empty `portable.txt` beside the exe), Settings, Downloa
 | Ctrl+P | Print (⋯ menu also has Save as PDF…) |
 | F8 | Focus mode — hide the toolbar and status bar (Esc exits) |
 | Ctrl+R or F5 | Reload |
-| Ctrl+Plus / Ctrl+Minus | Zoom in / out |
+| Ctrl+Plus / Ctrl+Minus | Zoom in / out (finer steps near 100%; Settings → Zoom can extend the range to 25%–500%) |
 | Ctrl+0 | Reset zoom to 100% |
 | Ctrl+, | Open Settings |
+| Ctrl+Shift+D | Open Downloads |
+| Alt+Home | Go to Muse home |
+| Ctrl+/ | Keyboard shortcuts — a searchable list of every shortcut |
 | F11 | Full screen (Esc exits) — works from the window chrome and the page's own full-screen requests are honored |
+
+The Settings, Downloads, and Home keys can be changed in **Settings → Keyboard & accessibility** (click a key, press the new combination). That section also holds the **Reduce motion** setting (Follow Windows / On / Off — it quiets the taskbar attention flash). MuseDesktop has no global hotkey: bringing the window back is the tray icon's job. Version 0.10.0 also adds a shell accessibility pass — visible focus everywhere, Windows High Contrast support, screen-reader announcements for downloads and updates, and focus that returns to where you were after dialogs close.
 
 ## Building from source
 

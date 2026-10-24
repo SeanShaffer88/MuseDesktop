@@ -247,13 +247,17 @@ public partial class DownloadsWindow : Window
     {
         if (Selected is not { } row)
             return;
+        var invoker = FocusReturn.Capture();
         var confirm = System.Windows.MessageBox.Show(this,
             $"Delete \"{row.Record.FileName}\" from this PC?\n\n" +
             "The file is deleted (not sent to the Recycle Bin by this action — Windows deletes it directly) " +
             "and its entry is removed from this list. This can't be undone from MuseDesktop.",
             "Delete downloaded file", MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (confirm != MessageBoxResult.Yes)
+        {
+            FocusReturn.Restore(invoker);
             return;
+        }
         try
         {
             if (File.Exists(row.Record.FullPath))
@@ -272,11 +276,15 @@ public partial class DownloadsWindow : Window
 
     private void OnClear(object sender, RoutedEventArgs e)
     {
+        var invoker = FocusReturn.Capture();
         var confirm = System.Windows.MessageBox.Show(this,
             "Clear the download history?\n\nThis only removes the list — the downloaded files themselves stay where they are.",
             "Clear download history", MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (confirm != MessageBoxResult.Yes)
+        {
+            FocusReturn.Restore(invoker);
             return;
+        }
         try
         {
             DownloadHistoryStore.Clear(AppPaths.DownloadsHistoryPath);

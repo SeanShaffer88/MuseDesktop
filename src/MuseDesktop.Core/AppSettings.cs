@@ -161,6 +161,21 @@ public sealed class AppSettings
     /// </summary>
     public bool FirstRunCompleted { get; set; }
 
+    // Accessibility, keyboard & focus (v0.10.0, S6).
+    /// <summary>
+    /// Remapped shortcut gestures (S6 #53): action id → canonical
+    /// gesture text ("Ctrl+Shift+D") for the remappable actions in
+    /// <see cref="ShortcutCatalog"/>. Empty = all defaults. Sanitized by
+    /// <see cref="ShortcutBindings.SanitizeOverrides"/>.
+    /// </summary>
+    public Dictionary<string, string> ShortcutOverrides { get; set; } = new();
+
+    /// <summary>Reduce motion (S6 #55): follow the Windows animation preference, always reduce, or never. Undefined values sanitize to FollowSystem.</summary>
+    public ReduceMotionSetting ReduceMotion { get; set; } = ReduceMotionSetting.FollowSystem;
+
+    /// <summary>Extended zoom range (S6 #57): 25%–500% instead of 50%–200%, for low-vision users. Off by default.</summary>
+    public bool ExtendedZoomRange { get; set; }
+
     // Account profiles (v0.3.0).
     /// <summary>Sign-in profiles; each has its own WebView2 data folder. Always contains at least the default profile (see Profiles.EnsureValid).</summary>
     public List<AccountProfile> Profiles { get; set; } = new() { new AccountProfile() };
@@ -195,8 +210,15 @@ public sealed class AppSettings
     {
         WindowWidth = WindowWidth is >= 480 and <= 10000 ? WindowWidth : 1280;
         WindowHeight = WindowHeight is >= 320 and <= 10000 ? WindowHeight : 860;
-        ZoomFactor = ZoomMath.Clamp(ZoomFactor);
-        global::MuseDesktop.Core.Profiles.EnsureValid(this);
+        ZoomFactor = ZoomMath.Clamp(ZoomFactor, ExtendedZoomRange);
+        global::MuseDesktop.Core.Profiles.EnsureValid(this, ExtendedZoomRange);
+        // S6: shortcut overrides are repaired by the bindings model
+        // (unknown ids, unparseable gestures, and conflicts all drop);
+        // an undefined reduce-motion value means follow the system.
+        ShortcutOverrides = ShortcutBindings.SanitizeOverrides(ShortcutOverrides);
+        ShortcutOverrides ??= new Dictionary<string, string>();
+        if (!Enum.IsDefined(ReduceMotion))
+            ReduceMotion = ReduceMotionSetting.FollowSystem;
         // After the profile list is final: pending deletions must never
         // name a live profile (S3 #28).
         global::MuseDesktop.Core.Profiles.SanitizePendingDeletions(this);

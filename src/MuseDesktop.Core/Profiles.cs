@@ -122,7 +122,7 @@ public static class Profiles
     /// default profile present, the active id pointing at a real profile.
     /// Called from AppSettings.Sanitized so every load is safe.
     /// </summary>
-    public static void EnsureValid(AppSettings settings)
+    public static void EnsureValid(AppSettings settings, bool extendedZoomRange = false)
     {
         settings.Profiles ??= new List<AccountProfile>();
         var seen = new HashSet<string>();
@@ -161,7 +161,7 @@ public static class Profiles
             // that can't be a zoom at all (NaN, zero, negative) means
             // "no override", never a broken factor.
             if (p.ZoomFactor is { } z)
-                p.ZoomFactor = double.IsNaN(z) || z <= 0 ? null : ZoomMath.Clamp(z);
+                p.ZoomFactor = double.IsNaN(z) || z <= 0 ? null : ZoomMath.Clamp(z, extendedZoomRange);
         }
         while (settings.Profiles.Count > MaxProfiles)
             settings.Profiles.RemoveAt(settings.Profiles.Count - 1);
@@ -176,6 +176,10 @@ public static class Profiles
     /// <summary>The effective zoom for a launch (S3 #26): the profile's override when it has one, else the shared zoom — always clamped.</summary>
     public static double EffectiveZoom(AccountProfile? profile, double sharedZoom) =>
         ZoomMath.Clamp(profile?.ZoomFactor ?? sharedZoom);
+
+    /// <summary>The effective zoom honoring the extended-range setting (S6 #57): same source choice, wider clamp.</summary>
+    public static double EffectiveZoom(AccountProfile? profile, double sharedZoom, bool extendedRange) =>
+        ZoomMath.Clamp(profile?.ZoomFactor ?? sharedZoom, extendedRange);
 
     /// <summary>
     /// The profile's name as shown in menus (S3 #24/#25): a "●" prefix

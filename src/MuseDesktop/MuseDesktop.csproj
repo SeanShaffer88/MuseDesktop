@@ -10,7 +10,7 @@
     <LangVersion>latest</LangVersion>
     <AssemblyName>MuseDesktop</AssemblyName>
     <RootNamespace>MuseDesktop</RootNamespace>
-    <Version>0.9.0</Version>
+    <Version>0.10.0</Version>
     <!-- Ship only English satellite assemblies: the shell UI is English-only,
          and the self-contained runtime otherwise adds a folder per culture. -->
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
@@ -20,6 +20,13 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- Allow building the Windows target on non-Windows machines for CI gates. -->
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <!-- WFO0003 (WinForms analyzer) wants high-DPI configured via the
+         WinForms-only Application.SetHighDpiMode API. This is a WPF app
+         (WinForms is used only for the tray icon), and WPF reads DPI
+         awareness from the manifest — so the manifest's PerMonitorV2
+         declaration (S6 #60) is the correct route and the warning is
+         suppressed for this project only. -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
