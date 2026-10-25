@@ -218,6 +218,62 @@ public partial class App : System.Windows.Application
             var window = _window;
             Dispatcher.BeginInvoke(new Action(() => RunFirstRunWizard(window)));
         }
+        else if (!mainWindowStartsLocked)
+        {
+            // S9 #82: What's New shows once on the first launch of a
+            // new version. A locked window skips it this launch (the
+            // version stays unrecorded, so it shows after unlock on a
+            // later launch) — release notes never precede the password.
+            var window = _window;
+            Dispatcher.BeginInvoke(new Action(() => MaybeShowWhatsNew(window)));
+        }
+    }
+
+    /// <summary>
+    /// What's New (S9 #82): Core decides from the last-seen version;
+    /// this shows the running version's CHANGELOG section from the
+    /// WhatsNew.md content file shipped beside the exe, then records
+    /// the version as seen — including when the notes are missing, so
+    /// a packaging slip can't nag every launch.
+    /// </summary>
+    private void MaybeShowWhatsNew(MainWindow owner)
+    {
+        try
+        {
+            var current = typeof(App).Assembly.GetName().Version?.ToString(3);
+            if (current is null)
+                return;
+            var decision = WhatsNew.Decide(Settings.LastSeenVersion, current, Settings.ShowWhatsNew);
+            if (decision == WhatsNewDecision.Skip)
+                return;
+            if (decision == WhatsNewDecision.Show)
+            {
+                var notesPath = Path.Combine(AppContext.BaseDirectory, "WhatsNew.md");
+                var body = File.Exists(notesPath)
+                    ? WhatsNew.ExtractSection(File.ReadAllText(notesPath), current)
+                    : null;
+                if (body is not null)
+                {
+                    var dialog = new WhatsNewWindow(current, body) { Owner = owner };
+                    ShellTextScaling.Apply(dialog, Settings.ShellFontScale);
+                    FocusReturn.ShowDialog(dialog);
+                    if (dialog.NeverShowAgain)
+                        Settings.ShowWhatsNew = false;
+                    Log.Info($"What's New shown for v{current}");
+                }
+                else
+                {
+                    Log.Warn($"What's New: no section for v{current} in WhatsNew.md — nothing shown");
+                }
+            }
+            Settings.LastSeenVersion = current;
+            try { SettingsStore.Save(AppPaths.SettingsPath, Settings); }
+            catch (Exception ex) { Log.Warn($"Saving the What's New seen-version failed: {ex.Message}"); }
+        }
+        catch (Exception ex)
+        {
+            Log.Warn($"What's New failed: {ex.Message}");
+        }
     }
 
     /// <summary>

@@ -96,6 +96,31 @@ public sealed class AppSettings
     /// <summary>Check GitHub Releases for a newer version once per launch. On by default; the check is silent on failure (offline-first).</summary>
     public bool CheckForUpdates { get; set; } = true;
 
+    // Update delivery (v0.13.0, S9 #81/#82/#83/#84/#88).
+    /// <summary>Which releases the checker may offer (S9 #88): Stable (default) or Stable + pre-releases (opt-in, warned in Settings). Undefined values sanitize to Stable.</summary>
+    public UpdateChannel UpdateChannel { get; set; } = UpdateChannel.Stable;
+
+    /// <summary>How often the automatic check runs (S9 #83): every launch (the historical behavior), daily, weekly, or manual-only. The manual ⋯-menu check always works.</summary>
+    public UpdateCheckFrequency UpdateCheckFrequency { get; set; } = UpdateCheckFrequency.EveryLaunch;
+
+    /// <summary>When the last automatic or manual check actually ran (S9 #83) — the frequency gate's input. State, not a preference: reset does not touch it.</summary>
+    public DateTimeOffset? LastUpdateCheckUtc { get; set; }
+
+    /// <summary>Update reminders are snoozed until this moment (S9 #83), set from the update window (tomorrow / next week). Null = not snoozed.</summary>
+    public DateTimeOffset? UpdateSnoozedUntilUtc { get; set; }
+
+    /// <summary>The newest app version this settings file has accounted for (S9 #82): the What's New window shows once when a launch's version differs from it. Null = fresh install.</summary>
+    public string? LastSeenVersion { get; set; }
+
+    /// <summary>Show the What's New window on the first launch of a new version (S9 #82). On by default; the window's own "don't show again" turns it off.</summary>
+    public bool ShowWhatsNew { get; set; } = true;
+
+    /// <summary>The installer the updater currently keeps (S9 #84): version + file name in the updates folder's "current" slot — the NEXT update rotates it into the rollback slot. Null until the in-app updater has downloaded a version.</summary>
+    public PreviousInstallerInfo? KeptInstaller { get; set; }
+
+    /// <summary>The rollback offer (S9 #84): the previous version's installer, kept in the updates folder's "previous" slot. Exactly one is kept; only versions installed through the in-app updater ever appear here.</summary>
+    public PreviousInstallerInfo? PreviousInstaller { get; set; }
+
     // Resources (v0.2.0).
     /// <summary>Suspend the WebView2 renderer after the window has been hidden in the tray for a while, to free memory/CPU. On by default.</summary>
     public bool SuspendWhenInTray { get; set; } = true;
@@ -294,6 +319,23 @@ public sealed class AppSettings
         // nothing; sizes clamped to what a real monitor could show.
         if (!SettingsSearch.IsKnownSection(SettingsLastSection))
             SettingsLastSection = null;
+        // S9: update-delivery repairs — undefined channel/frequency
+        // values fall back to the safe defaults (stable only, every
+        // launch); malformed kept-installer records drop (a bad record
+        // must never produce a rollback offer); a blank last-seen
+        // version reads as "fresh install".
+        if (!Enum.IsDefined(UpdateChannel))
+            UpdateChannel = UpdateChannel.Stable;
+        if (!Enum.IsDefined(UpdateCheckFrequency))
+            UpdateCheckFrequency = UpdateCheckFrequency.EveryLaunch;
+        if (KeptInstaller is { IsWellFormed: false })
+            KeptInstaller = null;
+        if (PreviousInstaller is { IsWellFormed: false })
+            PreviousInstaller = null;
+        if (string.IsNullOrWhiteSpace(LastSeenVersion))
+            LastSeenVersion = null;
+        else
+            LastSeenVersion = LastSeenVersion.Trim();
         // S7 #64: an enabled app lock with a missing/malformed
         // credential record can never be satisfied — disable it
         // (fail-open) rather than lock the user out of their own app.

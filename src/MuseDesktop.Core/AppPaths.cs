@@ -49,6 +49,9 @@ public static class AppPaths
     /// <summary>Automatic rotating backups of settings + download history (v0.12.0, S8 #79).</summary>
     public static string BackupsDir => Path.Combine(RootDir, "backups");
 
+    /// <summary>Installers the in-app updater downloads + the kept current/previous slots (v0.13.0, S9 #81/#84). Beside the settings, so portable mode carries them too.</summary>
+    public static string UpdatesDir => Path.Combine(RootDir, "updates");
+
     /// <summary>The last launches' startup timings (v0.12.0, S8 #73) — measurements only, no content.</summary>
     public static string StartupTimingsPath => Path.Combine(RootDir, "startup-timings.json");
 

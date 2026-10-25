@@ -176,3 +176,46 @@ This slice is verified by USING the app without a mouse and with a screen reader
 - [ ] **S8 #79 Backups:** after a day boundary or via *Back up now* (Settings → Data), `backups\` beside settings.json holds `auto-settings-…` and `auto-downloads-…` files, never more than 5 of each kind; change a setting, then *Restore…* an older settings backup, OK — the old value is back; restore a downloads backup — Downloads shows the restored history; hand-corrupt a settings backup → Restore refuses with the plain Import error; the S5 `settings-backup-*` files are never deleted by rotation
 - [ ] **S8 #80 Watchdog:** on a heavy page (or with the renderer artificially stalled), wait — after two missed checks (~30–45 s) the banner appears offering Reload / Wait and nothing reloads on its own; *Wait* dismisses it for at least 2 minutes; repeat and choose *Reload the page* — the page reloads; while the web view is tray-suspended or a voice session is live, no banner ever appears
 - [ ] **S8 regressions:** all S1–S7 behaviors still hold; Settings search finds the Data section for "backups", "safe mode", "reset", "cap"; export → import round-trips the per-profile data cap; the log contains no full URLs and no proxy credentials
+
+## v0.13.0 — Slice 9 (updates, installer & distribution) on-machine items
+
+Updates are the one feature that needs a *newer release* to fully exist. This section is split accordingly: **checkable now** against the published v0.5.0 release line (an install of THIS build sees v0.5.0 as "up to date", so stage the notice by running any pre-0.13.0 build where noted — or temporarily against a draft release), and **checkable only after v1.0.0 ships** (the first real update the in-app updater can deliver is the one after it).
+
+### Checkable now
+
+- [ ] **S9 #88 Channels:** fresh install of this build → ⋯ → *Check for updates* reports "up to date" on the Stable channel (v0.5.0 is the newest release); Settings → Behavior shows *Stable releases only* selected, the pre-release warning text under it, and switching to *Stable + pre-releases* survives OK + relaunch; Settings search finds Behavior for "prerelease", "snooze", "channel"
+- [ ] **S9 #83 Frequency/snooze (settings level):** set frequency to *Manual only* — relaunch twice: no check line appears in the log at startup, and the ⋯ manual check still works and reports; set *Once a day*, relaunch — the log's check happens once, and a second launch within the day does not re-check (LastUpdateCheckUtc in settings.json is stamped); from the update window (item below) or by hand-editing `updateSnoozedUntilUtc` into the future, relaunch — no automatic check; Settings shows the snooze line + *Stop snoozing update reminders*, which clears it
+- [ ] **S9 #81 Update window:** DEFERRED by construction — no published release is newer than this build, so the window can't be triggered honestly yet. It is exercised in the "after v1.0.0" list below; record it as **not run** until then, never as a pass
+- [ ] **S9 #82 What's New:** hand-edit settings.json: set `lastSeenVersion` to the previous version and launch — the What's New window shows THIS version's notes once; relaunch — it does not reappear; edit again + tick *Don't show What's New again* — relaunch shows nothing and Settings → Behavior's What's New checkbox is now off; fresh settings (rename settings.json aside) — no What's New on first launch, and `lastSeenVersion` appears in the new file; with the app lock on and a pending What's New, the lock screen comes first and the notes show only after a later unlocked launch
+- [ ] **S9 #86 Installer:** run the installer — the Components page offers *Desktop shortcut* unchecked (first time); check it → a desktop shortcut appears; run the installer again (upgrade) → the box is now PRE-CHECKED (your choice was remembered) and the shortcut survives; uncheck it on a third run → the shortcut from before is removed only by uninstall, but a fourth run shows the box unchecked again; pick a custom folder on a fresh install → upgrade installs into that same folder without being asked again
+- [ ] **S9 #85/#87 Paper checks:** `packaging/winget/` holds the three YAMLs for the latest published release with hashes matching its SHA256SUMS.txt; the Sign-Release workflow exists in the repo's Actions tab as workflow_dispatch-only and its last (skipped) state is because `SIGNING_ENABLED` is unset — that's the intended inert state
+
+### Checkable only after v1.0.0 ships (the first real update cycle)
+
+- [ ] **S9 #81 Full loop:** on the last pre-update release, the ⋯ item reads "Update available" and opens the UPDATE WINDOW (not the browser); *Download update* shows %/speed/ETA and ends at "Downloaded and verified"; *Install* closes the app, the installer runs in place, and the new version launches still signed in; the log records the verification line and names no full URLs
+- [ ] **S9 #81 Refusals:** against a test release missing `SHA256SUMS.txt` (or with a wrong hash staged deliberately), the window refuses with the plain message and no installer file remains in `updates\` afterwards
+- [ ] **S9 #83 Snooze live:** with an update actually available, *Remind me tomorrow* → the notice quiets and tomorrow's first launch re-offers it; *Remind me next week* likewise after the week (or with the clock/snooze value adjusted)
+- [ ] **S9 #84 Rollback chain:** after updating once via the in-app updater, update AGAIN on the next release → Diagnostics now offers *Reinstall previous version (<the middle version>)*; use it — the middle version reinstalls in place, still signed in; confirm Diagnostics on a fresh website-installed build offers NO rollback (nothing was kept — the honest limit)
+- [ ] **S9 regressions:** the ⋯ "Check for updates" wording/outcomes for up-to-date/unreachable/manual match the pre-0.13.0 behavior apart from the window; the S8 Diagnostics content is unchanged with the rollback button absent when no rollback exists
+
+## Release-process steps added by Slice 9 (every release from v1.0.0 on)
+
+- [ ] **SHA256SUMS.txt is mandatory** (S9 #81): the release MUST attach `SHA256SUMS.txt` covering all four binaries, generated from the final staged assets — the in-app updater refuses any release without it. (Existing rule, now load-bearing.)
+- [ ] **What's New** (S9 #82): after finalizing the CHANGELOG section for the release, regenerate `WhatsNew.md` from it (the section under `## [x.y.z]` copied verbatim under the file's header — the Core test `WhatsNew_ShippedFileMatchesChangelogForTheCsprojVersion` fails the suite if the two disagree) and confirm the file is in the publish output beside the exe.
+- [ ] **winget manifest bump** (S9 #85, once the first submission is live): update the three YAMLs in `packaging/winget/` (new `PackageVersion`, new installer URLs + uppercase SHA-256 from the release's SHA256SUMS.txt, new `ReleaseDate`) and submit the new version folder per `packaging/winget/README.md`. Until the first submission is approved by the maintainer, this step is "prepared only".
+- [ ] **About/topics** (standing rule): update the repo About description + topics for the release and API-verify the topic list.
+
+## Code signing (S9 #87) — enable steps, when a certificate exists
+
+The app ships **unsigned** today; this section is the ready path, not a claim. The certificate is the maintainer's purchase: an **OV (Organization Validation) code-signing certificate from a public CA** is the usual choice for an individual/small publisher (EV certificates exist at a higher price and process bar; exact prices change and are the CA's to quote — check at purchase time). Since 2023, public CAs issue code-signing keys only on hardware tokens or cloud HSMs — expect the purchase to include one of those.
+
+To turn signing on (no code change needed):
+
+1. Buy the certificate; export the `.pfx` if your CA/HSM setup allows it (cloud-HSM CAs use their own signing service instead — then this workflow needs its signing step pointed at that service; the shape stays the same).
+2. In the GitHub repo: **Settings → Secrets and variables → Actions** —
+   - Secret `SIGNING_CERT_PFX`: the `.pfx` file, base64-encoded.
+   - Secret `SIGNING_CERT_PASSWORD`: the `.pfx` password.
+   - Variable `SIGNING_ENABLED`: `true`.
+3. Run **Actions → Sign-Release → Run workflow** with the release tag. It downloads the release's assets, signs both installers with signtool (SHA-256 + timestamp), verifies the signatures, regenerates `SHA256SUMS.txt`, and re-uploads. Prefer signing the staged installers BEFORE publishing once this is routine (the same steps by hand or in the release flow) so the published sums are born correct.
+4. Known scope: the workflow signs the two **installer** EXEs. The `MuseDesktop.exe` inside the zips stays unsigned until a follow-up adds publish-time exe signing — SmartScreen's first-run prompt comes from the installer, which is the friction that matters most.
+5. To disable: set `SIGNING_ENABLED` to anything but `true` (or delete it) — the workflow skips itself entirely and never runs on push/tag.

@@ -43,6 +43,10 @@ public partial class MainWindow : Window
     private bool _checkingUpdate;
     private string? _updateTag;
     private string? _updateUrl;
+    // v0.13.0 (S9 #81/#88) — the full selected release (assets included),
+    // so the ⋯ item opens the in-app update window instead of the
+    // browser; the page URL stays as the window's fallback.
+    private GitHubRelease? _updateRelease;
 
     // v0.3.0 — the active profile's WebView2 data folder (per-profile sign-ins).
     private readonly string _profileDir;
@@ -324,8 +328,7 @@ public partial class MainWindow : Window
         }
         await InitWebViewAsync();
         // S8 #72: safe mode skips the automatic update check.
-        if (SafeModePolicy.ShouldCheckForUpdates(_safeMode, _settings.CheckForUpdates))
-            _ = CheckForUpdatesAsync(manual: false);
+        MaybeAutoCheckForUpdates();
     }
 
     /// <summary>Started via --background: create the window, then park it in the tray.</summary>
@@ -1516,6 +1519,13 @@ public partial class MainWindow : Window
         _settings.QuietHoursStartMinutes = clone.QuietHoursStartMinutes;
         _settings.QuietHoursEndMinutes = clone.QuietHoursEndMinutes;
         _settings.CheckForUpdates = clone.CheckForUpdates;
+        // S9: update channel/frequency/snooze + What's New opt-out.
+        // (State records — last check, last seen, kept installers —
+        // are NOT adopted: they live outside the Settings dialog.)
+        _settings.UpdateChannel = clone.UpdateChannel;
+        _settings.UpdateCheckFrequency = clone.UpdateCheckFrequency;
+        _settings.UpdateSnoozedUntilUtc = clone.UpdateSnoozedUntilUtc;
+        _settings.ShowWhatsNew = clone.ShowWhatsNew;
         _settings.AskWhereToSave = clone.AskWhereToSave;
         _settings.NotifyWhenDownloadCompletes = clone.NotifyWhenDownloadCompletes;
         _settings.DownloadHistoryCap = clone.DownloadHistoryCap;
@@ -1994,8 +2004,7 @@ public partial class MainWindow : Window
         {
             _initDeferred = false;
             await InitWebViewAsync();
-            if (SafeModePolicy.ShouldCheckForUpdates(_safeMode, _settings.CheckForUpdates))
-                _ = CheckForUpdatesAsync(manual: false);
+            MaybeAutoCheckForUpdates();
         }
         ShowFromTray();
     }
@@ -2004,18 +2013,44 @@ public partial class MainWindow : Window
 
     private void OnCheckForUpdates(object sender, RoutedEventArgs e)
     {
-        if (_updateUrl is not null && _updateTag is not null)
+        // S9 #81: once an update is known, the ⋯ item opens the in-app
+        // update window (download + verify + install, or snooze). The
+        // release page remains a button inside that window.
+        if (_updateRelease is not null)
         {
-            OpenExternal(_updateUrl);
+            var invoker = FocusReturn.Capture();
+            var window = new UpdateWindow(_updateRelease, _settings, _log, SaveSettings, ExitApp)
+            { Owner = this };
+            ShellTextScaling.Apply(window, _settings.ShellFontScale);
+            window.ShowDialog();
+            FocusReturn.Restore(invoker);
             return;
         }
         _ = CheckForUpdatesAsync(manual: true);
     }
 
     /// <summary>
+    /// The automatic check's gate (v0.13.0, S9 #83): safe mode and the
+    /// master switch first (unchanged), then Core's schedule — the
+    /// frequency since the last check plus any active snooze. Manual
+    /// checks never pass through here: the user asked, so they run.
+    /// </summary>
+    private void MaybeAutoCheckForUpdates()
+    {
+        if (!SafeModePolicy.ShouldCheckForUpdates(_safeMode, _settings.CheckForUpdates))
+            return;
+        if (!UpdateSchedule.ShouldAutoCheck(
+                DateTimeOffset.UtcNow, updatesEnabled: true, _settings.UpdateCheckFrequency,
+                _settings.LastUpdateCheckUtc, _settings.UpdateSnoozedUntilUtc))
+            return;
+        _ = CheckForUpdatesAsync(manual: false);
+    }
+
+    /// <summary>
     /// Runs the update check (UpdateService) and applies the outcome to
     /// the menu and status bar. Manual checks report every outcome;
     /// the automatic launch check only speaks up when an update exists.
+    /// Every run stamps LastUpdateCheckUtc (the frequency gate's input).
     /// </summary>
     private async Task CheckForUpdatesAsync(bool manual)
     {
@@ -2026,15 +2061,17 @@ public partial class MainWindow : Window
         {
             if (manual)
                 SetStatus("Checking for updates…");
+            _settings.LastUpdateCheckUtc = DateTimeOffset.UtcNow;
             var version = typeof(App).Assembly.GetName().Version ?? new Version(0, 0, 0);
-            var outcome = await UpdateService.CheckAsync(version, _log);
+            var outcome = await UpdateService.CheckAsync(version, _settings.UpdateChannel, _log);
             switch (outcome.Kind)
             {
                 case UpdateOutcomeKind.Available:
                     _updateTag = outcome.Tag;
                     _updateUrl = outcome.Url;
+                    _updateRelease = outcome.Release;
                     UpdateItem.Header = $"⬆ Update available: {outcome.Tag}";
-                    UpdateItem.ToolTip = "Open the release page";
+                    UpdateItem.ToolTip = "Download and install the update inside MuseDesktop";
                     SetStatus($"MuseDesktop {outcome.Tag} is available — see the ⋯ menu");
                     // S6 #54: screen readers hear the update notice too.
                     Announcer.Polite(AnnouncementText.UpdateAvailable(outcome.Tag ?? "new version"));
@@ -2052,6 +2089,9 @@ public partial class MainWindow : Window
                     if (manual) SetStatus("Couldn't check for updates — are you offline?");
                     break;
             }
+            // Persist the check stamp (and anything the update window
+            // changed) — SaveSettings is the window's ordinary path.
+            SaveSettings();
         }
         finally
         {
@@ -2384,12 +2424,59 @@ public partial class MainWindow : Window
     private void OnDiagnostics(object sender, RoutedEventArgs e)
     {
         var invoker = FocusReturn.Capture();
-        var window = new DiagnosticsWindow(() => DiagnosticsReport.Compose(BuildDiagnosticsData()))
+        // S9 #84: the rollback offer rides along when the updater has
+        // a usable previous installer (kept, on-disk, this arch).
+        var rollbackPath = RollbackOffer.UsableInstallerPath(
+            _settings.PreviousInstaller, AppPaths.UpdatesDir, UpdateService.ArchToken, File.Exists);
+        var rollbackLabel = rollbackPath is not null && _settings.PreviousInstaller is not null
+            ? RollbackOffer.Describe(_settings.PreviousInstaller)
+            : null;
+        var window = new DiagnosticsWindow(
+            () => DiagnosticsReport.Compose(BuildDiagnosticsData()),
+            rollbackLabel,
+            rollbackPath is not null
+                ? () => ReinstallPreviousVersion(rollbackPath, _settings.PreviousInstaller!.Version)
+                : null)
         { Owner = this };
         ThemeManager.ApplyTitleBar(window);
         ShellTextScaling.Apply(window, _settings.ShellFontScale);
         window.ShowDialog();
         FocusReturn.Restore(invoker);
+    }
+
+    /// <summary>
+    /// Roll back (S9 #84): run the kept previous installer after a
+    /// plain confirm — it reinstalls that version in place (sign-in
+    /// and settings carry over, as with any in-place install), then
+    /// the app exits so setup can take over. The kept-installer
+    /// records are NOT rotated by a rollback: the newer installer
+    /// stays in the current slot.
+    /// </summary>
+    private void ReinstallPreviousVersion(string installerPath, string version)
+    {
+        var answer = System.Windows.MessageBox.Show(this,
+            $"Reinstall MuseDesktop {version}?\n\n" +
+            "The installer for the previous version will run and replace this version in place. " +
+            "Your sign-in, profiles, and settings are kept (the same as any in-place install). " +
+            "MuseDesktop will close while it installs.",
+            "Reinstall previous version", MessageBoxButton.OKCancel, MessageBoxImage.Question);
+        if (answer != MessageBoxResult.OK)
+            return;
+        try
+        {
+            Process.Start(new ProcessStartInfo(installerPath) { UseShellExecute = true });
+            _log.Info($"Rollback: previous-version installer launched ({version}) — exiting so setup can take over");
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Rollback installer launch failed: {ex.Message}");
+            System.Windows.MessageBox.Show(this,
+                "The previous version's installer couldn't be started. It is kept in the updates folder:\n" +
+                installerPath,
+                "Reinstall previous version", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        ExitApp();
     }
 
     private DiagnosticsData BuildDiagnosticsData()

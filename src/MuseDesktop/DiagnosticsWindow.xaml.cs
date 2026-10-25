@@ -12,13 +12,29 @@ namespace MuseDesktop;
 public partial class DiagnosticsWindow : Window
 {
     private readonly Func<string> _reportProvider;
+    private readonly Action? _onRollback;
 
-    public DiagnosticsWindow(Func<string> reportProvider)
+    /// <summary>
+    /// <paramref name="rollbackLabel"/> + <paramref name="onRollback"/>
+    /// (v0.13.0, S9 #84) show the "Reinstall previous version" button
+    /// when the updater has a usable kept installer; the owner window
+    /// owns the confirm + launch + exit.
+    /// </summary>
+    public DiagnosticsWindow(Func<string> reportProvider,
+        string? rollbackLabel = null, Action? onRollback = null)
     {
         _reportProvider = reportProvider;
+        _onRollback = onRollback;
         InitializeComponent();
+        if (rollbackLabel is not null && onRollback is not null)
+        {
+            RollbackButton.Content = rollbackLabel;
+            RollbackButton.Visibility = Visibility.Visible;
+        }
         RefreshReport();
     }
+
+    private void OnRollback(object sender, RoutedEventArgs e) => _onRollback?.Invoke();
 
     private void RefreshReport()
     {

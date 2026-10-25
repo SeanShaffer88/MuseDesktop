@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+PackageIdentifier: SeanShaffer88.MuseDesktop
+PackageVersion: 0.5.0
+InstallerType: nullsoft
+Scope: user
+InstallModes:
+- interactive
+- silent
+UpgradeBehavior: install
+ReleaseDate: 2026-10-24
+Installers:
+- Architecture: x64
+  InstallerUrl: https://github.com/SeanShaffer88/MuseDesktop/releases/download/v0.5.0/MuseDesktop-Setup-v0.5.0-x64.exe
+  InstallerSha256: E15CCBDCCFB82AA95E2166298DDDF9EB5AE6945C2272B317DBF46BE1D92BE869
+- Architecture: arm64
+  InstallerUrl: https://github.com/SeanShaffer88/MuseDesktop/releases/download/v0.5.0/MuseDesktop-Setup-v0.5.0-arm64.exe
+  InstallerSha256: 550499A0B8209022C4F8D8F920C6A4686905EC2D5519CFC8E45F84384A13E062
+ManifestType: installer
+ManifestVersion: 1.6.0

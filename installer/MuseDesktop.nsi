@@ -12,6 +12,18 @@
 ;   (%APPDATA%\MuseDesktop settings/log and every profile folder under
 ;   %LOCALAPPDATA%\MuseDesktop) unless the user answers Yes to the
 ;   "also delete" prompt — the same folders a zip user would delete by hand.
+;
+; Installer audit (v0.13.0, S9 #86):
+; - Install folder: the directory page (MUI_PAGE_DIRECTORY) offers a
+;   choice, still per-user with no admin, and InstallDirRegKey reads
+;   the recorded folder back on upgrade, so an upgrade installs into
+;   the SAME folder the user picked before — both predate this audit.
+; - Desktop shortcut: an optional Components-page section, OFF by
+;   default (unchanged). The audit's one fix: the choice is recorded
+;   in HKCU "Software\MuseDesktop" DesktopShortcut and pre-selected
+;   on the next install/upgrade (.onInit), so upgrading no longer
+;   silently drops a desktop shortcut the user once asked for.
+;   Uninstall removes the registry key with the rest.
 
 !ifndef VERSION
   !define VERSION "0.4.0"
@@ -39,6 +51,7 @@ VIAddVersionKey "ProductVersion" "${VERSION}"
 VIAddVersionKey "LegalCopyright" "MIT License"
 
 !include "MUI2.nsh"
+!include "LogicLib.nsh"
 
 !define MUI_ABORTWARNING
 !define MUI_FINISHPAGE_RUN "$INSTDIR\MuseDesktop.exe"
@@ -81,6 +94,27 @@ SectionEnd
 Section /o "Desktop shortcut" SecDesktop
   CreateShortcut "$DESKTOP\MuseDesktop.lnk" "$INSTDIR\MuseDesktop.exe"
 SectionEnd
+
+; S9 #86: record the desktop-shortcut choice for the next
+; install/upgrade (read back by .onInit). Always runs; last section.
+Section "-RecordChoices" SecRecord
+  SectionIn RO
+  SectionGetFlags ${SecDesktop} $0
+  IntOp $0 $0 & 1
+  WriteRegDWORD HKCU "Software\MuseDesktop" "DesktopShortcut" $0
+SectionEnd
+
+; S9 #86: restore the recorded desktop-shortcut choice (see the audit
+; note at the top) so the Components page reflects what this user
+; chose last time. First install: no value recorded, the section
+; keeps its default (off). Defined after the sections on purpose —
+; section constants only exist once their Section command is read.
+Function .onInit
+  ReadRegDWORD $0 HKCU "Software\MuseDesktop" "DesktopShortcut"
+  ${If} $0 == 1
+    SectionSetFlags ${SecDesktop} 1
+  ${EndIf}
+FunctionEnd
 
 LangString DESC_SecMain ${LANG_ENGLISH} "MuseDesktop program files (required)."
 LangString DESC_SecDesktop ${LANG_ENGLISH} "Adds a MuseDesktop shortcut to your desktop."

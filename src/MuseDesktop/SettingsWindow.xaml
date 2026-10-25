@@ -63,6 +63,24 @@
                     </StackPanel>
                     <CheckBox x:Name="CheckUpdatesCheck" Content="Check for updates when the app starts"
                               ToolTip="One silent request to GitHub Releases per launch; failures are ignored"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
+                        <TextBlock Text="Check automatically:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="UpdateFrequencyCombo" Width="210"
+                                  ToolTip="How often the automatic check runs. The ⋯ menu's Check for updates always works, whatever this says"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
+                        <TextBlock Text="Release channel:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="UpdateChannelCombo" Width="210"
+                                  ToolTip="Stable releases only, or also pre-releases (test builds). Stable users are never offered a pre-release"/>
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="Pre-releases are unfinished test builds: they can contain bugs and half-finished features. Only choose the pre-release channel if you want to help test. Switching back to Stable offers you the next stable release — it never downgrades you on its own."/>
+                    <CheckBox x:Name="ShowWhatsNewCheck" Content="Show “What's New” the first time a new version runs"
+                              ToolTip="After an update, the new version's release notes open once. The window itself also has a “don't show again” box"/>
+                    <TextBlock x:Name="UpdateSnoozeNote" Style="{StaticResource Note}"/>
+                    <Button x:Name="StopSnoozeButton" Content="Stop snoozing update reminders" Width="210" HorizontalAlignment="Left"
+                            Margin="0,4,0,0" Click="OnStopUpdateSnooze" Visibility="Collapsed"
+                            ToolTip="Cancel the snooze set from the update window (Remind me tomorrow / next week)"/>
                     <Button Content="Run the setup wizard again…" Width="210" HorizontalAlignment="Left"
                             Margin="0,10,0,0" Click="OnRunSetupWizard"
                             ToolTip="Re-run the one-screen first-run setup (close-to-tray, start with Windows, downloads folder, update checks)"/>
