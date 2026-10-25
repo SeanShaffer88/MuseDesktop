@@ -2,6 +2,8 @@
 
 All notable changes to MuseDesktop. Format follows Keep a Changelog; versions use semantic versioning.
 
+Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhancement program; they were never published as releases. Everything in them shipped together as **1.0.0** (2026-10-24).
+
 ## [0.14.0] — Unreleased
 
 Slice 10 (items 89–95) of the 100-enhancement program: diagnostics, support & help.
@@ -190,7 +192,7 @@ Slice 2 (items 13–22) of the 100-enhancement program: downloads.
 
 - Core test suite grows by 51 cases (143 → 194). All v0.6.0 runtime behavior is **Unverified** on a real Windows machine pending the `RELEASE_CHECKLIST.md` S2 pass.
 
-## [1.0.0] — Unreleased
+## [1.0.0] — 2026-10-24
 
 MuseDesktop 1.0.0 — the complete 100-enhancement program (slices 1–11, items 1–100) in one release. If you're updating from v0.5.0, everything below is new to you; the per-slice sections ([0.6.0]–[0.14.0], all folded into this release) carry the fine print.
 
