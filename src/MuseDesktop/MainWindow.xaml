@@ -91,7 +91,11 @@
                                           ToolTip="Read the diagnostic log in the app, with its redaction check"/>
                                 <MenuItem Header="Open log folder" Click="OnOpenLogFolder"/>
                                 <MenuItem Header="Diagnostics…" Click="OnDiagnostics"
-                                          ToolTip="Runtime health, proxy, memory, and startup timings (S8)"/>
+                                          ToolTip="Versions, runtime health, proxy, memory, startup timings, data sizes, and recent errors — with a Copy button and the support-bundle export"/>
+                                <MenuItem Header="Help &amp; troubleshooting…" Click="OnHelp"
+                                          ToolTip="Offline pages for the common problems: sign-in loops, microphone, silent notifications, missing runtime, failing downloads, a forgotten app password"/>
+                                <MenuItem Header="Export support bundle…" Click="OnExportSupportBundle"
+                                          ToolTip="One .zip with the diagnostics report, the redacted log tail, sanitized settings, and download history — previewed first, uploaded nowhere"/>
                                 <MenuItem Header="About MuseDesktop" Click="OnAbout"/>
                             </ContextMenu>
                         </Button.ContextMenu>

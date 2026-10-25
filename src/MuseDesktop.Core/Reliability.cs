@@ -737,6 +737,34 @@ public sealed class DiagnosticsData
     public MemorySnapshot? MemoryBeforeSuspend { get; init; }
     public MemorySnapshot? MemoryAfterResume { get; init; }
     public IReadOnlyList<StartupTimings> StartupRuns { get; init; } = Array.Empty<StartupTimings>();
+
+    // S10 #89: the full-panel facts. All optional so S8-era callers
+    // (and tests) compose exactly what they always composed; the
+    // shell fills every one of them.
+    /// <summary>Process architecture ("X64" / "Arm64"), from the runtime.</summary>
+    public string? Architecture { get; init; }
+
+    /// <summary>The Windows description ("Microsoft Windows 10.0.26200"), from the runtime.</summary>
+    public string? WindowsVersion { get; init; }
+
+    /// <summary>The .NET runtime description, from the runtime.</summary>
+    public string? DotNetVersion { get; init; }
+
+    /// <summary>The active profile's display name.</summary>
+    public string? ActiveProfileName { get; init; }
+
+    /// <summary>The update channel's user-facing label (see UpdateChannelText).</summary>
+    public string? UpdateChannelLabel { get; init; }
+
+    /// <summary>Whether the app lock is on — a fact only; the lock record itself is never rendered.</summary>
+    public bool? AppLockOn { get; init; }
+
+    /// <summary>Per-area data sizes (label + bytes; null bytes = couldn't be measured), S10 #89.</summary>
+    public IReadOnlyList<(string Label, long? Bytes)> DataSizes { get; init; } =
+        Array.Empty<(string Label, long? Bytes)>();
+
+    /// <summary>The most recent ERROR log lines, already redacted (see LogReading). Null = not collected.</summary>
+    public IReadOnlyList<string>? RecentErrors { get; init; }
 }
 
 public static class DiagnosticsReport
@@ -746,18 +774,61 @@ public static class DiagnosticsReport
         var lines = new List<string>
         {
             $"MuseDesktop {data.AppVersion}" + (data.SafeMode ? " — SAFE MODE (started at Home, update check skipped)" : ""),
-            "",
-            "WebView2 runtime",
-            "  " + (data.Runtime?.Message ?? "Not checked yet (the web view hasn't started)."),
+        };
+        // S10 #89: the app & PC facts block — rendered only for the
+        // fields the caller collected (the shell collects them all).
+        var facts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(data.Architecture))
+            facts.Add($"  Architecture: {data.Architecture}");
+        if (!string.IsNullOrWhiteSpace(data.WindowsVersion))
+            facts.Add($"  Windows: {data.WindowsVersion}");
+        if (!string.IsNullOrWhiteSpace(data.DotNetVersion))
+            facts.Add($"  .NET: {data.DotNetVersion}");
+        if (!string.IsNullOrWhiteSpace(data.ActiveProfileName))
+            facts.Add($"  Active profile: {data.ActiveProfileName}");
+        if (!string.IsNullOrWhiteSpace(data.UpdateChannelLabel))
+            facts.Add($"  Update channel: {data.UpdateChannelLabel}");
+        if (data.AppLockOn is { } lockOn)
+            facts.Add($"  App lock: {(lockOn ? "on" : "off")}");
+        if (facts.Count > 0)
+        {
+            lines.Add("");
+            lines.Add("App & PC");
+            lines.AddRange(facts);
+        }
+        lines.Add("");
+        lines.Add("WebView2 runtime");
+        lines.Add("  " + (data.Runtime?.Message ?? "Not checked yet (the web view hasn't started)."));
+        lines.AddRange(new[]
+        {
             "",
             "Proxy (Windows system settings — WebView2 follows them; MuseDesktop never overrides them)",
             "  " + (data.Proxy?.Describe() ?? "Couldn't be read."),
             "",
             "Memory",
             "  " + (data.Memory?.Describe() ?? "Not available (the web view isn't running)."),
-        };
+        });
         if (MemoryReadout.SuspendComparison(data.MemoryBeforeSuspend, data.MemoryAfterResume) is { } comparison)
             lines.Add("  " + comparison);
+        // S10 #89: per-area data sizes, when collected.
+        if (data.DataSizes.Count > 0)
+        {
+            lines.Add("");
+            lines.Add("Data sizes");
+            foreach (var (label, bytes) in data.DataSizes)
+                lines.Add($"  {label}: {(bytes is { } b ? DownloadText.FormatBytes(b) : "couldn't be measured")}");
+        }
+        // S10 #89: the most recent errors, redacted, when collected.
+        if (data.RecentErrors is { } errors)
+        {
+            lines.Add("");
+            lines.Add("Recent errors (from the log, redacted)");
+            if (errors.Count == 0)
+                lines.Add("  None — the current log has no ERROR lines.");
+            else
+                foreach (var error in errors)
+                    lines.Add("  " + error);
+        }
         lines.Add("");
         lines.Add("Startup (this PC, most recent first)");
         if (data.StartupRuns.Count == 0)

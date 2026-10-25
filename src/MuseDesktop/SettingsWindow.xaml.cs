@@ -39,14 +39,16 @@ public partial class SettingsWindow : Window
     private readonly DiagnosticLog _log;
     private readonly WebPrivacyGateway? _privacy;
     private readonly Action<AppSettings, string> _switchProfile;
+    private readonly Func<string>? _notificationTest;
 
     public SettingsWindow(AppSettings working, DiagnosticLog log, WebPrivacyGateway? privacy,
-        Action<AppSettings, string> switchProfile)
+        Action<AppSettings, string> switchProfile, Func<string>? notificationTest = null)
     {
         _working = working;
         _log = log;
         _privacy = privacy;
         _switchProfile = switchProfile;
+        _notificationTest = notificationTest;
         InitializeComponent();
 
         // S5 #48: reopen at the remembered size; the last section is
@@ -751,6 +753,66 @@ public partial class SettingsWindow : Window
 
     // #62: the running profile's saved permission choices, read live.
     private void OnRefreshPermissions(object sender, RoutedEventArgs e) => _ = RefreshPermissionsAsync();
+
+    // ───────────────────── guided self-tests (S10 #92) ─────────────────────
+
+    /// <summary>
+    /// Test microphone: run the mic-test window on the live profile's
+    /// environment, then show the outcome line plus what Muse's own
+    /// saved microphone choice is. Announced (S6 live regions) as well
+    /// as shown — the result is the point of the test.
+    /// </summary>
+    private async void OnTestMicrophone(object sender, RoutedEventArgs e)
+    {
+        if (_privacy?.LiveEnvironment is not { } environment)
+        {
+            SelfTestResultText.Text = "The web view is still starting — give it a moment and try again.";
+            return;
+        }
+        var dialog = new MicTestWindow(environment, _log) { Owner = this };
+        FocusReturn.ShowDialog(dialog);
+        if (dialog.ResultLine is not { } line)
+            return;
+        var savedLine = await SavedMicLineAsync();
+        SelfTestResultText.Text = line + "\n" + savedLine;
+        Announcer.Polite(line);
+    }
+
+    /// <summary>Muse's saved microphone choice for muse.ai (the S7 permission record), as one plain line.</summary>
+    private async Task<string> SavedMicLineAsync()
+    {
+        if (_privacy is null || !_privacy.IsLiveReady)
+            return GuidedSelfTests.SavedMicLine(null);
+        try
+        {
+            var rows = await _privacy.GetPermissionsAsync();
+            var mic = rows.FirstOrDefault(r =>
+                r.Kind.Equals("Microphone", StringComparison.OrdinalIgnoreCase)
+                && r.Host.Equals("muse.ai", StringComparison.OrdinalIgnoreCase));
+            return GuidedSelfTests.SavedMicLine(mic?.State);
+        }
+        catch
+        {
+            return GuidedSelfTests.SavedMicLine(null);
+        }
+    }
+
+    /// <summary>
+    /// Send test notification: the main window performs it (it owns the
+    /// tray) and returns the Core result line — sent even under quiet
+    /// hours/DND because the user asked, with the suppression named.
+    /// </summary>
+    private void OnTestNotification(object sender, RoutedEventArgs e)
+    {
+        if (_notificationTest is null)
+        {
+            SelfTestResultText.Text = "The test notification isn't available right now.";
+            return;
+        }
+        var line = _notificationTest();
+        SelfTestResultText.Text = line;
+        Announcer.Polite(line);
+    }
 
     private async Task RefreshPermissionsAsync()
     {

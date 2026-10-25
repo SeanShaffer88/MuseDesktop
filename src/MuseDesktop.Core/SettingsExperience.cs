@@ -43,12 +43,12 @@ public static class SettingsSearch
         new SettingsSectionInfo(DownloadsId, "Downloads",
             "downloads folder save ask where collision already exists rename history keep cap notify finished balloon"),
         new SettingsSectionInfo(DataId, "Data",
-            "export import backup backups rotation restore portable mode data location usb setup wizard open data folder reset museDesktop troubleshooting won't start safe mode storage size cap cleanup diagnostics"),
+            "export import backup backups rotation restore portable mode data location usb setup wizard open data folder reset museDesktop troubleshooting won't start safe mode storage size cap cleanup diagnostics help support bundle"),
         // S7 (v0.11.0): listed LAST so the older sections keep winning
         // first-match for the queries they already owned (tests pin a
         // few); the privacy words here are distinct enough to find it.
         new SettingsSectionInfo(PrivacyId, "Privacy & security",
-            "privacy security permissions microphone notifications camera granted denied revoke clear cookies cache site data per profile encrypted export password autosave autofill forms connection certificate padlock log viewer redaction privacy report blocked counts backup guide sign-ins app lock unlock pin locked"),
+            "privacy security permissions microphone notifications camera granted denied revoke clear cookies cache site data per profile encrypted export password autosave autofill forms connection certificate padlock log viewer redaction privacy report blocked counts backup guide sign-ins app lock unlock pin locked microphone test notification test voice dictation test"),
     };
 
     public static bool IsKnownSection(string? id) =>

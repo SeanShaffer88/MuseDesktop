@@ -428,6 +428,36 @@ public sealed class TrayController : IDisposable
         }
     }
 
+    /// <summary>
+    /// The Settings test notification (S10 #92): shown even when the
+    /// quiet-hours gate would hold back an AUTOMATIC balloon — a test
+    /// the user explicitly asked for that silently does nothing
+    /// teaches nothing — and the current suppression is returned so
+    /// the caller can SAY that automatic notifications are being held
+    /// back right now (see Core's GuidedSelfTests.NotificationLine).
+    /// </summary>
+    public (NotificationSuppression Suppression, bool Shown) ShowTestNotification()
+    {
+        var suppression = _notificationGate();
+        try
+        {
+            if (_icon is null)
+                return (suppression, false);
+            _icon.BalloonTipTitle = "MuseDesktop test notification";
+            _icon.BalloonTipText = "This is the test notification you asked for in Settings — MuseDesktop's notifications work.";
+            _icon.ShowBalloonTip(4000);
+            _log.Info(suppression == NotificationSuppression.None
+                ? "Test notification shown (asked for in Settings)"
+                : $"Test notification shown (asked for in Settings) while automatic notifications are held back: {NotificationPolicy.ReasonText(suppression)}");
+            return (suppression, true);
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Test notification failed: {ex.Message}");
+            return (suppression, false);
+        }
+    }
+
     // ───────────────────────── icon composition (S4 #31/#37) ─────────────────────────
 
     /// <summary>Tray tooltip base text (the profile indicator when several profiles exist); the attention suffix is composed in.</summary>

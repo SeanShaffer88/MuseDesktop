@@ -1,0 +1,23 @@
+Third-party notices for MuseDesktop
+====================================
+
+MuseDesktop itself is open source under the MIT License — see the
+LICENSE file that ships beside MuseDesktop.exe for its full text.
+
+Components MuseDesktop is built on:
+
+Microsoft.Web.WebView2 (the WebView2 SDK)
+  Copyright (c) Microsoft Corporation. All rights reserved.
+  Licensed under the MIT License.
+  The SDK is the NuGet package MuseDesktop compiles against. The
+  WebView2 Runtime that actually renders pages is a separate
+  Microsoft component: it is installed and serviced by Microsoft
+  (usually alongside Microsoft Edge), is not bundled with
+  MuseDesktop, and is governed by Microsoft's own terms.
+
+.NET (runtime and libraries)
+  Copyright (c) .NET Foundation and Contributors. All rights reserved.
+  Licensed under the MIT License.
+  MuseDesktop ships as a self-contained build, so the .NET runtime
+  travels inside the install — that's most of the download size, and
+  it's why runtime fixes arrive with app releases.

@@ -18,15 +18,25 @@
         <TextBlock DockPanel.Dock="Top" Style="{StaticResource Note}" Margin="0,0,0,0"
                    Text="What's happening under the hood: the WebView2 runtime's health, the proxy Windows is using, current memory, and how fast the last launches started. Everything here is read from this PC, on demand — nothing is sent anywhere."/>
 
-        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-            <TextBlock x:Name="CopyNote" Style="{StaticResource Note}" Margin="0,4,10,0"/>
-            <Button x:Name="RollbackButton" Width="230" Height="30" Click="OnRollback" Visibility="Collapsed"
-                    ToolTip="Run the previous version's installer, kept by the in-app updater, and replace this version in place"/>
-            <Button Content="Copy report" Width="110" Height="30" Margin="8,0,0,0" Click="OnCopy"
-                    ToolTip="Copy this report to the clipboard (it contains file paths on this PC, no page content)"/>
-            <Button Content="Refresh" Width="86" Height="30" Margin="8,0,0,0" Click="OnRefresh"
-                    ToolTip="Collect the figures again"/>
-            <Button Content="Close" Width="86" Height="30" Margin="8,0,0,0" IsCancel="True"/>
+        <StackPanel DockPanel.Dock="Bottom">
+            <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                <Button x:Name="ExportBundleButton" Content="Export support bundle…" Width="170" Height="30" Click="OnExportBundle" Visibility="Collapsed"
+                        ToolTip="Save one .zip with this report, the redacted log tail, sanitized settings, and download history — after a preview of exactly what's in it. Nothing is uploaded"/>
+                <Button x:Name="OpenLogButton" Content="Open today's log" Width="130" Height="30" Margin="8,0,0,0" Click="OnOpenLog" Visibility="Collapsed"
+                        ToolTip="Open the log file itself in your default text editor"/>
+                <Button x:Name="CopyLastErrorButton" Content="Copy last error" Width="120" Height="30" Margin="8,0,0,0" Click="OnCopyLastError" Visibility="Collapsed"
+                        ToolTip="Copy just the most recent ERROR line from the log (redacted)"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+                <TextBlock x:Name="CopyNote" Style="{StaticResource Note}" Margin="0,4,10,0"/>
+                <Button x:Name="RollbackButton" Width="230" Height="30" Click="OnRollback" Visibility="Collapsed"
+                        ToolTip="Run the previous version's installer, kept by the in-app updater, and replace this version in place"/>
+                <Button Content="Copy report" Width="110" Height="30" Margin="8,0,0,0" Click="OnCopy"
+                        ToolTip="Copy this report to the clipboard (it contains file paths on this PC, no page content)"/>
+                <Button Content="Refresh" Width="86" Height="30" Margin="8,0,0,0" Click="OnRefresh"
+                        ToolTip="Collect the figures again"/>
+                <Button Content="Close" Width="86" Height="30" Margin="8,0,0,0" IsCancel="True"/>
+            </StackPanel>
         </StackPanel>
 
         <TextBox x:Name="ReportText" Margin="0,10,0,0" IsReadOnly="True"

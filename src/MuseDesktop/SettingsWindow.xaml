@@ -368,6 +368,17 @@
                             ToolTip="Read the running profile's saved permission choices again"/>
                     <TextBlock x:Name="PermissionDenialsText" Style="{StaticResource Note}"/>
 
+                    <TextBlock Text="Microphone &amp; notification tests:" Margin="0,12,0,4" FontWeight="SemiBold"/>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Test microphone…" Width="140" Click="OnTestMicrophone"
+                                ToolTip="Ask for the microphone the way a page does, then listen for a few seconds — the result says whether permission was granted AND whether sound actually arrived"/>
+                        <Button Content="Send test notification" Width="160" Margin="8,0,0,0" Click="OnTestNotification"
+                                ToolTip="Show a test tray notification now. A test you ask for is sent even during quiet hours — the result line says if automatic notifications are being held back"/>
+                    </StackPanel>
+                    <TextBlock x:Name="SelfTestResultText" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="The microphone test runs in this profile and checks the whole path Muse's voice input uses — Windows' microphone permission included. The notification test fires MuseDesktop's own tray balloon; Muse's in-page alerts are Muse's side of the fence."/>
+
                     <TextBlock Text="Site data per profile:" Margin="0,12,0,4" FontWeight="SemiBold"/>
                     <StackPanel x:Name="SiteDataRows"/>
                     <Button Content="Refresh site data" Width="150" HorizontalAlignment="Left" Margin="0,6,0,0"

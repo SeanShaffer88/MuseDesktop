@@ -1,0 +1,32 @@
+<Window x:Class="MuseDesktop.MicTestWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="Test microphone"
+        Width="520" Height="360" MinWidth="440" MinHeight="300"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
+    <Window.Resources>
+        <Style x:Key="Note" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,6,0,0"/>
+        </Style>
+    </Window.Resources>
+
+    <DockPanel Margin="14,12,14,12">
+        <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap"
+                   Text="This test asks for the microphone exactly the way a page does, then listens for a few seconds. Say something while it listens — that's how it knows sound actually arrives, not just that permission was granted."/>
+        <TextBlock DockPanel.Dock="Top" x:Name="StatusText" Margin="0,10,0,0" TextWrapping="Wrap"
+                   FontWeight="SemiBold" Text="Starting…"
+                   AutomationProperties.Name="Microphone test status"/>
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+            <Button Content="Close" Width="86" Height="30" IsCancel="True" Click="OnClose"/>
+        </StackPanel>
+        <TextBlock DockPanel.Dock="Bottom" x:Name="ResultText" Style="{StaticResource Note}" Margin="0,8,0,0"
+                   AutomationProperties.Name="Microphone test result"/>
+        <wv2:WebView2 x:Name="TestView" Margin="0,10,0,0" DefaultBackgroundColor="#141417"
+                      AutomationProperties.Name="Microphone test page"/>
+    </DockPanel>
+</Window>

@@ -26,6 +26,10 @@
             <TextBlock x:Name="CopyNote" Style="{StaticResource Note}" Margin="0,4,10,0"/>
             <Button Content="Copy redacted log" Width="140" Height="30" Click="OnCopyRedacted"
                     ToolTip="Copy the log with anything the redaction check flagged removed first"/>
+            <Button Content="Copy last error" Width="120" Height="30" Margin="8,0,0,0" Click="OnCopyLastError"
+                    ToolTip="Copy just the most recent ERROR line (redacted) — the one line a bug report usually needs"/>
+            <Button Content="Open today's log" Width="120" Height="30" Margin="8,0,0,0" Click="OnOpenLog"
+                    ToolTip="Open the log file itself in your default text editor"/>
             <Button Content="Refresh" Width="86" Height="30" Margin="8,0,0,0" Click="OnRefresh"
                     ToolTip="Read the log file again"/>
             <Button Content="Close" Width="86" Height="30" Margin="8,0,0,0" IsCancel="True"/>
