@@ -1,4 +1,4 @@
-# winget packaging — prepared, NOT yet submitted
+# winget packaging — submission approved by SEAN 2026-10-25
 
 This folder holds a ready-to-submit [winget](https://learn.microsoft.com/windows/package-manager/) manifest set for MuseDesktop:
 
@@ -8,20 +8,20 @@ This folder holds a ready-to-submit [winget](https://learn.microsoft.com/windows
 | `SeanShaffer88.MuseDesktop.installer.yaml` | Both installers (x64 + ARM64), type `nullsoft`, per-user scope |
 | `SeanShaffer88.MuseDesktop.locale.en-US.yaml` | Publisher, name, license, descriptions |
 
-The set currently describes **v0.5.0** — the latest actually-published release — with the real installer URLs and SHA-256 hashes from that release's `SHA256SUMS.txt`. The YAML is schema 1.6.0 and was syntax-checked locally.
+The set currently describes **v1.0.0** — the latest published release — with the real installer URLs and SHA-256 hashes from that release's `SHA256SUMS.txt`. The YAML is schema 1.6.0 and was syntax-checked locally.
 
-**Status: prepared only.** Submitting to `microsoft/winget-pkgs` publishes the package to a Microsoft-run community repository under the maintainer's GitHub account — that step is the maintainer's (SEAN's) explicit go-ahead, and it has NOT been given yet. Until the submission is merged there, `winget install MuseDesktop` does not exist; the Releases page is the way to get the app.
+**Status: submission approved.** SEAN gave the go-ahead on 2026-10-25; the submission PR to `microsoft/winget-pkgs` follows the steps below. Until it is merged there, `winget install MuseDesktop` does not exist; the Releases page is the way to get the app.
 
 ## Submitting (when the go-ahead is given)
 
 1. Fork `https://github.com/microsoft/winget-pkgs` and clone your fork.
 2. Copy the three YAMLs into the fork at:
-   `manifests/s/SeanShaffer88/MuseDesktop/0.5.0/`
+   `manifests/s/SeanShaffer88/MuseDesktop/1.0.0/`
    (path rule: `manifests/<first letter, lowercase>/<PackageIdentifier>/<PackageVersion>/`).
 3. Validate locally (on Windows, with winget installed):
-   - `winget validate --manifest manifests/s/SeanShaffer88/MuseDesktop/0.5.0`
-   - Test-install: `winget install --manifest manifests/s/SeanShaffer88/MuseDesktop/0.5.0` and confirm the app installs per-user, launches, and uninstalls cleanly.
-4. Commit on a branch named `SeanShaffer88.MuseDesktop-0.5.0`, push to your fork, and open a PR against `microsoft/winget-pkgs` master titled `New package: SeanShaffer88.MuseDesktop version 0.5.0`.
+   - `winget validate --manifest manifests/s/SeanShaffer88/MuseDesktop/1.0.0`
+   - Test-install: `winget install --manifest manifests/s/SeanShaffer88/MuseDesktop/1.0.0` and confirm the app installs per-user, launches, and uninstalls cleanly.
+4. Commit on a branch named `SeanShaffer88.MuseDesktop-1.0.0`, push to your fork, and open a PR against `microsoft/winget-pkgs` master titled `New package: SeanShaffer88.MuseDesktop version 1.0.0`.
 5. Respond to the winget bot / reviewer feedback (validation runs in their pipeline; label and content policies are theirs — e.g. they may ask for `PublisherUrl` support page changes or tag additions).
 
 Alternative: `wingetcreate` (`winget install Microsoft.WingetCreate`) can generate the set from the installer URL — the files here are equivalent and already filled in, so the manual copy above is the shorter path.
