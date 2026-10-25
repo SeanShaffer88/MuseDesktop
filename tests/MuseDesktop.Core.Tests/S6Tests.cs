@@ -80,7 +80,9 @@ public class S6Tests
         Assert.Equal(
             new[] { ShortcutCatalog.DownloadsId, ShortcutCatalog.HomeId, ShortcutCatalog.SettingsId },
             ShortcutCatalog.Remappable.Select(a => a.Id).OrderBy(x => x));
-        // Honest scope (#53): the app registers no global hotkey today.
+        // Honest scope (#53): the CATALOG holds no global hotkey —
+        // the S11 global show/hide key lives outside it by design
+        // (its own settings + Core's GlobalHotkey planner, #96).
         Assert.All(ShortcutCatalog.All, a => Assert.Equal(ShortcutScope.InApp, a.Scope));
     }
 

@@ -40,15 +40,18 @@ public partial class SettingsWindow : Window
     private readonly WebPrivacyGateway? _privacy;
     private readonly Action<AppSettings, string> _switchProfile;
     private readonly Func<string>? _notificationTest;
+    private readonly Func<string>? _globalHotkeyStatus;
 
     public SettingsWindow(AppSettings working, DiagnosticLog log, WebPrivacyGateway? privacy,
-        Action<AppSettings, string> switchProfile, Func<string>? notificationTest = null)
+        Action<AppSettings, string> switchProfile, Func<string>? notificationTest = null,
+        Func<string>? globalHotkeyStatus = null)
     {
         _working = working;
         _log = log;
         _privacy = privacy;
         _switchProfile = switchProfile;
         _notificationTest = notificationTest;
+        _globalHotkeyStatus = globalHotkeyStatus;
         InitializeComponent();
 
         // S5 #48: reopen at the remembered size; the last section is
@@ -208,6 +211,14 @@ public partial class SettingsWindow : Window
         ReduceMotionCombo.SelectedIndex = (int)_working.ReduceMotion;
         RebuildShortcutRows();
 
+        // S11: the global hotkey editor (#96 — its status line reports
+        // the LIVE registration, which the main window owns) and the
+        // musedesktop:// links toggle (#99 — its status line reads the
+        // actual registration, not the clone).
+        RefreshGlobalHotkeyControls();
+        ProtocolLinksCheck.IsChecked = _working.RegisterProtocolLinks;
+        ProtocolStatus.Text = ProtocolRegistration.StatusText(_working);
+
         var current = ZoomMath.FormatPercent(_working.ZoomFactor);
         ZoomCombo.SelectedItem = ZoomCombo.Items.Contains(current) ? current : "100%";
 
@@ -287,6 +298,11 @@ public partial class SettingsWindow : Window
         if (UpdateChannelCombo.SelectedIndex >= 0 && UpdateChannelCombo.SelectedIndex < UpdateChannelChoices.Length)
             _working.UpdateChannel = UpdateChannelChoices[UpdateChannelCombo.SelectedIndex].Value;
         _working.ShowWhatsNew = ShowWhatsNewCheck.IsChecked == true;
+        // S11: links toggle (the hotkey's enabled box is harvested
+        // with its editor below; its gesture is write-through in the
+        // capture handler, like the shortcut overrides).
+        _working.RegisterProtocolLinks = ProtocolLinksCheck.IsChecked == true;
+        _working.GlobalHotkeyEnabled = GlobalHotkeyCheck.IsChecked == true;
         _working.AskWhereToSave = AskWhereToSaveCheck.IsChecked == true;
         _working.NotifyWhenDownloadCompletes = NotifyDownloadCompleteCheck.IsChecked == true;
         _working.CollisionPolicy = CollisionPolicyCombo.SelectedIndex == 1
@@ -1272,23 +1288,24 @@ public partial class SettingsWindow : Window
     /// real key press becomes that action's gesture (Esc cancels, Tab
     /// just leaves capture so keyboard users are never trapped).
     /// Modifier-only presses are ignored — a gesture needs a real key.
+    /// The S11 global-hotkey capture rides the same preamble; only the
+    /// validation/application at the end differs (Core's GlobalHotkey
+    /// instead of ShortcutBindings).
     /// </summary>
     private void OnSettingsPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (_capturingActionId is not { } actionId)
+        if (_capturingActionId is null && !_capturingGlobalHotkey)
             return;
         var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
         if (key == System.Windows.Input.Key.Tab)
         {
-            _capturingActionId = null;
-            RebuildShortcutRows();
+            CancelCapture();
             return; // not handled — focus moves on as usual
         }
         e.Handled = true;
         if (key == System.Windows.Input.Key.Escape)
         {
-            _capturingActionId = null;
-            RebuildShortcutRows();
+            CancelCapture();
             return;
         }
         if (key is System.Windows.Input.Key.LeftCtrl or System.Windows.Input.Key.RightCtrl
@@ -1302,9 +1319,32 @@ public partial class SettingsWindow : Window
         if (keyboard.HasFlag(System.Windows.Input.ModifierKeys.Control)) mods |= GestureModifiers.Control;
         if (keyboard.HasFlag(System.Windows.Input.ModifierKeys.Alt)) mods |= GestureModifiers.Alt;
         if (keyboard.HasFlag(System.Windows.Input.ModifierKeys.Shift)) mods |= GestureModifiers.Shift;
+        var gesture = new ShortcutGesture(mods, key.ToString());
+
+        if (_capturingGlobalHotkey)
+        {
+            _capturingGlobalHotkey = false;
+            var okGlobal = GlobalHotkey.TrySetGesture(_working.ShortcutOverrides, gesture, out var globalError);
+            if (okGlobal)
+                _working.GlobalHotkeyGesture = gesture.Format();
+            RefreshGlobalHotkeyControls(okGlobal
+                ? $"Global hotkey is now {gesture.DisplayText()} — it applies when you choose OK."
+                : globalError ?? "");
+            return;
+        }
+
+        var actionId = _capturingActionId!;
         var ok = ShortcutBindings.TrySet(
-            _working.ShortcutOverrides, actionId, new ShortcutGesture(mods, key.ToString()),
+            _working.ShortcutOverrides, actionId, gesture,
             out var updated, out var error);
+        // S11 composition rule: an in-app key may not take the global
+        // hotkey's combination — RegisterHotKey would consume it
+        // system-wide and the in-app binding would never fire.
+        if (ok && gesture == EffectiveGlobalGesture())
+        {
+            ok = false;
+            error = $"{gesture.DisplayText()} is the global show/hide hotkey — the two have to stay different.";
+        }
         if (ok)
             _working.ShortcutOverrides = updated;
         _capturingActionId = null;
@@ -1312,6 +1352,47 @@ public partial class SettingsWindow : Window
         ShortcutStatus.Text = ok
             ? $"{ShortcutCatalog.Find(actionId)?.Name} now uses {ShortcutBindings.EffectiveGesture(actionId, _working.ShortcutOverrides).DisplayText()}."
             : error ?? "";
+    }
+
+    private void CancelCapture()
+    {
+        _capturingActionId = null;
+        _capturingGlobalHotkey = false;
+        RebuildShortcutRows();
+        RefreshGlobalHotkeyControls();
+    }
+
+    // ───────────────────────── S11: the global hotkey editor (#96) ─────────────────────────
+
+    /// <summary>True while the global-hotkey button is armed for capture.</summary>
+    private bool _capturingGlobalHotkey;
+
+    /// <summary>The working settings' effective global gesture: the stored one, or Core's default.</summary>
+    private ShortcutGesture EffectiveGlobalGesture() =>
+        _working.GlobalHotkeyGesture is { } text && ShortcutGesture.TryParse(text, out var parsed)
+            ? parsed
+            : GlobalHotkey.DefaultGesture;
+
+    private void RefreshGlobalHotkeyControls(string? statusOverride = null)
+    {
+        GlobalHotkeyCheck.IsChecked = _working.GlobalHotkeyEnabled;
+        GlobalHotkeyButton.Content = EffectiveGlobalGesture().DisplayText();
+        GlobalHotkeyStatus.Text = statusOverride ?? _globalHotkeyStatus?.Invoke() ?? "";
+    }
+
+    private void OnCaptureGlobalHotkey(object sender, RoutedEventArgs e)
+    {
+        _capturingGlobalHotkey = true;
+        GlobalHotkeyButton.Content = "Press keys… (Esc cancels)";
+        GlobalHotkeyStatus.Text = "";
+        GlobalHotkeyButton.Focus();
+    }
+
+    private void OnResetGlobalHotkey(object sender, RoutedEventArgs e)
+    {
+        _working.GlobalHotkeyGesture = null;
+        RefreshGlobalHotkeyControls(
+            $"Global hotkey is back to {GlobalHotkey.DefaultGesture.DisplayText()} — it applies when you choose OK.");
     }
 
     private void OnResetShortcut(object sender, RoutedEventArgs e)
@@ -1850,5 +1931,9 @@ public partial class SettingsWindow : Window
         target.ShowWhatsNew = source.ShowWhatsNew;
         target.KeptInstaller = source.KeptInstaller;
         target.PreviousInstaller = source.PreviousInstaller;
+        // S11 fields (the global hotkey + the links toggle).
+        target.GlobalHotkeyEnabled = source.GlobalHotkeyEnabled;
+        target.GlobalHotkeyGesture = source.GlobalHotkeyGesture;
+        target.RegisterProtocolLinks = source.RegisterProtocolLinks;
     }
 }

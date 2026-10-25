@@ -8,7 +8,13 @@
         Background="{StaticResource BgBrush}"
         Foreground="{StaticResource TextBrush}"
         WindowStartupLocation="Manual">
-    <Grid>
+    <!-- S11 #98: AllowDrop + the drag handlers live on the root grid.
+         They only ever see drags over the shell chrome — the WebView2
+         child window owns its own OLE drop target, so file drops onto
+         the Muse page go straight to the page (as they always have);
+         the handlers light the frame ring and point at the page. -->
+    <Grid AllowDrop="True" DragEnter="OnDragEnter" DragOver="OnDragOver"
+          DragLeave="OnDragLeave" Drop="OnDrop">
         <Grid.RowDefinitions>
             <RowDefinition Height="40"/>
             <RowDefinition Height="Auto"/>

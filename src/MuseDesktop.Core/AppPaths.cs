@@ -55,6 +55,9 @@ public static class AppPaths
     /// <summary>The last launches' startup timings (v0.12.0, S8 #73) — measurements only, no content.</summary>
     public static string StartupTimingsPath => Path.Combine(RootDir, "startup-timings.json");
 
+    /// <summary>The pending launch intent (v1.0.0, S11 #99/#100): a second launch writes the action it asked for here, then fires the wake event; the running instance takes it on waking. Transient by design — deleted on take.</summary>
+    public static string PendingIntentPath => Path.Combine(RootDir, "pending-intent.json");
+
     public static string LogDir => Path.Combine(RootDir, "logs");
     public static string LogPath => Path.Combine(LogDir, "musedesktop.log");
 

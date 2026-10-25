@@ -84,6 +84,16 @@ public partial class MainWindow : Window
     private readonly AppLockThrottle _lockThrottle = new();
     private LockWindow? _lockWindow;
 
+    // v1.0.0 (S11) — the global show/hide hotkey (#96: its manager
+    // owns the RegisterHotKey registration on this window's handle),
+    // the launch intent queued behind the lock (#99/#100: one slot,
+    // last wins), and the drop-hint/focus state of the web frame ring
+    // (#98 + the S6 #58 focus ring share the one border).
+    private GlobalHotkeyManager? _hotkeyManager;
+    private readonly PendingIntentQueue _pendingIntents = new();
+    private bool _browserFocused;
+    private bool _dropHintOn;
+
     // v0.12.0 (S8) — reliability: ONE recovery coordinator (#71/#76)
     // decides every automatic reload/recreate (the S1 network retry
     // and the ProcessFailed handler used to keep separate flags); the
@@ -182,7 +192,8 @@ public partial class MainWindow : Window
             CurrentNotificationSuppression,
             () => _isLocked,
             () => AppLock.IsLockActive(_settings),
-            LockNow);
+            LockNow,
+            quickDictate: QuickDictate);
 
         // S6 #54: live regions for assistive-tech announcements, and
         // the download events that feed them (the wording is Core's).
@@ -220,16 +231,45 @@ public partial class MainWindow : Window
         RefreshProfileIndicator();
         Loaded += OnLoaded;
         Closing += OnClosing;
+        Closed += (_, _) => _hotkeyManager?.Dispose();
         PreviewKeyDown += OnPreviewKeyDown;
     }
 
-    // S6 #58 focus-ring handlers (named so S8 #71's recreated web view
-    // control gets the same pair).
-    private void OnBrowserGotKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e) =>
-        WebFocusRing.BorderBrush = (System.Windows.Media.Brush)FindResource("AccentBrush");
+    /// <summary>
+    /// S11 #96: the global hotkey hooks this window's handle — the
+    /// handle that lives for the whole process (closing hides to the
+    /// tray; it doesn't destroy the window), so the registration
+    /// survives every hide/show cycle and is re-applied here and after
+    /// each Settings OK.
+    /// </summary>
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        _hotkeyManager = new GlobalHotkeyManager(_log, OnGlobalHotkeyPressed);
+        _hotkeyManager.Attach(this);
+        _hotkeyManager.Apply(_settings);
+    }
 
-    private void OnBrowserLostKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e) =>
-        WebFocusRing.BorderBrush = System.Windows.Media.Brushes.Transparent;
+    // S6 #58 focus-ring handlers (named so S8 #71's recreated web view
+    // control gets the same pair). S11 #98: the same ring doubles as
+    // the file-drag highlight — RefreshWebFocusRing owns the brush so
+    // the two signals compose instead of fighting over it.
+    private void OnBrowserGotKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)
+    {
+        _browserFocused = true;
+        RefreshWebFocusRing();
+    }
+
+    private void OnBrowserLostKeyboardFocus(object sender, System.Windows.Input.KeyboardFocusChangedEventArgs e)
+    {
+        _browserFocused = false;
+        RefreshWebFocusRing();
+    }
+
+    private void RefreshWebFocusRing() =>
+        WebFocusRing.BorderBrush = _dropHintOn || _browserFocused
+            ? (System.Windows.Media.Brush)FindResource("AccentBrush")
+            : System.Windows.Media.Brushes.Transparent;
 
     /// <summary>
     /// Rebuild the toolbar button strips from the saved layout (S5 #45):
@@ -353,6 +393,36 @@ public partial class MainWindow : Window
             WindowState = WindowState.Normal;
         Activate();
         Focus();
+        // S11: an intent that queued (behind the lock, or behind a
+        // hidden cold start) applies once the window is actually up.
+        DrainPendingIntent();
+    }
+
+    /// <summary>
+    /// Apply the queued launch intent, if any (S11 #99/#100). The
+    /// queue is single-slot last-wins and Take clears it first, so
+    /// the re-entry through ApplyLaunchIntentNow → ShowFromTray
+    /// finds an empty queue and stops.
+    /// </summary>
+    private void DrainPendingIntent()
+    {
+        if (_pendingIntents.Take() is not { } queued)
+            return;
+        _log.Info($"Applying the queued launch intent: {DescribeIntent(queued)}");
+        ApplyLaunchIntentNow(queued);
+    }
+
+    /// <summary>
+    /// File a launch intent away without acting on it or showing
+    /// anything (S11): a cold start that begins hidden in the tray
+    /// must not pop the lock screen or a window at sign-in (the S7
+    /// hidden-start contract) — the intent applies at the first real
+    /// show (or right after unlock, via the same drain).
+    /// </summary>
+    public void QueueLaunchIntent(LaunchIntent intent)
+    {
+        _pendingIntents.Offer(intent);
+        _log.Info($"Launch intent queued for the first show: {DescribeIntent(intent)}");
     }
 
     private void HideToTray(bool showBalloon)
@@ -1520,7 +1590,8 @@ public partial class MainWindow : Window
         if (sectionId is not null && SettingsSearch.IsKnownSection(sectionId))
             clone.SettingsLastSection = sectionId;
         var dialog = new SettingsWindow(clone, _log, _privacyGateway, SwitchToProfile,
-            notificationTest: RunTestNotification) { Owner = this };
+            notificationTest: RunTestNotification,
+            globalHotkeyStatus: () => _hotkeyManager?.StatusText ?? "") { Owner = this };
         // S6 #56: closing Settings returns focus to whatever invoked it
         // (usually the page itself).
         if (FocusReturn.ShowDialog(dialog) != true)
@@ -1585,6 +1656,13 @@ public partial class MainWindow : Window
         _settings.AppLockHash = clone.AppLockHash;
         _settings.AppLockIterations = clone.AppLockIterations;
         _settings.AppLockOnTrayHide = clone.AppLockOnTrayHide;
+        // S11: the global hotkey (#96) and the musedesktop:// links
+        // toggle (#99) — both take effect on OK below, not at the
+        // next launch: the hotkey re-registers (freeing the old
+        // combination) and the registration syncs to the toggle.
+        _settings.GlobalHotkeyEnabled = clone.GlobalHotkeyEnabled;
+        _settings.GlobalHotkeyGesture = clone.GlobalHotkeyGesture;
+        _settings.RegisterProtocolLinks = clone.RegisterProtocolLinks;
         _settings.Sanitized();
         if (_webReady)
         {
@@ -1607,6 +1685,9 @@ public partial class MainWindow : Window
             _tray.CancelPendingSuspend();
         SaveSettings();
         RefreshProfileIndicator();
+        // S11 #96/#99 live apply (see the adoption above).
+        _hotkeyManager?.Apply(_settings);
+        ProtocolRegistration.Sync(_settings, _log);
 
         // Delete the data folders of profiles removed in the dialog. When
         // a folder can't be deleted now — it's the one this process is
@@ -2029,7 +2110,218 @@ public partial class MainWindow : Window
             await InitWebViewAsync();
             MaybeAutoCheckForUpdates();
         }
+        // ShowFromTray drains whatever queued behind the lock (S11
+        // #99/#100) — one intent, the newest: the queue is last-wins
+        // by design, so an unlock never replays a backlog.
         ShowFromTray();
+    }
+
+    // ─────────────────── S11: hotkey, intents, dictate, drop ───────────────────
+
+    /// <summary>
+    /// One press of the global hotkey (S11 #96). Core's DecideToggle
+    /// owns the matrix (lock > modal > foreground toggle); this only
+    /// reads the live state and runs the outcome. "Bring forward" and
+    /// "show" are both ShowFromTray — it activates without ever
+    /// hiding, which is exactly what the modal case requires.
+    /// </summary>
+    private void OnGlobalHotkeyPressed()
+    {
+        var modalOpen = System.Windows.Application.Current.Windows.OfType<Window>()
+            .Any(w => w != this && w is not LockWindow && w.IsVisible);
+        var foreground = _hotkeyManager?.IsWindowForeground ?? false;
+        switch (GlobalHotkey.DecideToggle(_isLocked, modalOpen, IsVisible, foreground))
+        {
+            case HotkeyToggleAction.ShowLockScreen:
+                PresentLockWindow();
+                break;
+            case HotkeyToggleAction.HideToTray:
+                _log.Info("Global hotkey: hiding MuseDesktop to the tray");
+                HideToTray(showBalloon: false);
+                break;
+            case HotkeyToggleAction.BringForwardOnly:
+            case HotkeyToggleAction.ShowWindow:
+                ShowFromTray();
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Apply a launch intent (S11 #99/#100) — the one entry every
+    /// outside ask funnels through: a second launch's CLI or link
+    /// (via App's wake handler) and this launch's own leftover intent.
+    /// While locked, Core's rule queues it (last wins) and the lock
+    /// screen is the only answer; OnAppUnlocked applies what queued.
+    /// </summary>
+    public void ApplyLaunchIntent(LaunchIntent intent)
+    {
+        if (LaunchIntentRouting.Decide(intent, _isLocked) == IntentDisposition.QueueBehindLock)
+        {
+            _pendingIntents.Offer(intent);
+            _log.Info($"Launch intent queued behind the app lock: {DescribeIntent(intent)}");
+            PresentLockWindow();
+            return;
+        }
+        ApplyLaunchIntentNow(intent);
+    }
+
+    private static string DescribeIntent(LaunchIntent intent) =>
+        intent.Kind == LaunchIntentKind.SwitchProfile
+            ? $"switch profile '{intent.ProfileId}'"
+            : intent.Kind.ToString();
+
+    private void ApplyLaunchIntentNow(LaunchIntent intent)
+    {
+        switch (intent.Kind)
+        {
+            case LaunchIntentKind.ShowWindow:
+                ShowFromTray();
+                break;
+            case LaunchIntentKind.GoHome:
+                ShowFromTray();
+                OnHome(this, new RoutedEventArgs());
+                break;
+            case LaunchIntentKind.OpenSettings:
+                OpenSettingsWindow();
+                break;
+            case LaunchIntentKind.OpenDownloads:
+                OpenDownloadsFromTray();
+                break;
+            case LaunchIntentKind.ShowHelp:
+                ShowFromTray();
+                OnHelp(this, new RoutedEventArgs());
+                break;
+            case LaunchIntentKind.QuickDictate:
+                QuickDictate();
+                break;
+            case LaunchIntentKind.SwitchProfile:
+                if (intent.ProfileId is null || intent.ProfileId == _settings.ActiveProfileId)
+                {
+                    ShowFromTray();
+                }
+                else if (_settings.Profiles.All(p => p.Id != intent.ProfileId))
+                {
+                    // Validated upstream (cold start / link parse), but
+                    // a profile can be removed between the two — never
+                    // crash on a stale id, just show the window.
+                    _log.Warn($"Launch intent named unknown profile '{intent.ProfileId}' — showing the window instead");
+                    ShowFromTray();
+                }
+                else
+                {
+                    ShowFromTray();
+                    SwitchToProfileFromMenu(intent.ProfileId);
+                }
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Quick dictate (S11 #97): the tray item, the Jump List task, the
+    /// --dictate flag, and the dictate intent all land here. Show the
+    /// window, give the Muse PAGE the focus, and state the honest
+    /// next step in the status bar. The boundary is deliberate:
+    /// MuseDesktop never injects script into muse.ai, so it cannot
+    /// press Muse's voice button or move the page's own focus onto
+    /// the composer — focus enters the page here (WebView2's Focus),
+    /// and Muse's own UI takes it from there.
+    /// </summary>
+    public void QuickDictate()
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        ShowFromTray();
+        if (!_webReady)
+        {
+            SetStatus("Muse isn't ready yet — Quick dictate will work once the page has loaded");
+            return;
+        }
+        try { Browser.Focus(); }
+        catch (Exception ex) { _log.Warn($"Quick dictate focus failed: {ex.Message}"); }
+        if (_micGrantedThisSession)
+        {
+            SetStatus(QuickDictateText.ReadyNote);
+            return;
+        }
+        // Not granted yet this session — but Muse's saved choice (the
+        // S7 permission record) may already say Allow, in which case
+        // nothing needs granting. Check before sending the user off to
+        // grant anything; the provisional line shows meanwhile.
+        SetStatus(QuickDictateText.MicGrantNeededNote);
+        _ = RefreshQuickDictateNoteAsync();
+    }
+
+    private async Task RefreshQuickDictateNoteAsync()
+    {
+        try
+        {
+            var rows = await _privacyGateway.GetPermissionsAsync();
+            var saved = rows.FirstOrDefault(r =>
+                r.Kind.Equals("Microphone", StringComparison.OrdinalIgnoreCase)
+                && r.Host.Equals("muse.ai", StringComparison.OrdinalIgnoreCase));
+            if (saved?.State == "Allow")
+                SetStatus(QuickDictateText.ReadyNote);
+        }
+        catch (Exception ex) { _log.Warn($"Quick dictate permission check failed: {ex.Message}"); }
+    }
+
+    // ── #98 drag & drop ──
+    // Verified against the pinned SDK (1.0.4258.31): the windowed
+    // WebView2 controller registers its own OLE drop target on its
+    // child window and exposes NO drop events or settings to the host
+    // (the SDK's only drag member is on the composition controller,
+    // which this app doesn't use). Dropping a file on the Muse page
+    // therefore already works end-to-end — the page's own upload UI
+    // receives it — and nothing in the shell ever blocked it. What the
+    // shell adds is guidance: while a file drag is over the app's own
+    // chrome (the part WPF can see), the frame ring lights and the
+    // status bar points at the page. The shell never reads, accepts,
+    // or forwards dropped files.
+
+    // (Media types fully qualified throughout: the WinForms global
+    // usings make DragEventArgs/DataFormats ambiguous — the codebase's
+    // standing pattern for this collision.)
+    private void OnDragEnter(object sender, System.Windows.DragEventArgs e)
+    {
+        if (e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop))
+            SetDropHint(true);
+    }
+
+    private void OnDragOver(object sender, System.Windows.DragEventArgs e)
+    {
+        // Over the shell chrome a drop has nowhere honest to go (the
+        // files belong to the page), so the cursor says no while the
+        // hint points at the page. Over the page itself WebView2 owns
+        // the cursor — WPF never sees that part of the drag.
+        e.Effects = System.Windows.DragDropEffects.None;
+        e.Handled = true;
+    }
+
+    private void OnDragLeave(object sender, System.Windows.DragEventArgs e) => SetDropHint(false);
+
+    private void OnDrop(object sender, System.Windows.DragEventArgs e)
+    {
+        SetDropHint(false);
+        if (e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop))
+        {
+            e.Handled = true;
+            SetStatus("Files attach on the Muse page — drop them onto the conversation, not the toolbar");
+        }
+    }
+
+    private void SetDropHint(bool on)
+    {
+        if (_dropHintOn == on)
+            return;
+        _dropHintOn = on;
+        RefreshWebFocusRing();
+        if (on)
+            SetStatus("Drop on the Muse page to attach the file to your conversation");
+        else if (_webReady && !_downloads.IsTransferring)
+            SetStatus("Ready");
     }
 
     // ───────────────────────── update check (v0.2.0) ─────────────────────────

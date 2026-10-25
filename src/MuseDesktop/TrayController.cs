@@ -51,9 +51,12 @@ public sealed class TrayController : IDisposable
     private readonly Func<bool>? _isLocked;
     private readonly Func<bool>? _lockConfigured;
     private readonly Action? _lockNow;
+    // Quick dictate (S11 #97): optional like the lock delegates.
+    private readonly Action? _quickDictate;
 
     private Forms.NotifyIcon? _icon;
     private Forms.ToolStripMenuItem? _openItem;
+    private Forms.ToolStripMenuItem? _dictateItem;
     private Forms.ToolStripMenuItem? _newWindowItem;
     private Forms.ToolStripMenuItem? _reloadItem;
     private Forms.ToolStripMenuItem? _settingsItem;
@@ -102,7 +105,8 @@ public sealed class TrayController : IDisposable
         Func<NotificationSuppression> notificationGate,
         Func<bool>? isLocked = null,
         Func<bool>? lockConfigured = null,
-        Action? lockNow = null)
+        Action? lockNow = null,
+        Action? quickDictate = null)
     {
         _log = log;
         _dispatcher = dispatcher;
@@ -129,6 +133,7 @@ public sealed class TrayController : IDisposable
         _isLocked = isLocked;
         _lockConfigured = lockConfigured;
         _lockNow = lockNow;
+        _quickDictate = quickDictate;
     }
 
     public bool IsSuspended => _suspended;
@@ -150,6 +155,17 @@ public sealed class TrayController : IDisposable
             _openItem = new Forms.ToolStripMenuItem("Open Muse");
             _openItem.Click += (_, _) => _dispatcher.Invoke(_showWindow);
             menu.Items.Add(_openItem);
+            // Quick dictate (S11 #97): one click to a window whose
+            // page has focus, ready for Muse's voice button. Gated
+            // while locked like the other content actions (its
+            // handler answers with the lock screen too, belt and
+            // braces — a voice session is content).
+            if (_quickDictate is not null)
+            {
+                _dictateItem = new Forms.ToolStripMenuItem("Quick dictate");
+                _dictateItem.Click += (_, _) => _dispatcher.Invoke(_quickDictate);
+                menu.Items.Add(_dictateItem);
+            }
             _newWindowItem = new Forms.ToolStripMenuItem("New window");
             _newWindowItem.Click += (_, _) => _dispatcher.Invoke(_openNewWindow);
             menu.Items.Add(_newWindowItem);
@@ -267,6 +283,7 @@ public sealed class TrayController : IDisposable
         // switch item's enabled state is the switch rebuild's business
         // except while locked, where it is forced off.
         if (_newWindowItem is not null) _newWindowItem.Enabled = !locked;
+        if (_dictateItem is not null) _dictateItem.Enabled = !locked;
         if (_reloadItem is not null) _reloadItem.Enabled = !locked;
         if (_downloadsItem is not null) _downloadsItem.Enabled = !locked;
         if (_settingsItem is not null) _settingsItem.Enabled = !locked;

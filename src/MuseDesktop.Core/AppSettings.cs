@@ -242,6 +242,37 @@ public sealed class AppSettings
     [System.Text.Json.Serialization.JsonIgnore]
     public bool AppLockWasRepaired { get; set; }
 
+    // Launching & links (v1.0.0, S11 #96/#99).
+    /// <summary>
+    /// The global show/hide hotkey is on (S11 #96): RegisterHotKey
+    /// with <see cref="GlobalHotkeyGesture"/> (or the Ctrl+Alt+M
+    /// default) toggles MuseDesktop from any app. On by default —
+    /// it is the resident-companion feature; a registration failure
+    /// (another app owns the combination) is reported in Settings and
+    /// the log, never fatal.
+    /// </summary>
+    public bool GlobalHotkeyEnabled { get; set; } = true;
+
+    /// <summary>
+    /// The global hotkey's gesture in canonical text (S11 #96), or
+    /// null for the default (Ctrl+Alt+M). Sanitized: unparseable or
+    /// modifier-less values fall back to null — a global key without
+    /// Ctrl/Alt would capture a plain key in every app. Collision
+    /// with the in-app bindings is resolved (by blocking) in
+    /// <see cref="GlobalHotkey.Resolve"/>, not here, because the
+    /// in-app side can change independently.
+    /// </summary>
+    public string? GlobalHotkeyGesture { get; set; }
+
+    /// <summary>
+    /// Keep <c>musedesktop://</c> links registered to this app
+    /// (S11 #99): the installer registers them; the app syncs the
+    /// HKCU registration to this toggle at startup — registering when
+    /// missing, removing only its OWN registration when off, and never
+    /// touching a registration that points at a different program.
+    /// </summary>
+    public bool RegisterProtocolLinks { get; set; } = true;
+
     // Account profiles (v0.3.0).
     /// <summary>Sign-in profiles; each has its own WebView2 data folder. Always contains at least the default profile (see Profiles.EnsureValid).</summary>
     public List<AccountProfile> Profiles { get; set; } = new() { new AccountProfile() };
@@ -336,6 +367,17 @@ public sealed class AppSettings
             LastSeenVersion = null;
         else
             LastSeenVersion = LastSeenVersion.Trim();
+        // S11 #96: the global-hotkey gesture must parse and carry
+        // Ctrl or Alt — anything else reads as "the default" (null).
+        if (GlobalHotkeyGesture is not null)
+        {
+            if (ShortcutGesture.TryParse(GlobalHotkeyGesture, out var parsed)
+                && (parsed.Modifiers.HasFlag(GestureModifiers.Control)
+                    || parsed.Modifiers.HasFlag(GestureModifiers.Alt)))
+                GlobalHotkeyGesture = parsed.Format();
+            else
+                GlobalHotkeyGesture = null;
+        }
         // S7 #64: an enabled app lock with a missing/malformed
         // credential record can never be satisfied — disable it
         // (fail-open) rather than lock the user out of their own app.
