@@ -1,0 +1,104 @@
+name: Sign-Release
+
+# Code-signing readiness (v0.13.0, S9 #87) — READY BUT DISABLED.
+#
+# This workflow is the whole enable path for Authenticode signing; the
+# certificate itself is the maintainer's purchase decision (see
+# DECISIONS.md and the RELEASE_CHECKLIST signing section). It:
+#   * runs ONLY on manual dispatch (workflow_dispatch) — never on
+#     push, tag, or a schedule;
+#   * skips itself entirely unless the repository variable
+#     SIGNING_ENABLED is exactly "true";
+#   * expects two repository secrets when enabled:
+#       SIGNING_CERT_PFX      — the code-signing certificate (.pfx),
+#                               base64-encoded
+#       SIGNING_CERT_PASSWORD — the .pfx password
+# When enabled for a release tag, it downloads that release's two
+# installer assets, signs them with signtool (SHA-256, timestamped),
+# regenerates SHA256SUMS.txt over all four release assets, and
+# re-uploads the changed files. Signing BEFORE a release is published
+# is the better order once this is routine (sign the staged
+# installers, then publish) — the checklist describes both.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to sign (e.g. v1.0.0) — its assets must already be published"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  sign:
+    if: vars.SIGNING_ENABLED == 'true'
+    runs-on: windows-latest
+    steps:
+      - name: Verify signing secrets exist
+        shell: pwsh
+        env:
+          CERT_PFX: ${{ secrets.SIGNING_CERT_PFX }}
+          CERT_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
+        run: |
+          if (-not $env:CERT_PFX) { throw "Secret SIGNING_CERT_PFX is not set — see RELEASE_CHECKLIST.md (signing)." }
+          if (-not $env:CERT_PASSWORD) { throw "Secret SIGNING_CERT_PASSWORD is not set — see RELEASE_CHECKLIST.md (signing)." }
+
+      - name: Download the release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          New-Item -ItemType Directory -Force assets | Out-Null
+          gh release download $env:TAG --dir assets
+          Get-ChildItem assets | Select-Object Name, Length
+
+      - name: Decode the certificate
+        shell: pwsh
+        env:
+          CERT_PFX: ${{ secrets.SIGNING_CERT_PFX }}
+        run: |
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\signing.pfx", [Convert]::FromBase64String($env:CERT_PFX))
+
+      - name: Sign the installers
+        shell: pwsh
+        env:
+          CERT_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
+        run: |
+          $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |
+            Sort-Object FullName | Select-Object -Last 1
+          if (-not $signtool) { throw "signtool.exe not found on the runner." }
+          $installers = Get-ChildItem assets\MuseDesktop-Setup-*.exe
+          if ($installers.Count -ne 2) { throw "Expected exactly 2 installer assets, found $($installers.Count)." }
+          foreach ($installer in $installers) {
+            & $signtool.FullName sign /f "$env:RUNNER_TEMP\signing.pfx" /p $env:CERT_PASSWORD `
+              /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $installer.FullName
+            if ($LASTEXITCODE -ne 0) { throw "signtool failed for $($installer.Name)." }
+            & $signtool.FullName verify /pa $installer.FullName
+            if ($LASTEXITCODE -ne 0) { throw "signtool verify failed for $($installer.Name)." }
+          }
+
+      - name: Regenerate SHA256SUMS.txt and re-upload
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          $names = @(
+            "MuseDesktop-v$($env:TAG.TrimStart('v'))-windows-x64.zip",
+            "MuseDesktop-v$($env:TAG.TrimStart('v'))-windows-arm64.zip",
+            "MuseDesktop-Setup-$env:TAG-x64.exe",
+            "MuseDesktop-Setup-$env:TAG-arm64.exe"
+          )
+          $lines = foreach ($name in $names) {
+            $path = Join-Path assets $name
+            if (-not (Test-Path $path)) { throw "Missing release asset $name." }
+            $hash = (Get-FileHash $path -Algorithm SHA256).Hash.ToLower()
+            "$hash  $name"
+          }
+          $lines | Set-Content assets\SHA256SUMS.txt -Encoding ascii
+          $toUpload = @((Get-ChildItem assets\MuseDesktop-Setup-*.exe).FullName)
+          $toUpload += (Resolve-Path assets\SHA256SUMS.txt).Path
+          gh release upload $env:TAG $toUpload --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Re-uploading the signed assets failed." }

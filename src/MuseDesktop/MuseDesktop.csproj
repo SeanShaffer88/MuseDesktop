@@ -10,7 +10,7 @@
     <LangVersion>latest</LangVersion>
     <AssemblyName>MuseDesktop</AssemblyName>
     <RootNamespace>MuseDesktop</RootNamespace>
-    <Version>0.12.0</Version>
+    <Version>0.13.0</Version>
     <!-- Ship only English satellite assemblies: the shell UI is English-only,
          and the self-contained runtime otherwise adds a folder per culture. -->
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
@@ -43,6 +43,16 @@
          icon, and referencing the file from XAML without this crashes
          startup with a XamlParseException (v0.1.0 field bug). -->
     <Resource Include="muse.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- What's New (v0.13.0, S9 #82): the repo-root WhatsNew.md ships
+         beside the exe; the app extracts the running version's section
+         from it on the first launch of a new version. It is regenerated
+         from CHANGELOG.md at release time (RELEASE_CHECKLIST step), and
+         a Core test pins the two files' current-version sections
+         together so the copy can't silently drift. -->
+    <Content Include="..\..\WhatsNew.md" Link="WhatsNew.md" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

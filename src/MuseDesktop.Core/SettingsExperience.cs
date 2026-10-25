@@ -29,7 +29,7 @@ public static class SettingsSearch
     public static readonly IReadOnlyList<SettingsSectionInfo> Sections = new[]
     {
         new SettingsSectionInfo(BehaviorId, "Behavior",
-            "start with windows startup sign in autostart start in tray minimized close to tray suspend memory timeout check for updates update setup wizard first run welcome"),
+            "start with windows startup sign in autostart start in tray minimized close to tray suspend memory timeout check for updates update updates channel release pre-release prerelease beta snooze remind later frequency daily weekly manual rollback previous version what's new setup wizard first run welcome"),
         new SettingsSectionInfo(TrayId, "Tray & notifications",
             "tray icon single click double click reopen flash taskbar attention quiet hours do not disturb notifications balloon silent night"),
         new SettingsSectionInfo(ProfilesId, "Account profiles",
@@ -137,6 +137,16 @@ public static class SettingsReset
         // return to the WebView2 defaults (both on).
         target.PasswordAutosaveEnabled = fresh.PasswordAutosaveEnabled;
         target.GeneralAutofillEnabled = fresh.GeneralAutofillEnabled;
+        // S9 fields (v0.13.0): the update channel returns to stable
+        // only, the check frequency to every launch, any snooze is
+        // cleared, and What's New shows again. NOT preferences, so
+        // preserved below: LastUpdateCheckUtc, LastSeenVersion, and
+        // the kept/previous installer records — a reset must not
+        // strand a rollback or re-show old release notes.
+        target.UpdateChannel = fresh.UpdateChannel;
+        target.UpdateCheckFrequency = fresh.UpdateCheckFrequency;
+        target.UpdateSnoozedUntilUtc = fresh.UpdateSnoozedUntilUtc;
+        target.ShowWhatsNew = fresh.ShowWhatsNew;
         // S5 fields.
         target.Theme = fresh.Theme;
         target.AccentColor = fresh.AccentColor;

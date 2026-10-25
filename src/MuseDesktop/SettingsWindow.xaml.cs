@@ -126,6 +126,11 @@ public partial class SettingsWindow : Window
         // would be settings-file-only precision theatre.
         foreach (var option in SuspendTimeoutChoices)
             SuspendTimeoutCombo.Items.Add(option.Label);
+        // S9 (#83/#88): update frequency + channel choices.
+        foreach (var option in UpdateFrequencyChoices)
+            UpdateFrequencyCombo.Items.Add(option.Label);
+        foreach (var option in UpdateChannelChoices)
+            UpdateChannelCombo.Items.Add(option.Label);
         for (var hour = 0; hour < 24; hour++)
         {
             QuietStartCombo.Items.Add($"{hour:00}:00");
@@ -150,6 +155,22 @@ public partial class SettingsWindow : Window
         (SuspendTimeout.Never, "Never"),
     };
 
+    /// <summary>Update check-frequency choices in display order (S9 #83), parallel to UpdateFrequencyCombo's items.</summary>
+    private static readonly (UpdateCheckFrequency Value, string Label)[] UpdateFrequencyChoices =
+    {
+        (UpdateCheckFrequency.EveryLaunch, "Every launch"),
+        (UpdateCheckFrequency.Daily, "Once a day"),
+        (UpdateCheckFrequency.Weekly, "Once a week"),
+        (UpdateCheckFrequency.ManualOnly, "Manual only — I'll check myself"),
+    };
+
+    /// <summary>Update channel choices in display order (S9 #88), parallel to UpdateChannelCombo's items.</summary>
+    private static readonly (UpdateChannel Value, string Label)[] UpdateChannelChoices =
+    {
+        (UpdateChannel.Stable, "Stable releases only"),
+        (UpdateChannel.IncludePrereleases, "Stable + pre-releases"),
+    };
+
     /// <summary>(Re)fill every control from the working settings — at open and after an import.</summary>
     private void LoadControls()
     {
@@ -165,6 +186,13 @@ public partial class SettingsWindow : Window
         QuietStartCombo.SelectedIndex = Math.Clamp(_working.QuietHoursStartMinutes / 60, 0, 23);
         QuietEndCombo.SelectedIndex = Math.Clamp(_working.QuietHoursEndMinutes / 60, 0, 23);
         CheckUpdatesCheck.IsChecked = _working.CheckForUpdates;
+        // S9: update frequency/channel, What's New opt-out, snooze state.
+        var freqIndex = Array.FindIndex(UpdateFrequencyChoices, c => c.Value == _working.UpdateCheckFrequency);
+        UpdateFrequencyCombo.SelectedIndex = freqIndex >= 0 ? freqIndex : 0;
+        var channelIndex = Array.FindIndex(UpdateChannelChoices, c => c.Value == _working.UpdateChannel);
+        UpdateChannelCombo.SelectedIndex = channelIndex >= 0 ? channelIndex : 0;
+        ShowWhatsNewCheck.IsChecked = _working.ShowWhatsNew;
+        RefreshUpdateSnoozeNote();
         AskWhereToSaveCheck.IsChecked = _working.AskWhereToSave;
         NotifyDownloadCompleteCheck.IsChecked = _working.NotifyWhenDownloadCompletes;
         CollisionPolicyCombo.SelectedIndex = _working.CollisionPolicy == DownloadCollisionPolicy.AskWhereToSave ? 1 : 0;
@@ -212,6 +240,27 @@ public partial class SettingsWindow : Window
         ShellTextScaling.Apply(this, _working.ShellFontScale);
     }
 
+    /// <summary>The snooze line + its cancel button (S9 #83): visible only while a snooze is actually in force.</summary>
+    private void RefreshUpdateSnoozeNote()
+    {
+        if (_working.UpdateSnoozedUntilUtc is { } until && DateTimeOffset.UtcNow < until)
+        {
+            UpdateSnoozeNote.Text = UpdateSchedule.DescribeSnooze(until);
+            StopSnoozeButton.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            UpdateSnoozeNote.Text = "";
+            StopSnoozeButton.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void OnStopUpdateSnooze(object sender, RoutedEventArgs e)
+    {
+        _working.UpdateSnoozedUntilUtc = null;
+        RefreshUpdateSnoozeNote();
+    }
+
     /// <summary>Read the plain controls back into the working settings (OK and Export share this).</summary>
     private void HarvestControls()
     {
@@ -229,6 +278,13 @@ public partial class SettingsWindow : Window
         if (QuietEndCombo.SelectedIndex >= 0)
             _working.QuietHoursEndMinutes = QuietEndCombo.SelectedIndex * 60;
         _working.CheckForUpdates = CheckUpdatesCheck.IsChecked == true;
+        // S9: frequency + channel + What's New (the snooze itself is
+        // written by its own button / the update window, not harvested).
+        if (UpdateFrequencyCombo.SelectedIndex >= 0 && UpdateFrequencyCombo.SelectedIndex < UpdateFrequencyChoices.Length)
+            _working.UpdateCheckFrequency = UpdateFrequencyChoices[UpdateFrequencyCombo.SelectedIndex].Value;
+        if (UpdateChannelCombo.SelectedIndex >= 0 && UpdateChannelCombo.SelectedIndex < UpdateChannelChoices.Length)
+            _working.UpdateChannel = UpdateChannelChoices[UpdateChannelCombo.SelectedIndex].Value;
+        _working.ShowWhatsNew = ShowWhatsNewCheck.IsChecked == true;
         _working.AskWhereToSave = AskWhereToSaveCheck.IsChecked == true;
         _working.NotifyWhenDownloadCompletes = NotifyDownloadCompleteCheck.IsChecked == true;
         _working.CollisionPolicy = CollisionPolicyCombo.SelectedIndex == 1
@@ -1720,5 +1776,17 @@ public partial class SettingsWindow : Window
         target.AppLockHash = source.AppLockHash;
         target.AppLockIterations = source.AppLockIterations;
         target.AppLockOnTrayHide = source.AppLockOnTrayHide;
+        // S9 fields (update channel/frequency/snooze, What's New
+        // seen-state + opt-out, kept/previous installer records) —
+        // state records travel with exports too: importing settings
+        // onto the same PC keeps the rollback offer intact.
+        target.UpdateChannel = source.UpdateChannel;
+        target.UpdateCheckFrequency = source.UpdateCheckFrequency;
+        target.LastUpdateCheckUtc = source.LastUpdateCheckUtc;
+        target.UpdateSnoozedUntilUtc = source.UpdateSnoozedUntilUtc;
+        target.LastSeenVersion = source.LastSeenVersion;
+        target.ShowWhatsNew = source.ShowWhatsNew;
+        target.KeptInstaller = source.KeptInstaller;
+        target.PreviousInstaller = source.PreviousInstaller;
     }
 }

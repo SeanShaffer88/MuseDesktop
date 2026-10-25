@@ -20,7 +20,9 @@
 
         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
             <TextBlock x:Name="CopyNote" Style="{StaticResource Note}" Margin="0,4,10,0"/>
-            <Button Content="Copy report" Width="110" Height="30" Click="OnCopy"
+            <Button x:Name="RollbackButton" Width="230" Height="30" Click="OnRollback" Visibility="Collapsed"
+                    ToolTip="Run the previous version's installer, kept by the in-app updater, and replace this version in place"/>
+            <Button Content="Copy report" Width="110" Height="30" Margin="8,0,0,0" Click="OnCopy"
                     ToolTip="Copy this report to the clipboard (it contains file paths on this PC, no page content)"/>
             <Button Content="Refresh" Width="86" Height="30" Margin="8,0,0,0" Click="OnRefresh"
                     ToolTip="Collect the figures again"/>
