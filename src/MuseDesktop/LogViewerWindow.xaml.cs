@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using MuseDesktop.Core;
@@ -76,4 +77,42 @@ public partial class LogViewerWindow : Window
     }
 
     private void OnRefresh(object sender, RoutedEventArgs e) => Reload();
+
+    /// <summary>Copy just the newest error, redacted (S10 #93) — the one line a bug report usually needs.</summary>
+    private void OnCopyLastError(object sender, RoutedEventArgs e)
+    {
+        var last = LogReading.LastError(_logText);
+        if (last is null)
+        {
+            CopyNote.Text = "No errors in the current log — nothing to copy.";
+            return;
+        }
+        try
+        {
+            System.Windows.Clipboard.SetText(last);
+            CopyNote.Text = "Copied the most recent error (redacted).";
+        }
+        catch
+        {
+            CopyNote.Text = "Couldn't copy — the clipboard is busy. Try again.";
+        }
+    }
+
+    /// <summary>Open the log file itself in the default text editor (S10 #93).</summary>
+    private void OnOpenLog(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (!File.Exists(AppPaths.LogPath))
+            {
+                CopyNote.Text = "There's no log file yet — it appears once something is written to it.";
+                return;
+            }
+            Process.Start(new ProcessStartInfo(AppPaths.LogPath) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            CopyNote.Text = $"Couldn't open the log file ({ex.Message}). It lives at {AppPaths.LogPath}.";
+        }
+    }
 }

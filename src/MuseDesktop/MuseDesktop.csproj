@@ -10,7 +10,7 @@
     <LangVersion>latest</LangVersion>
     <AssemblyName>MuseDesktop</AssemblyName>
     <RootNamespace>MuseDesktop</RootNamespace>
-    <Version>0.13.0</Version>
+    <Version>0.14.0</Version>
     <!-- Ship only English satellite assemblies: the shell UI is English-only,
          and the self-contained runtime otherwise adds a folder per culture. -->
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
@@ -53,6 +53,16 @@
          a Core test pins the two files' current-version sections
          together so the copy can't silently drift. -->
     <Content Include="..\..\WhatsNew.md" Link="WhatsNew.md" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Help (v0.14.0, S10 #91): the repo-root Help.md ships beside the
+         exe; the Help window reads its pages from it. Core's
+         HelpCatalog pins the page set — a test fails unless the file
+         carries exactly those sections. -->
+    <Content Include="..\..\Help.md" Link="Help.md" CopyToOutputDirectory="PreserveNewest" />
+    <!-- About (v0.14.0, S10 #94): the app's LICENSE and the third-party
+         notices ship beside the exe so the About window's licenses
+         view shows the files this install actually carries. -->
+    <Content Include="..\..\LICENSE" Link="LICENSE" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\THIRD-PARTY-NOTICES.txt" Link="THIRD-PARTY-NOTICES.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

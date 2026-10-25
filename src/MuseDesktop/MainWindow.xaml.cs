@@ -1494,10 +1494,33 @@ public partial class MainWindow : Window
 
     // ───────────────────────── settings (v0.2.0) ─────────────────────────
 
-    private void OnSettings(object sender, RoutedEventArgs e)
+    /// <summary>
+    /// The Settings window's test-notification button (S10 #92): the
+    /// tray shows the balloon (sent even under quiet hours/DND because
+    /// the user asked) and the Core line reports the outcome — naming
+    /// the suppression automatic notifications are under, if any.
+    /// </summary>
+    private string RunTestNotification()
+    {
+        var (suppression, shown) = _tray.ShowTestNotification();
+        return GuidedSelfTests.NotificationLine(suppression, shown);
+    }
+
+    private void OnSettings(object sender, RoutedEventArgs e) => OpenSettings();
+
+    /// <summary>
+    /// Open Settings, optionally landing on a section (S10 #91: the
+    /// Help pages point at the section their fix lives in — the clone
+    /// carries the section id into the window's own restore-scroll, and
+    /// Cancel discards it like every other clone edit).
+    /// </summary>
+    private void OpenSettings(string? sectionId = null)
     {
         var clone = _settings.Clone();
-        var dialog = new SettingsWindow(clone, _log, _privacyGateway, SwitchToProfile) { Owner = this };
+        if (sectionId is not null && SettingsSearch.IsKnownSection(sectionId))
+            clone.SettingsLastSection = sectionId;
+        var dialog = new SettingsWindow(clone, _log, _privacyGateway, SwitchToProfile,
+            notificationTest: RunTestNotification) { Owner = this };
         // S6 #56: closing Settings returns focus to whatever invoked it
         // (usually the page itself).
         if (FocusReturn.ShowDialog(dialog) != true)
@@ -2399,19 +2422,105 @@ public partial class MainWindow : Window
         catch (Exception ex) { _log.Warn($"Open log folder failed: {ex.Message}"); }
     }
 
+    /// <summary>
+    /// About (S10 #94): the full panel — version, channel, arch,
+    /// Windows/.NET/WebView2 versions, data paths, Check for updates
+    /// (routes into the S9 flow), and the licenses view. Replaces the
+    /// pre-S10 MessageBox, whose text nobody could copy.
+    /// </summary>
     private void OnAbout(object sender, RoutedEventArgs e)
     {
-        var version = typeof(App).Assembly.GetName().Version;
+        string webViewVersion;
+        try { webViewVersion = CoreWebView2Environment.GetAvailableBrowserVersionString() ?? "not found"; }
+        catch { webViewVersion = "couldn't be read"; }
+        var facts = new AboutFacts(
+            Version: $"{typeof(App).Assembly.GetName().Version}",
+            ChannelLabel: UpdateChannelText.Label(_settings.UpdateChannel),
+            Architecture: $"{System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}",
+            WindowsVersion: System.Runtime.InteropServices.RuntimeInformation.OSDescription,
+            DotNetVersion: System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription,
+            WebViewVersion: webViewVersion,
+            SettingsPath: AppPaths.SettingsPath,
+            LogPath: AppPaths.LogPath,
+            ProfileDir: _profileDir);
         var invoker = FocusReturn.Capture();
-        System.Windows.MessageBox.Show(this,
-            $"MuseDesktop {version}\n\n" +
-            "A native Windows client for Muse at muse.ai.\n" +
-            $"Settings: {AppPaths.SettingsPath}\n" +
-            $"Log: {AppPaths.LogPath}\n" +
-            $"Web profile: {_profileDir}\n\n" +
-            "MuseDesktop is an independent open-source project (MIT) and is not made by Meta.",
-            "About MuseDesktop", MessageBoxButton.OK, MessageBoxImage.Information);
+        var dialog = new AboutWindow(facts,
+            () => OnCheckForUpdates(this, new RoutedEventArgs())) { Owner = this };
+        ThemeManager.ApplyTitleBar(dialog);
+        ShellTextScaling.Apply(dialog, _settings.ShellFontScale);
+        FocusReturn.ShowDialog(dialog);
         FocusReturn.Restore(invoker);
+    }
+
+    /// <summary>
+    /// Help &amp; troubleshooting (S10 #91): the offline pages shipped
+    /// as Help.md beside the exe. A page's action routes back here —
+    /// open Settings at the section the fix lives in, open
+    /// Diagnostics, or open the log viewer — and the Help window
+    /// stays open behind the target so the steps remain readable
+    /// afterwards where focus allows.
+    /// </summary>
+    private void OnHelp(object sender, RoutedEventArgs e)
+    {
+        string markdown;
+        try
+        {
+            var path = Path.Combine(AppContext.BaseDirectory, "Help.md");
+            markdown = File.Exists(path) ? File.ReadAllText(path) : "";
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Help file couldn't be read: {ex.Message}");
+            markdown = "";
+        }
+        var invoker = FocusReturn.Capture();
+        var dialog = new HelpWindow(markdown, HandleHelpAction) { Owner = this };
+        ThemeManager.ApplyTitleBar(dialog);
+        ShellTextScaling.Apply(dialog, _settings.ShellFontScale);
+        dialog.ShowDialog();
+        FocusReturn.Restore(invoker);
+    }
+
+    private void HandleHelpAction(HelpPage page)
+    {
+        switch (page.Action)
+        {
+            case HelpAction.OpenSettings:
+                OpenSettings(page.SettingsSectionId);
+                break;
+            case HelpAction.OpenDiagnostics:
+                OnDiagnostics(this, new RoutedEventArgs());
+                break;
+            case HelpAction.OpenLogViewer:
+                OnViewLog(this, new RoutedEventArgs());
+                break;
+        }
+    }
+
+    /// <summary>The current log file's text ("" when missing/unreadable) — the one read every support surface shares (S10 #89/#90/#93).</summary>
+    private string ReadLogText()
+    {
+        try { return File.Exists(AppPaths.LogPath) ? File.ReadAllText(AppPaths.LogPath) : ""; }
+        catch (Exception ex)
+        {
+            _log.Warn($"Log read failed: {ex.Message}");
+            return "";
+        }
+    }
+
+    /// <summary>Open the log file itself in the default text editor (S10 #93) — the Diagnostics window's "Open today's log".</summary>
+    private void OpenTodaysLog()
+    {
+        try
+        {
+            if (!File.Exists(AppPaths.LogPath))
+            {
+                SetStatus("There's no log file yet");
+                return;
+            }
+            Process.Start(new ProcessStartInfo(AppPaths.LogPath) { UseShellExecute = true });
+        }
+        catch (Exception ex) { _log.Warn($"Open today's log failed: {ex.Message}"); }
     }
 
     /// <summary>
@@ -2431,12 +2540,17 @@ public partial class MainWindow : Window
         var rollbackLabel = rollbackPath is not null && _settings.PreviousInstaller is not null
             ? RollbackOffer.Describe(_settings.PreviousInstaller)
             : null;
-        var window = new DiagnosticsWindow(
+        DiagnosticsWindow window = null!;
+        window = new DiagnosticsWindow(
             () => DiagnosticsReport.Compose(BuildDiagnosticsData()),
             rollbackLabel,
             rollbackPath is not null
                 ? () => ReinstallPreviousVersion(rollbackPath, _settings.PreviousInstaller!.Version)
-                : null)
+                : null,
+            // S10 #90/#93: the support actions.
+            onExportBundle: () => StartSupportBundleExport(window),
+            onOpenLog: OpenTodaysLog,
+            lastErrorProvider: () => LogReading.LastError(ReadLogText()))
         { Owner = this };
         ThemeManager.ApplyTitleBar(window);
         ShellTextScaling.Apply(window, _settings.ShellFontScale);
@@ -2490,6 +2604,7 @@ public partial class MainWindow : Window
         List<StartupTimings> runs = new();
         try { runs = StartupTimingsStore.Load(AppPaths.StartupTimingsPath); }
         catch (Exception ex) { _log.Warn($"Diagnostics startup-timings read failed: {ex.Message}"); }
+        var logText = ReadLogText();
         return new DiagnosticsData
         {
             AppVersion = $"{typeof(App).Assembly.GetName().Version}",
@@ -2503,7 +2618,141 @@ public partial class MainWindow : Window
             MemoryBeforeSuspend = _memBeforeSuspend,
             MemoryAfterResume = _memAfterResume,
             StartupRuns = runs,
+            // S10 #89: the full-panel facts.
+            Architecture = $"{System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture}",
+            WindowsVersion = System.Runtime.InteropServices.RuntimeInformation.OSDescription,
+            DotNetVersion = System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription,
+            ActiveProfileName = _settings.Profiles.FirstOrDefault(p => p.Id == _settings.ActiveProfileId)?.Name
+                                ?? _settings.ActiveProfileId,
+            UpdateChannelLabel = UpdateChannelText.Label(_settings.UpdateChannel),
+            AppLockOn = AppLock.IsLockActive(_settings),
+            DataSizes = new (string, long?)[]
+            {
+                ("Active profile data", ProfileDataInfo.MeasureFolderBytes(_profileDir)),
+                ("Settings & app data", ProfileDataInfo.MeasureFolderBytes(AppPaths.RootDir)),
+            },
+            RecentErrors = LogReading.RecentErrors(logText, 5),
         };
+    }
+
+    // ───────────────────────── support bundle (S10 #90/#95) ─────────────────────────
+
+    private void OnExportSupportBundle(object sender, RoutedEventArgs e) =>
+        StartSupportBundleExport(this);
+
+    /// <summary>
+    /// Export the support bundle: preview first (exactly what's in
+    /// it, plus the opt-in screenshot offer), then a save dialog,
+    /// then the zip. The zip's contents are Core's
+    /// <see cref="SupportBundle"/> set: manifest, diagnostics, the
+    /// REDACTED log tail, bundle-sanitized settings (no lock record,
+    /// no full URLs), and download history. Nothing is uploaded; the
+    /// file lands where the user saves it.
+    /// </summary>
+    private void StartSupportBundleExport(Window owner)
+    {
+        // The screenshot renders THIS window's own visual tree, so it
+        // needs the window visible and unlocked — a locked window's
+        // content never enters a bundle, by construction.
+        var screenshotAvailable = IsVisible && !_isLocked && ActualWidth > 0 && ActualHeight > 0;
+        var unavailableReason = _isLocked
+            ? "No screenshot while the app is locked — unlock first if you want one."
+            : "The MuseDesktop window isn't visible right now, so there's nothing to capture.";
+        var preview = new SupportBundlePreviewWindow(
+            screenshotAvailable,
+            screenshotAvailable ? null : unavailableReason,
+            CaptureMainWindowPng)
+        { Owner = owner };
+        ThemeManager.ApplyTitleBar(preview);
+        ShellTextScaling.Apply(preview, _settings.ShellFontScale);
+        if (preview.ShowDialog() != true || !preview.Confirmed)
+            return;
+
+        var save = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Save support bundle",
+            FileName = SupportBundle.DefaultFileName(DateTimeOffset.Now),
+            Filter = "Zip archive (*.zip)|*.zip",
+            InitialDirectory = AppPaths.DownloadsHint,
+        };
+        if (save.ShowDialog(owner) != true)
+            return;
+
+        var includeScreenshot = preview.IncludeScreenshot;
+        try
+        {
+            var version = $"{typeof(App).Assembly.GetName().Version}";
+            var downloadsJson = File.Exists(AppPaths.DownloadsHistoryPath)
+                ? File.ReadAllText(AppPaths.DownloadsHistoryPath)
+                : "[]";
+            using (var stream = new FileStream(save.FileName, FileMode.Create, FileAccess.Write))
+            using (var zip = new System.IO.Compression.ZipArchive(stream, System.IO.Compression.ZipArchiveMode.Create))
+            {
+                WriteBundleEntry(zip, SupportBundle.ManifestFile,
+                    SupportBundle.ComposeManifest(version, DateTimeOffset.Now, includeScreenshot));
+                WriteBundleEntry(zip, SupportBundle.DiagnosticsFile,
+                    DiagnosticsReport.Compose(BuildDiagnosticsData()));
+                WriteBundleEntry(zip, SupportBundle.LogFile,
+                    SupportBundle.LogExcerpt(ReadLogText()));
+                WriteBundleEntry(zip, SupportBundle.SettingsFile,
+                    SupportBundle.SettingsJson(_settings));
+                WriteBundleEntry(zip, SupportBundle.DownloadsFile, downloadsJson);
+                if (includeScreenshot && preview.ScreenshotPng is { } png)
+                {
+                    var entry = zip.CreateEntry(SupportBundle.ScreenshotFile);
+                    using var entryStream = entry.Open();
+                    entryStream.Write(png, 0, png.Length);
+                }
+            }
+            var fileCount = SupportBundle.Contents(includeScreenshot).Count;
+            _log.Info($"Support bundle exported: {Path.GetFileName(save.FileName)} ({fileCount} files, screenshot {(includeScreenshot ? "included" : "not included")})");
+            SetStatus("Support bundle saved");
+            Announcer.Polite("Support bundle saved.");
+        }
+        catch (Exception ex)
+        {
+            _log.Error($"Support bundle export failed: {ex.Message}");
+            System.Windows.MessageBox.Show(owner,
+                "The support bundle couldn't be written. The log has the details; the Diagnostics report's Copy button is the fallback.",
+                "Export support bundle", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private static void WriteBundleEntry(System.IO.Compression.ZipArchive zip, string name, string text)
+    {
+        var entry = zip.CreateEntry(name);
+        using var writer = new StreamWriter(entry.Open());
+        writer.Write(text);
+    }
+
+    /// <summary>
+    /// Render THIS window's own visual tree to a PNG (S10 #95).
+    /// RenderTargetBitmap draws the tree itself, not the screen, so
+    /// other windows and the desktop cannot appear — and the caller
+    /// shows the result for review before it enters any bundle.
+    /// </summary>
+    private byte[]? CaptureMainWindowPng()
+    {
+        try
+        {
+            var width = (int)Math.Ceiling(ActualWidth);
+            var height = (int)Math.Ceiling(ActualHeight);
+            if (width <= 0 || height <= 0)
+                return null;
+            var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(
+                width, height, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
+            bitmap.Render(this);
+            var encoder = new System.Windows.Media.Imaging.PngBitmapEncoder();
+            encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
+            using var stream = new MemoryStream();
+            encoder.Save(stream);
+            return stream.ToArray();
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Window screenshot capture failed: {ex.Message}");
+            return null;
+        }
     }
 
     private static void OpenExternal(string url)

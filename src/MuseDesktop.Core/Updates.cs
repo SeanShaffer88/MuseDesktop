@@ -19,6 +19,16 @@ public enum UpdateChannel
     IncludePrereleases,
 }
 
+/// <summary>The user-facing name of a release channel (v0.14.0, S10 #89/#94 — Diagnostics and About read the same words Settings shows).</summary>
+public static class UpdateChannelText
+{
+    public static string Label(UpdateChannel channel) => channel switch
+    {
+        UpdateChannel.IncludePrereleases => "Stable + pre-releases",
+        _ => "Stable",
+    };
+}
+
 /// <summary>How often the automatic (non-manual) update check runs (v0.13.0, S9 #83).</summary>
 public enum UpdateCheckFrequency
 {

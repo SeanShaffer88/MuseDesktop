@@ -2,6 +2,24 @@
 
 All notable changes to MuseDesktop. Format follows Keep a Changelog; versions use semantic versioning.
 
+## [0.14.0] — Unreleased
+
+Slice 10 (items 89–95) of the 100-enhancement program: diagnostics, support & help.
+
+### Added
+
+- **The full Diagnostics panel (#89)** — the Diagnostics window (⋯ menu) now also shows the app's architecture, your Windows build, the .NET runtime version, the active profile, the update channel, whether the app lock is on, per-area data sizes, and the most recent errors from the log — redacted before they're shown, like everything else that can leave the app. **Copy report** still puts the whole thing on the clipboard in one click.
+- **Support-bundle export (#90)** — Diagnostics (and the ⋯ menu) can save one .zip with the diagnostics report, the last 500 log lines (redacted first — never the raw file), your download history, and a settings copy made for sharing: before anything is written, a preview lists every file and states what's NOT in it — no cookies, no sign-in tokens, no page or conversation content, and no web addresses from your settings. The bundle's settings are sanitized harder than a settings export on purpose: the app-lock password record is removed entirely and last-page/start-page addresses are stripped (a test pins both). Nothing is uploaded anywhere; you save the file and choose whether to share it. A `manifest.txt` inside the zip repeats the inventory.
+- **In-app Help (#91)** — ⋯ → *Help & troubleshooting…* opens seven offline pages for the problems people actually hit: sign-in loops, voice dictation not hearing you, silent notifications, a missing/too-old WebView2 Runtime, failing downloads, a forgotten app password (with the tested settings.json recovery, spelled out), and pages that won't load. Each page says what you'll see, why, and the steps — and where the fix lives in the app, its button takes you there (Settings at the right section, Diagnostics, the log viewer). Only the "report a problem" link goes online, and it's labeled.
+- **Guided microphone + notification tests (#92)** — Settings → Privacy & security gains **Test microphone…** and **Send test notification**. The mic test asks for the microphone through the same WebView2 permission path a page uses (in this profile), then listens for a few seconds: the result says whether permission was granted AND whether sound actually arrived, plus what Muse's saved microphone choice is. The notification test fires MuseDesktop's own tray balloon — sent even during quiet hours or Windows Do Not Disturb because you asked for it, and the result line says plainly when those are holding automatic notifications back. Both results are shown and announced for screen readers.
+- **Log actions (#93)** — the log viewer and Diagnostics gain **Open today's log** (the file itself, in your text editor) and **Copy last error** (just the most recent error, redacted) — no more hunting through the folder for the one line a bug report needs.
+- **A real About window (#94)** — About is now a window instead of a message box: version, release channel, architecture, Windows/.NET/WebView2 versions, the data paths, a **Check for updates** button that runs the normal update flow, and **Licenses & notices** — MuseDesktop's own MIT license plus the notices for the WebView2 SDK and .NET, shipped beside the app so the installed copy is what's shown.
+- **Optional window screenshot in the bundle (#95)** — the bundle preview offers "Include a screenshot of the MuseDesktop window" (off by default). It captures only this app's own window — never your desktop or other apps — shows you the picture next to a warning that it may include conversation text (blur or crop it in Paint first), and the screenshot enters the bundle only if you checked the box and confirmed. While the app is locked, no screenshot is offered at all.
+
+### Notes
+
+- Core test suite grows by 26 cases (505 → 531). All v0.14.0 runtime behavior is **Unverified** on a real Windows machine pending the `RELEASE_CHECKLIST.md` S10 pass.
+
 ## [0.13.0] — Unreleased
 
 Slice 9 (items 81–88) of the 100-enhancement program: updates, installer & distribution.

@@ -47,6 +47,21 @@ public sealed class WebPrivacyGateway
     /// <summary>True when the running web view exists (clearing/inspecting the active profile needs it).</summary>
     public bool IsLiveReady => _liveWebView() is not null;
 
+    /// <summary>
+    /// The live web view's environment (the ACTIVE profile's), for the
+    /// microphone test window (S10 #92): the test hosts its page in
+    /// this environment so the request travels the real profile's
+    /// permission machinery. Null until the web view exists.
+    /// </summary>
+    public CoreWebView2Environment? LiveEnvironment
+    {
+        get
+        {
+            try { return _liveWebView()?.Environment; }
+            catch { return null; }
+        }
+    }
+
     /// <summary>The WebView2 runtime version for the connection dialog (#69), or null when unknown.</summary>
     public string? RuntimeVersion
     {
