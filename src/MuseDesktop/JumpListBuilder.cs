@@ -5,12 +5,14 @@ namespace MuseDesktop;
 
 /// <summary>
 /// The taskbar Jump List (S4 #33): right-click the taskbar button for
-/// Open Muse, Settings, and one task per profile (most recently used
-/// first). Tasks launch this exe with the S3/S4 command-line flags, so
-/// they inherit the standing semantics: --profile persists as the
-/// active profile, and while the app is already running a task only
-/// wakes the running window (single-instance) — it cannot switch a
-/// running instance's profile. Rebuilt whenever the profile list or
+/// Open Muse, Settings, Quick dictate (S11 #97), and one task per
+/// profile (most recently used first). Tasks launch this exe with the
+/// command-line flags, so they ride the one intent surface (S11
+/// #100): on a cold start --profile persists as the active profile;
+/// on a running instance the flags arrive as a LaunchIntent — a
+/// profile task asks before switching (the usual confirm + restart),
+/// never switches silently, and while the app is locked every task
+/// waits behind the lock. Rebuilt whenever the profile list or
 /// active profile changes; every failure is a log line.
 /// </summary>
 public static class JumpListBuilder
@@ -46,6 +48,14 @@ public static class JumpListBuilder
                 Description = "Open MuseDesktop and its Settings window",
                 ApplicationPath = exe,
                 Arguments = "--settings",
+                IconResourcePath = exe,
+            });
+            list.JumpItems.Add(new JumpTask
+            {
+                Title = "Quick dictate",
+                Description = "Open MuseDesktop with the Muse page focused, ready for voice input",
+                ApplicationPath = exe,
+                Arguments = "--dictate",
                 IconResourcePath = exe,
             });
 

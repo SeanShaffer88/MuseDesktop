@@ -29,7 +29,7 @@ public static class SettingsSearch
     public static readonly IReadOnlyList<SettingsSectionInfo> Sections = new[]
     {
         new SettingsSectionInfo(BehaviorId, "Behavior",
-            "start with windows startup sign in autostart start in tray minimized close to tray suspend memory timeout check for updates update updates channel release pre-release prerelease beta snooze remind later frequency daily weekly manual rollback previous version what's new setup wizard first run welcome"),
+            "start with windows startup sign in autostart start in tray minimized close to tray suspend memory timeout check for updates update updates channel release pre-release prerelease beta snooze remind later frequency daily weekly manual rollback previous version what's new setup wizard first run welcome protocol links musedesktop links url handler command line launching"),
         new SettingsSectionInfo(TrayId, "Tray & notifications",
             "tray icon single click double click reopen flash taskbar attention quiet hours do not disturb notifications balloon silent night"),
         new SettingsSectionInfo(ProfilesId, "Account profiles",
@@ -39,7 +39,7 @@ public static class SettingsSearch
         new SettingsSectionInfo(ZoomId, "Zoom",
             "zoom default percent bigger smaller text size page extended range low vision 500"),
         new SettingsSectionInfo(AccessibilityId, "Keyboard & accessibility",
-            "keyboard shortcuts keys remap rebind change hotkey reduce motion animation effects announcements screen reader narrator focus dialog extended zoom range low vision accessibility"),
+            "keyboard shortcuts keys remap rebind change hotkey global show hide anywhere dictate reduce motion animation effects announcements screen reader narrator focus dialog extended zoom range low vision accessibility"),
         new SettingsSectionInfo(DownloadsId, "Downloads",
             "downloads folder save ask where collision already exists rename history keep cap notify finished balloon"),
         new SettingsSectionInfo(DataId, "Data",
@@ -137,6 +137,12 @@ public static class SettingsReset
         // return to the WebView2 defaults (both on).
         target.PasswordAutosaveEnabled = fresh.PasswordAutosaveEnabled;
         target.GeneralAutofillEnabled = fresh.GeneralAutofillEnabled;
+        // S11 fields (v1.0.0): the global hotkey returns to on with
+        // its default gesture, and musedesktop:// links register
+        // again (the sync applies at next startup / Settings OK).
+        target.GlobalHotkeyEnabled = fresh.GlobalHotkeyEnabled;
+        target.GlobalHotkeyGesture = fresh.GlobalHotkeyGesture;
+        target.RegisterProtocolLinks = fresh.RegisterProtocolLinks;
         // S9 fields (v0.13.0): the update channel returns to stable
         // only, the check frequency to every launch, any snooze is
         // cleared, and What's New shows again. NOT preferences, so

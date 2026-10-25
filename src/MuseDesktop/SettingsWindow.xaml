@@ -81,6 +81,18 @@
                     <Button x:Name="StopSnoozeButton" Content="Stop snoozing update reminders" Width="210" HorizontalAlignment="Left"
                             Margin="0,4,0,0" Click="OnStopUpdateSnooze" Visibility="Collapsed"
                             ToolTip="Cancel the snooze set from the update window (Remind me tomorrow / next week)"/>
+                    <!-- S11 #99: musedesktop:// links. The installer
+                         registers the scheme; this toggle keeps the
+                         registration in line with it (and is how
+                         portable installs register). The status line
+                         reports the ACTUAL registration — including
+                         when another app owns the scheme, which is
+                         never overwritten. -->
+                    <TextBlock Style="{StaticResource Note}" Margin="0,14,0,2"
+                               Text="Links — links that start with musedesktop:// can open MuseDesktop at a fixed set of places (the window, Home, Settings, Downloads, Help, or a profile). A link can never carry a web address or open anything else, and while the app is locked, links wait until you unlock."/>
+                    <CheckBox x:Name="ProtocolLinksCheck" Content="Let musedesktop:// links open MuseDesktop" Margin="0,2,0,0"
+                              ToolTip="Register MuseDesktop as the handler for musedesktop:// links for your Windows user account"/>
+                    <TextBlock x:Name="ProtocolStatus" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
                     <Button Content="Run the setup wizard again…" Width="210" HorizontalAlignment="Left"
                             Margin="0,10,0,0" Click="OnRunSetupWizard"
                             ToolTip="Re-run the one-screen first-run setup (close-to-tray, start with Windows, downloads folder, update checks)"/>
@@ -268,6 +280,25 @@
                         <Button Content="Reset all keys" Width="120" Margin="8,0,0,0" Click="OnResetAllShortcuts"
                                 ToolTip="Put every changed shortcut back to its default"/>
                     </StackPanel>
+                    <!-- S11 #96: the global show/hide hotkey. It lives
+                         OUTSIDE the in-app shortcut list above on
+                         purpose: it is registered with Windows itself
+                         and works while other apps have focus; Core's
+                         GlobalHotkey checks the two systems against
+                         each other so they can never share a key. -->
+                    <TextBlock Style="{StaticResource Note}" Margin="0,14,0,2"
+                               Text="Global hotkey — registered with Windows, so it works while any app has focus. Click the key button, then press the new combination (it must include Ctrl or Alt):"/>
+                    <CheckBox x:Name="GlobalHotkeyCheck" Content="Show or hide MuseDesktop with a global hotkey" Margin="0,2,0,0"
+                              ToolTip="Press the combination anywhere to bring MuseDesktop forward; press it again to hide it to the tray"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <Button x:Name="GlobalHotkeyButton" MinWidth="170" Click="OnCaptureGlobalHotkey"
+                                ToolTip="The current global hotkey combination — click, then press a new one"/>
+                        <Button Content="Reset" Width="80" Margin="8,0,0,0" Click="OnResetGlobalHotkey"
+                                ToolTip="Put the global hotkey back to the default, Ctrl+Alt+M"/>
+                    </StackPanel>
+                    <TextBlock x:Name="GlobalHotkeyStatus" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="The default is Ctrl+Alt+M. If another app already uses the combination, registration fails and the status line above says so — pick a different one. While the app is locked, the hotkey only ever shows the lock screen."/>
                 </StackPanel>
 
                 <StackPanel x:Name="SectionDownloads">

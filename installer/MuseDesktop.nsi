@@ -12,6 +12,14 @@
 ;   (%APPDATA%\MuseDesktop settings/log and every profile folder under
 ;   %LOCALAPPDATA%\MuseDesktop) unless the user answers Yes to the
 ;   "also delete" prompt — the same folders a zip user would delete by hand.
+; - musedesktop:// links (v1.0.0, S11 #99): the install registers the
+;   per-user URL protocol under HKCU Software\Classes\musedesktop —
+;   no admin, and uninstall removes it ONLY when its command still
+;   points at this install (a user who moved the app or registered
+;   another copy keeps what the key says). The app also keeps the
+;   registration in line with its Settings toggle at runtime, which
+;   is how portable (zip) installs register: the toggle, not this
+;   script, owns that case.
 ;
 ; Installer audit (v0.13.0, S9 #86):
 ; - Install folder: the directory page (MUI_PAGE_DIRECTORY) offers a
@@ -79,6 +87,13 @@ Section "MuseDesktop" SecMain
   CreateDirectory "$SMPROGRAMS\MuseDesktop"
   CreateShortcut "$SMPROGRAMS\MuseDesktop\MuseDesktop.lnk" "$INSTDIR\MuseDesktop.exe"
 
+  ; musedesktop:// protocol registration (S11 #99) — per-user, the
+  ; standard URL-protocol key shape. The in-app toggle syncs the same
+  ; key at runtime; the two writers always write the same values.
+  WriteRegStr HKCU "Software\Classes\musedesktop" "" "URL:MuseDesktop Link"
+  WriteRegStr HKCU "Software\Classes\musedesktop" "URL Protocol" ""
+  WriteRegStr HKCU "Software\Classes\musedesktop\shell\open\command" "" '"$INSTDIR\MuseDesktop.exe" "%1"'
+
   ; Uninstaller + Apps & Features registration (per-user)
   WriteUninstaller "$INSTDIR\Uninstall.exe"
   WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\MuseDesktop" "DisplayName" "MuseDesktop"
@@ -124,6 +139,13 @@ LangString DESC_SecDesktop ${LANG_ENGLISH} "Adds a MuseDesktop shortcut to your 
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 
 Section "Uninstall"
+  ; musedesktop:// registration (S11 #99): remove it only when it is
+  ; still THIS install's command — never another copy's.
+  ReadRegStr $0 HKCU "Software\Classes\musedesktop\shell\open\command" ""
+  ${If} $0 == '"$INSTDIR\MuseDesktop.exe" "%1"'
+    DeleteRegKey HKCU "Software\Classes\musedesktop"
+  ${EndIf}
+
   ; Program files and shortcuts
   Delete "$SMPROGRAMS\MuseDesktop\MuseDesktop.lnk"
   RMDir "$SMPROGRAMS\MuseDesktop"

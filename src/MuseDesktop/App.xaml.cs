@@ -27,10 +27,35 @@ public partial class App : System.Windows.Application
     {
         base.OnStartup(e);
 
-        // The command-line surface (S3 #23, S4 #33): --background,
-        // --smoke-test, --profile <id>, --settings; anything unknown is
-        // tolerated, never fatal.
+        // The command-line surface (S3 #23, S4 #33; completed by
+        // S11 #100): --background, --smoke-test, --profile <id>,
+        // --settings, --home, --downloads, --dictate, --safe-mode and
+        // musedesktop:// links; anything unknown is tolerated, never
+        // fatal.
         var options = CommandLine.Parse(e.Args);
+
+        // S11 #100: --help / --version are information, not actions —
+        // answered by THIS process, before single-instance, so asking
+        // never wakes (or waits behind the lock of) a running instance.
+        if (options.ShowVersion)
+        {
+            var version = typeof(App).Assembly.GetName().Version;
+            System.Windows.MessageBox.Show(
+                $"MuseDesktop {version?.ToString(3) ?? "?"}\n\n" +
+                "A native Windows desktop client for Muse (muse.ai).",
+                "MuseDesktop", MessageBoxButton.OK, MessageBoxImage.Information);
+            Shutdown();
+            return;
+        }
+        if (options.ShowHelp)
+        {
+            var version = typeof(App).Assembly.GetName().Version;
+            System.Windows.MessageBox.Show(
+                CommandLineUsage.Text(version?.ToString(3) ?? "?"),
+                "MuseDesktop — command line", MessageBoxButton.OK, MessageBoxImage.Information);
+            Shutdown();
+            return;
+        }
 
         // S8 #72/#73: safe mode is the --safe-mode flag, or Shift held
         // at launch (a rescue for a mouse-only recovery) — the flag is
@@ -58,6 +83,17 @@ public partial class App : System.Windows.Application
         _mutex = new Mutex(initiallyOwned: true, MutexName, out var isFirst);
         if (!isFirst)
         {
+            // S11 #99/#100: hand the running instance this launch's
+            // INTENT before waking it — the pending-intent file is the
+            // message, the event below only the knock, and writing
+            // first is the ordering that makes the hand-off reliable.
+            // Without an actionable flag the intent is "show the
+            // window", the behavior second launches have always had.
+            try
+            {
+                PendingIntentStore.Save(AppPaths.PendingIntentPath, SecondLaunchIntent(options));
+            }
+            catch { /* the wake still applies — a plain show */ }
             // Wake the running instance and exit quietly.
             try
             {
@@ -103,6 +139,40 @@ public partial class App : System.Windows.Application
                  (options.Background ? (startHidden ? " (background, in tray)" : " (background)") : "") +
                  (safeMode ? " [SAFE MODE]" : ""));
 
+        // musedesktop:// link (S11 #99): parsed against this launch's
+        // real profile list, before the lock gate — a link gets no
+        // shortcut past the lock. A profile route joins the --profile
+        // flow below (persist-as-active, like a per-profile shortcut);
+        // the other routes apply as an intent once the window is up. A
+        // refusal is logged (scheme/host/path only) and the launch
+        // proceeds as a plain one — a bad link never stops the app
+        // from opening.
+        LaunchIntent? protocolIntent = null;
+        string? protocolProfileId = null;
+        if (options.ProtocolUri is not null)
+        {
+            var parsed = LaunchIntent.ParseProtocolUri(
+                options.ProtocolUri, Settings.Profiles.Select(p => p.Id).ToArray());
+            if (parsed.Intent is not null)
+            {
+                protocolIntent = parsed.Intent;
+                if (parsed.Note is not null)
+                    Log.Info($"musedesktop:// link: {parsed.Note}");
+                if (parsed.Intent.Kind == LaunchIntentKind.SwitchProfile)
+                    protocolProfileId = parsed.Intent.ProfileId;
+            }
+            else
+            {
+                Log.Warn($"musedesktop:// link refused: {parsed.Refusal} " +
+                         $"({LaunchIntent.DescribeForLog(options.ProtocolUri)})");
+            }
+        }
+        // Protocol registration (S11 #99): the installer registered
+        // the scheme at install time; this keeps the registration in
+        // line with the Settings toggle (and is the only registration
+        // a portable copy ever gets).
+        ProtocolRegistration.Sync(Settings, Log);
+
         // App lock (S7 #64). A broken lock record was already repaired
         // by Sanitized on load (fail-open, never a lockout) — say so.
         if (Settings.AppLockWasRepaired)
@@ -140,11 +210,14 @@ public partial class App : System.Windows.Application
         // persisted as the active profile (that's what the existing
         // switch flow does — the last-used profile is what plain launches
         // reopen). An unknown id falls back to the saved active profile.
-        if (options.ProfileId is not null)
+        // A musedesktop://profile/<id> link (S11 #99) arrives here too,
+        // already validated against the profile list above.
+        var launchProfileId = options.ProfileId ?? protocolProfileId;
+        if (launchProfileId is not null)
         {
-            var (launchId, fellBack) = Profiles.ResolveLaunchProfile(Settings, options.ProfileId);
+            var (launchId, fellBack) = Profiles.ResolveLaunchProfile(Settings, launchProfileId);
             if (fellBack)
-                Log.Info($"--profile '{options.ProfileId}' names no profile; using '{launchId}'");
+                Log.Info($"Launch profile '{launchProfileId}' names no profile; using '{launchId}'");
             Settings.ActiveProfileId = launchId;
         }
 
@@ -213,6 +286,26 @@ public partial class App : System.Windows.Application
             var window = _window;
             Dispatcher.BeginInvoke(new Action(() => window.OpenSettingsWindow()));
         }
+        // S11 #99/#100: the rest of this launch's intent applies now
+        // the window is up, through the same ApplyLaunchIntent a
+        // second launch uses — including its lock rule. One
+        // exception: a launch that started HIDDEN in the tray only
+        // queues its intent — popping the lock screen or a window at
+        // sign-in is exactly what a background launch promises not
+        // to do (S7); the intent applies at the first real show.
+        // --settings ran above and --profile before the window
+        // existed, so neither re-applies here.
+        var coldIntent = protocolIntent ?? LaunchIntent.FromCommandLine(options);
+        if (coldIntent.Kind is LaunchIntentKind.GoHome or LaunchIntentKind.OpenDownloads
+                or LaunchIntentKind.QuickDictate or LaunchIntentKind.ShowHelp
+            || (coldIntent.Kind == LaunchIntentKind.OpenSettings && !options.OpenSettings))
+        {
+            var window = _window;
+            if (startHidden)
+                window.QueueLaunchIntent(coldIntent);
+            else
+                Dispatcher.BeginInvoke(new Action(() => window.ApplyLaunchIntent(coldIntent)));
+        }
         if (firstRun)
         {
             var window = _window;
@@ -274,6 +367,38 @@ public partial class App : System.Windows.Application
         {
             Log.Warn($"What's New failed: {ex.Message}");
         }
+    }
+
+    /// <summary>
+    /// A second launch's intent (S11 #99/#100), computed in the
+    /// launching process: a musedesktop:// link validates against the
+    /// SAVED profile list (a read-only load — the file the running
+    /// instance owns isn't touched); a refused link still wakes the
+    /// window, because the user clicked something and silence plus a
+    /// log line they can't see would be worse than the app appearing.
+    /// --safe-mode on a running instance is noted and dropped: safe
+    /// mode describes how a process starts.
+    /// </summary>
+    private LaunchIntent SecondLaunchIntent(CommandLineOptions options)
+    {
+        if (options.ProtocolUri is not null)
+        {
+            var saved = SettingsStore.Load(AppPaths.SettingsPath);
+            var parsed = LaunchIntent.ParseProtocolUri(
+                options.ProtocolUri, saved.Profiles.Select(p => p.Id).ToArray());
+            if (parsed.Intent is not null)
+            {
+                if (parsed.Note is not null)
+                    Log.Info($"musedesktop:// link: {parsed.Note}");
+                return parsed.Intent;
+            }
+            Log.Warn($"musedesktop:// link refused: {parsed.Refusal} " +
+                     $"({LaunchIntent.DescribeForLog(options.ProtocolUri)})");
+            return LaunchIntent.ShowWindow;
+        }
+        if (options.SafeMode)
+            Log.Info("--safe-mode ignored: MuseDesktop is already running (safe mode is launch-time only)");
+        return LaunchIntent.FromCommandLine(options);
     }
 
     /// <summary>
@@ -412,7 +537,16 @@ public partial class App : System.Windows.Application
             try
             {
                 _showEvent.WaitOne();
-                Dispatcher.Invoke(() => _window?.ShowFromTray());
+                Dispatcher.Invoke(() =>
+                {
+                    // S11 #99/#100: the wake carries the launching
+                    // process's intent (written before it knocked).
+                    // No file (a wake from before this feature, or a
+                    // failed write) is the plain "show the window".
+                    var intent = PendingIntentStore.Take(AppPaths.PendingIntentPath)
+                                 ?? LaunchIntent.ShowWindow;
+                    _window?.ApplyLaunchIntent(intent);
+                });
             }
             catch (ObjectDisposedException) { return; }
             catch (ThreadInterruptedException) { return; }
