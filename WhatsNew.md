@@ -2,7 +2,7 @@
 
 The release notes MuseDesktop shows on the first launch of a new version (S9 #82). This file is generated from CHANGELOG.md's current-version section at release time (see RELEASE_CHECKLIST.md) — do not edit it by hand; a test pins it to the changelog so the two can't drift.
 
-## [1.0.0] — Unreleased
+## [1.0.0] — 2026-10-24
 
 MuseDesktop 1.0.0 — the complete 100-enhancement program (slices 1–11, items 1–100) in one release. If you're updating from v0.5.0, everything below is new to you; the per-slice sections ([0.6.0]–[0.14.0], all folded into this release) carry the fine print.
 
