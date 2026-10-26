@@ -4,6 +4,27 @@ All notable changes to MuseDesktop. Format follows Keep a Changelog; versions us
 
 Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhancement program; they were never published as releases. Everything in them shipped together as **1.0.0** (2026-10-24).
 
+## [1.4.0] — Unreleased
+
+Round 2, Slice R4 (items 131–140) of the enhancement program: downloads round 2.
+
+### Added
+
+- **Download sort rules (#131)** — finished downloads can be filed into subfolders by type (Images, Documents, Archives, Audio, Video, Programs, Other) or by your own rules — extensions or a *pattern*, one per line in Settings → Downloads (`pdf, docx = Documents`, `*invoice* = Finance`). The Downloads window's **Sort…** shows the whole plan before anything moves, nothing is ever overwritten (clashes get a " (1)" suffix), every sort is journaled, and **Undo sort** puts files back. Sorting can also run automatically as each download finishes — off by default, because moving files unasked is opt-in.
+- **Download scheduling (#132)** — two levers in Settings → Downloads. A bandwidth limit caps all downloads together: WebView2 can't slow a single transfer, so MuseDesktop pauses the newest download while the total is over the limit and resumes it when there's room (a coarse average cap, honestly labelled). Download quiet hours hold KNOWN-large files until the window ends, then start them by themselves; small files — and files whose size isn't known yet — still download. Held links live in memory only and are forgotten if you quit.
+- **Duplicate-download guard (#133)** — when a download's name (and size, where known) matches a finished download whose file is still on disk, MuseDesktop asks before downloading it again; keeping both saves the new copy under a fresh name. On by default. Hashing is deliberately NOT part of the guard — that's what Verify SHA-256 is for.
+- **Batch link capture (#134)** — **Add links…** in the Downloads window takes a pasted list (one link per line), keeps only http/https links, drops duplicates, shows exactly what will download and what was skipped, then starts them under a cap of 4 running at once; the rest queue. Links are never written to disk, and the log only ever sees host + path.
+- **Download speed graph (#135)** — the Downloads window draws the recent history of total download speed (current and peak) above the history list. Samples stay in memory on this PC only — closing the window forgets them.
+- **Verify after download (#136)** — **Verify SHA-256…** checks a finished file against a hash you paste (grouped formats with spaces or colons are fine) and records the verdict on its history entry — "SHA-256 verified" or "SHA-256 check FAILED" — so the pass/fail state survives the window closing. The hashing happens on this PC; nothing is sent anywhere.
+- **Download notes (#137)** — **Note…** attaches a short note to any history entry ("the signed copy", "for the tax folder"). Notes are stored with the history on this PC only.
+- **Archive downloads (#138)** — **Archive…** moves finished downloads into dated folders (one per day they finished) under an archive folder you choose in Settings. Sorting can send old downloads there automatically ("archive downloads older than N days"). Archiving rides the same preview + journal + Undo discipline as sorting.
+- **Automatic retry (#139)** — a download that fails for a network or server reason retries itself up to 3 times (Settings: 1–5, or off), waiting 10 s, then 30 s, then 90 s between tries, with each wait announced in the status bar. Disk, permission, and cancelled downloads never retry — they would fail identically.
+- **Per-profile download quotas (#140)** — each profile can carry a soft cap on its downloads folder (Settings → Downloads sets it for the profile you're using). Crossing 80% and 100% earns a heads-up in the status bar and the log. The cap never blocks a download and never deletes anything.
+
+### Notes
+
+- Core test suite grows by 97 cases (760 → 857). All v1.4.0 runtime behavior is **Unverified** on a real Windows machine pending the `RELEASE_CHECKLIST.md` R4 pass.
+
 ## [1.3.0] — Unreleased
 
 Round 2, Slice R3 (items 121–130) of the enhancement program: profiles round 2.

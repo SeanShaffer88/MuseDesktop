@@ -62,6 +62,20 @@ Try this:
 3. Reconnect and retry: most "network failed" downloads succeed on a second try once Wi-Fi is back. If a download stalls at the same percentage every time, ask Muse to produce the file again — a fresh link restarts the transfer cleanly.
 4. If downloads from one profile fail but another works, that profile may have its own downloads-folder override (Settings → Account profiles) pointing somewhere unusable.
 
+## Organizing downloads: sorting, archiving, notes, and checking a file
+
+What you see: your downloads folder is an unsorted pile, you want proof a downloaded file is the genuine article, or you keep downloading the same file twice.
+
+Why it happens: MuseDesktop used to stop at "the file landed". The Downloads window (⋯ menu → Downloads…) now carries the filing and checking tools, and Settings → Downloads carries their switches.
+
+Try this:
+1. **Sort…** files finished downloads into subfolders by type (Images, Documents, Archives, Audio, Video, Programs, Other) or by your own rules from Settings → Downloads. You see the whole plan before anything moves, nothing is ever overwritten, and **Undo sort** puts everything back. **Archive…** does the same into folders dated by the day each file finished.
+2. **Note…** attaches a short note to a history entry — "the signed copy", "for the tax folder". Notes stay on this PC, with the history.
+3. **Verify SHA-256…** checks a file against a hash its sender published: paste the hash and MuseDesktop compares it on this PC. The entry then shows "SHA-256 verified" or "SHA-256 check FAILED". A FAILED file is not the file the hash describes — don't run it; download it again from the sender's own page.
+4. If MuseDesktop asks "already downloaded?" before saving, that's the duplicate guard: the same name and size finished earlier and is still in your downloads. Yes keeps both copies (the new one under a fresh name); No skips it. Turn it off in Settings → Downloads if you re-download on purpose all the time.
+5. A download that fails on a network or server error retries itself a few times with growing waits — the status bar announces each one. Disk-full and permission failures never retry (they would fail identically): fix the cause, then use Retry in the Downloads window.
+6. To download a whole list at once, use **Add links…** and paste one link per line: MuseDesktop drops the lines that aren't links, shows you the list, and runs at most 4 at a time.
+
 ## I forgot my app password
 
 What you see: MuseDesktop opens to the lock screen and the app password or PIN you set isn't accepted — or you've plain forgotten it.
