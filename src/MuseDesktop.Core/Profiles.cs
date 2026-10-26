@@ -37,6 +37,13 @@ public sealed class AccountProfile
     public string? DownloadsFolder { get; set; }
 
     /// <summary>
+    /// Soft download quota for this profile's downloads folder (R4 #140),
+    /// in bytes; 0 = no cap. Warning-only by design: reaching it never
+    /// blocks a download and never deletes anything.
+    /// </summary>
+    public long DownloadQuotaBytes { get; set; }
+
+    /// <summary>
     /// Accent color for this profile (S3 #24): a key from
     /// <see cref="ProfileColors"/> (e.g. "Blue"), or null for no color.
     /// Shown as a small dot next to the profile's name; the app itself
@@ -206,6 +213,9 @@ public static class Profiles
             p.DownloadsFolder = string.IsNullOrWhiteSpace(p.DownloadsFolder)
                 ? null
                 : p.DownloadsFolder.Trim();
+            // R4 #140: a hand-edited negative quota reads as "no cap".
+            if (p.DownloadQuotaBytes < 0)
+                p.DownloadQuotaBytes = 0;
             // S3 #24: unknown color keys become "no color".
             p.DisplayColor = ProfileColors.Sanitize(p.DisplayColor);
             // S5 #47: migrate + sync the start-page choice. An undefined
@@ -319,6 +329,8 @@ public static class Profiles
             // S8 #75: the data cap is a setting and copies; the cleanup
             // stamps are this profile's own history and do not.
             DataCapBytes = source.DataCapBytes,
+            // R4 #140: the downloads quota is a setting too — it copies.
+            DownloadQuotaBytes = source.DownloadQuotaBytes,
             // R3 #121/#127: appearance and organization copy too — the
             // avatar glyph and the group membership are part of how the
             // profile looks and where it sits. What NEVER copies (here

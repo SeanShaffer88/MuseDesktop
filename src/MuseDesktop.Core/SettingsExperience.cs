@@ -53,7 +53,7 @@ public static class SettingsSearch
         new SettingsSectionInfo(AccessibilityId, "Keyboard & accessibility",
             "keyboard shortcuts keys remap rebind change hotkey global show hide anywhere dictate reduce motion animation effects announcements screen reader narrator focus dialog extended zoom range low vision accessibility"),
         new SettingsSectionInfo(DownloadsId, "Downloads",
-            "downloads folder save ask where collision already exists rename history keep cap notify finished balloon"),
+            "downloads folder save ask where collision already exists rename history keep cap notify finished balloon sort rules subfolder file type organize archive dated bandwidth limit speed quiet hours schedule hold large duplicate already downloaded warn again hash sha-256 verify note retry automatic attempts quota soft cap storage batch links paste list"),
         new SettingsSectionInfo(DataId, "Data",
             "export import backup backups rotation restore portable mode data location usb setup wizard open data folder reset museDesktop troubleshooting won't start safe mode storage size cap cleanup diagnostics help support bundle"),
         // S7 (v0.11.0): listed LAST so the older sections keep winning

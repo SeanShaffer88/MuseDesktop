@@ -82,6 +82,46 @@ public sealed class AppSettings
     /// <summary>What to do when a download's target file already exists (S2 #21).</summary>
     public DownloadCollisionPolicy CollisionPolicy { get; set; } = DownloadCollisionPolicy.AutoRename;
 
+    // Downloads round 2 (v1.4.0, R4 #131–#140).
+    /// <summary>Sort each finished download into a subfolder as it completes (R4 #131). Off by default — moving files automatically is opt-in; the Downloads window's manual Sort (with preview + undo) always works.</summary>
+    public bool AutoSortDownloads { get; set; }
+
+    /// <summary>Fall back to the built-in file-type folders when no custom sort rule matches (R4 #131). On by default.</summary>
+    public bool DownloadSortUseCategories { get; set; } = true;
+
+    /// <summary>The user's sort rules (R4 #131), tried in order before the category rules. Sanitized by DownloadSortPlanner.</summary>
+    public List<DownloadSortRule> DownloadSortRules { get; set; } = new();
+
+    /// <summary>Aggregate bandwidth limit in KB/s (R4 #132); 0 = no limit. Enforced by the governor (pause/resume), since WebView2 has no throttle — see KNOWN_LIMITATIONS.</summary>
+    public int DownloadBandwidthLimitKBps { get; set; }
+
+    /// <summary>Hold known-large downloads during the download quiet hours (R4 #132). A separate schedule from the notification quiet hours.</summary>
+    public bool DownloadQuietHoursEnabled { get; set; }
+
+    /// <summary>Download quiet-hours start, minutes after local midnight (default 09:00). Sanitized to 0–1439.</summary>
+    public int DownloadQuietStartMinutes { get; set; } = 9 * 60;
+
+    /// <summary>Download quiet-hours end, minutes after local midnight (default 17:00). Sanitized to 0–1439.</summary>
+    public int DownloadQuietEndMinutes { get; set; } = 17 * 60;
+
+    /// <summary>Files at or above this many MB wait out the download quiet hours (R4 #132); 0 = every download waits. Sanitized to 0–102400.</summary>
+    public int DownloadQuietLargeFileMB { get; set; } = 100;
+
+    /// <summary>Warn before downloading a file that name+size-matches a completed history entry (R4 #133). On by default.</summary>
+    public bool DownloadDuplicateGuard { get; set; } = true;
+
+    /// <summary>Where archived downloads go (R4 #138); null = an "Archive" folder inside each downloads folder.</summary>
+    public string? DownloadArchiveFolder { get; set; }
+
+    /// <summary>Sort sends completed downloads older than this many days to the archive instead (R4 #138 hook into #131); 0 = archiving is manual only. Sanitized to 0–3650.</summary>
+    public int DownloadArchiveAfterDays { get; set; }
+
+    /// <summary>Retry failed downloads automatically (R4 #139): network/server reasons only, bounded attempts, backing off. On by default.</summary>
+    public bool DownloadAutoRetryEnabled { get; set; } = true;
+
+    /// <summary>How many automatic retries a failed download gets (R4 #139). Sanitized to 1–5.</summary>
+    public int DownloadAutoRetryMaxAttempts { get; set; } = DownloadRetryPolicy.DefaultMaxAttempts;
+
     /// <summary>
     /// The folder this launch's downloads land in (S2 #20): the active
     /// profile's override wins over the shared <see cref="DownloadsFolder"/>;
@@ -393,6 +433,22 @@ public sealed class AppSettings
         DownloadHistoryCap = DownloadHistoryStore.SanitizeCap(DownloadHistoryCap);
         if (!Enum.IsDefined(CollisionPolicy))
             CollisionPolicy = DownloadCollisionPolicy.AutoRename;
+        // R4: downloads round 2 repairs — rules drop to the usable set,
+        // quiet-hours bounds must be real minutes-of-day (each falls
+        // back to its own default), and every numeric knob clamps into
+        // the range its UI offers.
+        DownloadSortRules = DownloadSortPlanner.SanitizeRules(DownloadSortRules);
+        if (!QuietHours.IsValidMinutes(DownloadQuietStartMinutes))
+            DownloadQuietStartMinutes = 9 * 60;
+        if (!QuietHours.IsValidMinutes(DownloadQuietEndMinutes))
+            DownloadQuietEndMinutes = 17 * 60;
+        DownloadBandwidthLimitKBps = Math.Clamp(DownloadBandwidthLimitKBps, 0, 10_000_000);
+        DownloadQuietLargeFileMB = Math.Clamp(DownloadQuietLargeFileMB, 0, 102_400);
+        DownloadArchiveAfterDays = Math.Clamp(DownloadArchiveAfterDays, 0, 3650);
+        DownloadArchiveFolder = string.IsNullOrWhiteSpace(DownloadArchiveFolder)
+            ? null
+            : DownloadArchiveFolder.Trim();
+        DownloadAutoRetryMaxAttempts = DownloadRetryPolicy.SanitizeMaxAttempts(DownloadAutoRetryMaxAttempts);
         // S4: the suspend timeout must be one of the offered options,
         // and quiet-hours bounds must be real minutes-of-day — a bad
         // pair resets BOTH to the defaults rather than muting oddly.

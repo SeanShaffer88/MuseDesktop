@@ -290,6 +290,13 @@ public static class HelpCatalog
             "Commands & the command palette",
             "command palette ctrl k keyboard commands switch window recent actions quick open tray middle click profile chords",
             HelpAction.None, null, null),
+        // R4 (#131–#140): the downloads round-2 how-to page, also
+        // listed last — it answers "how do I organize downloads",
+        // while downloads-failing keeps owning the failure queries.
+        new HelpPage("downloads-organizing",
+            "Organizing downloads: sorting, archiving, notes, and checking a file",
+            "organize sort sorting subfolder archive dated note verify sha-256 hash genuine duplicate already downloaded retry links batch pile messy filing",
+            HelpAction.OpenSettings, "Open Settings — downloads", SettingsSearch.DownloadsId),
     };
 
     public static HelpPage? ById(string? id) =>
