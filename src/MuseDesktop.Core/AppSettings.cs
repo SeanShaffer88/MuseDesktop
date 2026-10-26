@@ -116,6 +116,42 @@ public sealed class AppSettings
     /// <summary>Sort sends completed downloads older than this many days to the archive instead (R4 #138 hook into #131); 0 = archiving is manual only. Sanitized to 0–3650.</summary>
     public int DownloadArchiveAfterDays { get; set; }
 
+    // Focus & productivity (v1.5.0, R5 #141–#150). All local-only:
+    // the timers count minutes on this PC, the schedules name palette
+    // actions, and nothing here is ever sent anywhere.
+    /// <summary>Start the focus timer automatically when focus mode turns on (R5 #141). Off by default — focus mode alone stays the quiet feature it has always been.</summary>
+    public bool FocusTimerAutoStart { get; set; }
+
+    /// <summary>Focus-block length in minutes (R5 #141). Sanitized to 1–240.</summary>
+    public int FocusTimerMinutes { get; set; } = 25;
+
+    /// <summary>Suggested break length in minutes (R5 #141). Sanitized to 1–120.</summary>
+    public int FocusBreakMinutes { get; set; } = 5;
+
+    /// <summary>Show the gentle break reminder when a focus block ends (R5 #141): a tray balloon + status line, never a dialog. On by default; quiet hours still gate it.</summary>
+    public bool FocusBreakReminders { get; set; } = true;
+
+    /// <summary>Session-timer work length in minutes (R5 #142). Sanitized to 1–240.</summary>
+    public int SessionWorkMinutes { get; set; } = 25;
+
+    /// <summary>Session-timer short-break length in minutes (R5 #142). Sanitized to 1–120.</summary>
+    public int SessionBreakMinutes { get; set; } = 5;
+
+    /// <summary>Session-timer long-break length in minutes (R5 #142). Sanitized to 1–240.</summary>
+    public int SessionLongBreakMinutes { get; set; } = 15;
+
+    /// <summary>Work blocks before a long break (R5 #142). Sanitized to 1–12.</summary>
+    public int SessionCyclesBeforeLongBreak { get; set; } = 4;
+
+    /// <summary>The quick-note global hotkey (R5 #148): a second RegisterHotKey beside the show/hide one, resolved by QuickNoteHotkey under the same rules plus never-equal-to-show/hide. Off by default — a system-wide key is opt-in; the menu and palette capture always works.</summary>
+    public bool QuickNoteHotkeyEnabled { get; set; }
+
+    /// <summary>The quick-note hotkey's gesture text (R5 #148); null = the Ctrl+Alt+N default. Repaired like the show/hide gesture when unusable.</summary>
+    public string? QuickNoteHotkeyGesture { get; set; }
+
+    /// <summary>Scheduled commands (R5 #147): palette actions run at startup / daily / once, while the app runs only. Sanitized by CommandScheduler — a rule naming no real action drops.</summary>
+    public List<ScheduledCommand> CommandSchedules { get; set; } = new();
+
     /// <summary>Retry failed downloads automatically (R4 #139): network/server reasons only, bounded attempts, backing off. On by default.</summary>
     public bool DownloadAutoRetryEnabled { get; set; } = true;
 
@@ -501,6 +537,37 @@ public sealed class AppSettings
             else
                 GlobalHotkeyGesture = null;
         }
+        // R5 #141/#142/#147/#148: timer lengths clamp to the Core
+        // bounds; the quick-note gesture repairs exactly like the
+        // show/hide one (unusable = the default); schedules keep
+        // only rules that name a real action, capped.
+        FocusTimerMinutes = Math.Clamp(FocusTimerMinutes, FocusTimer.MinFocusMinutes, FocusTimer.MaxFocusMinutes);
+        FocusBreakMinutes = Math.Clamp(FocusBreakMinutes, FocusTimer.MinBreakMinutes, FocusTimer.MaxBreakMinutes);
+        var sessionConfig = new SessionTimerConfig(
+            SessionWorkMinutes, SessionBreakMinutes, SessionLongBreakMinutes,
+            SessionCyclesBeforeLongBreak).Sanitized();
+        SessionWorkMinutes = sessionConfig.WorkMinutes;
+        SessionBreakMinutes = sessionConfig.BreakMinutes;
+        SessionLongBreakMinutes = sessionConfig.LongBreakMinutes;
+        SessionCyclesBeforeLongBreak = sessionConfig.CyclesBeforeLongBreak;
+        if (QuickNoteHotkeyGesture is not null)
+        {
+            if (ShortcutGesture.TryParse(QuickNoteHotkeyGesture, out var noteParsed)
+                && (noteParsed.Modifiers.HasFlag(GestureModifiers.Control)
+                    || noteParsed.Modifiers.HasFlag(GestureModifiers.Alt)))
+                QuickNoteHotkeyGesture = noteParsed.Format();
+            else
+                QuickNoteHotkeyGesture = null;
+        }
+        CommandSchedules ??= new List<ScheduledCommand>();
+        CommandSchedules = CommandSchedules
+            .Select(r => CommandScheduler.Sanitize(r))
+            .Where(r => r is not null)
+            .Select(r => r!)
+            .GroupBy(r => r.Id)
+            .Select(g => g.First())
+            .Take(CommandScheduler.MaxRules)
+            .ToList();
         // S7 #64: an enabled app lock with a missing/malformed
         // credential record can never be satisfied — disable it
         // (fail-open) rather than lock the user out of their own app.
