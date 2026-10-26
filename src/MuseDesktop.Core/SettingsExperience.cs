@@ -34,6 +34,7 @@ public static class SettingsSearch
     public const string AccessibilityId = "accessibility";
     public const string DownloadsId = "downloads";
     public const string DataId = "data";
+    public const string FocusId = "focus";
     public const string PrivacyId = "privacy";
 
     public static readonly IReadOnlyList<SettingsSectionInfo> Sections = new[]
@@ -56,6 +57,11 @@ public static class SettingsSearch
             "downloads folder save ask where collision already exists rename history keep cap notify finished balloon sort rules subfolder file type organize archive dated bandwidth limit speed quiet hours schedule hold large duplicate already downloaded warn again hash sha-256 verify note retry automatic attempts quota soft cap storage batch links paste list"),
         new SettingsSectionInfo(DataId, "Data",
             "export import backup backups rotation restore portable mode data location usb setup wizard open data folder reset museDesktop troubleshooting won't start safe mode storage size cap cleanup diagnostics help support bundle"),
+        // R5 (v1.5.0): also late in the list for the same reason as
+        // privacy below — its words (focus, timer, notes) must not
+        // steal the queries the older sections already owned.
+        new SettingsSectionInfo(FocusId, "Focus & productivity",
+            "focus timer pomodoro session break reminder reading list saved pages notes quick note hotkey command schedule automatic startup daily weekly digest stats dashboard productivity tiling"),
         // S7 (v0.11.0): listed LAST so the older sections keep winning
         // first-match for the queries they already owned (tests pin a
         // few); the privacy words here are distinct enough to find it.
@@ -189,6 +195,21 @@ public static class SettingsReset
         // the profiles themselves, and the schedule hold is session
         // state like the other state records.
         target.ProfileScheduleAutoSwitch = fresh.ProfileScheduleAutoSwitch;
+        // R5 fields (v1.5.0): the focus/session timer shapes and the
+        // quick-note hotkey are preferences and reset. The command
+        // schedules are the user's own automation, not preferences —
+        // like the workspace list they are preserved below (a reset
+        // of PREFERENCES must not silently delete someone's rules).
+        target.FocusTimerAutoStart = fresh.FocusTimerAutoStart;
+        target.FocusTimerMinutes = fresh.FocusTimerMinutes;
+        target.FocusBreakMinutes = fresh.FocusBreakMinutes;
+        target.FocusBreakReminders = fresh.FocusBreakReminders;
+        target.SessionWorkMinutes = fresh.SessionWorkMinutes;
+        target.SessionBreakMinutes = fresh.SessionBreakMinutes;
+        target.SessionLongBreakMinutes = fresh.SessionLongBreakMinutes;
+        target.SessionCyclesBeforeLongBreak = fresh.SessionCyclesBeforeLongBreak;
+        target.QuickNoteHotkeyEnabled = fresh.QuickNoteHotkeyEnabled;
+        target.QuickNoteHotkeyGesture = fresh.QuickNoteHotkeyGesture;
         // S9 fields (v0.13.0): the update channel returns to stable
         // only, the check frequency to every launch, any snooze is
         // cleared, and What's New shows again. NOT preferences, so
@@ -213,9 +234,10 @@ public static class SettingsReset
         // ActiveProfileId, LastUrl, LastUrlByProfile,
         // WindowPlacementByProfile and the legacy Window* placement
         // fields, PendingProfileFolderDeletions, ProfileGroups,
-        // ProfileSwitchRules, the schedule hold, and the
-        // Settings-window memory (SettingsLastSection /
-        // SettingsWindowWidth / SettingsWindowHeight).
+        // ProfileSwitchRules, the schedule hold, CommandSchedules
+        // (R5: the user's automation), and the Settings-window memory
+        // (SettingsLastSection / SettingsWindowWidth /
+        // SettingsWindowHeight).
     }
 }
 

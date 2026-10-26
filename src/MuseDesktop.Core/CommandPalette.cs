@@ -165,6 +165,10 @@ public enum PaletteCommandSource
     Download,
     Window,
     Workspace,
+    // R5 (#143/#145): payload-carrying sources like Download/Window —
+    // the action history refuses them all the same way.
+    ReadingList,
+    History,
 }
 
 /// <summary>
@@ -461,6 +465,26 @@ public sealed class WindowsPaletteProvider : IPaletteProvider
                     Source: PaletteCommandSource.Window,
                     Payload: w.Id);
             }
+            // R5 #149: the tiling presets ride the same provider, but
+            // only for the CURRENT window — eleven presets times every
+            // open window would flood the palette with near-duplicates;
+            // the switcher offers the full set for any window.
+            if (w.IsActive)
+            {
+                foreach (var preset in WindowTilingPresets.All)
+                {
+                    if (preset is TilePreset.HalfLeft or TilePreset.HalfRight)
+                        continue; // already offered above as tile-left/right
+                    yield return new PaletteCommand(
+                        Id: $"window.tile-preset.{preset}.{w.Id}",
+                        Title: $"Tile: {WindowTilingPresets.Title(preset)} — {title}",
+                        Detail: "Window",
+                        Category: "Windows",
+                        Keywords: "window tile snap preset quarter third screen arrange",
+                        Source: PaletteCommandSource.Window,
+                        Payload: w.Id);
+                }
+            }
         }
     }
 }
@@ -571,6 +595,16 @@ public static class CommandRegistry
         Action("check-updates", "Check for updates", "update check version new release", detail: "App"),
         Action("lock-now", "Lock now", "lock app lock password pin secure", detail: "App"),
         Action("quick-dictate", "Quick dictate", "voice dictate microphone speak", detail: "Page"),
+        // R5 (#141–#150): focus & productivity. Same registry, so the
+        // scheduler (#147) can name every one of these too.
+        Action("focus-timer", "Start focus timer", "focus timer block countdown concentrate", detail: "Focus"),
+        Action("session-timer", "Start/stop session timer", "session timer pomodoro work break cycles start stop", detail: "Focus"),
+        Action("reading-list-add", "Save page to reading list", "reading list save page read later bookmark", detail: "Reading list"),
+        Action("reading-list", "Open reading list", "reading list saved pages read later", detail: "Reading list"),
+        Action("quick-note", "Quick note", "quick note capture jot write down remember", detail: "Notes"),
+        Action("notes", "Open notes", "notes notebook view list quick notes", detail: "Notes"),
+        Action("weekly-digest", "Weekly digest", "weekly digest summary week review recap", detail: "Focus"),
+        Action("stats-dashboard", "Stats dashboard", "stats dashboard counts launches downloads focus minutes week charts", detail: "Focus"),
         Action("exit", "Exit MuseDesktop", "quit exit close app", detail: "App"),
     };
 
@@ -602,7 +636,12 @@ public static class CommandRegistry
         // R3 #127: the settings the group commands resolve against —
         // optional and trailing like the workspace inputs; without it
         // there are simply no group commands.
-        AppSettings? groupSettings = null)
+        AppSettings? groupSettings = null,
+        // R5 #143/#145: the active profile's reading list and the
+        // session's navigation history — optional and trailing like
+        // the rest; without them those sections simply don't appear.
+        IReadOnlyList<ReadingListEntry>? readingEntries = null,
+        IReadOnlyList<NavigationEntry>? historyEntries = null)
     {
         var palette = new CommandPalette();
         palette.Register(new StaticPaletteProvider("Actions", BuiltinActions));
@@ -610,7 +649,11 @@ public static class CommandRegistry
         if (groupSettings is not null)
             palette.Register(new ProfileGroupsPaletteProvider(groupSettings));
         palette.Register(new WindowsPaletteProvider(windows));
+        if (historyEntries is not null)
+            palette.Register(new HistoryPaletteProvider(historyEntries));
         palette.Register(new DownloadsPaletteProvider(recentDownloads));
+        if (readingEntries is not null)
+            palette.Register(new ReadingListPaletteProvider(readingEntries));
         palette.Register(new SettingsSectionsPaletteProvider());
         palette.Register(new HelpTopicsPaletteProvider());
         palette.Register(new WorkspacesPaletteProvider(

@@ -115,3 +115,15 @@ Try this:
 2. Switching profiles from the keyboard: Ctrl+Shift+1 through Ctrl+Shift+9 switch to the 1st–9th profile in your profile list. These work inside MuseDesktop only; there is no Windows-wide version, on purpose — Ctrl+Shift+number means something in many other apps, and MuseDesktop won't take those keys away from them everywhere.
 3. Moving windows: type "tile" or "monitor" in the palette for the per-window actions — tile left/right, move to the next monitor, always-on-top, and (for the main window) focus mode.
 4. The full list: this page ends with every command the palette offers, generated from the palette itself when you open the page — so it can never describe a command that isn't really there. Your profiles, recent downloads, and open windows appear in the palette too; they're yours, so they're not printed here.
+
+## Focus mode, timers, reading list & notes
+
+What you see: you want to concentrate on one conversation, keep a page for later, jot something down without leaving the app, or see a plain summary of your week.
+
+Why it happens: MuseDesktop's focus & productivity tools (Settings → Focus & productivity) are all local — they count minutes and keep lists on this PC only, and nothing about them is ever sent anywhere.
+
+Try this:
+1. Focus mode (F8, or the ⋯ menu) fills the screen with the main window and hides the app's own bars; Esc brings them back. If you turn on the focus timer in Settings, a block counts down while you work, and when it ends a gentle tray reminder suggests a break — it's a reminder, not a lock: dismiss it and carry on whenever you like. The separate session timer runs Pomodoro-style work/break cycles (25/5 by default) with its countdown in the status bar and the tray tooltip.
+2. Reading list: ⋯ menu → "Save page to reading list" keeps the current Muse page (its title and in-app path only — never the full address) under Reading list…, and Ctrl+K finds saved pages too. Mark them read as you finish them.
+3. Quick note: ⋯ menu → "Quick note…" (or Ctrl+K) files a note under the profile you're using; "Open notes" shows the notebook. If you want it from any app, turn on the quick-note hotkey in Settings (Ctrl+Alt+N by default) — it's off until you ask for it.
+4. Scheduled commands run a command-palette action at startup, daily at a time, or once — but only while MuseDesktop is running; nothing is registered with Windows. The weekly digest and the stats dashboard (⋯ menu) summarize the week from the counts kept on this PC, and the dashboard's Clear button deletes those counts.

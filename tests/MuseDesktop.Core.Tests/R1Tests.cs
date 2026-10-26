@@ -153,8 +153,11 @@ public class R1Tests
         Assert.All(downloads, c => Assert.DoesNotContain(":", c.Id));
         Assert.Equal(@"C:\Users\x\Downloads\report.pdf", downloads[0].Payload);
         // Windows: switch + 4 actions for the secondary; the main
-        // window additionally gets focus mode.
-        Assert.Equal(6, all.Count(c => c.Payload == "main" && c.Source == PaletteCommandSource.Window));
+        // window additionally gets focus mode. R5 #149: the sample's
+        // main window is the ACTIVE one, so it also carries the 9
+        // tiling-preset commands (6 + 9 = 15); the inactive secondary
+        // gets none.
+        Assert.Equal(15, all.Count(c => c.Payload == "main" && c.Source == PaletteCommandSource.Window));
         Assert.Equal(5, all.Count(c => c.Payload == "secondary-1" && c.Source == PaletteCommandSource.Window));
         Assert.Contains(all, c => c.Id == "window.focus-mode.main");
         Assert.DoesNotContain(all, c => c.Id == "window.focus-mode.secondary-1");

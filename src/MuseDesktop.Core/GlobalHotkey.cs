@@ -170,8 +170,11 @@ public static class HotkeyNative
     /// <summary>WM_HOTKEY.</summary>
     public const int WmHotkey = 0x0312;
 
-    /// <summary>The app's one registration id (arbitrary, app-chosen; only one global hotkey exists).</summary>
+    /// <summary>The show/hide hotkey's registration id (arbitrary, app-chosen).</summary>
     public const int RegistrationId = 0x4D44; // "MD"
+
+    /// <summary>The quick-note hotkey's registration id (R5 #148): a second registration on the same window handle, so it needs its own id.</summary>
+    public const int RegistrationIdQuickNote = 0x4D4E; // "MN"
 
     /// <summary>The native modifier mask for a gesture, with MOD_NOREPEAT always included.</summary>
     public static uint ModifiersFor(ShortcutGesture gesture)

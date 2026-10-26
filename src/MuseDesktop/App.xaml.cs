@@ -237,6 +237,17 @@ public partial class App : System.Windows.Application
         }
         catch (Exception ex) { Log.Warn($"Profile usage tally failed: {ex.Message}"); }
 
+        // R5 #150: the same launch in the weekly stats (per-week
+        // buckets for the dashboard + digest). Equally best-effort,
+        // equally local.
+        try
+        {
+            var weekly = WeeklyStatsStore.Load(AppPaths.WeeklyStatsPath);
+            weekly.RecordLaunch(Settings.ActiveProfileId, DateTimeOffset.UtcNow);
+            WeeklyStatsStore.Save(AppPaths.WeeklyStatsPath, weekly);
+        }
+        catch (Exception ex) { Log.Warn($"Weekly stats tally failed: {ex.Message}"); }
+
         // R3 #122: the LAUNCH profile's own PIN, gated after the
         // global app lock above (the global credential is always asked
         // first). A visible launch gets the profile gate now, as its

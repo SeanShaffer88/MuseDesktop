@@ -64,6 +64,15 @@ public static class AppPaths
     /// <summary>Profile launch tallies (R3 #129): local-only counts in their own file — never part of settings, so they never ride a settings export/import or a profile bundle.</summary>
     public static string ProfileUsagePath => Path.Combine(RootDir, "profile-usage.json");
 
+    /// <summary>The reading lists (R5 #143): per profile, titles + app routes only — local-only, in their own file like the usage tallies.</summary>
+    public static string ReadingListPath => Path.Combine(RootDir, "reading-list.json");
+
+    /// <summary>The quick notes (R5 #148): per profile, local-only, in their own file — a user's words never ride a settings export.</summary>
+    public static string NotesPath => Path.Combine(RootDir, "notes.json");
+
+    /// <summary>The weekly stats (R5 #150): per-profile per-week counts (launches, downloads, focus minutes) — local-only, clearable from the dashboard, in their own file.</summary>
+    public static string WeeklyStatsPath => Path.Combine(RootDir, "weekly-stats.json");
+
     /// <summary>Installers the in-app updater downloads + the kept current/previous slots (v0.13.0, S9 #81/#84). Beside the settings, so portable mode carries them too.</summary>
     public static string UpdatesDir => Path.Combine(RootDir, "updates");
 

@@ -85,6 +85,26 @@
                                 <MenuItem Header="Restore session snapshot" Click="OnRestoreSessionSnapshot"
                                           ToolTip="Bring back the windows from the last session snapshot"/>
                                 <Separator/>
+                                <MenuItem Header="Quick note…" Click="OnQuickNote"
+                                          ToolTip="Jot a note for the profile you're using — saved on this PC only"/>
+                                <MenuItem Header="Open notes" Click="OnNotes"
+                                          ToolTip="This profile's quick notes"/>
+                                <MenuItem Header="Save page to reading list" Click="OnSaveToReadingList"
+                                          ToolTip="Keep this Muse page for later (title + in-app path only)"/>
+                                <MenuItem Header="Reading list…" Click="OnReadingList"
+                                          ToolTip="Pages you saved for later, for this profile"/>
+                                <Separator/>
+                                <MenuItem Header="Start focus timer" Click="OnStartFocusTimer"
+                                          ToolTip="A timed focus block (length in Settings → Focus &amp; productivity); focus mode comes on with it"/>
+                                <MenuItem Header="Take a break" Click="OnTakeBreak"
+                                          ToolTip="Start the suggested break — offered when a focus block ends"/>
+                                <MenuItem Header="Start/stop session timer" Click="OnSessionTimer"
+                                          ToolTip="Pomodoro-style work/break cycles; the countdown lives in the status bar and the tray tooltip"/>
+                                <MenuItem Header="Weekly digest…" Click="OnWeeklyDigest"
+                                          ToolTip="A plain summary of this week, counted on this PC — generated only when you ask"/>
+                                <MenuItem Header="Stats dashboard…" Click="OnStatsDashboard"
+                                          ToolTip="This week's counts per profile (launches, downloads, focus time), as simple charts"/>
+                                <Separator/>
                                 <MenuItem Header="Find in page…" Click="OnFind" InputGestureText="Ctrl+F"/>
                                 <MenuItem Header="Keyboard shortcuts…" Click="OnShortcuts" InputGestureText="Ctrl+/"
                                           ToolTip="Every keyboard shortcut in one searchable list; three of them can be changed in Settings"/>

@@ -18,12 +18,13 @@
     <DockPanel Margin="14,12,14,12">
         <TextBlock DockPanel.Dock="Top" Text="Open windows, most recently used first:"/>
         <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource Note}"
-                   Text="Arrow keys choose a window, Enter switches to it, Esc cancels."/>
+                   Text="Arrow keys choose a window, Enter switches to it, Esc cancels. Right-click a window to tile it or group it with others; Enter on a group raises all its windows."/>
         <ListBox x:Name="WindowList" Margin="0,10,0,0"
                  Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
                  BorderBrush="{StaticResource HairlineBrush}"
                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                  MouseDoubleClick="OnDoubleClick" PreviewKeyDown="OnListKeyDown"
+                 MouseRightButtonUp="OnListRightButtonUp"
                  AutomationProperties.Name="Open windows">
             <ListBox.ItemContainerStyle>
                 <Style TargetType="ListBoxItem">
@@ -40,7 +41,7 @@
                         <Ellipse Grid.Column="0" Width="10" Height="10" VerticalAlignment="Center"
                                  Fill="{Binding DotBrush}" Visibility="{Binding DotVisibility}"/>
                         <StackPanel Grid.Column="1">
-                            <TextBlock Text="{Binding Title}" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                            <TextBlock Text="{Binding Title}" FontSize="13" FontWeight="{Binding TitleWeight}" TextTrimming="CharacterEllipsis"/>
                             <TextBlock Text="{Binding ProfileLabel}" FontSize="11"
                                        Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis"/>
                         </StackPanel>

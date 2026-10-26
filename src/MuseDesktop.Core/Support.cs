@@ -297,6 +297,13 @@ public static class HelpCatalog
             "Organizing downloads: sorting, archiving, notes, and checking a file",
             "organize sort sorting subfolder archive dated note verify sha-256 hash genuine duplicate already downloaded retry links batch pile messy filing",
             HelpAction.OpenSettings, "Open Settings — downloads", SettingsSearch.DownloadsId),
+        // R5 (#141–#150): the focus & productivity how-to page, also
+        // listed last — it answers "how do the timers / reading list /
+        // notes / schedules work", which no older page owned.
+        new HelpPage("focus-productivity",
+            "Focus mode, timers, reading list & notes",
+            "focus mode timer pomodoro session break reminder reading list saved pages quick note notes scheduled commands weekly digest stats dashboard tiling presets window groups concentrate",
+            HelpAction.OpenSettings, "Open Settings — focus & productivity", SettingsSearch.FocusId),
     };
 
     public static HelpPage? ById(string? id) =>
