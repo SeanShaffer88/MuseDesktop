@@ -127,3 +127,16 @@ Try this:
 2. Reading list: ⋯ menu → "Save page to reading list" keeps the current Muse page (its title and in-app path only — never the full address) under Reading list…, and Ctrl+K finds saved pages too. Mark them read as you finish them.
 3. Quick note: ⋯ menu → "Quick note…" (or Ctrl+K) files a note under the profile you're using; "Open notes" shows the notebook. If you want it from any app, turn on the quick-note hotkey in Settings (Ctrl+Alt+N by default) — it's off until you ask for it.
 4. Scheduled commands run a command-palette action at startup, daily at a time, or once — but only while MuseDesktop is running; nothing is registered with Windows. The weekly digest and the stats dashboard (⋯ menu) summarize the week from the counts kept on this PC, and the dashboard's Clear button deletes those counts.
+
+## Bookmarks, drafts, snippets & reading comfort
+
+What you see: you want to mark one message in a conversation and come back to it later, pick up a half-typed message where you left off, reuse a prompt you type often, export a conversation to a file, or just make the conversation easier to read.
+
+Why it happens: these are MuseDesktop's conversation tools. Everything about them is stored on this PC only — bookmarks, drafts, and snippets live in small files beside your settings, and nothing is ever sent anywhere. A few of them work by adding small touches to the Muse page itself (a wider scrollbar, a bookmark button on each message); if Muse's page ever changes shape, those touches quietly stop appearing rather than getting in the page's way.
+
+Try this:
+1. Bookmarks: hover a message in a conversation and click its bookmark button. You'll be asked for a nickname first — a bookmark can't be saved without one, because the nickname is how you'll recognize it later. The Bookmarks button in the bar at the left of the window (or Ctrl+K) opens your list; choosing one opens that conversation and highlights the message. Bookmarks can only be revisited from inside MuseDesktop — that's deliberate: they hold a snippet of the message to find it by, and they never leave the app. If a message has been edited since, you'll land in the conversation and be told the exact text couldn't be found.
+2. Drafts: what you type in the message box is kept — per conversation, for the profile you're using — and put back when you return to that conversation, even after restarting the app. Sending the message (or emptying the box) clears its draft. Turn this off in Settings → Account profiles if you'd rather nothing was kept.
+3. Snippets: save the prompts you reuse in Settings → Account profiles (a name and the text), then insert one from Ctrl+K ("Insert snippet: …") or the ⋯ menu's Snippets list. The text lands in the message box for you to edit before sending — nothing is ever sent for you.
+4. Export: ⋯ menu → "Export conversation as Markdown…" saves the chat as a tidy text file (your messages and Muse's, code blocks intact) wherever you choose. "Export conversation as PDF…" prints the conversation page to a PDF as it appears on screen.
+5. Reading comfort: Settings → Account profiles holds, per profile, the always-visible conversation scrollbar (on by default), the chat text size, the reading-column width, and the line spacing. Changes apply when you press OK in Settings.
