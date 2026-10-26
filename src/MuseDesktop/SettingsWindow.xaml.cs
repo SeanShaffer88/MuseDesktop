@@ -175,6 +175,15 @@ public partial class SettingsWindow : Window
         foreach (var cap in ProfileDataCaps.Allowed)
             ProfileDataCapCombo.Items.Add(ProfileDataCaps.Label(cap));
 
+        // R5B (#205): the reading-comfort choices, parallel to the
+        // value tables below.
+        foreach (var v in ChatTextScaleChoices)
+            ChatTextScaleCombo.Items.Add($"{v}%");
+        foreach (var v in ReadingColumnChoices)
+            ReadingColumnCombo.Items.Add(v == 0 ? "Page default" : $"{v} px");
+        foreach (var v in LineSpacingChoices)
+            LineSpacingCombo.Items.Add(v == 0 ? "Page default" : $"{v}%");
+
         // S7 #61: the clear-data choices, titled by Core's plan model
         // so the UI and the confirm dialog always agree.
         foreach (var choice in ClearChoices)
@@ -234,9 +243,21 @@ public partial class SettingsWindow : Window
         (UpdateChannel.IncludePrereleases, "Stable + pre-releases"),
     };
 
+    /// <summary>Chat text-scale choices in percent (R5B #205), parallel to ChatTextScaleCombo's items.</summary>
+    private static readonly int[] ChatTextScaleChoices = { 50, 60, 70, 80, 90, 100, 110, 125, 150, 175, 200 };
+
+    /// <summary>Reading-column choices in pixels (R5B #205; 0 = page default), parallel to ReadingColumnCombo's items.</summary>
+    private static readonly int[] ReadingColumnChoices = { 0, 560, 640, 720, 800, 960, 1200, 1600 };
+
+    /// <summary>Line-spacing choices in percent (R5B #205; 0 = page default), parallel to LineSpacingCombo's items.</summary>
+    private static readonly int[] LineSpacingChoices = { 0, 100, 110, 125, 140, 160, 180, 200 };
+
     /// <summary>(Re)fill every control from the working settings — at open and after an import.</summary>
     private void LoadControls()
     {
+        // R5B #204: the drafts switch (write-through; the handler is
+        // the harvest for this one).
+        DraftsAutosaveCheck.IsChecked = _working.DraftsAutosaveEnabled;
         StartWithWindowsCheck.IsChecked = _working.StartWithWindows;
         StartMinimizedCheck.IsChecked = _working.StartMinimizedToTray;
         CloseToTrayCheck.IsChecked = _working.CloseToTray;
@@ -583,12 +604,27 @@ public partial class SettingsWindow : Window
         // S8 #75: the data cap rides the same sync guard.
         ProfileDataCapCombo.SelectedItem = ProfileDataCaps.Label(selected?.DataCapBytes ?? 0);
         ProfileDataCapCombo.IsEnabled = selected is not null;
+        // R5B #201/#205: the conversation-view controls ride it too.
+        // A stored value between steps (hand-edited file) selects
+        // nothing — the value itself stays until a step is picked.
+        ProfileScrollbarsCheck.IsChecked = selected?.ConversationScrollbars ?? true;
+        ProfileScrollbarsCheck.IsEnabled = selected is not null;
+        ChatTextScaleCombo.SelectedIndex = selected is null
+            ? -1 : Array.IndexOf(ChatTextScaleChoices, selected.ChatTextScalePercent);
+        ReadingColumnCombo.SelectedIndex = selected is null
+            ? -1 : Array.IndexOf(ReadingColumnChoices, selected.ReadingColumnWidthPx);
+        LineSpacingCombo.SelectedIndex = selected is null
+            ? -1 : Array.IndexOf(LineSpacingChoices, selected.ChatLineSpacingPercent);
+        ChatTextScaleCombo.IsEnabled = ReadingColumnCombo.IsEnabled
+            = LineSpacingCombo.IsEnabled = selected is not null;
         _syncingProfileControls = false;
         ProfileDataText.Text = selected is null
             ? ""
             : ProfileDataInfo.Describe(AppPaths.ProfileDir(selected.Id), selected);
         ProfileCapNote.Text = selected is null ? "" : DescribeCap(selected);
         UpdateProfileRound2Controls(selected);
+        // R5B #206: the snippet editor follows the selected profile.
+        RefreshSnippetList();
     }
 
     /// <summary>The #75 cap line for the selected profile: the cap, the promise, and the last cleanup (never silent).</summary>
@@ -762,6 +798,122 @@ public partial class SettingsWindow : Window
         {
             selected.ZoomFactor = value / 100.0;
         }
+    }
+
+    /// <summary>The conversation-view controls (R5B #201/#205): write-through to the selected profile, like the zoom controls; the page picks the values up when Settings closes with OK.</summary>
+    private void OnProfileViewChanged(object sender, RoutedEventArgs e)
+    {
+        if (_syncingProfileControls)
+            return;
+        if (SelectedProfile is not { } selected)
+            return;
+        selected.ConversationScrollbars = ProfileScrollbarsCheck.IsChecked == true;
+        if (ChatTextScaleCombo.SelectedIndex >= 0 && ChatTextScaleCombo.SelectedIndex < ChatTextScaleChoices.Length)
+            selected.ChatTextScalePercent = ChatTextScaleChoices[ChatTextScaleCombo.SelectedIndex];
+        if (ReadingColumnCombo.SelectedIndex >= 0 && ReadingColumnCombo.SelectedIndex < ReadingColumnChoices.Length)
+            selected.ReadingColumnWidthPx = ReadingColumnChoices[ReadingColumnCombo.SelectedIndex];
+        if (LineSpacingCombo.SelectedIndex >= 0 && LineSpacingCombo.SelectedIndex < LineSpacingChoices.Length)
+            selected.ChatLineSpacingPercent = LineSpacingChoices[LineSpacingCombo.SelectedIndex];
+    }
+
+    /// <summary>The drafts switch (R5B #204): write-through to the working settings — Cancel in Settings still discards it, like every preference here.</summary>
+    private void OnDraftsAutosaveChanged(object sender, RoutedEventArgs e) =>
+        _working.DraftsAutosaveEnabled = DraftsAutosaveCheck.IsChecked == true;
+
+    // ── prompt snippets (R5B #206) ──────────────────────────────────
+    // Snippets live in their OWN store (snippets.json), not in the
+    // settings clone — so these edits are LIVE, like the Privacy
+    // section's actions: they save as they're made and Cancel in
+    // Settings does not undo them. The status line says so by
+    // reporting each save as it happens.
+
+    /// <summary>The snippet currently loaded in the editor, if any.</summary>
+    private string? _selectedSnippetId;
+
+    /// <summary>Reload the selected profile's snippet list from the store, keeping the editor's selection where it still exists.</summary>
+    private void RefreshSnippetList()
+    {
+        var profileId = SelectedProfile?.Id;
+        IReadOnlyList<PromptSnippet> snippets = profileId is null
+            ? Array.Empty<PromptSnippet>()
+            : PromptSnippetStore.Load(AppPaths.SnippetsPath).EntriesFor(profileId);
+        SnippetList.ItemsSource = snippets;
+        SnippetList.DisplayMemberPath = nameof(PromptSnippet.Name);
+        var keep = _selectedSnippetId is null
+            ? null
+            : snippets.FirstOrDefault(s => s.Id == _selectedSnippetId);
+        SnippetList.SelectedItem = keep;
+        if (keep is null && _selectedSnippetId is not null)
+        {
+            _selectedSnippetId = null;
+            SnippetNameText.Text = "";
+            SnippetBodyText.Text = "";
+        }
+        var enabled = profileId is not null;
+        SnippetList.IsEnabled = SnippetNameText.IsEnabled = SnippetBodyText.IsEnabled
+            = SaveSnippetButton.IsEnabled = NewSnippetButton.IsEnabled = enabled;
+        DeleteSnippetButton.IsEnabled = enabled && keep is not null;
+    }
+
+    private void OnSnippetSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (SnippetList.SelectedItem is not PromptSnippet snippet)
+            return; // losing the selection (a refresh) never wipes the editor
+        _selectedSnippetId = snippet.Id;
+        SnippetNameText.Text = snippet.Name;
+        SnippetBodyText.Text = snippet.Body;
+        DeleteSnippetButton.IsEnabled = true;
+        SnippetStatus.Text = "";
+    }
+
+    private void OnSaveSnippet(object sender, RoutedEventArgs e)
+    {
+        if (SelectedProfile is not { } selected)
+            return;
+        var all = PromptSnippetStore.Load(AppPaths.SnippetsPath);
+        var now = DateTimeOffset.UtcNow;
+        PromptSnippet? added = null;
+        var ok = _selectedSnippetId is { } id && all.Find(selected.Id, id) is not null
+            ? all.Update(selected.Id, id, SnippetNameText.Text, SnippetBodyText.Text, now)
+            : (added = all.Add(selected.Id, SnippetNameText.Text, SnippetBodyText.Text, now)) is not null;
+        if (!ok)
+        {
+            SnippetStatus.Text = PromptSnippets.CleanName(SnippetNameText.Text) is null
+                ? "A snippet needs a name — nothing was saved."
+                : $"A snippet needs its text (up to {PromptSnippets.MaxBodyLength:N0} characters) — nothing was saved.";
+            return;
+        }
+        PromptSnippetStore.Save(AppPaths.SnippetsPath, all);
+        if (added is not null)
+            _selectedSnippetId = added.Id;
+        SnippetStatus.Text = "Snippet saved — it's in Ctrl+K and the ⋯ menu now.";
+        RefreshSnippetList();
+    }
+
+    private void OnNewSnippet(object sender, RoutedEventArgs e)
+    {
+        _selectedSnippetId = null;
+        SnippetList.SelectedItem = null;
+        SnippetNameText.Text = "";
+        SnippetBodyText.Text = "";
+        SnippetStatus.Text = "";
+        SnippetNameText.Focus();
+    }
+
+    private void OnDeleteSnippet(object sender, RoutedEventArgs e)
+    {
+        if (SelectedProfile is not { } selected || _selectedSnippetId is not { } id)
+            return;
+        var all = PromptSnippetStore.Load(AppPaths.SnippetsPath);
+        if (all.Remove(selected.Id, id))
+        {
+            PromptSnippetStore.Save(AppPaths.SnippetsPath, all);
+            _selectedSnippetId = null;
+            SnippetNameText.Text = "";
+            SnippetBodyText.Text = "";
+            SnippetStatus.Text = "Snippet deleted.";
+        }
+        RefreshSnippetList();
     }
 
     /// <summary>Per-profile desktop shortcut (S3 #23).</summary>

@@ -1,0 +1,51 @@
+<Window x:Class="MuseDesktop.BookmarksWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Bookmarks"
+        Width="560" Height="480" MinWidth="420" MinHeight="320"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
+    <Window.Resources>
+        <Style x:Key="Note" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,6,0,0"/>
+        </Style>
+    </Window.Resources>
+
+    <DockPanel Margin="14,12,14,12">
+        <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap"
+                   Text="Messages you bookmarked (this profile). A bookmark is a placeholder you revisit from here — it lives only in MuseDesktop, on this PC."/>
+        <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
+            <StackPanel Orientation="Horizontal">
+                <Button x:Name="JumpButton" Content="Go to message" Width="112" Height="28" Click="OnJump"/>
+                <Button x:Name="RenameButton" Content="Rename…" Width="88" Height="28" Margin="8,0,0,0" Click="OnRename"/>
+                <Button x:Name="DeleteButton" Content="Delete" Width="84" Height="28" Margin="8,0,0,0" Click="OnDelete"/>
+                <Button Content="Close" Width="84" Height="28" Margin="8,0,0,0" IsCancel="True"/>
+            </StackPanel>
+            <TextBlock x:Name="StatusText" Style="{StaticResource Note}"/>
+        </StackPanel>
+        <ListBox x:Name="BookmarkList" Margin="0,10,0,0"
+                 Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
+                 BorderBrush="{StaticResource HairlineBrush}"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 MouseDoubleClick="OnDoubleClick"
+                 AutomationProperties.Name="Bookmarked messages">
+            <ListBox.ItemContainerStyle>
+                <Style TargetType="ListBoxItem">
+                    <Setter Property="AutomationProperties.Name" Value="{Binding AutomationName}"/>
+                </Style>
+            </ListBox.ItemContainerStyle>
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Margin="4,3">
+                        <TextBlock Text="{Binding Title}" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Text="{Binding Detail}" FontSize="11"
+                                   Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </DockPanel>
+</Window>

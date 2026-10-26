@@ -21,9 +21,15 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="24"/>
         </Grid.RowDefinitions>
+        <!-- R5B #202: a slim left rail — the Bookmarks button lives
+             here, at the window's left edge, as SEAN's design asks. -->
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="44"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
 
         <!-- Toolbar -->
-        <Border x:Name="Toolbar" Grid.Row="0" Background="{StaticResource SurfaceBrush}"
+        <Border x:Name="Toolbar" Grid.Row="0" Grid.ColumnSpan="2" Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,0,1">
             <DockPanel LastChildFill="True" Margin="6,0">
                 <!-- The two button strips are named: S5 #45 rebuilds their
@@ -93,6 +99,10 @@
                                           ToolTip="Keep this Muse page for later (title + in-app path only)"/>
                                 <MenuItem Header="Reading list…" Click="OnReadingList"
                                           ToolTip="Pages you saved for later, for this profile"/>
+                                <MenuItem Header="Bookmarks…" Click="OnBookmarks"
+                                          ToolTip="Messages you bookmarked in conversations (this profile) — revisited from here, inside the app only"/>
+                                <MenuItem x:Name="SnippetsItem" Header="Insert snippet"
+                                          ToolTip="Put one of your saved prompts into the message box (manage them in Settings → Account profiles)"/>
                                 <Separator/>
                                 <MenuItem Header="Start focus timer" Click="OnStartFocusTimer"
                                           ToolTip="A timed focus block (length in Settings → Focus &amp; productivity); focus mode comes on with it"/>
@@ -110,6 +120,10 @@
                                           ToolTip="Every keyboard shortcut in one searchable list; three of them can be changed in Settings"/>
                                 <MenuItem Header="Print…" Click="OnPrint" InputGestureText="Ctrl+P"/>
                                 <MenuItem Header="Save as PDF…" Click="OnSaveAsPdf"/>
+                                <MenuItem Header="Export conversation as Markdown…" Click="OnExportConversationMarkdown"
+                                          ToolTip="Save this conversation as a tidy Markdown file — messages in order, code blocks intact"/>
+                                <MenuItem Header="Export conversation as PDF…" Click="OnExportConversationPdf"
+                                          ToolTip="Print this conversation page to a PDF, as it appears on screen"/>
                                 <MenuItem Header="Copy page address" Click="OnCopyPageAddress"/>
                                 <MenuItem Header="Open in browser" Click="OnOpenInBrowser"/>
                                 <MenuItem Header="Open in new window" Click="OnOpenInNewWindow"
@@ -153,7 +167,7 @@
         </Border>
 
         <!-- Find bar (v0.5.0, S1 #1) -->
-        <Border x:Name="FindBar" Grid.Row="1" Background="{StaticResource SurfaceBrush}"
+        <Border x:Name="FindBar" Grid.Row="1" Grid.ColumnSpan="2" Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,0,1"
                 Visibility="Collapsed">
             <StackPanel Orientation="Horizontal" Margin="6,3" VerticalAlignment="Center">
@@ -173,10 +187,24 @@
             </StackPanel>
         </Border>
 
+        <!-- Left rail (R5B #202): the vertical strip at the window's
+             left edge. Today it carries the Bookmarks button; it hides
+             with the rest of the chrome in focus mode. -->
+        <Border x:Name="LeftRail" Grid.Row="2" Grid.Column="0"
+                Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,1,0">
+            <StackPanel Orientation="Vertical" Margin="0,6,0,0">
+                <Button x:Name="BookmarksButton" Style="{StaticResource BarButton}" Content="&#x1F516;"
+                        Width="34" Height="34" Margin="5,0" Click="OnBookmarks"
+                        ToolTip="Bookmarks — messages you marked in conversations (this profile)"
+                        AutomationProperties.Name="Bookmarks"/>
+            </StackPanel>
+        </Border>
+
         <!-- Web content. The first-run / error overlay sits above it until the page loads.
              ContentGrid is named because S8 #71's recovery replaces the web
              view controls inside it when the browser process exits. -->
-        <Grid Grid.Row="2" x:Name="ContentGrid">
+        <Grid Grid.Row="2" Grid.Column="1" x:Name="ContentGrid">
             <!-- Focus ring (S6 #58): the border is always 2px (so the
                  page never shifts); its brush turns accent-colored
                  while keyboard focus is inside the page, transparent
@@ -221,7 +249,7 @@
         </Grid>
 
         <!-- Status bar -->
-        <Border x:Name="StatusBar" Grid.Row="3" Background="{StaticResource SurfaceBrush}"
+        <Border x:Name="StatusBar" Grid.Row="3" Grid.ColumnSpan="2" Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,1,0,0">
             <DockPanel LastChildFill="True" Margin="8,0">
                 <Button x:Name="CancelDownloadButton" DockPanel.Dock="Right" Content="&#x2715;" Width="22" Height="18"
