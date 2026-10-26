@@ -4,6 +4,27 @@ All notable changes to MuseDesktop. Format follows Keep a Changelog; versions us
 
 Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhancement program; they were never published as releases. Everything in them shipped together as **1.0.0** (2026-10-24).
 
+## [1.3.0] — Unreleased
+
+Round 2, Slice R3 (items 121–130) of the enhancement program: profiles round 2.
+
+### Added
+
+- **Profile avatars (#121)** — each profile can wear one of the twelve text glyphs (★ ● ◆ ▲ ■ ♥ ♪ ☀ ☾ ⚑ ✚ ⌂ — the same palette as workspace icons) beside its accent color: the glyph leads the profile's name in the window switcher, the ⋯ menu, and the tray. A profile's desktop-shortcut icon is redrawn from its color + glyph (or its name's first letter) every time the shortcut is created, so changing the avatar and re-creating the shortcut refreshes the icon.
+- **Per-profile PIN (#122)** — a profile can have its own PIN or password (Settings → Account profiles), asked when MuseDesktop launches with that profile — after the app password, if one is set: the global lock always gates first. It uses the app lock's exact design (salted PBKDF2, same cost, same fail-open repair if its record is ever damaged), and it carries the same honest promise: a privacy screen for casual glances, not encryption.
+- **Scheduled profile switching (#123)** — give a profile a daily window (say Work, 09:00–17:00 on weekdays; a window can run past midnight). When the window starts, MuseDesktop asks before switching — asking is the default; Settings can switch automatically instead. Either way, you win: switching by hand, or saying No, holds the schedule off until the current window ends.
+- **Profile clone (#124)** — *Clone profile* copies a profile's settings and appearance into a new profile ("Work" → "Work copy"). Sign-in data is never copied — the clone starts signed out, with no PIN and no schedule of its own.
+- **Profile health (#125)** — one counts-only report per profile (Settings → *Profile health…*): data size, disposable cache size, cookie count, last used, last settings backup, data cap. Numbers only — no site names, no domains, no page data — and nothing leaves the PC.
+- **Profile export/import (#126)** — export one profile as a small bundle file (optionally password-encrypted, like the settings export) and import it on another PC as a new profile. A bundle carries settings and appearance only — never sign-in data, cookies, the PIN, the schedule, group membership, or usage counts — and importing never overwrites an existing profile.
+- **Profile groups (#127)** — named groups gather profiles under a heading in the ⋯ menu, the tray switch list, and Settings, for anyone nearing the 32-profile cap. Deleting a group just ungroups its profiles. The command palette (Ctrl+K) gains "Switch to group:" commands that open the group's most recently used profile.
+- **Profile templates (#128)** — quick-create from three starters: **Work** (blue flag, starts at the Muse home page), **Personal** (purple heart, reopens the last page), **Reading** (orange moon, last page at 125% zoom). A template is only a starting point — the profile it makes is ordinary and fully editable.
+- **Profile usage (#129)** — Settings shows each profile's launch count and last-launched date. The tallies live in their own small file on this PC only, never ride any export or bundle, and delete in one click (*Clear usage counts*).
+- **Archive a profile (#130)** — archiving hides a profile from the switcher, menus, tray, palette, and the Ctrl+Shift profile chords while keeping every byte of its data; untick the box in Settings to restore it. An archived profile's desktop shortcut still opens it (you named it on purpose), and the profile you're currently using can't be archived.
+
+### Notes
+
+- Core test suite grows by 43 cases (717 → 760). All v1.3.0 runtime behavior is **Unverified** on a real Windows machine pending the `RELEASE_CHECKLIST.md` R3 pass.
+
 ## [1.2.0] — Unreleased
 
 Round 2, Slice R2 (items 111–120) of the enhancement program: workspaces & sessions.
