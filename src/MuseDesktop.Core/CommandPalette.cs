@@ -245,6 +245,40 @@ public sealed class ProfilesPaletteProvider : IPaletteProvider
     }
 }
 
+/// <summary>
+/// Profile-group switch commands (R3 #127): one per group that has a
+/// switch target, titled with where it will land ("Switch to group:
+/// Clients (opens Work)") — a group switch is a profile switch to the
+/// group's most recently used member, so it rides the Profile source
+/// and the shell resolves the payload (a GROUP id) through
+/// ProfileGroups.SwitchTarget at run time, when "most recent" is true.
+/// </summary>
+public sealed class ProfileGroupsPaletteProvider : IPaletteProvider
+{
+    private readonly AppSettings _settings;
+
+    public ProfileGroupsPaletteProvider(AppSettings settings) => _settings = settings;
+
+    public string Name => "Profile groups";
+
+    public IEnumerable<PaletteCommand> GetCommands()
+    {
+        foreach (var group in _settings.ProfileGroups)
+        {
+            if (ProfileGroups.SwitchTarget(_settings, group.Id) is not { } target)
+                continue;
+            yield return new PaletteCommand(
+                Id: $"profile-group.switch.{group.Id}",
+                Title: $"Switch to group: {group.Name}",
+                Detail: $"Opens {target.Name}",
+                Category: "Profiles",
+                Keywords: $"profile group switch folder {group.Name} {target.Name}",
+                Source: PaletteCommandSource.Profile,
+                Payload: group.Id);
+        }
+    }
+}
+
 /// <summary>One command per Settings section (R1 #102), from the same index Settings search uses.</summary>
 public sealed class SettingsSectionsPaletteProvider : IPaletteProvider
 {
@@ -350,7 +384,11 @@ public sealed record WindowDescriptor(
     string? ProfileColorKey,
     bool IsMain,
     bool SupportsFocusMode,
-    bool IsActive);
+    bool IsActive,
+    // R3 #121: the profile's avatar glyph key rides along so the
+    // switcher can show the same mark as every other surface.
+    // Optional and trailing: every existing construction is unchanged.
+    string? ProfileGlyphKey = null);
 
 /// <summary>
 /// Window commands (R1 #102/#104): a switch command per window plus
@@ -560,11 +598,17 @@ public static class CommandRegistry
         IReadOnlyList<WindowDescriptor> windows,
         IReadOnlyList<Workspace>? workspaces = null,
         string? activeWorkspaceId = null,
-        string? startupWorkspaceId = null)
+        string? startupWorkspaceId = null,
+        // R3 #127: the settings the group commands resolve against —
+        // optional and trailing like the workspace inputs; without it
+        // there are simply no group commands.
+        AppSettings? groupSettings = null)
     {
         var palette = new CommandPalette();
         palette.Register(new StaticPaletteProvider("Actions", BuiltinActions));
         palette.Register(new ProfilesPaletteProvider(profiles, activeProfileId));
+        if (groupSettings is not null)
+            palette.Register(new ProfileGroupsPaletteProvider(groupSettings));
         palette.Register(new WindowsPaletteProvider(windows));
         palette.Register(new DownloadsPaletteProvider(recentDownloads));
         palette.Register(new SettingsSectionsPaletteProvider());

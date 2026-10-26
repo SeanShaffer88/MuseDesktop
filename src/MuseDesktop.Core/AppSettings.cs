@@ -315,6 +315,36 @@ public sealed class AppSettings
     /// <summary>Auto-save session (#118): restore the windows left open at exit (app routes only). Off by default — the windows you left are yours to reopen until you opt in.</summary>
     public bool AutoSaveSession { get; set; }
 
+    // Profiles round 2 (v1.3.0, R3 #121–#130). Groups and schedule
+    // rules live here beside the profile list they organize; the
+    // per-profile pieces (avatar, group membership, archive flag, PIN
+    // record) live on AccountProfile itself. Per-profile PIN records
+    // ride settings export/import like the app lock's record does
+    // (they are salted hashes, not credentials), but they NEVER ride a
+    // single-profile bundle, a clone, or Copy settings — see
+    // ProfileBundle and Profiles.Clone.
+
+    /// <summary>Named profile groups (R3 #127): organization for the switchers. Repaired by ProfileGroups.EnsureValid.</summary>
+    public List<ProfileGroup> ProfileGroups { get; set; } = new();
+
+    /// <summary>Time-of-day profile switch rules (R3 #123): at most one rule per profile. Repaired by ProfileSchedule.Sanitize.</summary>
+    public List<ProfileSwitchRule> ProfileSwitchRules { get; set; } = new();
+
+    /// <summary>Scheduled switching style (R3 #123): false = ask first (the default — a dialog proposes the switch and the user decides); true = switch automatically when a rule's window starts.</summary>
+    public bool ProfileScheduleAutoSwitch { get; set; }
+
+    /// <summary>
+    /// The manual-override hold (R3 #123): the profile the user last
+    /// chose by hand (or kept by declining a suggestion), which the
+    /// schedule must not override until <see cref="ScheduleHoldUntilUtc"/>.
+    /// Session state, like the S9 records — a Settings clone never
+    /// adopts it. Repaired by ProfileSchedule.Sanitize.
+    /// </summary>
+    public string? ScheduleHoldProfileId { get; set; }
+
+    /// <summary>When the manual-override hold ends (R3 #123): the end of the window that was running when the user chose, or the start of the next window, whichever the hold was recorded against.</summary>
+    public DateTimeOffset? ScheduleHoldUntilUtc { get; set; }
+
     /// <summary>Legacy shared last-page (pre-v0.3.1). Migrated into LastUrlByProfile for the default profile on load, then cleared.</summary>
     public string? LastUrl { get; set; }
 
@@ -350,6 +380,12 @@ public sealed class AppSettings
         // final too — a workspace window naming a deleted profile
         // drops, and the startup/active pointers follow the list.
         global::MuseDesktop.Core.Workspaces.EnsureValid(this);
+        // R3 #123/#127: group + schedule repairs run after the profile
+        // and workspace repairs — group memberships pointing at
+        // vanished groups clear, and rules naming vanished or
+        // archived profiles drop.
+        global::MuseDesktop.Core.ProfileGroups.EnsureValid(this);
+        global::MuseDesktop.Core.ProfileSchedule.Sanitize(this);
         if (string.IsNullOrWhiteSpace(DownloadsFolder))
             DownloadsFolder = null;
         else

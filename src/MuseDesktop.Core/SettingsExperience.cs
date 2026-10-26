@@ -43,7 +43,7 @@ public static class SettingsSearch
         new SettingsSectionInfo(TrayId, "Tray & notifications",
             "tray icon single click double click reopen flash taskbar attention quiet hours do not disturb notifications balloon silent night"),
         new SettingsSectionInfo(ProfilesId, "Account profiles",
-            "profile account sign-in rename accent color dot switch remove add copy settings start page home custom url zoom downloads folder data size last used shortcut desktop storage cap limit cache cleanup"),
+            "profile account sign-in rename accent color dot switch remove add copy settings start page home custom url zoom downloads folder data size last used shortcut desktop storage cap limit cache cleanup avatar glyph icon pin lock password schedule automatic time clone duplicate health cookies backup export import bundle group folder template usage launches archive hide restore"),
         new SettingsSectionInfo(WorkspacesId, "Workspaces & sessions",
             "workspace workspaces session sessions layout windows arrangement save apply startup launch auto-save restore snapshot crash glyph icon accent duplicate rename delete"),
         new SettingsSectionInfo(AppearanceId, "Appearance & toolbar",
@@ -182,6 +182,13 @@ public static class SettingsReset
         // edit is Sanitized's job, not the reset's).
         target.StartupWorkspaceId = fresh.StartupWorkspaceId;
         target.AutoSaveSession = fresh.AutoSaveSession;
+        // R3 fields (v1.3.0): the ask-vs-auto schedule choice is a
+        // preference and resets (to ask-first). NOT preferences, so
+        // preserved below: ProfileGroups and ProfileSwitchRules are
+        // the user's own organization, per-profile PIN records live on
+        // the profiles themselves, and the schedule hold is session
+        // state like the other state records.
+        target.ProfileScheduleAutoSwitch = fresh.ProfileScheduleAutoSwitch;
         // S9 fields (v0.13.0): the update channel returns to stable
         // only, the check frequency to every launch, any snooze is
         // cleared, and What's New shows again. NOT preferences, so
@@ -205,7 +212,8 @@ public static class SettingsReset
         // NOT copied (preserved by design): SchemaVersion, Profiles,
         // ActiveProfileId, LastUrl, LastUrlByProfile,
         // WindowPlacementByProfile and the legacy Window* placement
-        // fields, PendingProfileFolderDeletions, and the
+        // fields, PendingProfileFolderDeletions, ProfileGroups,
+        // ProfileSwitchRules, the schedule hold, and the
         // Settings-window memory (SettingsLastSection /
         // SettingsWindowWidth / SettingsWindowHeight).
     }

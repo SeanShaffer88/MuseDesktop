@@ -227,6 +227,45 @@ public partial class App : System.Windows.Application
         if (activeProfile is not null)
             activeProfile.LastUsedUtc = DateTimeOffset.UtcNow;
 
+        // R3 #129: count this launch in the local-only usage tallies.
+        // Best-effort by design — a tally failure never blocks a launch.
+        try
+        {
+            var usage = ProfileUsageStore.Load(AppPaths.ProfileUsagePath);
+            usage.RecordLaunch(Settings.ActiveProfileId, DateTimeOffset.UtcNow);
+            ProfileUsageStore.Save(AppPaths.ProfileUsagePath, usage);
+        }
+        catch (Exception ex) { Log.Warn($"Profile usage tally failed: {ex.Message}"); }
+
+        // R3 #122: the LAUNCH profile's own PIN, gated after the
+        // global app lock above (the global credential is always asked
+        // first). A visible launch gets the profile gate now, as its
+        // own modal; a hidden launch defers it to the main window's
+        // first real show (the hidden-start contract: no window pops
+        // at sign-in).
+        AppLockRecord? pendingProfileLock = null;
+        if (activeProfile is not null
+            && ProfileLock.IsLockActive(activeProfile)
+            && ProfileLock.TryGetRecord(activeProfile, out var profileRecord)
+            && profileRecord is not null)
+        {
+            if (!startHidden)
+            {
+                if (!ShowStartupLockGate(profileRecord))
+                {
+                    Log.Info("Profile PIN: startup cancelled at the profile lock screen — exiting");
+                    Shutdown();
+                    return;
+                }
+                Log.Info("Profile PIN: unlocked at startup");
+            }
+            else
+            {
+                pendingProfileLock = profileRecord;
+                Log.Info("Profile PIN is on for the launch profile — starting in the tray (PIN asked on first show)");
+            }
+        }
+
         RunPendingProfileFolderDeletions();
         // S8 #75: the startup cache-cap pass — capped profiles over
         // their cap get their allowlisted caches trimmed, and the
@@ -275,6 +314,10 @@ public partial class App : System.Windows.Application
             return;
         }
         MainWindow = _window;
+        // R3 #122: hand the deferred profile PIN to the window (its
+        // first real show presents it, after any global unlock).
+        if (pendingProfileLock is not null)
+            _window.RequireProfileUnlock(pendingProfileLock);
         if (startHidden)
             _window.StartHidden();
         else

@@ -75,6 +75,8 @@ Try this:
 4. Delete the file settings.json in that folder. Don't touch anything else — especially not the WebView2 profile folders under %LOCALAPPDATA%\MuseDesktop, which hold your sign-ins.
 5. Start MuseDesktop: no lock, default settings, and your default profile is still signed in. Re-apply any settings you cared about (exporting them first is the habit that makes this painless next time), and set a new app password in Settings → Privacy & security if you still want one.
 
+The same applies to a per-profile PIN (Settings → Account profiles): each profile can ask for its own PIN when MuseDesktop launches with it, on top of the app password — the app password is always asked first. Profile PINs are stored the same one-way way, so a forgotten profile PIN has the same cure: the settings.json removal above clears every profile PIN along with the app password, and no profile is signed out by it. Inside an unlocked app you can also remove a profile's PIN in Settings, but that asks for the current PIN first.
+
 ## The page won't load
 
 What you see: a blank page, a spinner that never ends, or the failure screen saying you're offline, the name couldn't be found, or the connection failed — maybe right after the PC woke from sleep.
