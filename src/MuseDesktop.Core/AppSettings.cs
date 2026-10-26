@@ -152,6 +152,9 @@ public sealed class AppSettings
     /// <summary>Scheduled commands (R5 #147): palette actions run at startup / daily / once, while the app runs only. Sanitized by CommandScheduler — a rule naming no real action drops.</summary>
     public List<ScheduledCommand> CommandSchedules { get; set; } = new();
 
+    /// <summary>Composer drafts autosave (R5B #204): keep each conversation's unsent text (per profile, in drafts.json) and offer it back when the user returns. On by default; off stops both saving and restoring — drafts already saved stay on disk until they age out of the store's cap or the file is deleted. Draft text itself never enters settings — only this switch does.</summary>
+    public bool DraftsAutosaveEnabled { get; set; } = true;
+
     /// <summary>Retry failed downloads automatically (R4 #139): network/server reasons only, bounded attempts, backing off. On by default.</summary>
     public bool DownloadAutoRetryEnabled { get; set; } = true;
 

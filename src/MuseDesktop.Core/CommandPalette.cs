@@ -169,6 +169,10 @@ public enum PaletteCommandSource
     // the action history refuses them all the same way.
     ReadingList,
     History,
+    // R5B (#202/#206): payload = the bookmark / snippet id, resolved
+    // against the store at run time; refused by the history the same.
+    Bookmark,
+    Snippet,
 }
 
 /// <summary>
@@ -605,6 +609,12 @@ public static class CommandRegistry
         Action("notes", "Open notes", "notes notebook view list quick notes", detail: "Notes"),
         Action("weekly-digest", "Weekly digest", "weekly digest summary week review recap", detail: "Focus"),
         Action("stats-dashboard", "Stats dashboard", "stats dashboard counts launches downloads focus minutes week charts", detail: "Focus"),
+        // R5B (#202/#203): the conversation tools. The per-bookmark
+        // and per-snippet commands ride their own providers below;
+        // these are the two fixed doors (the list, the export).
+        Action("bookmarks", "Open bookmarks", "bookmarks marked messages nicknames saved jump list", detail: "Bookmarks"),
+        Action("export-conversation", "Export conversation as Markdown…", "export conversation save chat markdown file transcript", detail: "Page"),
+        Action("export-conversation-pdf", "Export conversation as PDF…", "export conversation save chat pdf file transcript", detail: "Page"),
         Action("exit", "Exit MuseDesktop", "quit exit close app", detail: "App"),
     };
 
@@ -641,7 +651,11 @@ public static class CommandRegistry
         // session's navigation history — optional and trailing like
         // the rest; without them those sections simply don't appear.
         IReadOnlyList<ReadingListEntry>? readingEntries = null,
-        IReadOnlyList<NavigationEntry>? historyEntries = null)
+        IReadOnlyList<NavigationEntry>? historyEntries = null,
+        // R5B #202/#206: the active profile's message bookmarks and
+        // prompt snippets — optional and trailing like the rest.
+        IReadOnlyList<MessageBookmark>? bookmarks = null,
+        IReadOnlyList<PromptSnippet>? snippets = null)
     {
         var palette = new CommandPalette();
         palette.Register(new StaticPaletteProvider("Actions", BuiltinActions));
@@ -654,6 +668,10 @@ public static class CommandRegistry
         palette.Register(new DownloadsPaletteProvider(recentDownloads));
         if (readingEntries is not null)
             palette.Register(new ReadingListPaletteProvider(readingEntries));
+        if (bookmarks is not null)
+            palette.Register(new MessageBookmarksPaletteProvider(bookmarks));
+        if (snippets is not null)
+            palette.Register(new PromptSnippetsPaletteProvider(snippets));
         palette.Register(new SettingsSectionsPaletteProvider());
         palette.Register(new HelpTopicsPaletteProvider());
         palette.Register(new WorkspacesPaletteProvider(
