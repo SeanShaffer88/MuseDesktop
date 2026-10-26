@@ -29,6 +29,22 @@ public partial class SecondaryWindow : Window
     /// </summary>
     public Action? PaletteRequested { get; set; }
 
+    /// <summary>
+    /// The page this window currently shows (R2 #111), read live for
+    /// workspace/session capture. Null before the web view exists or
+    /// when nothing has loaded; the caller turns it into an app route
+    /// (Core's <see cref="AppRoute.FromUrl"/>) and never stores the
+    /// raw value.
+    /// </summary>
+    public string? CurrentUrl
+    {
+        get
+        {
+            try { return Browser.Source?.ToString(); }
+            catch { return null; }
+        }
+    }
+
     public SecondaryWindow(CoreWebView2Environment env, DiagnosticLog log, string initialUrl)
     {
         _env = env;

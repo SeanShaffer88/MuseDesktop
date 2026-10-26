@@ -103,6 +103,19 @@ public partial class MainWindow : Window
     private readonly Dictionary<Window, string> _trackedWindows = new();
     private int _secondarySeq;
 
+    // v1.2.0 (R2) — workspaces & sessions (#111–#120): the session
+    // journal this launch maintains (rewritten as the arrangement
+    // changes; its CleanExit flag is the next launch's crash
+    // evidence), the one-shot startup arrangement (pending apply /
+    // crash restore / auto-save / startup workspace — deferred while
+    // the window starts hidden, like the S11 intent queue), and the
+    // active workspace's accent override (#115: session-only, applied
+    // over the settings accent via a clone, never written into it).
+    private SessionJournal? _journal;
+    private bool _startupArrangementHandled;
+    private bool _startupArrangementDeferred;
+    private string? _workspaceAccentKey;
+
     // v0.12.0 (S8) — reliability: ONE recovery coordinator (#71/#76)
     // decides every automatic reload/recreate (the S1 network retry
     // and the ProcessFailed handler used to keep separate flags); the
@@ -203,7 +216,10 @@ public partial class MainWindow : Window
             () => AppLock.IsLockActive(_settings),
             LockNow,
             quickDictate: QuickDictate,
-            openPalette: () => OpenPalette(compact: true));
+            openPalette: () => OpenPalette(compact: true),
+            workspaces: () => _settings.Workspaces,
+            activeWorkspaceId: () => _settings.ActiveWorkspaceId,
+            applyWorkspace: id => ApplyWorkspaceById(id));
 
         // S6 #54: live regions for assistive-tech announcements, and
         // the download events that feed them (the wording is Core's).
@@ -239,6 +255,10 @@ public partial class MainWindow : Window
         if (_isLocked)
             _tray.SetLocked(true);
         RefreshProfileIndicator();
+        // R2 #115/#119: the ⋯ menu's workspace list, and the active
+        // workspace's accent override if the last session left one.
+        RebuildWorkspacesMenu();
+        ApplyWorkspaceAccent();
         Loaded += OnLoaded;
         Closing += OnClosing;
         Closed += (_, _) => _hotkeyManager?.Dispose();
@@ -410,6 +430,13 @@ public partial class MainWindow : Window
         // S11: an intent that queued (behind the lock, or behind a
         // hidden cold start) applies once the window is actually up.
         DrainPendingIntent();
+        // R2: a hidden start's deferred startup arrangement runs at
+        // the first real show, once the web view exists to hold it.
+        if (_startupArrangementDeferred && _webReady)
+        {
+            _startupArrangementDeferred = false;
+            RunStartupArrangement();
+        }
     }
 
     /// <summary>
@@ -569,6 +596,11 @@ public partial class MainWindow : Window
             HideToTray(showBalloon: true);
             return;
         }
+        // R2 #117/#118: a graceful exit marks the journal clean — the
+        // next launch tells it apart from a crash by this flag alone.
+        // (A hide-to-tray above is not an exit: the app is still
+        // running, and the journal stays live.)
+        UpdateSessionJournal(cleanExit: true);
         _tray.Dispose();
         System.Windows.Application.Current.Shutdown();
     }
@@ -667,6 +699,10 @@ public partial class MainWindow : Window
                 }
             }
             SettingsStore.Save(AppPaths.SettingsPath, _settings);
+            // R2 #117/#118: the session journal rides the same
+            // cadence — the arrangement it records is never more than
+            // one navigation stale.
+            UpdateSessionJournal();
             // S8 #79: saves are frequent (every navigation), so the
             // backup service applies its once-a-day throttle itself.
             BackupService.MaybeAutoBackup(_log);
@@ -799,6 +835,20 @@ public partial class MainWindow : Window
         core.Navigate(navigateTo);
         SetStatus(_safeMode ? "Safe mode — Loading Muse…" : "Loading Muse…");
         StartWatchdog();
+        // R2: the startup arrangement (pending workspace apply /
+        // crash-journal restore / startup workspace), once, on the
+        // first real init — the recovery recreate passes a restore
+        // URL and skips it. Dispatched so the window is fully up
+        // before anything opens windows or asks a question; a hidden
+        // (tray) start defers it to the first real show, so nothing
+        // pops at sign-in (the S7/S11 hidden-start contract).
+        if (restoreUrl is null && !_startupArrangementHandled)
+        {
+            if (IsVisible)
+                _ = Dispatcher.BeginInvoke(new Action(RunStartupArrangement));
+            else
+                _startupArrangementDeferred = true;
+        }
 
         string envVersion()
         {
@@ -849,6 +899,14 @@ public partial class MainWindow : Window
             // S8 #71/#76: a successful load closes the recovery
             // incident and refills both automatic budgets.
             _recovery.OnPageLoaded();
+            // R2 #117: the first successful load makes this session
+            // "healthy" in the journal — the fact that keeps a later
+            // crash restore from being suppressed as a restore loop.
+            if (_journal is { BecameHealthy: false })
+            {
+                _journal.BecameHealthy = true;
+                UpdateSessionJournal();
+            }
             var src = Browser.Source?.ToString();
             if (src is not null)
                 _lastGoodUrl = src;
@@ -1605,7 +1663,8 @@ public partial class MainWindow : Window
             clone.SettingsLastSection = sectionId;
         var dialog = new SettingsWindow(clone, _log, _privacyGateway, SwitchToProfile,
             notificationTest: RunTestNotification,
-            globalHotkeyStatus: () => _hotkeyManager?.StatusText ?? "") { Owner = this };
+            globalHotkeyStatus: () => _hotkeyManager?.StatusText ?? "",
+            applyWorkspace: ApplyWorkspaceFromSettings) { Owner = this };
         // S6 #56: closing Settings returns focus to whatever invoked it
         // (usually the page itself).
         if (FocusReturn.ShowDialog(dialog) != true)
@@ -1644,6 +1703,12 @@ public partial class MainWindow : Window
         _settings.ActiveProfileId = clone.ActiveProfileId;
         _settings.LastUrlByProfile = clone.LastUrlByProfile;
         _settings.PendingProfileFolderDeletions = clone.PendingProfileFolderDeletions;
+        // R2: workspaces + their two choices ride the same adoption.
+        // ActiveWorkspaceId / PendingWorkspaceApplyId are session
+        // state (like the S9 records) and are NOT adopted.
+        _settings.Workspaces = clone.Workspaces;
+        _settings.StartupWorkspaceId = clone.StartupWorkspaceId;
+        _settings.AutoSaveSession = clone.AutoSaveSession;
         _settings.AlwaysOnTop = clone.AlwaysOnTop;
         // S5: appearance + Settings-window memory ride the same adoption.
         _settings.Theme = clone.Theme;
@@ -1699,6 +1764,12 @@ public partial class MainWindow : Window
             _tray.CancelPendingSuspend();
         SaveSettings();
         RefreshProfileIndicator();
+        // R2 #115: the workspace accent override re-applies over the
+        // (possibly new) settings accent, and the ⋯ menu's list
+        // follows the adopted workspaces.
+        _workspaceAccentKey = null;
+        ApplyWorkspaceAccent();
+        RebuildWorkspacesMenu();
         // S11 #96/#99 live apply (see the adoption above).
         _hotkeyManager?.Apply(_settings);
         ProtocolRegistration.Sync(_settings, _log);
@@ -1738,6 +1809,23 @@ public partial class MainWindow : Window
             catch (Exception ex) { _log.Warn($"Saving deferred-deletion queue failed: {ex.Message}"); }
         }
         _log.Info("Settings updated");
+    }
+
+    /// <summary>
+    /// Settings' "Apply now" for a workspace (R2 #120): the same
+    /// adoption shape as the profile switch — take the dialog's
+    /// workspace state into the live settings, persist, then apply.
+    /// The dialog closes itself afterwards, like the switch does.
+    /// </summary>
+    private void ApplyWorkspaceFromSettings(AppSettings workingClone, string workspaceId)
+    {
+        _settings.Workspaces = workingClone.Workspaces;
+        _settings.StartupWorkspaceId = workingClone.StartupWorkspaceId;
+        _settings.AutoSaveSession = workingClone.AutoSaveSession;
+        _settings.Sanitized();
+        SaveSettings();
+        if (Workspaces.Find(_settings, workspaceId) is { } ws)
+            ApplyWorkspace(ws, activate: true);
     }
 
     /// <summary>
@@ -2631,8 +2719,11 @@ public partial class MainWindow : Window
         {
             _trackedWindows.Remove(window);
             _windowMru.Remove(id);
+            // R2 #117/#118: the journal follows the arrangement.
+            UpdateSessionJournal();
         };
         _windowMru.Touch(id);
+        UpdateSessionJournal();
     }
 
     // #5 Always-on-top pin.
@@ -2836,7 +2927,8 @@ public partial class MainWindow : Window
         try { downloads = DownloadHistoryStore.Load(AppPaths.DownloadsHistoryPath, _settings.DownloadHistoryCap); }
         catch { downloads = Array.Empty<DownloadRecord>(); }
         return CommandRegistry.CreateDefault(
-            _settings.Profiles, _settings.ActiveProfileId, downloads, CurrentWindowDescriptors());
+            _settings.Profiles, _settings.ActiveProfileId, downloads, CurrentWindowDescriptors(),
+            _settings.Workspaces, _settings.ActiveWorkspaceId, _settings.StartupWorkspaceId);
     }
 
     /// <summary>
@@ -2886,7 +2978,7 @@ public partial class MainWindow : Window
 
     private void OnSwitchWindow(object sender, RoutedEventArgs e) => OpenSwitcher();
 
-    /// <summary>The palette row's profile color dot (#102/#103): a profile command carries its own profile's color; a window command carries the color of the (shared) active profile its windows belong to.</summary>
+    /// <summary>The palette row's profile color dot (#102/#103): a profile command carries its own profile's color; a window command carries the color of the (shared) active profile its windows belong to; a workspace command (R2 #115) carries the workspace's accent override color.</summary>
     private string? PaletteRowColor(PaletteCommand command)
     {
         switch (command.Source)
@@ -2896,6 +2988,9 @@ public partial class MainWindow : Window
                     _settings.Profiles.FirstOrDefault(p => p.Id == command.Payload)?.DisplayColor);
             case PaletteCommandSource.Window:
                 return ProfileColors.HexFor(ActiveProfile()?.DisplayColor);
+            case PaletteCommandSource.Workspace:
+                return ProfileColors.HexFor(
+                    _settings.Workspaces.FirstOrDefault(w => w.Id == command.Payload)?.AccentColor);
             default:
                 return null;
         }
@@ -2965,7 +3060,10 @@ public partial class MainWindow : Window
             case PaletteCommandSource.Window:
                 ExecuteWindowCommand(command);
                 break;
-            // Workspace: the R2 stub provider contributes no commands.
+            case PaletteCommandSource.Workspace:
+                if (command.Payload is { } workspaceId)
+                    ApplyWorkspaceById(workspaceId);
+                break;
         }
     }
 
@@ -2975,6 +3073,9 @@ public partial class MainWindow : Window
         switch (id)
         {
             case "action.switch-window": OpenSwitcher(); break;
+            case "action.save-workspace": SaveCurrentWorkspace(); break;
+            case "action.snapshot-session": TakeSessionSnapshot(); break;
+            case "action.restore-session": RestoreSessionSnapshot(); break;
             case "action.settings": OpenSettings(); break;
             case "action.downloads": OnDownloads(this, new RoutedEventArgs()); break;
             case "action.home": OnHome(this, new RoutedEventArgs()); break;
@@ -3124,6 +3225,487 @@ public partial class MainWindow : Window
         window.Width = width;
         window.Height = height;
         window.Activate();
+    }
+
+    // ─────────────────── v1.2.0 R2: workspaces & sessions (items 111–120) ───────────────────
+
+    /// <summary>Every open window as the apply planner sees it (#112): the main window plus the tracked secondaries, routes only — a full URL never leaves this method.</summary>
+    private IReadOnlyList<OpenWindowState> CurrentOpenWindowStates()
+    {
+        var states = new List<OpenWindowState>
+        {
+            new("main", _settings.ActiveProfileId, CurrentMainRoute(), IsMain: true),
+        };
+        foreach (var (window, id) in _trackedWindows)
+        {
+            var route = window is SecondaryWindow secondary
+                ? AppRoute.FromUrl(secondary.CurrentUrl) ?? AppRoute.Home
+                : AppRoute.Home;
+            states.Add(new OpenWindowState(id, _settings.ActiveProfileId, route, IsMain: false));
+        }
+        return states;
+    }
+
+    private string CurrentMainRoute() =>
+        _webReady ? AppRoute.FromUrl(Browser.Source?.ToString()) ?? AppRoute.Home : AppRoute.Home;
+
+    /// <summary>The current arrangement as workspace windows (#111 capture): profile, route, and placement per open window.</summary>
+    private List<WorkspaceWindow> CurrentWorkspaceWindows()
+    {
+        var windows = new List<WorkspaceWindow>
+        {
+            new()
+            {
+                ProfileId = _settings.ActiveProfileId,
+                Route = CurrentMainRoute(),
+                Placement = PlacementOf(this),
+                IsMain = true,
+            },
+        };
+        foreach (var (window, _) in _trackedWindows)
+        {
+            windows.Add(new WorkspaceWindow
+            {
+                ProfileId = _settings.ActiveProfileId,
+                Route = window is SecondaryWindow secondary
+                    ? AppRoute.FromUrl(secondary.CurrentUrl) ?? AppRoute.Home
+                    : AppRoute.Home,
+                Placement = PlacementOf(window),
+            });
+        }
+        return windows;
+    }
+
+    private static WindowPlacement PlacementOf(Window window)
+    {
+        var rect = WindowRectDip(window);
+        return new WindowPlacement
+        {
+            Left = rect.Left,
+            Top = rect.Top,
+            Width = rect.Width,
+            Height = rect.Height,
+            Maximized = window.WindowState == WindowState.Maximized,
+        };
+    }
+
+    /// <summary>
+    /// Put a window at a saved placement: clamped onto the monitors
+    /// connected NOW (S6 #60's rule, via Core's PlacementClamp), size
+    /// always applied, position only when the placement has one.
+    /// </summary>
+    private void ApplyPlacementTo(Window window, WindowPlacement placement)
+    {
+        ScreenRect? clamped = null;
+        if (placement.Left is { } left && placement.Top is { } top)
+            clamped = PlacementClamp.Clamp(
+                new ScreenRect(left, top, placement.Width, placement.Height),
+                MonitorRects.AllInDip());
+        if (window.WindowState != WindowState.Normal)
+            window.WindowState = WindowState.Normal;
+        if (clamped is { } rect)
+        {
+            window.Left = rect.Left;
+            window.Top = rect.Top;
+            window.Width = rect.Width;
+            window.Height = rect.Height;
+        }
+        else
+        {
+            window.Width = placement.Width;
+            window.Height = placement.Height;
+        }
+        if (placement.Maximized)
+            window.WindowState = WindowState.Maximized;
+    }
+
+    /// <summary>
+    /// Save the current arrangement as a workspace (#111) — one click,
+    /// no prompt: it takes the next free "Workspace N" name and says
+    /// where renaming lives (Settings → Workspaces &amp; sessions).
+    /// </summary>
+    public void SaveCurrentWorkspace()
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        if (_settings.Workspaces.Count >= Workspaces.MaxWorkspaces)
+        {
+            SetStatus($"You already have {Workspaces.MaxWorkspaces} workspaces — delete one in Settings first");
+            return;
+        }
+        var ws = Workspaces.Capture(Workspaces.NextDefaultName(_settings), CurrentWorkspaceWindows());
+        _settings.Workspaces.Add(ws);
+        _settings.ActiveWorkspaceId = ws.Id;
+        _settings.Sanitized();
+        SaveSettings();
+        ApplyWorkspaceAccent();
+        RebuildWorkspacesMenu();
+        _log.Info($"Workspace saved: '{ws.Name}' ({ws.Windows.Count} window(s), routes only)");
+        SetStatus($"Saved workspace '{ws.Name}' — rename it in Settings → Workspaces & sessions");
+    }
+
+    private void OnSaveWorkspace(object sender, RoutedEventArgs e) => SaveCurrentWorkspace();
+
+    /// <summary>Apply a saved workspace by id (tray, palette, ⋯ menu, Settings all land here).</summary>
+    public void ApplyWorkspaceById(string id)
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        if (Workspaces.Find(_settings, id) is not { } ws)
+        {
+            SetStatus("That workspace no longer exists");
+            return;
+        }
+        ApplyWorkspace(ws, activate: true);
+    }
+
+    private enum ArrangementOutcome
+    {
+        Applied,
+        Aborted,
+        HandedOffToProfileSwitch,
+    }
+
+    /// <summary>
+    /// Apply a workspace (#112): plan through Core, then execute —
+    /// with the two asks the item requires (a profile switch restarts
+    /// the app; closing a window mid-download asks first).
+    /// </summary>
+    private void ApplyWorkspace(Workspace ws, bool activate)
+    {
+        var outcome = TryApplyArrangement(ws.Windows, ws.Name, ws);
+        if (outcome != ArrangementOutcome.Applied)
+            return;
+        if (activate)
+        {
+            ws.LastAppliedUtc = DateTimeOffset.UtcNow;
+            _settings.ActiveWorkspaceId = ws.Id;
+            ApplyWorkspaceAccent();
+            RebuildWorkspacesMenu();
+        }
+        SaveSettings();
+        UpdateSessionJournal();
+    }
+
+    /// <summary>
+    /// Plan + execute one arrangement (a workspace, a snapshot, or a
+    /// journal restore share this path). <paramref name="asWorkspace"/>
+    /// is non-null when the arrangement IS a saved workspace — only
+    /// then can a profile mismatch hand off through a restart (the
+    /// pending-apply id names a workspace; a snapshot or journal
+    /// belongs to whatever profile is active when it's restored).
+    /// </summary>
+    private ArrangementOutcome TryApplyArrangement(
+        IReadOnlyList<WorkspaceWindow> windows, string displayName, Workspace? asWorkspace)
+    {
+        if (!_webReady)
+        {
+            SetStatus("Muse is still starting — try again in a moment");
+            return ArrangementOutcome.Aborted;
+        }
+        var plan = WorkspaceApplyPlanner.Plan(
+            windows, CurrentOpenWindowStates(), _settings.ActiveProfileId, _downloads.IsTransferring);
+        if (plan.Kind == WorkspaceApplyKind.SwitchProfileFirst)
+        {
+            var target = _settings.Profiles.FirstOrDefault(p => p.Id == plan.RequiredProfileId);
+            if (asWorkspace is null || target is null)
+            {
+                SetStatus($"'{displayName}' belongs to another profile — switch profiles first, then apply it");
+                return ArrangementOutcome.Aborted;
+            }
+            var invoker = FocusReturn.Capture();
+            var confirm = System.Windows.MessageBox.Show(this,
+                $"'{displayName}' belongs to profile \"{target.Name}\".\n\n" +
+                "MuseDesktop restarts with that profile's sign-in, then applies the workspace.",
+                "Apply workspace", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (confirm != MessageBoxResult.Yes)
+            {
+                FocusReturn.Restore(invoker);
+                return ArrangementOutcome.Aborted;
+            }
+            // The pending apply survives the restart in settings; the
+            // new process applies it once its web view is ready (#112).
+            _settings.PendingWorkspaceApplyId = asWorkspace.Id;
+            SaveSettings();
+            SwitchToProfile(_settings, plan.RequiredProfileId!);
+            return ArrangementOutcome.HandedOffToProfileSwitch;
+        }
+        if (plan.RequiresDownloadConfirmation)
+        {
+            var invoker = FocusReturn.Capture();
+            var confirm = System.Windows.MessageBox.Show(this,
+                "A download is in progress, and applying this will close a window.\n\n" +
+                "The download itself keeps going (downloads belong to the app, not the window) — apply anyway?",
+                "Apply workspace", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (confirm != MessageBoxResult.Yes)
+            {
+                FocusReturn.Restore(invoker);
+                SetStatus("Workspace not applied");
+                return ArrangementOutcome.Aborted;
+            }
+        }
+        ExecuteApplyPlan(plan);
+        if (plan.SkippedOtherProfileCount > 0)
+            _log.Info($"Apply '{displayName}': skipped {plan.SkippedOtherProfileCount} window(s) naming other profiles");
+        _log.Info($"Applied arrangement '{displayName}': opened {plan.ToOpen.Count}, closed {plan.ToCloseWindowIds.Count}, kept {plan.KeptWindowIds.Count}");
+        SetStatus(plan.IsNoOp
+            ? $"'{displayName}' is already how things are"
+            : $"'{displayName}' applied");
+        return ArrangementOutcome.Applied;
+    }
+
+    /// <summary>Execute a plan (#112): close the extras, navigate/place the main window (never close it), open the missing windows at their routes and placements.</summary>
+    private void ExecuteApplyPlan(WorkspaceApplyPlan plan)
+    {
+        foreach (var id in plan.ToCloseWindowIds)
+            FindTrackedWindow(id)?.Close();
+        if (plan.MainWindow is { } mainEntry)
+        {
+            if (plan.MainRouteChanges && _webReady)
+                Browser.CoreWebView2.Navigate(AppRoute.ToUrl(mainEntry.Route));
+            if (mainEntry.Placement is { } placement)
+                ApplyPlacementTo(this, placement);
+        }
+        foreach (var entry in plan.ToOpen)
+            OpenWorkspaceWindow(entry);
+    }
+
+    private void OpenWorkspaceWindow(WorkspaceWindow entry)
+    {
+        if (!_webReady)
+            return;
+        try
+        {
+            var window = new SecondaryWindow(Browser.CoreWebView2.Environment, _log, AppRoute.ToUrl(entry.Route))
+                { Owner = this };
+            if (entry.Placement is { } placement)
+                ApplyPlacementTo(window, placement);
+            TrackSecondaryWindow(window);
+            window.Show();
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Opening a workspace window failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>The active workspace's accent override (#115): session-only — applied over the settings accent via a clone, so the saved preference is never rewritten by applying a layout.</summary>
+    private void ApplyWorkspaceAccent()
+    {
+        var key = Workspaces.Find(_settings, _settings.ActiveWorkspaceId)?.AccentColor;
+        if (key == _workspaceAccentKey)
+            return;
+        _workspaceAccentKey = key;
+        if (key is null)
+        {
+            ThemeManager.Apply(_settings);
+            return;
+        }
+        var clone = _settings.Clone();
+        clone.AccentColor = key;
+        ThemeManager.Apply(clone);
+        _log.Info($"Workspace accent override in effect: {key}");
+    }
+
+    /// <summary>Rebuild the ⋯ menu's Workspaces submenu: glyph labels (#119), the active one checked, then the Settings doorway (#120).</summary>
+    private void RebuildWorkspacesMenu()
+    {
+        WorkspacesItem.Items.Clear();
+        if (_settings.Workspaces.Count == 0)
+        {
+            WorkspacesItem.Items.Add(new MenuItem { Header = "No workspaces saved yet", IsEnabled = false });
+        }
+        foreach (var ws in _settings.Workspaces)
+        {
+            var id = ws.Id;
+            var item = new MenuItem
+            {
+                Header = WorkspaceGlyphs.MenuLabel(ws),
+                IsChecked = id == _settings.ActiveWorkspaceId,
+            };
+            item.Click += (_, _) => ApplyWorkspaceById(id);
+            WorkspacesItem.Items.Add(item);
+        }
+        WorkspacesItem.Items.Add(new System.Windows.Controls.Separator());
+        var manage = new MenuItem { Header = "Manage workspaces…" };
+        manage.Click += (_, _) => OpenSettings(SettingsSearch.WorkspacesId);
+        WorkspacesItem.Items.Add(manage);
+    }
+
+    // ─────────────────── session snapshot (#114) ───────────────────
+
+    private void OnTakeSessionSnapshot(object sender, RoutedEventArgs e) => TakeSessionSnapshot();
+    private void OnRestoreSessionSnapshot(object sender, RoutedEventArgs e) => RestoreSessionSnapshot();
+
+    /// <summary>Take the one-off session snapshot (#114): the open windows, routes only, in their own file — deliberately not the journal's.</summary>
+    public void TakeSessionSnapshot()
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        var snapshot = SessionSnapshot.Capture(CurrentWorkspaceWindows(), DateTimeOffset.UtcNow);
+        try
+        {
+            SessionSnapshotStore.Save(AppPaths.SessionSnapshotPath, snapshot);
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Session snapshot save failed: {ex.Message}");
+            SetStatus("Couldn't save the session snapshot");
+            return;
+        }
+        _log.Info($"Session snapshot taken ({snapshot.Windows.Count} window(s), routes only)");
+        SetStatus($"Session snapshot saved — {snapshot.Windows.Count} window(s)");
+    }
+
+    /// <summary>Restore the session snapshot (#114) through the same planner as a workspace apply, download guard included.</summary>
+    public void RestoreSessionSnapshot()
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        var snapshot = SessionSnapshotStore.Load(AppPaths.SessionSnapshotPath);
+        if (snapshot is null)
+        {
+            SetStatus("No session snapshot yet — take one from the ⋯ menu");
+            return;
+        }
+        var clean = snapshot.Sanitized(_settings.Profiles.Select(p => p.Id).ToList());
+        if (clean.Windows.Count == 0)
+        {
+            SetStatus("That snapshot's windows belong to profiles that no longer exist");
+            return;
+        }
+        if (TryApplyArrangement(clean.Windows, "Session snapshot", asWorkspace: null)
+                == ArrangementOutcome.Applied)
+        {
+            SaveSettings();
+            UpdateSessionJournal();
+        }
+    }
+
+    // ─────────────────── session journal, crash restore, startup (#113/#117/#118) ───────────────────
+
+    /// <summary>
+    /// Rewrite this session's journal with the current arrangement
+    /// (#117/#118). Rides the settings-save cadence (saves already
+    /// happen per navigation), plus window open/close — the journal is
+    /// never more than one change stale, which is all crash evidence
+    /// needs to be.
+    /// </summary>
+    private void UpdateSessionJournal(bool cleanExit = false)
+    {
+        try
+        {
+            _journal ??= new SessionJournal();
+            _journal.Windows = CurrentWorkspaceWindows();
+            _journal.CleanExit = cleanExit;
+            _journal.UpdatedUtc = DateTimeOffset.UtcNow;
+            SessionJournalStore.Save(AppPaths.SessionJournalPath, _journal);
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Session journal save failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// The startup arrangement, run once when the web view is first
+    /// ready (and, for a hidden start, deferred to the first real
+    /// show — nothing pops at sign-in). Precedence: a pending
+    /// workspace apply (a profile switch just restarted us for it)
+    /// &gt; the crash journal (offer once / auto-save) &gt; the
+    /// startup workspace (#113). Safe mode skips all of it — it
+    /// starts at Home, by definition.
+    /// </summary>
+    private void RunStartupArrangement()
+    {
+        if (_startupArrangementHandled)
+            return;
+        _startupArrangementHandled = true;
+        if (_safeMode)
+        {
+            _journal = new SessionJournal();
+            UpdateSessionJournal();
+            return;
+        }
+        if (_settings.PendingWorkspaceApplyId is { } pendingId
+            && Workspaces.Find(_settings, pendingId) is { } pending)
+        {
+            _settings.PendingWorkspaceApplyId = null;
+            _journal = new SessionJournal();
+            ApplyWorkspace(pending, activate: true);
+            UpdateSessionJournal();
+            return;
+        }
+        _settings.PendingWorkspaceApplyId = null;
+
+        var journal = SessionJournalStore.Load(AppPaths.SessionJournalPath);
+        var decision = CrashRestorePolicy.Decide(journal, _settings.AutoSaveSession);
+        var restored = false;
+        switch (decision)
+        {
+            case CrashRestoreDecision.RestoreSilently:
+                restored = TryRestoreJournalWindows(journal!);
+                if (restored)
+                    _log.Info("Session windows restored from the journal (auto-save or post-crash)");
+                break;
+            case CrashRestoreDecision.OfferRestore:
+                var count = journal!.Windows.Count;
+                var answer = System.Windows.MessageBox.Show(this,
+                    "MuseDesktop didn't shut down cleanly last time.\n\n" +
+                    $"Restore the {count} window(s) you had open? Only their Muse sections come back — never the full page addresses.",
+                    "Restore previous windows", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                if (answer == MessageBoxResult.Yes)
+                    restored = TryRestoreJournalWindows(journal);
+                else
+                    _log.Info("Crash-session restore offered once and declined");
+                break;
+            case CrashRestoreDecision.SuppressRestoreLoop:
+                _log.Warn("Crash-session restore skipped: the previous session was itself a restore " +
+                          "and never loaded a page — starting fresh so it can't loop");
+                break;
+            default:
+                if (_settings.StartupWorkspaceId is { } startupId
+                    && Workspaces.Find(_settings, startupId) is { } startup)
+                {
+                    _journal = new SessionJournal();
+                    ApplyWorkspace(startup, activate: true);
+                    UpdateSessionJournal();
+                    return;
+                }
+                break;
+        }
+        _journal = new SessionJournal { WasRestored = restored };
+        UpdateSessionJournal();
+    }
+
+    /// <summary>Restore a journal's windows through the planner; a journal from another profile is skipped (the windows belong to that profile's session, not this one).</summary>
+    private bool TryRestoreJournalWindows(SessionJournal journal)
+    {
+        var windows = Workspaces.SanitizeWindows(
+            journal.Windows, _settings.Profiles.Select(p => p.Id).ToList());
+        if (windows.Count == 0)
+            return false;
+        var plan = WorkspaceApplyPlanner.Plan(
+            windows, CurrentOpenWindowStates(), _settings.ActiveProfileId, downloadsInFlight: false);
+        if (plan.Kind != WorkspaceApplyKind.Apply)
+        {
+            _log.Info("Session restore skipped: the saved windows belong to another profile");
+            return false;
+        }
+        ExecuteApplyPlan(plan);
+        return true;
     }
 
     /// <summary>Show a downloaded file in Explorer — the Downloads window's own reveal behavior, for the palette's download commands (#102).</summary>

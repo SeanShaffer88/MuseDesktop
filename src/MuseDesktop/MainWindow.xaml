@@ -76,6 +76,14 @@
                                           ToolTip="Every action, profile, setting, download, and window — searchable from the keyboard"/>
                                 <MenuItem Header="Switch window…" Click="OnSwitchWindow"
                                           ToolTip="Jump to another open MuseDesktop window, most recently used first"/>
+                                <MenuItem x:Name="WorkspacesItem" Header="Workspaces"
+                                          ToolTip="Apply a saved workspace — a named set of windows (profile, placement, and Muse section)"/>
+                                <MenuItem Header="Save current arrangement as workspace" Click="OnSaveWorkspace"
+                                          ToolTip="Save the open windows as a workspace you can re-apply any time"/>
+                                <MenuItem Header="Take session snapshot" Click="OnTakeSessionSnapshot"
+                                          ToolTip="Remember the open windows once (sections only, never full page addresses)"/>
+                                <MenuItem Header="Restore session snapshot" Click="OnRestoreSessionSnapshot"
+                                          ToolTip="Bring back the windows from the last session snapshot"/>
                                 <Separator/>
                                 <MenuItem Header="Find in page…" Click="OnFind" InputGestureText="Ctrl+F"/>
                                 <MenuItem Header="Keyboard shortcuts…" Click="OnShortcuts" InputGestureText="Ctrl+/"
