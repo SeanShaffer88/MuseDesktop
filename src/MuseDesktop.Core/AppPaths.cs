@@ -58,6 +58,9 @@ public static class AppPaths
     /// <summary>Automatic rotating backups of settings + download history (v0.12.0, S8 #79).</summary>
     public static string BackupsDir => Path.Combine(RootDir, "backups");
 
+    /// <summary>Profile launch tallies (R3 #129): local-only counts in their own file — never part of settings, so they never ride a settings export/import or a profile bundle.</summary>
+    public static string ProfileUsagePath => Path.Combine(RootDir, "profile-usage.json");
+
     /// <summary>Installers the in-app updater downloads + the kept current/previous slots (v0.13.0, S9 #81/#84). Beside the settings, so portable mode carries them too.</summary>
     public static string UpdatesDir => Path.Combine(RootDir, "updates");
 

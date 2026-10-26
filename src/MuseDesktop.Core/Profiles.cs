@@ -45,6 +45,56 @@ public sealed class AccountProfile
     public string? DisplayColor { get; set; }
 
     /// <summary>
+    /// Avatar glyph for this profile (R3 #121): a key from
+    /// <see cref="WorkspaceGlyphs"/> (the same fixed text-glyph palette
+    /// workspaces use), or null for no glyph. Shown next to the name in
+    /// the switcher, menus, and the tray, and stamped onto the profile's
+    /// desktop-shortcut icon. Sanitized like a workspace glyph — an
+    /// unknown key means "no glyph".
+    /// </summary>
+    public string? AvatarGlyph { get; set; }
+
+    /// <summary>
+    /// The profile group this profile belongs to (R3 #127): an id from
+    /// AppSettings.ProfileGroups, or null for ungrouped. Organization
+    /// only — it changes nothing about the profile's data. Repaired by
+    /// ProfileGroups.EnsureValid (a dangling id clears to null).
+    /// </summary>
+    public string? GroupId { get; set; }
+
+    /// <summary>
+    /// Archived (R3 #130): hidden from every switcher, menu, and chord
+    /// list, but its data folder is untouched and it can be restored
+    /// anytime from Settings. NOT a delete — nothing is removed, and an
+    /// explicit launch (a desktop shortcut or link naming the profile)
+    /// still opens it. The active profile is never archived: EnsureValid
+    /// un-archives it as a fail-safe so the app can never be running a
+    /// profile its own switchers pretend doesn't exist.
+    /// </summary>
+    public bool Archived { get; set; }
+
+    // ── Per-profile lock (R3 #122) ────────────────────────────────────
+    // The same salted-PBKDF2 record shape as the app lock (AppLock), one
+    // record per profile, stored on the profile itself. The global app
+    // lock still gates first; a profile PIN only ever gates LAUNCHING
+    // that profile. Like the app lock it is a privacy screen, not
+    // encryption — see ProfileLock for the operations and KNOWN_LIMITATIONS
+    // for the honest wording. Never copied by copy/clone/export: credential
+    // material does not travel.
+
+    /// <summary>Whether this profile asks for its own PIN at launch (R3 #122).</summary>
+    public bool LockEnabled { get; set; }
+
+    /// <summary>Base64 salt for this profile's PIN record (R3 #122); see AppLock for the format.</summary>
+    public string? LockSalt { get; set; }
+
+    /// <summary>Base64 PBKDF2 hash for this profile's PIN record (R3 #122).</summary>
+    public string? LockHash { get; set; }
+
+    /// <summary>PBKDF2 iteration count for this profile's PIN record (R3 #122).</summary>
+    public int LockIterations { get; set; }
+
+    /// <summary>
     /// Per-profile zoom override (S3 #26); null = use the shared
     /// <see cref="AppSettings.ZoomFactor"/>. Sanitized through ZoomMath.
     /// </summary>
@@ -184,11 +234,26 @@ public static class Profiles
             p.DataCapBytes = ProfileDataCaps.Sanitize(p.DataCapBytes);
             if (p.LastCacheCleanupFreedBytes < 0)
                 p.LastCacheCleanupFreedBytes = 0;
+            // R3 #121: unknown avatar glyph keys become "no glyph" —
+            // the same repair ProfileColors gives unknown colors.
+            p.AvatarGlyph = WorkspaceGlyphs.Sanitize(p.AvatarGlyph);
+            // R3 #122: a profile lock whose stored record no longer
+            // parses turns the lock OFF (fail-open, exactly like the
+            // app lock) — a corrupt record must never lock its owner
+            // out of their own profile.
+            ProfileLock.Repair(p);
         }
         while (settings.Profiles.Count > MaxProfiles)
             settings.Profiles.RemoveAt(settings.Profiles.Count - 1);
         if (!settings.Profiles.Any(p => p.Id == settings.ActiveProfileId))
             settings.ActiveProfileId = DefaultId;
+        // R3 #130 fail-safe: the profile the app is running can never
+        // be archived — switchers hide archived profiles, and the app
+        // must never look like it's running a profile that doesn't
+        // exist. (A hand-edited file or a stale clone could set both.)
+        var active = settings.Profiles.FirstOrDefault(p => p.Id == settings.ActiveProfileId);
+        if (active is { Archived: true })
+            active.Archived = false;
     }
 
     /// <summary>Folder name (under %LOCALAPPDATA%\MuseDesktop) for a profile's WebView2 data.</summary>
@@ -210,6 +275,26 @@ public static class Profiles
     /// </summary>
     public static string MenuLabel(AccountProfile profile) =>
         profile.DisplayColor is null ? profile.Name : $"● {profile.Name}";
+
+    /// <summary>
+    /// The label switchers show (R3 #121): when the profile has an
+    /// avatar glyph, the glyph replaces the color dot as the leading
+    /// mark (a profile gets ONE leading mark; the color still paints
+    /// the dot/swatch beside it on surfaces that draw one). Without a
+    /// glyph this is exactly <see cref="MenuLabel"/>.
+    /// </summary>
+    public static string DisplayLabel(AccountProfile profile) =>
+        profile.AvatarGlyph is { } glyph && WorkspaceGlyphs.SymbolFor(glyph) is { } symbol
+            ? $"{symbol} {profile.Name}"
+            : MenuLabel(profile);
+
+    /// <summary>The profiles switchers may show (R3 #130): every non-archived profile, in stored order.</summary>
+    public static IReadOnlyList<AccountProfile> Visible(IEnumerable<AccountProfile> profiles) =>
+        profiles.Where(p => !p.Archived).ToList();
+
+    /// <summary>The profiles switchers may show for these settings (R3 #130).</summary>
+    public static IReadOnlyList<AccountProfile> VisibleProfiles(AppSettings settings) =>
+        Visible(settings.Profiles);
 
     /// <summary>
     /// Create a profile carrying <paramref name="source"/>'s SETTINGS
@@ -234,8 +319,44 @@ public static class Profiles
             // S8 #75: the data cap is a setting and copies; the cleanup
             // stamps are this profile's own history and do not.
             DataCapBytes = source.DataCapBytes,
+            // R3 #121/#127: appearance and organization copy too — the
+            // avatar glyph and the group membership are part of how the
+            // profile looks and where it sits. What NEVER copies (here
+            // or in Clone): the lock record, the archived flag, and any
+            // sign-in data (which lives in the profile's own folder and
+            // is never read by this code at all).
+            AvatarGlyph = source.AvatarGlyph,
+            GroupId = source.GroupId,
             LastUsedUtc = null,
         };
+
+    /// <summary>
+    /// Clone a profile (R3 #124): a brand-new profile carrying the
+    /// source's settings + appearance (via <see cref="CopySettingsFrom"/>)
+    /// under a deduplicated "… copy" name, inserted right after the
+    /// source. The clone starts un-archived with NO lock record, no
+    /// schedule (rules name profile ids; the new id has none yet), no
+    /// usage history, and an EMPTY data folder — sign-in data is never
+    /// copied, by construction. Returns null when the source doesn't
+    /// exist or the profile cap is reached.
+    /// </summary>
+    public static AccountProfile? Clone(AppSettings settings, string sourceId)
+    {
+        var source = settings.Profiles.FirstOrDefault(p => p.Id == sourceId);
+        if (source is null || settings.Profiles.Count >= MaxProfiles)
+            return null;
+        var taken = new HashSet<string>(settings.Profiles.Select(p => p.Name),
+            StringComparer.OrdinalIgnoreCase);
+        // Keep the suffixed name inside the 40-char cap EnsureValid
+        // enforces, so the clone's name survives a save unchanged.
+        var stem = source.Name.Length > 34 ? source.Name[..34].TrimEnd() : source.Name;
+        var name = stem + " copy";
+        for (var n = 2; taken.Contains(name); n++)
+            name = $"{stem} copy {n}";
+        var clone = CopySettingsFrom(source, NewId(), name);
+        settings.Profiles.Insert(settings.Profiles.IndexOf(source) + 1, clone);
+        return clone;
+    }
 
     // The Windows file-name-hostile set, spelled out: a shortcut is a
     // Windows artifact, so this must not depend on the host OS's rules
