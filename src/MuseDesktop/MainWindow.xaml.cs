@@ -57,6 +57,18 @@ public partial class MainWindow : Window
     private bool _downloadError;
     private bool _retryWebReady;
 
+    // v1.4.0 (R4) — downloads round 2: downloads held by the quiet-hours
+    // gate (#132; URIs in memory only, the S2 #15 discipline — exiting
+    // forgets them), the batch queue (#134), auto-retry attempt counts
+    // per target path (#139), the bandwidth governor (#132), and the
+    // 5-second pump that services all of it.
+    private readonly List<(string Uri, string FileName, DateTimeOffset NextChanceUtc)> _heldDownloads = new();
+    private readonly Queue<BatchLink> _batchQueue = new();
+    private readonly Dictionary<string, int> _autoRetryAttempts = new(StringComparer.OrdinalIgnoreCase);
+    private readonly BandwidthGovernor _bandwidthGovernor = new();
+    private DispatcherTimer? _downloadPumpTimer;
+    private bool _downloadPumpBusy;
+
     // v0.8.0 (S4) — attention signal from the page title (#31/#39) and
     // the microphone-grant heuristic for tray suspend (#35). The pinned
     // WebView2 SDK exposes no microphone-capture state (see DECISIONS),
@@ -188,6 +200,9 @@ public partial class MainWindow : Window
             // honoring the configured cap.
             try { DownloadHistoryStore.Add(AppPaths.DownloadsHistoryPath, record, _settings.DownloadHistoryCap); }
             catch (Exception ex) { _log.Warn($"Download history save failed: {ex.Message}"); }
+            // R4: completion follow-ups (auto-sort #131, quota #140).
+            if (record.State == DownloadRecordState.Completed)
+                OnDownloadCompletedPost(record);
         }, NotifyDownloadComplete);
         _downloads.ActiveChanged += active =>
         {
@@ -200,6 +215,21 @@ public partial class MainWindow : Window
         _downloads.Started += () => { _downloadError = false; UpdateTaskbarProgress(); };
         _downloads.Failed += () => { _downloadError = true; UpdateTaskbarProgress(); };
         _downloads.Changed += UpdateTaskbarProgress;
+        // R4: failures feed the bounded auto-retry (#139); completions
+        // and failures both free room under the batch cap (#134); the
+        // pump timer services held downloads (#132), the batch queue,
+        // and the bandwidth governor.
+        _downloads.Failed += OnDownloadFailedAutoRetry;
+        _downloads.Completed += PumpBatchQueue;
+        _downloads.Failed += PumpBatchQueue;
+        _downloadPumpTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _downloadPumpTimer.Tick += (_, _) =>
+        {
+            PumpHeldDownloads();
+            PumpBatchQueue();
+            ApplyBandwidthGovernor();
+        };
+        _downloadPumpTimer.Start();
 
         _tray = new TrayController(
             _log, Dispatcher,
@@ -1093,6 +1123,39 @@ public partial class MainWindow : Window
         // a retried download gets exactly the same destination policy.
         var suggestedName = Path.GetFileName(e.ResultFilePath);
 
+        // R4 #132: the download quiet-hours gate runs before any
+        // destination decision — a held download never starts, so there
+        // is nothing to pause or move. The URI is kept in memory only
+        // (the S2 #15 discipline) and the pump re-issues it when the
+        // window ends; exiting the app forgets held downloads.
+        var totalBytes = e.DownloadOperation.TotalBytesToReceive is { } reported ? (long)reported : (long?)null;
+        var schedule = DownloadSchedule.Evaluate(
+            _settings.DownloadQuietHoursEnabled,
+            _settings.DownloadQuietStartMinutes,
+            _settings.DownloadQuietEndMinutes,
+            (long)_settings.DownloadQuietLargeFileMB * 1024L * 1024L,
+            DateTimeOffset.Now,
+            totalBytes);
+        if (!schedule.Allowed)
+        {
+            string? heldUri = null;
+            try { heldUri = e.DownloadOperation.Uri; }
+            catch { /* an unreadable URI just means this one can't be held */ }
+            e.Cancel = true;
+            if (!string.IsNullOrWhiteSpace(heldUri))
+            {
+                _heldDownloads.Add((heldUri, suggestedName,
+                    schedule.NextChance ?? DateTimeOffset.UtcNow.AddMinutes(5)));
+                _log.Info($"Download held by quiet hours until {schedule.NextChance?.ToLocalTime():HH:mm}: {suggestedName}");
+                SetStatus($"Download held until {schedule.NextChance?.ToLocalTime():HH:mm} (download quiet hours): {suggestedName}");
+            }
+            else
+            {
+                SetStatus($"Download skipped (download quiet hours): {suggestedName}");
+            }
+            return;
+        }
+
         // S2 #20: the effective folder is the active profile's override,
         // else the shared downloads folder, else WebView2's default (the
         // system Downloads folder — e.ResultFilePath already points there).
@@ -1158,6 +1221,41 @@ public partial class MainWindow : Window
             {
                 _log.Warn($"Collision handling failed, keeping the original target: {ex.Message}");
             }
+
+            // R4 #133: duplicate guard — a completed history entry with
+            // the same name (and size, where known) whose file is still
+            // on disk means this almost certainly downloaded before.
+            // "Yes" keeps both (the collision step already renamed, or
+            // the unique-name pass below does); "No" skips the download.
+            // The Ask-where-to-save flow skips the guard: the user is
+            // already choosing the destination consciously.
+            if (_settings.DownloadDuplicateGuard)
+            {
+                try
+                {
+                    var history = DownloadHistoryStore.Load(AppPaths.DownloadsHistoryPath, _settings.DownloadHistoryCap);
+                    var dupe = DuplicateDownloadGuard.FindInHistory(suggestedName, totalBytes, history);
+                    if (dupe is not null && File.Exists(dupe.FullPath))
+                    {
+                        var answer = System.Windows.MessageBox.Show(this,
+                            $"\"{suggestedName}\" was already downloaded on {dupe.CompletedUtc.ToLocalTime():yyyy-MM-dd} ({DownloadText.FormatBytes(dupe.SizeBytes)}) and is still in your downloads.\n\nDownload another copy? The new one is kept alongside it under a fresh name.",
+                            "Already downloaded", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                        if (answer != MessageBoxResult.Yes)
+                        {
+                            e.Cancel = true;
+                            _log.Info($"Duplicate download skipped: {suggestedName}");
+                            SetStatus($"Skipped — already downloaded: {suggestedName}");
+                            return;
+                        }
+                        if (string.Equals(candidate, dupe.FullPath, StringComparison.OrdinalIgnoreCase))
+                            candidate = UniqueFileName.ForPath(candidate);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _log.Warn($"Duplicate check failed, continuing: {ex.Message}");
+                }
+            }
             e.ResultFilePath = candidate;
         }
 
@@ -1185,10 +1283,23 @@ public partial class MainWindow : Window
             SetStatus("That download can't be retried anymore (retries last for this session only)");
             return;
         }
+        await StartHiddenDownloadAsync(failed.Uri, failed.FileName, "Retrying");
+    }
+
+    /// <summary>
+    /// Navigate the hidden retry view at a URI so its DownloadStarting
+    /// (this class's own handler) takes the download over with the
+    /// normal destination policy — the shared engine behind session
+    /// retries (S2 #15), held downloads (R4 #132), batch capture
+    /// (R4 #134), and automatic retries (R4 #139). The URI is logged
+    /// host+path only; it may carry a signed token.
+    /// </summary>
+    private async Task<bool> StartHiddenDownloadAsync(string uri, string fileName, string verb)
+    {
         if (!_webReady || Browser.CoreWebView2 is null)
         {
-            SetStatus("Wait for Muse to load, then retry the download");
-            return;
+            SetStatus("Wait for Muse to load, then try the download again");
+            return false;
         }
         try
         {
@@ -1198,15 +1309,222 @@ public partial class MainWindow : Window
                 RetryBrowser.CoreWebView2.DownloadStarting += OnDownloadStarting;
                 _retryWebReady = true;
             }
-            // Log host+path only — the full URI may carry a signed token.
-            _log.Info($"Retrying download: {failed.FileName} from {UrlPolicy.RedactForLog(failed.Uri)}");
-            SetStatus($"Retrying download: {failed.FileName}…");
-            RetryBrowser.CoreWebView2.Navigate(failed.Uri);
+            _log.Info($"{verb} download: {fileName} from {UrlPolicy.RedactForLog(uri)}");
+            SetStatus($"{verb} download: {fileName}…");
+            RetryBrowser.CoreWebView2.Navigate(uri);
+            return true;
         }
         catch (Exception ex)
         {
-            _log.Warn($"Retry download failed to start: {ex.Message}");
-            SetStatus($"Couldn't retry {failed.FileName}");
+            _log.Warn($"{verb} download failed to start: {ex.Message}");
+            SetStatus($"Couldn't start {fileName}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// R4 #132: re-issue held downloads whose quiet-hours window has
+    /// ended. Each is re-checked against the CURRENT schedule first —
+    /// the user may have changed the hours while it waited.
+    /// </summary>
+    private async void PumpHeldDownloads()
+    {
+        if (_heldDownloads.Count == 0 || _downloadPumpBusy)
+            return;
+        _downloadPumpBusy = true;
+        try
+        {
+            var due = _heldDownloads
+                .Where(h => h.NextChanceUtc <= DateTimeOffset.UtcNow)
+                .ToList();
+            foreach (var held in due)
+            {
+                _heldDownloads.Remove(held);
+                var decision = DownloadSchedule.Evaluate(
+                    _settings.DownloadQuietHoursEnabled,
+                    _settings.DownloadQuietStartMinutes,
+                    _settings.DownloadQuietEndMinutes,
+                    (long)_settings.DownloadQuietLargeFileMB * 1024L * 1024L,
+                    DateTimeOffset.Now,
+                    sizeBytes: null);
+                if (!decision.Allowed)
+                {
+                    _heldDownloads.Add((held.Uri, held.FileName,
+                        decision.NextChance ?? DateTimeOffset.UtcNow.AddMinutes(5)));
+                    continue;
+                }
+                await StartHiddenDownloadAsync(held.Uri, held.FileName, "Starting held");
+            }
+        }
+        finally
+        {
+            _downloadPumpBusy = false;
+        }
+    }
+
+    /// <summary>
+    /// R4 #134: the Downloads window's batch capture hands its validated
+    /// links here. They queue in memory and start under the in-flight
+    /// cap; the queue is this session's only (like every other
+    /// URI-holding structure in the app).
+    /// </summary>
+    public Task StartBatchDownloadsAsync(IReadOnlyList<BatchLink> links)
+    {
+        foreach (var link in links)
+            _batchQueue.Enqueue(link);
+        SetStatus($"Batch download queued: {links.Count} link(s)");
+        PumpBatchQueue();
+        return Task.CompletedTask;
+    }
+
+    private async void PumpBatchQueue()
+    {
+        if (_batchQueue.Count == 0 || _downloadPumpBusy)
+            return;
+        if (!_webReady || Browser.CoreWebView2 is null)
+            return; // the pump timer retries once the view is up
+        _downloadPumpBusy = true;
+        try
+        {
+            while (_batchQueue.Count > 0)
+            {
+                var active = _downloads.Snapshot().Count(d =>
+                    d.State is DownloadActivityState.InProgress or DownloadActivityState.Paused);
+                if (DownloadConcurrency.StartableNow(active, _batchQueue.Count) <= 0)
+                    return;
+                var link = _batchQueue.Dequeue();
+                if (!await StartHiddenDownloadAsync(link.Url, link.FileName, "Batch"))
+                    return;
+            }
+        }
+        finally
+        {
+            _downloadPumpBusy = false;
+        }
+    }
+
+    /// <summary>
+    /// R4 #132: one bandwidth-governor step over the live transfers.
+    /// The policy lives in Core (<see cref="BandwidthGovernor"/>); this
+    /// only applies its verdicts through the tracker's pause/resume.
+    /// </summary>
+    private void ApplyBandwidthGovernor()
+    {
+        var limit = (long)_settings.DownloadBandwidthLimitKBps * 1024L;
+        var (toPause, toResume) = _bandwidthGovernor.Evaluate(_downloads.Snapshot(), limit);
+        foreach (var id in toPause)
+        {
+            var item = _downloads.Snapshot().FirstOrDefault(d => d.Id == id);
+            _downloads.Pause(id);
+            _log.Info($"Bandwidth limit reached: paused {item?.FileName}");
+            if (item is not null)
+                SetStatus($"Bandwidth limit reached — paused {item.FileName} until there's room");
+        }
+        foreach (var id in toResume)
+        {
+            var item = _downloads.Snapshot().FirstOrDefault(d => d.Id == id);
+            _downloads.Resume(id);
+            _log.Info($"Bandwidth headroom: resumed {item?.FileName}");
+        }
+    }
+
+    /// <summary>
+    /// R4 #139: bounded automatic retry for this session's failures.
+    /// Attempt counts key on the target path (a completion clears the
+    /// count in <see cref="OnDownloadCompletedPost"/>); the wait is the
+    /// Core policy's backoff; the retry rides the session-failed record,
+    /// so if the user retried by hand first, the record is gone and the
+    /// automatic attempt quietly stands down.
+    /// </summary>
+    private async void OnDownloadFailedAutoRetry()
+    {
+        var name = _downloads.LastFailedName;
+        var reason = _downloads.LastFailedReason;
+        if (name is null || reason is null)
+            return;
+        var failed = _downloads.SessionFailed.LastOrDefault(f => f.FileName == name);
+        if (failed is null)
+            return;
+        var attempts = _autoRetryAttempts.TryGetValue(failed.FullPath, out var soFar) ? soFar : 0;
+        if (!DownloadRetryPolicy.ShouldRetry(
+                _settings.DownloadAutoRetryEnabled, reason, attempts, _settings.DownloadAutoRetryMaxAttempts))
+            return;
+        attempts++;
+        _autoRetryAttempts[failed.FullPath] = attempts;
+        var delay = DownloadRetryPolicy.DelayForAttempt(attempts);
+        var max = DownloadRetryPolicy.SanitizeMaxAttempts(_settings.DownloadAutoRetryMaxAttempts);
+        _log.Info($"Auto-retry {attempts} of {max} in {delay.TotalSeconds:0}s: {name} ({reason})");
+        SetStatus($"Download failed: {name} — retrying in {delay.TotalSeconds:0} sec (attempt {attempts} of {max})");
+        var id = failed.Id;
+        await Task.Delay(delay);
+        if (_downloads.SessionFailed.Any(f => f.Id == id))
+            await RetryFailedDownloadAsync(id);
+    }
+
+    /// <summary>
+    /// R4 completion follow-ups: clear the auto-retry count, auto-sort
+    /// the finished file when the user opted in (#131, journaled so the
+    /// Downloads window's Undo covers it), then the per-profile quota
+    /// heads-up (#140 — warning only, never a block, never a delete;
+    /// deferred a dispatcher turn because the tracker writes its own
+    /// completion status right after this callback returns).
+    /// </summary>
+    private void OnDownloadCompletedPost(DownloadRecord record)
+    {
+        _autoRetryAttempts.Remove(record.FullPath);
+
+        if (_settings.AutoSortDownloads)
+        {
+            try
+            {
+                var folder = Path.GetDirectoryName(record.FullPath);
+                if (!string.IsNullOrEmpty(folder))
+                {
+                    var moves = DownloadSortPlanner.Plan(
+                        new[] { record }, folder, _settings.DownloadSortRules,
+                        _settings.DownloadSortUseCategories, File.Exists);
+                    foreach (var move in moves)
+                    {
+                        var dir = Path.GetDirectoryName(move.DestinationPath);
+                        if (!string.IsNullOrEmpty(dir))
+                            Directory.CreateDirectory(dir);
+                        File.Move(move.SourcePath, move.DestinationPath);
+                        DownloadSortJournalStore.Append(AppPaths.DownloadSortJournalPath, new DownloadSortBatch
+                        {
+                            AppliedUtc = DateTimeOffset.UtcNow,
+                            Moves = new List<DownloadMove> { move },
+                        });
+                        DownloadHistoryStore.RewritePaths(AppPaths.DownloadsHistoryPath,
+                            new Dictionary<string, string> { [move.SourcePath] = move.DestinationPath },
+                            _settings.DownloadHistoryCap);
+                        _downloads.UpdateCompletedPath(move.SourcePath, move.DestinationPath);
+                        _log.Info($"Download auto-sorted ({move.RuleName}): {Path.GetFileName(move.SourcePath)}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.Warn($"Auto-sort failed for {record.FileName}: {ex.Message}");
+            }
+        }
+
+        var quota = _settings.Profiles.FirstOrDefault(p => p.Id == _settings.ActiveProfileId)?.DownloadQuotaBytes ?? 0;
+        if (quota > 0)
+        {
+            try
+            {
+                var folder = Path.GetDirectoryName(record.FullPath);
+                if (!string.IsNullOrEmpty(folder) &&
+                    DownloadQuota.Describe(DownloadQuota.ForFolder(folder, quota)) is { } warning)
+                {
+                    _log.Warn($"Download quota: {warning}");
+                    Dispatcher.BeginInvoke(() => SetStatus(warning));
+                }
+            }
+            catch (Exception ex)
+            {
+                _log.Warn($"Download quota check failed: {ex.Message}");
+            }
         }
     }
 
@@ -2997,7 +3315,8 @@ public partial class MainWindow : Window
 
     private void OnDownloads(object sender, RoutedEventArgs e)
     {
-        var dialog = new DownloadsWindow(_log, _downloads, RetryFailedDownloadAsync, _settings.DownloadHistoryCap)
+        var dialog = new DownloadsWindow(_log, _downloads, RetryFailedDownloadAsync, _settings.DownloadHistoryCap,
+                _settings, StartBatchDownloadsAsync)
             { Owner = this };
         // S5: transient shell windows follow the theme + text scale too
         // (their brushes resolve at parse; title bar and fonts are ours).

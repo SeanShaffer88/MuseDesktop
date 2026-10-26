@@ -76,6 +76,9 @@ public sealed class DownloadTracker
     public bool AnyPaused => _set.AnyPaused;
     public double? OverallFraction => _set.OverallFraction;
 
+    /// <summary>Aggregate transfer speed across in-progress downloads (bytes/sec) — the speed graph's and governor's input (R4 #132/#135).</summary>
+    public double TotalSpeed => _set.TotalSpeed;
+
     /// <summary>The live models, newest last — the Downloads window's active list.</summary>
     public IReadOnlyList<ActiveDownload> Snapshot() => _set.Items.ToList();
 
@@ -195,6 +198,18 @@ public sealed class DownloadTracker
             Changed?.Invoke();
         }
         return failed;
+    }
+
+    /// <summary>
+    /// Follow a completed file that was moved after finishing (R4 #131:
+    /// auto-sort relocates it) so the status bar's click-to-open keeps
+    /// pointing at the real file.
+    /// </summary>
+    public void UpdateCompletedPath(string oldPath, string newPath)
+    {
+        if (CompletedPath is not null &&
+            string.Equals(CompletedPath, oldPath, StringComparison.OrdinalIgnoreCase))
+            CompletedPath = newPath;
     }
 
     /// <summary>Open the completed file (the status-bar click). No-op until a download completes.</summary>

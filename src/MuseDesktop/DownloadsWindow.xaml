@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Downloads"
-        Width="620" Height="560" MinWidth="460" MinHeight="380"
+        Width="620" Height="680" MinWidth="460" MinHeight="440"
         WindowStartupLocation="CenterOwner"
         Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
     <Window.Resources>
@@ -54,6 +54,15 @@
                 <TextBlock x:Name="ActiveNote" Style="{StaticResource Note}" Margin="10,4,0,0"
                            Text="Nothing is downloading right now."/>
             </StackPanel>
+            <!-- Speed history (R4 #135): samples stay in memory, on this PC only -->
+            <TextBlock x:Name="SpeedGraphLabel" Style="{StaticResource Note}" Margin="0,8,0,2"
+                       Text="Download speed (this PC only)"/>
+            <Border BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1"
+                    Background="{StaticResource SurfaceBrush}">
+                <Canvas x:Name="SpeedCanvas" Height="44" ClipToBounds="True">
+                    <Polyline x:Name="SpeedPolyline" Stroke="{StaticResource AccentBrush}" StrokeThickness="1.5"/>
+                </Canvas>
+            </Border>
         </StackPanel>
 
         <!-- History controls + list -->
@@ -105,6 +114,20 @@
                 <Button x:Name="CopyPathButton" Content="Copy path" Width="84" Height="30" Margin="8,0,0,0" Click="OnCopyPath"/>
                 <Button x:Name="OpenWithButton" Content="Open with…" Width="92" Height="30" Margin="8,0,0,0" Click="OnOpenWith"/>
                 <Button x:Name="DeleteFileButton" Content="Delete file" Width="86" Height="30" Margin="8,0,0,0" Click="OnDeleteFile"/>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
+                <Button x:Name="NoteButton" Content="Note…" Width="76" Height="30" Click="OnEditNote"
+                        ToolTip="Attach a short note to the selected history entry (kept on this PC only)"/>
+                <Button x:Name="VerifyButton" Content="Verify SHA-256…" Width="118" Height="30" Margin="8,0,0,0" Click="OnVerifyHash"
+                        ToolTip="Check the selected file against a SHA-256 hash you paste"/>
+                <Button x:Name="SortButton" Content="Sort…" Width="70" Height="30" Margin="8,0,0,0" Click="OnSortDownloads"
+                        ToolTip="Move finished downloads into subfolders by type or your rules — preview first, undo after"/>
+                <Button x:Name="UndoSortButton" Content="Undo sort" Width="84" Height="30" Margin="8,0,0,0" Click="OnUndoSort"
+                        ToolTip="Move the last sort's or archive's files back where they were"/>
+                <Button x:Name="ArchiveButton" Content="Archive…" Width="84" Height="30" Margin="8,0,0,0" Click="OnArchiveDownloads"
+                        ToolTip="Move finished downloads into dated folders in the archive"/>
+                <Button x:Name="AddLinksButton" Content="Add links…" Width="92" Height="30" Margin="8,0,0,0" Click="OnAddLinks"
+                        ToolTip="Paste a list of links and download them all"/>
             </StackPanel>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
                 <Button Content="Clear history" Width="100" Height="30" Click="OnClear"/>

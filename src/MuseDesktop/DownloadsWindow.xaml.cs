@@ -13,15 +13,22 @@ namespace MuseDesktop;
 /// downloads history below (v0.4.0; S2 #16 search/filter/sort, S2 #17
 /// Copy path / Open with… / Delete file). History loads with the
 /// configured cap each time it is read so it matches Settings.
+/// R4 (v1.4.0) adds the downloads round-2 surface: the speed graph
+/// (#135), per-entry notes (#137), Verify SHA-256 (#136), Sort + Undo
+/// (#131), Archive (#138), and batch link capture (#134).
 /// </summary>
 public partial class DownloadsWindow : Window
 {
     private readonly DiagnosticLog _log;
     private readonly DownloadTracker? _tracker;
     private readonly Func<string, Task>? _retryAsync;
+    private readonly Func<IReadOnlyList<BatchLink>, Task>? _startBatchAsync;
+    private readonly AppSettings _settings;
     private readonly int _historyCap;
     private readonly DispatcherTimer? _refreshTimer;
+    private readonly DownloadSpeedHistory _speedHistory = new();
     private List<DownloadRecord> _allRecords = new();
+    private bool _hasUndoBatch;
 
     /// <summary>One history row: the record plus its pre-formatted detail line.</summary>
     public sealed class Row
@@ -35,7 +42,16 @@ public partial class DownloadsWindow : Window
                 var state = Record.State == DownloadRecordState.Failed
                     ? $"Failed{(string.IsNullOrWhiteSpace(Record.FailureReason) ? "" : $" ({Record.FailureReason})")} · "
                     : "";
-                return $"{state}{DownloadText.FormatBytes(Record.SizeBytes)} · {Record.CompletedUtc.ToLocalTime():yyyy-MM-dd HH:mm} · {Record.FullPath}";
+                // R4 #137/#136: the user's note and the hash verdict ride
+                // the same line — both are facts about THIS entry.
+                var note = string.IsNullOrWhiteSpace(Record.Note) ? "" : $" · Note: {Record.Note}";
+                var hash = Record.HashVerified switch
+                {
+                    true => " · SHA-256 verified",
+                    false => " · SHA-256 check FAILED",
+                    null => "",
+                };
+                return $"{state}{DownloadText.FormatBytes(Record.SizeBytes)} · {Record.CompletedUtc.ToLocalTime():yyyy-MM-dd HH:mm} · {Record.FullPath}{note}{hash}";
             }
         }
     }
@@ -55,13 +71,18 @@ public partial class DownloadsWindow : Window
         DiagnosticLog log,
         DownloadTracker? tracker = null,
         Func<string, Task>? retryAsync = null,
-        int historyCap = DownloadHistoryStore.MaxEntries)
+        int historyCap = DownloadHistoryStore.MaxEntries,
+        AppSettings? settings = null,
+        Func<IReadOnlyList<BatchLink>, Task>? startBatchAsync = null)
     {
         _log = log;
         _tracker = tracker;
         _retryAsync = retryAsync;
+        _startBatchAsync = startBatchAsync;
+        _settings = (settings ?? new AppSettings()).Sanitized();
         _historyCap = DownloadHistoryStore.SanitizeCap(historyCap);
         InitializeComponent();
+        AddLinksButton.IsEnabled = _startBatchAsync is not null;
         Refresh();
         RefreshActive();
         if (_tracker is not null)
@@ -83,6 +104,8 @@ public partial class DownloadsWindow : Window
     private void Refresh()
     {
         _allRecords = DownloadHistoryStore.Load(AppPaths.DownloadsHistoryPath, _historyCap);
+        try { _hasUndoBatch = DownloadSortJournalStore.LastBatch(AppPaths.DownloadSortJournalPath) is not null; }
+        catch { _hasUndoBatch = false; }
         ApplyHistoryQuery();
         UpdateButtons();
     }
@@ -98,7 +121,9 @@ public partial class DownloadsWindow : Window
         var changed = loaded.Count != _allRecords.Count || loaded.Zip(_allRecords).Any(pair =>
             pair.First.FullPath != pair.Second.FullPath
             || pair.First.CompletedUtc != pair.Second.CompletedUtc
-            || pair.First.State != pair.Second.State);
+            || pair.First.State != pair.Second.State
+            || pair.First.Note != pair.Second.Note
+            || pair.First.HashVerified != pair.Second.HashVerified);
         if (!changed)
             return;
         _allRecords = loaded;
@@ -145,6 +170,14 @@ public partial class DownloadsWindow : Window
         CopyPathButton.IsEnabled = enabled;
         OpenWithButton.IsEnabled = enabled;
         DeleteFileButton.IsEnabled = enabled;
+        // R4 actions: note/verify act on the selection; sort/archive act
+        // on the whole completed history; undo needs a journaled batch.
+        NoteButton.IsEnabled = enabled;
+        VerifyButton.IsEnabled = enabled && Selected?.Record.State == DownloadRecordState.Completed;
+        var anyCompleted = _allRecords.Any(r => r.State == DownloadRecordState.Completed);
+        SortButton.IsEnabled = anyCompleted;
+        ArchiveButton.IsEnabled = anyCompleted;
+        UndoSortButton.IsEnabled = _hasUndoBatch;
     }
 
     private void OnSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) =>
@@ -334,6 +367,27 @@ public partial class DownloadsWindow : Window
             ? "Nothing is downloading right now."
             : $"{rows.Count} item(s) — Pause/Resume use WebView2's own download controls; Retry is available for this session's failures only.";
         UpdateActiveButtons();
+        // R4 #135: feed the speed graph from the same poll that refreshes
+        // this list. Samples live in memory only — closing the window
+        // forgets them, and they never leave the PC.
+        _speedHistory.Add(DateTimeOffset.Now, _tracker.TotalSpeed);
+        DrawSpeedGraph();
+    }
+
+    /// <summary>Redraw the speed polyline from the sampled history (R4 #135).</summary>
+    private void DrawSpeedGraph()
+    {
+        if (SpeedPolyline is null || SpeedCanvas is null)
+            return;
+        var width = SpeedCanvas.ActualWidth > 0 ? SpeedCanvas.ActualWidth : 560;
+        const double height = 44;
+        var points = new System.Windows.Media.PointCollection();
+        foreach (var (x, y) in _speedHistory.NormalizedPoints(120))
+            points.Add(new System.Windows.Point(x * width, height - 2 - y * (height - 4)));
+        SpeedPolyline.Points = points;
+        SpeedGraphLabel.Text = _speedHistory.Peak > 0
+            ? $"Download speed — now {DownloadText.FormatSpeed(_tracker?.TotalSpeed ?? 0)} · peak {DownloadText.FormatSpeed(_speedHistory.Peak)} (this PC only)"
+            : "Download speed (this PC only)";
     }
 
     private void UpdateActiveButtons()
@@ -381,6 +435,318 @@ public partial class DownloadsWindow : Window
         {
             _log.Warn($"Retry download failed: {ex.Message}");
             NoteText.Text = $"Couldn't retry \"{row.FileName}\".";
+        }
+        RefreshActive();
+    }
+
+    // ───────────────────────── R4: notes (#137) + verify (#136) ─────────────────────────
+
+    /// <summary>Attach or edit the selected entry's note (R4 #137). The note persists with the history file, on this PC only.</summary>
+    private void OnEditNote(object sender, RoutedEventArgs e)
+    {
+        if (Selected is not { } row)
+            return;
+        var prompt = new TextPromptWindow(
+            "Download note",
+            $"Note for \"{row.Record.FileName}\" — kept with the download history on this PC only. Clear the text to remove the note.",
+            row.Record.Note ?? "",
+            multiline: false,
+            okText: "Save note")
+        { Owner = this };
+        ShellTextScaling.Apply(prompt, _settings.ShellFontScale);
+        if (prompt.ShowDialog() != true)
+            return;
+        try
+        {
+            if (DownloadHistoryStore.SetNote(AppPaths.DownloadsHistoryPath, row.Record, prompt.Text, _historyCap))
+                NoteText.Text = $"Note saved for \"{row.Record.FileName}\".";
+            else
+                NoteText.Text = "That entry is no longer in the history — the note wasn't saved.";
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Download note save failed: {ex.Message}");
+            NoteText.Text = "Couldn't save the note.";
+        }
+        Refresh();
+    }
+
+    /// <summary>
+    /// Verify the selected file against a pasted SHA-256 (R4 #136). The
+    /// hash runs off the UI thread; the verdict persists on the entry so
+    /// the pass/fail state survives the window closing.
+    /// </summary>
+    private async void OnVerifyHash(object sender, RoutedEventArgs e)
+    {
+        if (Selected is not { } row)
+            return;
+        if (!File.Exists(row.Record.FullPath))
+        {
+            NoteText.Text = $"\"{row.Record.FileName}\" isn't at that location anymore (moved or deleted).";
+            return;
+        }
+        var prompt = new TextPromptWindow(
+            "Verify SHA-256",
+            $"Paste the SHA-256 hash \"{row.Record.FileName}\" should have (64 hex characters; spaces and colons are fine). MuseDesktop hashes the file on this PC and compares — nothing is sent anywhere.",
+            "",
+            multiline: false,
+            okText: "Verify")
+        { Owner = this };
+        ShellTextScaling.Apply(prompt, _settings.ShellFontScale);
+        if (prompt.ShowDialog() != true)
+            return;
+        if (!DownloadHash.TryNormalizeSha256(prompt.Text, out _))
+        {
+            NoteText.Text = "That doesn't look like a SHA-256 hash (64 hex characters) — nothing was checked.";
+            return;
+        }
+        VerifyButton.IsEnabled = false;
+        var path = row.Record.FullPath;
+        var expected = prompt.Text;
+        var result = await Task.Run(() => DownloadHash.Verify(path, expected));
+        if (result.Error is not null)
+        {
+            NoteText.Text = $"Couldn't check \"{row.Record.FileName}\": {result.Error}";
+        }
+        else
+        {
+            try
+            {
+                DownloadHistoryStore.SetHashVerified(AppPaths.DownloadsHistoryPath, row.Record, result.Matches, _historyCap);
+            }
+            catch (Exception ex)
+            {
+                _log.Warn($"Hash verdict save failed: {ex.Message}");
+            }
+            _log.Info($"SHA-256 check: {row.Record.FileName} — {(result.Matches ? "match" : "MISMATCH")}");
+            NoteText.Text = result.Matches
+                ? $"SHA-256 matches — \"{row.Record.FileName}\" is exactly the file that hash describes."
+                : $"SHA-256 does NOT match — \"{row.Record.FileName}\" is not the file that hash describes. Treat it with care.";
+        }
+        Refresh();
+    }
+
+    // ───────────────────────── R4: sort / archive / undo (#131, #138) ─────────────────────────
+
+    /// <summary>
+    /// Apply a move plan to disk, journal it for undo, and point the
+    /// history at the new locations. Returns the moves that actually
+    /// happened. File names only in the log — moves are local facts, but
+    /// the discipline costs nothing here.
+    /// </summary>
+    private List<DownloadMove> ApplyMoves(IReadOnlyList<DownloadMove> moves, bool journal = true)
+    {
+        var applied = new List<DownloadMove>();
+        foreach (var move in moves)
+        {
+            try
+            {
+                var dir = Path.GetDirectoryName(move.DestinationPath);
+                if (!string.IsNullOrEmpty(dir))
+                    Directory.CreateDirectory(dir);
+                File.Move(move.SourcePath, move.DestinationPath);
+                applied.Add(move);
+            }
+            catch (Exception ex)
+            {
+                _log.Warn($"Download move failed ({move.RuleName}): {Path.GetFileName(move.SourcePath)} — {ex.Message}");
+            }
+        }
+        if (applied.Count == 0)
+            return applied;
+        try
+        {
+            if (journal)
+            {
+                DownloadSortJournalStore.Append(AppPaths.DownloadSortJournalPath, new DownloadSortBatch
+                {
+                    AppliedUtc = DateTimeOffset.UtcNow,
+                    Moves = applied,
+                });
+            }
+            var map = applied.ToDictionary(m => m.SourcePath, m => m.DestinationPath);
+            DownloadHistoryStore.RewritePaths(AppPaths.DownloadsHistoryPath, map, _historyCap);
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Download sort bookkeeping failed: {ex.Message}");
+        }
+        return applied;
+    }
+
+    /// <summary>The preview text for a move plan: one line per move, capped, so the confirm dialog stays readable.</summary>
+    private static string PreviewText(IReadOnlyList<DownloadMove> moves)
+    {
+        var lines = moves.Take(12).Select(m => $"• {Path.GetFileName(m.SourcePath)}  →  {m.DestinationPath}");
+        var text = string.Join("\n", lines);
+        if (moves.Count > 12)
+            text += $"\n• …and {moves.Count - 12} more";
+        return text;
+    }
+
+    /// <summary>Sort finished downloads into subfolders (R4 #131): plan per downloads folder, preview, then move.</summary>
+    private void OnSortDownloads(object sender, RoutedEventArgs e)
+    {
+        var completed = _allRecords.Where(r => r.State == DownloadRecordState.Completed).ToList();
+        var moves = new List<DownloadMove>();
+        foreach (var group in completed.GroupBy(
+                     r => Path.GetDirectoryName(r.FullPath) ?? "", StringComparer.OrdinalIgnoreCase))
+        {
+            if (group.Key.Length == 0)
+                continue;
+            var archive = _settings.DownloadArchiveAfterDays > 0
+                ? new DownloadArchiveOptions(
+                    _settings.DownloadArchiveFolder ?? Path.Combine(group.Key, "Archive"),
+                    _settings.DownloadArchiveAfterDays)
+                : null;
+            moves.AddRange(DownloadSortPlanner.Plan(
+                group, group.Key, _settings.DownloadSortRules, _settings.DownloadSortUseCategories,
+                File.Exists, archive, DateTimeOffset.Now));
+        }
+        if (moves.Count == 0)
+        {
+            NoteText.Text = "Nothing to sort — every finished download is already in a subfolder, or no rule matches it.";
+            return;
+        }
+        var invoker = FocusReturn.Capture();
+        var confirm = System.Windows.MessageBox.Show(this,
+            $"Move {moves.Count} file(s) into subfolders?\n\n{PreviewText(moves)}\n\n" +
+            "Nothing is overwritten (name clashes get a \" (1)\" suffix), and Undo sort can put everything back.",
+            "Sort downloads", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (confirm != MessageBoxResult.Yes)
+        {
+            FocusReturn.Restore(invoker);
+            return;
+        }
+        var applied = ApplyMoves(moves);
+        NoteText.Text = applied.Count == moves.Count
+            ? $"Sorted {applied.Count} file(s). Undo sort can put them back."
+            : $"Sorted {applied.Count} of {moves.Count} file(s) — the rest couldn't be moved (see the log). Undo sort can put back the ones that moved.";
+        Refresh();
+    }
+
+    /// <summary>Archive finished downloads into dated folders (R4 #138): same preview + journal discipline as Sort.</summary>
+    private void OnArchiveDownloads(object sender, RoutedEventArgs e)
+    {
+        var completed = _allRecords.Where(r => r.State == DownloadRecordState.Completed).ToList();
+        var moves = new List<DownloadMove>();
+        foreach (var group in completed.GroupBy(
+                     r => Path.GetDirectoryName(r.FullPath) ?? "", StringComparer.OrdinalIgnoreCase))
+        {
+            if (group.Key.Length == 0)
+                continue;
+            var root = _settings.DownloadArchiveFolder ?? Path.Combine(group.Key, "Archive");
+            moves.AddRange(DownloadSortPlanner.PlanArchive(group, root, File.Exists));
+        }
+        if (moves.Count == 0)
+        {
+            NoteText.Text = "Nothing to archive — every finished download is already in the archive.";
+            return;
+        }
+        var invoker = FocusReturn.Capture();
+        var confirm = System.Windows.MessageBox.Show(this,
+            $"Move {moves.Count} file(s) into the archive, in folders named by the day each finished downloading?\n\n{PreviewText(moves)}\n\n" +
+            "Nothing is overwritten, and Undo sort can put everything back.",
+            "Archive downloads", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (confirm != MessageBoxResult.Yes)
+        {
+            FocusReturn.Restore(invoker);
+            return;
+        }
+        var applied = ApplyMoves(moves);
+        NoteText.Text = $"Archived {applied.Count} of {moves.Count} file(s). Undo sort can put them back.";
+        Refresh();
+    }
+
+    /// <summary>Undo the newest sort/archive batch (R4 #131): reverse its moves, then consume the batch.</summary>
+    private void OnUndoSort(object sender, RoutedEventArgs e)
+    {
+        var journalPath = AppPaths.DownloadSortJournalPath;
+        var batch = DownloadSortJournalStore.LastBatch(journalPath);
+        if (batch is null)
+        {
+            NoteText.Text = "Nothing to undo.";
+            Refresh();
+            return;
+        }
+        var undo = DownloadSortPlanner.PlanUndo(batch, File.Exists);
+        if (undo.Count == 0)
+        {
+            DownloadSortJournalStore.RemoveLast(journalPath);
+            NoteText.Text = "Those files aren't where the sort left them anymore — nothing left to undo.";
+            Refresh();
+            return;
+        }
+        var invoker = FocusReturn.Capture();
+        var confirm = System.Windows.MessageBox.Show(this,
+            $"Move {undo.Count} file(s) back where they were before the last sort/archive?\n\n{PreviewText(undo)}\n\n" +
+            "Nothing is overwritten — a file that now sits at an original spot keeps it, and the returning file gets a \" (1)\" suffix.",
+            "Undo sort", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (confirm != MessageBoxResult.Yes)
+        {
+            FocusReturn.Restore(invoker);
+            return;
+        }
+        var applied = ApplyMoves(undo, journal: false);
+        DownloadSortJournalStore.RemoveLast(journalPath);
+        NoteText.Text = $"Put {applied.Count} of {undo.Count} file(s) back.";
+        Refresh();
+    }
+
+    // ───────────────────────── R4: batch link capture (#134) ─────────────────────────
+
+    /// <summary>
+    /// Paste-a-list batch capture (R4 #134): parse + validate in Core,
+    /// show exactly what will download (and what was dropped), then hand
+    /// the URLs to the main window, which starts them under the
+    /// in-flight cap.
+    /// </summary>
+    private async void OnAddLinks(object sender, RoutedEventArgs e)
+    {
+        if (_startBatchAsync is null)
+            return;
+        var prompt = new TextPromptWindow(
+            "Download a list of links",
+            "Paste one link per line. MuseDesktop keeps only http/https links, drops duplicates, and asks before downloading anything.",
+            "",
+            multiline: true,
+            okText: "Review links")
+        { Owner = this };
+        ShellTextScaling.Apply(prompt, _settings.ShellFontScale);
+        if (prompt.ShowDialog() != true)
+            return;
+        var parsed = BatchLinkParser.Parse(prompt.Text);
+        if (parsed.Links.Count == 0)
+        {
+            NoteText.Text = parsed.Rejected.Count > 0
+                ? $"No usable links in that list — {parsed.Rejected.Count} line(s) weren't http/https links."
+                : "That list was empty.";
+            return;
+        }
+        var names = string.Join("\n", parsed.Links.Take(10).Select(l => $"• {l.FileName}"));
+        if (parsed.Links.Count > 10)
+            names += $"\n• …and {parsed.Links.Count - 10} more";
+        var rejected = parsed.Rejected.Count > 0
+            ? $"\n\n{parsed.Rejected.Count} line(s) were skipped (not usable links, duplicates, or past the {BatchLinkParser.MaxLinks}-link cap)."
+            : "";
+        var invoker = FocusReturn.Capture();
+        var confirm = System.Windows.MessageBox.Show(this,
+            $"Download {parsed.Links.Count} file(s)? At most {DownloadConcurrency.MaxConcurrentDownloads} run at once; the rest queue.\n\n{names}{rejected}",
+            "Download links", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        if (confirm != MessageBoxResult.Yes)
+        {
+            FocusReturn.Restore(invoker);
+            return;
+        }
+        try
+        {
+            await _startBatchAsync(parsed.Links);
+            NoteText.Text = $"Batch started: {parsed.Links.Count} link(s) — watch the active list above.";
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Batch download start failed: {ex.Message}");
+            NoteText.Text = "Couldn't start the batch — see the log.";
         }
         RefreshActive();
     }
