@@ -87,3 +87,15 @@ Try this:
 3. Check another site in your regular browser: if nothing loads anywhere, it's the connection, not the app. If only Muse fails, it may be muse.ai itself — waiting is the fix.
 4. If a proxy is involved (work/school networks), the button below opens Diagnostics, which shows the proxy Windows is configured with — MuseDesktop never overrides it; WebView2 follows Windows.
 5. Still stuck every launch? Start MuseDesktop with --safe-mode (it opens at the home page and skips the update check), or use the guided reset in Settings → Data — it backs your settings up before changing anything.
+
+## Commands & the command palette
+
+What you see: you want to get to a setting, a download, another window, or a help page without clicking through menus — or you middle-clicked the tray icon and a small search box appeared.
+
+Why it happens: the command palette is MuseDesktop's one keyboard-first way to reach everything the shell can do. Press Ctrl+K in the app (or middle-click the tray icon for the compact version), start typing — a few letters are enough, they don't have to be the start of the words — and press Enter. The actions you use most are pinned at the top as "Recent" the next time you open it. Recent only ever remembers which built-in actions you ran; it never stores page names, file names, or anything from your chats.
+
+Try this:
+1. Switching windows: the palette's "Switch window…" command (and the ⋯ menu item of the same name) lists your open windows most-recently-used first, with each window's profile color dot and page title — arrow keys and Enter jump straight there.
+2. Switching profiles from the keyboard: Ctrl+Shift+1 through Ctrl+Shift+9 switch to the 1st–9th profile in your profile list. These work inside MuseDesktop only; there is no Windows-wide version, on purpose — Ctrl+Shift+number means something in many other apps, and MuseDesktop won't take those keys away from them everywhere.
+3. Moving windows: type "tile" or "monitor" in the palette for the per-window actions — tile left/right, move to the next monitor, always-on-top, and (for the main window) focus mode.
+4. The full list: this page ends with every command the palette offers, generated from the palette itself when you open the page — so it can never describe a command that isn't really there. Your profiles, recent downloads, and open windows appear in the palette too; they're yours, so they're not printed here.

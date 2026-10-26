@@ -72,6 +72,10 @@
                                           ToolTip="See whether a newer MuseDesktop is available"/>
                                 <MenuItem Header="Downloads…" Click="OnDownloads"
                                           ToolTip="Files Muse has downloaded for you, newest first"/>
+                                <MenuItem Header="Command palette…" Click="OnCommandPalette" InputGestureText="Ctrl+K"
+                                          ToolTip="Every action, profile, setting, download, and window — searchable from the keyboard"/>
+                                <MenuItem Header="Switch window…" Click="OnSwitchWindow"
+                                          ToolTip="Jump to another open MuseDesktop window, most recently used first"/>
                                 <Separator/>
                                 <MenuItem Header="Find in page…" Click="OnFind" InputGestureText="Ctrl+F"/>
                                 <MenuItem Header="Keyboard shortcuts…" Click="OnShortcuts" InputGestureText="Ctrl+/"

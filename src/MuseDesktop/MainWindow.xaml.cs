@@ -94,6 +94,15 @@ public partial class MainWindow : Window
     private bool _browserFocused;
     private bool _dropHintOn;
 
+    // v1.1.0 (R1) — the command palette (#101), the window switcher
+    // (#103), and the window tracking both stand on: secondary
+    // windows register in _trackedWindows so the palette and the
+    // switcher see every open window, and the MRU list remembers the
+    // order the windows were last used in.
+    private readonly WindowMruList _windowMru = new();
+    private readonly Dictionary<Window, string> _trackedWindows = new();
+    private int _secondarySeq;
+
     // v0.12.0 (S8) — reliability: ONE recovery coordinator (#71/#76)
     // decides every automatic reload/recreate (the S1 network retry
     // and the ProcessFailed handler used to keep separate flags); the
@@ -193,7 +202,8 @@ public partial class MainWindow : Window
             () => _isLocked,
             () => AppLock.IsLockActive(_settings),
             LockNow,
-            quickDictate: QuickDictate);
+            quickDictate: QuickDictate,
+            openPalette: () => OpenPalette(compact: true));
 
         // S6 #54: live regions for assistive-tech announcements, and
         // the download events that feed them (the wording is Core's).
@@ -233,6 +243,10 @@ public partial class MainWindow : Window
         Closing += OnClosing;
         Closed += (_, _) => _hotkeyManager?.Dispose();
         PreviewKeyDown += OnPreviewKeyDown;
+        // R1 #103: the main window is the MRU list's permanent first
+        // citizen — touched here so the switcher always knows it.
+        _windowMru.Touch("main");
+        Activated += (_, _) => _windowMru.Touch("main");
     }
 
     /// <summary>
@@ -2590,7 +2604,9 @@ public partial class MainWindow : Window
         }
         try
         {
-            new SecondaryWindow(Browser.CoreWebView2.Environment, _log, src) { Owner = this }.Show();
+            var window = new SecondaryWindow(Browser.CoreWebView2.Environment, _log, src) { Owner = this };
+            TrackSecondaryWindow(window);
+            window.Show();
         }
         catch (Exception ex)
         {
@@ -2599,13 +2615,44 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Register a secondary window for the palette/switcher (R1
+    /// #102/#103): it gets a stable id for this session, its
+    /// activations feed the MRU list, its Ctrl+K asks for the palette
+    /// owned by itself, and closing it unregisters it everywhere.
+    /// </summary>
+    private void TrackSecondaryWindow(SecondaryWindow window)
+    {
+        var id = $"secondary-{++_secondarySeq}";
+        _trackedWindows[window] = id;
+        window.PaletteRequested = () => OpenPalette(window);
+        window.Activated += (_, _) => _windowMru.Touch(id);
+        window.Closed += (_, _) =>
+        {
+            _trackedWindows.Remove(window);
+            _windowMru.Remove(id);
+        };
+        _windowMru.Touch(id);
+    }
+
     // #5 Always-on-top pin.
     private void OnTogglePin(object sender, RoutedEventArgs e)
     {
-        _settings.AlwaysOnTop = sender is MenuItem ? PinItem.IsChecked : !_settings.AlwaysOnTop;
-        PinItem.IsChecked = _settings.AlwaysOnTop;
-        Topmost = _settings.AlwaysOnTop;
-        SetStatus(_settings.AlwaysOnTop ? "Window will stay on top" : "Window no longer stays on top");
+        // A menu click arrives with the check already flipped; the
+        // toolbar pin button (and every other caller) means "toggle".
+        if (sender is MenuItem)
+            SetAlwaysOnTop(PinItem.IsChecked);
+        else
+            SetAlwaysOnTop(!_settings.AlwaysOnTop);
+    }
+
+    /// <summary>The one always-on-top setter (S1 #5): the setting, the menu check, the window, and the status line move together — the palette's window action (R1 #104) lands here too.</summary>
+    private void SetAlwaysOnTop(bool on)
+    {
+        _settings.AlwaysOnTop = on;
+        PinItem.IsChecked = on;
+        Topmost = on;
+        SetStatus(on ? "Window will stay on top" : "Window no longer stays on top");
         SaveSettings();
     }
 
@@ -2752,7 +2799,10 @@ public partial class MainWindow : Window
     /// stays open behind the target so the steps remain readable
     /// afterwards where focus allows.
     /// </summary>
-    private void OnHelp(object sender, RoutedEventArgs e)
+    private void OnHelp(object sender, RoutedEventArgs e) => OpenHelp(null);
+
+    /// <summary>Open Help, optionally at a specific page (R1: the palette's help commands land on their page, not on page one).</summary>
+    private void OpenHelp(string? initialPageId)
     {
         string markdown;
         try
@@ -2766,11 +2816,337 @@ public partial class MainWindow : Window
             markdown = "";
         }
         var invoker = FocusReturn.Capture();
-        var dialog = new HelpWindow(markdown, HandleHelpAction) { Owner = this };
+        var dialog = new HelpWindow(markdown, HandleHelpAction, initialPageId) { Owner = this };
         ThemeManager.ApplyTitleBar(dialog);
         ShellTextScaling.Apply(dialog, _settings.ShellFontScale);
         dialog.ShowDialog();
         FocusReturn.Restore(invoker);
+    }
+
+    // ─────────────────── v1.1.0 R1: palette & switcher (items 101–110) ───────────────────
+
+    /// <summary>
+    /// Assemble the palette for one opening (R1 #102): providers wrap
+    /// LIVE data (profiles, download history, open windows), so the
+    /// palette is rebuilt each time — there is no cache to go stale.
+    /// </summary>
+    private CommandPalette BuildPalette()
+    {
+        IReadOnlyList<DownloadRecord> downloads;
+        try { downloads = DownloadHistoryStore.Load(AppPaths.DownloadsHistoryPath, _settings.DownloadHistoryCap); }
+        catch { downloads = Array.Empty<DownloadRecord>(); }
+        return CommandRegistry.CreateDefault(
+            _settings.Profiles, _settings.ActiveProfileId, downloads, CurrentWindowDescriptors());
+    }
+
+    /// <summary>
+    /// Open the command palette (#101; compact form from the tray's
+    /// middle-click, #110). The palette names profiles, files, and
+    /// windows — content surfaces all — so it sits behind the app
+    /// lock like the Downloads window: while locked, the lock screen
+    /// is the only answer.
+    /// </summary>
+    public void OpenPalette(Window? owner = null, bool compact = false)
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        if (!IsVisible)
+            ShowFromTray();
+        if (!IsVisible)
+            return; // the lock screen answered instead
+        var history = ActionHistoryStore.Load(AppPaths.PaletteHistoryPath);
+        var dialog = new PaletteWindow(BuildPalette(), history, ExecutePaletteCommand, PaletteRowColor, compact)
+            { Owner = owner ?? this };
+        dialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(dialog);
+        ShellTextScaling.Apply(dialog, _settings.ShellFontScale);
+        dialog.ShowDialog();
+    }
+
+    /// <summary>The window switcher overlay (#103): the same MRU-ordered descriptors the palette searches, as a pick-one list.</summary>
+    private void OpenSwitcher()
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        var windows = CurrentWindowDescriptors();
+        if (windows.Count == 0)
+            return;
+        var dialog = new SwitcherWindow(windows, ActivateTrackedWindow) { Owner = this };
+        dialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(dialog);
+        ShellTextScaling.Apply(dialog, _settings.ShellFontScale);
+        dialog.ShowDialog();
+    }
+
+    private void OnCommandPalette(object sender, RoutedEventArgs e) => OpenPalette();
+
+    private void OnSwitchWindow(object sender, RoutedEventArgs e) => OpenSwitcher();
+
+    /// <summary>The palette row's profile color dot (#102/#103): a profile command carries its own profile's color; a window command carries the color of the (shared) active profile its windows belong to.</summary>
+    private string? PaletteRowColor(PaletteCommand command)
+    {
+        switch (command.Source)
+        {
+            case PaletteCommandSource.Profile:
+                return ProfileColors.HexFor(
+                    _settings.Profiles.FirstOrDefault(p => p.Id == command.Payload)?.DisplayColor);
+            case PaletteCommandSource.Window:
+                return ProfileColors.HexFor(ActiveProfile()?.DisplayColor);
+            default:
+                return null;
+        }
+    }
+
+    /// <summary>Every open window as a descriptor, MRU-sorted — the main window from its page title, secondaries from theirs (their titles carry a " — MuseDesktop" suffix the switcher doesn't need).</summary>
+    private IReadOnlyList<WindowDescriptor> CurrentWindowDescriptors()
+    {
+        var active = ActiveProfile();
+        var list = new List<WindowDescriptor>
+        {
+            new("main",
+                string.IsNullOrWhiteSpace(_pageTitle) ? "Muse" : _pageTitle,
+                active?.Name, active?.DisplayColor,
+                IsMain: true, SupportsFocusMode: true, IsActive: IsActive),
+        };
+        foreach (var (window, id) in _trackedWindows)
+        {
+            var title = window.Title ?? "";
+            const string suffix = " — MuseDesktop";
+            if (title.EndsWith(suffix, StringComparison.Ordinal))
+                title = title[..^suffix.Length];
+            list.Add(new WindowDescriptor(
+                id,
+                string.IsNullOrWhiteSpace(title) ? "Muse — second window" : title,
+                active?.Name, active?.DisplayColor,
+                IsMain: false, SupportsFocusMode: false, IsActive: window.IsActive));
+        }
+        return _windowMru.Sort(list);
+    }
+
+    /// <summary>
+    /// Run one palette command. History records FIRST (actions only —
+    /// Core refuses everything else, so nothing a command carried is
+    /// ever written down), then the source-specific dispatch runs the
+    /// exact handler the menus and tray use.
+    /// </summary>
+    private void ExecutePaletteCommand(PaletteCommand command)
+    {
+        try { ActionHistoryStore.Record(AppPaths.PaletteHistoryPath, command); }
+        catch (Exception ex) { _log.Warn($"Palette history save failed: {ex.Message}"); }
+
+        switch (command.Source)
+        {
+            case PaletteCommandSource.Action:
+                ExecutePaletteAction(command.Id);
+                break;
+            case PaletteCommandSource.Profile:
+                if (command.Payload is { } profileId)
+                    SwitchToProfileFromMenu(profileId);
+                break;
+            case PaletteCommandSource.Settings:
+                OpenSettings(command.Payload);
+                break;
+            case PaletteCommandSource.Help:
+                OpenHelp(command.Payload);
+                break;
+            case PaletteCommandSource.Download:
+                if (command.Payload is { } path)
+                {
+                    if (command.Id.StartsWith("download.reveal.", StringComparison.Ordinal))
+                        RevealDownload(path);
+                    else
+                        OpenRecentDownload(path);
+                }
+                break;
+            case PaletteCommandSource.Window:
+                ExecuteWindowCommand(command);
+                break;
+            // Workspace: the R2 stub provider contributes no commands.
+        }
+    }
+
+    /// <summary>The built-in actions' dispatch — every branch is an existing handler or setter, nothing reimplemented for the palette.</summary>
+    private void ExecutePaletteAction(string id)
+    {
+        switch (id)
+        {
+            case "action.switch-window": OpenSwitcher(); break;
+            case "action.settings": OpenSettings(); break;
+            case "action.downloads": OnDownloads(this, new RoutedEventArgs()); break;
+            case "action.home": OnHome(this, new RoutedEventArgs()); break;
+            case "action.reload": OnReload(this, new RoutedEventArgs()); break;
+            case "action.find": ShowFindBar(); break;
+            case "action.print": OnPrint(this, new RoutedEventArgs()); break;
+            case "action.save-pdf": OnSaveAsPdf(this, new RoutedEventArgs()); break;
+            case "action.copy-address": OnCopyPageAddress(this, new RoutedEventArgs()); break;
+            case "action.open-in-browser": OnOpenInBrowser(this, new RoutedEventArgs()); break;
+            case "action.new-window": OnOpenInNewWindow(this, new RoutedEventArgs()); break;
+            case "action.focus-mode": SetFocusMode(!_focusMode); break;
+            case "action.fullscreen": SetFullScreen(!_isFullScreen); break;
+            case "action.always-on-top": SetAlwaysOnTop(!_settings.AlwaysOnTop); break;
+            case "action.zoom-in": OnZoomIn(this, new RoutedEventArgs()); break;
+            case "action.zoom-out": OnZoomOut(this, new RoutedEventArgs()); break;
+            case "action.zoom-reset":
+                if (_webReady) Browser.ZoomFactor = 1.0;
+                break;
+            case "action.restore-closed": OnRestoreClosedPage(this, new RoutedEventArgs()); break;
+            case "action.shortcuts": OnShortcuts(this, new RoutedEventArgs()); break;
+            case "action.commands-help": OpenHelp(HelpCatalog.CommandsPageId); break;
+            case "action.diagnostics": OnDiagnostics(this, new RoutedEventArgs()); break;
+            case "action.help": OnHelp(this, new RoutedEventArgs()); break;
+            case "action.about": OnAbout(this, new RoutedEventArgs()); break;
+            case "action.check-updates": OnCheckForUpdates(this, new RoutedEventArgs()); break;
+            case "action.lock-now":
+                if (AppLock.IsLockActive(_settings))
+                    LockNow();
+                else
+                    SetStatus("No app lock is set — add one in Settings → Privacy & security");
+                break;
+            case "action.quick-dictate": QuickDictate(); break;
+            case "action.exit": ExitApp(); break;
+        }
+    }
+
+    /// <summary>The palette's per-window commands (#104): switch, tile, next monitor, always-on-top, focus mode — each applied to the window the command named.</summary>
+    private void ExecuteWindowCommand(PaletteCommand command)
+    {
+        if (command.Payload is not { } windowId)
+            return;
+        if (command.Id.StartsWith("window.switch.", StringComparison.Ordinal))
+        {
+            ActivateTrackedWindow(windowId);
+            return;
+        }
+        if (FindTrackedWindow(windowId) is not { } window)
+            return;
+        if (command.Id.StartsWith("window.tile-left.", StringComparison.Ordinal))
+            TileWindow(window, TileSide.Left);
+        else if (command.Id.StartsWith("window.tile-right.", StringComparison.Ordinal))
+            TileWindow(window, TileSide.Right);
+        else if (command.Id.StartsWith("window.next-monitor.", StringComparison.Ordinal))
+            MoveWindowToNextMonitor(window);
+        else if (command.Id.StartsWith("window.always-on-top.", StringComparison.Ordinal))
+        {
+            // The main window's pin is a persisted setting; a second
+            // window's is a session toggle on the window itself.
+            if (windowId == "main")
+                SetAlwaysOnTop(!_settings.AlwaysOnTop);
+            else
+                window.Topmost = !window.Topmost;
+        }
+        else if (command.Id.StartsWith("window.focus-mode.", StringComparison.Ordinal))
+        {
+            if (windowId == "main")
+                SetFocusMode(!_focusMode);
+        }
+    }
+
+    private Window? FindTrackedWindow(string id)
+    {
+        if (id == "main")
+            return this;
+        foreach (var (window, wid) in _trackedWindows)
+            if (wid == id)
+                return window;
+        return null;
+    }
+
+    private void ActivateTrackedWindow(string id)
+    {
+        if (id == "main")
+        {
+            ShowFromTray();
+            return;
+        }
+        if (FindTrackedWindow(id) is { } window)
+        {
+            if (!window.IsVisible)
+                window.Show();
+            if (window.WindowState == WindowState.Minimized)
+                window.WindowState = WindowState.Normal;
+            window.Activate();
+            _windowMru.Touch(id);
+        }
+    }
+
+    private static ScreenRect WindowRectDip(Window window)
+    {
+        var bounds = window.WindowState == WindowState.Normal
+            ? new Rect(window.Left, window.Top, window.Width, window.Height)
+            : window.RestoreBounds;
+        return new ScreenRect(bounds.Left, bounds.Top, bounds.Width, bounds.Height);
+    }
+
+    /// <summary>Tile a window to half of its monitor's work area (#104) — the work area, so the taskbar is never covered.</summary>
+    private void TileWindow(Window window, TileSide side)
+    {
+        var areas = MonitorRects.AllWorkAreasInDip();
+        if (areas.Count == 0)
+            return;
+        var index = WindowTiling.IndexOfLargestOverlap(WindowRectDip(window), areas);
+        if (index < 0)
+            index = 0;
+        var half = WindowTiling.Half(areas[index], side);
+        if (window.WindowState != WindowState.Normal)
+            window.WindowState = WindowState.Normal;
+        window.Left = half.Left;
+        window.Top = half.Top;
+        window.Width = half.Width;
+        window.Height = half.Height;
+        window.Activate();
+    }
+
+    /// <summary>Move a window to the next monitor (#104), keeping its size (clamped to the target's work area) and its relative position where it fits.</summary>
+    private void MoveWindowToNextMonitor(Window window)
+    {
+        var areas = MonitorRects.AllWorkAreasInDip();
+        if (areas.Count < 2)
+        {
+            SetStatus("There's only one monitor");
+            return;
+        }
+        var rect = WindowRectDip(window);
+        var current = WindowTiling.IndexOfLargestOverlap(rect, areas);
+        var from = areas[Math.Max(0, current)];
+        var to = areas[WindowTiling.NextIndex(current, areas.Count)];
+        var width = Math.Min(rect.Width, to.Width);
+        var height = Math.Min(rect.Height, to.Height);
+        var left = to.Left + Math.Clamp(rect.Left - from.Left, 0, Math.Max(0, to.Width - width));
+        var top = to.Top + Math.Clamp(rect.Top - from.Top, 0, Math.Max(0, to.Height - height));
+        if (window.WindowState != WindowState.Normal)
+            window.WindowState = WindowState.Normal;
+        window.Left = left;
+        window.Top = top;
+        window.Width = width;
+        window.Height = height;
+        window.Activate();
+    }
+
+    /// <summary>Show a downloaded file in Explorer — the Downloads window's own reveal behavior, for the palette's download commands (#102).</summary>
+    private void RevealDownload(string fullPath)
+    {
+        try
+        {
+            if (File.Exists(fullPath))
+            {
+                Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{fullPath}\"")
+                    { UseShellExecute = true });
+            }
+            else if (Path.GetDirectoryName(fullPath) is { } dir && Directory.Exists(dir))
+            {
+                Process.Start(new ProcessStartInfo("explorer.exe", $"\"{dir}\"")
+                    { UseShellExecute = true });
+            }
+            else
+            {
+                SetStatus("That file's folder no longer exists");
+            }
+        }
+        catch (Exception ex) { _log.Warn($"Palette reveal download failed: {ex.Message}"); }
     }
 
     private void HandleHelpAction(HelpPage page)
@@ -3094,6 +3470,16 @@ public partial class MainWindow : Window
         // with the real key in SystemKey) and the remappable actions.
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
         var modifiers = Keyboard.Modifiers;
+        // R1 #101: Ctrl+K opens the command palette. A fixed binding,
+        // deliberately not in the remappable catalog — K is the
+        // convention for this surface, and Core's conflict rules keep
+        // every remappable gesture clear of it in the other direction.
+        if (key == Key.K && modifiers == ModifierKeys.Control)
+        {
+            OpenPalette();
+            e.Handled = true;
+            return;
+        }
         // "?" alone opens the shortcuts list too — but never while the
         // user is typing (in the page or in a shell text box).
         if (key == Key.OemQuestion && modifiers == ModifierKeys.Shift
@@ -3111,6 +3497,20 @@ public partial class MainWindow : Window
         // in the find box can't trigger one.
         if (TryRemappedShortcut(key, modifiers))
         {
+            e.Handled = true;
+            return;
+        }
+        // R1 #105: go-to-profile chords (Ctrl+Shift+1..9), in-app
+        // only. Checked AFTER the remappable actions on purpose: a
+        // user who deliberately remapped an action onto a chord
+        // gesture keeps their binding, and the chord steps aside.
+        if (modifiers == (ModifierKeys.Control | ModifierKeys.Shift)
+            && ProfileChords.TryIndex(
+                new ShortcutGesture(ToGestureModifiers(modifiers), key.ToString()), out var chordIndex)
+            && ProfileChords.ProfileIdAt(_settings.Profiles, chordIndex) is { } chordProfileId)
+        {
+            if (chordProfileId != _settings.ActiveProfileId)
+                SwitchToProfileFromMenu(chordProfileId);
             e.Handled = true;
             return;
         }

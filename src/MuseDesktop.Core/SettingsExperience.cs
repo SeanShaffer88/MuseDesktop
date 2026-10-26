@@ -8,11 +8,20 @@ public sealed record SettingsSectionInfo(string Id, string Title, string Keyword
 /// <summary>
 /// The Settings search index (S5 #41). Settings is one scrolling window
 /// of sections (not tabs), so search works at section level: a query
-/// matches a section when EVERY term appears in its title or keywords;
-/// matching sections stay visible (and are highlighted), the rest
-/// collapse, and the window scrolls to the first match. The index lives
-/// in Core so the mapping from words to sections is unit-tested against
-/// the real layout instead of drifting in the shell.
+/// matches a section when EVERY term fuzzy-matches some word of its
+/// title or keywords; matching sections stay visible (and are
+/// highlighted), the rest collapse, and the window scrolls to the
+/// best match. The index lives in Core so the mapping from words to
+/// sections is unit-tested against the real layout instead of
+/// drifting in the shell.
+///
+/// R1 (#108): matching and ranking are the command palette's ONE
+/// fuzzy matcher (<see cref="FuzzyMatch"/>), replacing the S5
+/// whole-word-prefix rule. Terms still match word-by-word
+/// (<see cref="FuzzyMatch.WordScore"/>), so a term can never borrow
+/// letters across words; results are ranked by score (a word in the
+/// section's title counts for more than the same word in its keyword
+/// list), with layout order breaking ties.
 /// </summary>
 public static class SettingsSearch
 {
@@ -55,10 +64,10 @@ public static class SettingsSearch
         id is not null && Sections.Any(s => s.Id == id);
 
     /// <summary>
-    /// Sections matching <paramref name="query"/>, in layout order.
+    /// Sections matching <paramref name="query"/>, best match first.
     /// A blank query matches nothing (the shell shows everything then).
-    /// Terms are whole-word prefix matches over title + keywords, so
-    /// "down" finds Downloads and "sign" finds the sign-in sections.
+    /// Every term must fuzzy-match a word of the title or keywords, so
+    /// "down" finds Downloads and "dwnloads" finds it too.
     /// </summary>
     public static IReadOnlyList<SettingsSectionInfo> Search(string? query)
     {
@@ -69,14 +78,33 @@ public static class SettingsSearch
                          .ToList();
         if (terms.Count == 0)
             return Array.Empty<SettingsSectionInfo>();
-        return Sections.Where(s => terms.All(t => Matches(s, t))).ToList();
-    }
-
-    private static bool Matches(SettingsSectionInfo section, string term)
-    {
-        var haystack = (section.Title + " " + section.Keywords).ToLowerInvariant();
-        return haystack.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
-                       .Any(word => word.StartsWith(term, StringComparison.Ordinal));
+        var scored = new List<(SettingsSectionInfo Section, int Index, int Score)>();
+        for (var i = 0; i < Sections.Count; i++)
+        {
+            var section = Sections[i];
+            var total = 0;
+            var allMatch = true;
+            foreach (var term in terms)
+            {
+                var title = FuzzyMatch.WordScore(term, section.Title);
+                var keywords = FuzzyMatch.WordScore(term, section.Keywords);
+                if (!title.IsMatch && !keywords.IsMatch)
+                {
+                    allMatch = false;
+                    break;
+                }
+                // A term found in the section's own title counts for
+                // more than the same term buried in its keyword list.
+                total += Math.Max(title.Score, keywords.Score - 25);
+            }
+            if (allMatch)
+                scored.Add((section, i, total));
+        }
+        return scored
+            .OrderByDescending(s => s.Score)
+            .ThenBy(s => s.Index)
+            .Select(s => s.Section)
+            .ToList();
     }
 }
 

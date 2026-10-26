@@ -250,6 +250,9 @@ public sealed record HelpPage(
 
 public static class HelpCatalog
 {
+    /// <summary>The generated commands page (R1 #109): listed here like every page, with its command list appended live from the palette registry by the Help window.</summary>
+    public const string CommandsPageId = "commands";
+
     public static readonly IReadOnlyList<HelpPage> Pages = new[]
     {
         new HelpPage("sign-in-loop",
@@ -280,6 +283,13 @@ public static class HelpCatalog
             "The page won't load",
             "page won't load blank offline internet connection dns error failed try again network",
             HelpAction.OpenDiagnostics, "Open Diagnostics", null),
+        // R1 (#109): listed last like the S7 privacy section in
+        // SettingsSearch — the troubleshooting pages keep their
+        // established first-match behavior for the queries they own.
+        new HelpPage(CommandsPageId,
+            "Commands & the command palette",
+            "command palette ctrl k keyboard commands switch window recent actions quick open tray middle click profile chords",
+            HelpAction.None, null, null),
     };
 
     public static HelpPage? ById(string? id) =>

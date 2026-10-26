@@ -159,11 +159,13 @@ public class S10Tests
     // ──────────────────────── help catalog (#91) ────────────────────────
 
     [Fact]
-    public void Help_Pages_AreSevenUniquePagesWithActionsWired()
+    public void Help_Pages_AreEightUniquePagesWithActionsWired()
     {
-        Assert.Equal(7, HelpCatalog.Pages.Count);
-        Assert.Equal(7, HelpCatalog.Pages.Select(p => p.Id).Distinct().Count());
-        Assert.Equal(7, HelpCatalog.Pages.Select(p => p.Title).Distinct().Count());
+        // Seven troubleshooting pages (S10) plus the generated
+        // commands page (R1 #109).
+        Assert.Equal(8, HelpCatalog.Pages.Count);
+        Assert.Equal(8, HelpCatalog.Pages.Select(p => p.Id).Distinct().Count());
+        Assert.Equal(8, HelpCatalog.Pages.Select(p => p.Title).Distinct().Count());
         Assert.All(HelpCatalog.Pages, p =>
         {
             Assert.False(string.IsNullOrWhiteSpace(p.Keywords));

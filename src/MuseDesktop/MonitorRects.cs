@@ -14,7 +14,17 @@ namespace MuseDesktop;
 /// </summary>
 public static class MonitorRects
 {
-    public static IReadOnlyList<ScreenRect> AllInDip()
+    public static IReadOnlyList<ScreenRect> AllInDip() => Enumerate(workArea: false);
+
+    /// <summary>
+    /// The monitors' WORK AREAS in DIPs (R1 #104): same enumeration,
+    /// but each rect excludes the taskbar and other app bars — the
+    /// space a tiled window should actually fill. The fallback is the
+    /// system work area of the virtual screen.
+    /// </summary>
+    public static IReadOnlyList<ScreenRect> AllWorkAreasInDip() => Enumerate(workArea: true);
+
+    private static IReadOnlyList<ScreenRect> Enumerate(bool workArea)
     {
         var monitors = new List<(ScreenRect Dip, bool Primary)>();
         try
@@ -32,10 +42,11 @@ public static class MonitorRects
                         scale = dpiX / 96.0;
                 }
                 catch { /* scale stays 1.0 for this monitor */ }
+                var rect = workArea ? info.WorkArea : info.Monitor;
                 var physical = new ScreenRect(
-                    info.Monitor.Left, info.Monitor.Top,
-                    info.Monitor.Right - info.Monitor.Left,
-                    info.Monitor.Bottom - info.Monitor.Top);
+                    rect.Left, rect.Top,
+                    rect.Right - rect.Left,
+                    rect.Bottom - rect.Top);
                 monitors.Add((DipMath.PhysicalToDip(physical, scale),
                               (info.Flags & MonitorInfoPrimary) != 0));
                 return true;
@@ -47,11 +58,17 @@ public static class MonitorRects
 
         return new[]
         {
-            new ScreenRect(
-                System.Windows.SystemParameters.VirtualScreenLeft,
-                System.Windows.SystemParameters.VirtualScreenTop,
-                System.Windows.SystemParameters.VirtualScreenWidth,
-                System.Windows.SystemParameters.VirtualScreenHeight),
+            workArea
+                ? new ScreenRect(
+                    System.Windows.SystemParameters.WorkArea.Left,
+                    System.Windows.SystemParameters.WorkArea.Top,
+                    System.Windows.SystemParameters.WorkArea.Width,
+                    System.Windows.SystemParameters.WorkArea.Height)
+                : new ScreenRect(
+                    System.Windows.SystemParameters.VirtualScreenLeft,
+                    System.Windows.SystemParameters.VirtualScreenTop,
+                    System.Windows.SystemParameters.VirtualScreenWidth,
+                    System.Windows.SystemParameters.VirtualScreenHeight),
         };
     }
 
