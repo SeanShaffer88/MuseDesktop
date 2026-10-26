@@ -428,14 +428,57 @@ public sealed class WindowsPaletteProvider : IPaletteProvider
 }
 
 /// <summary>
-/// Workspaces (R1 #102): the provider seam for R2's workspaces. The
-/// registry always carries it; until R2 defines what a workspace IS,
-/// it honestly contributes no commands rather than placeholders.
+/// Workspaces (R1 #102 seam; lit up by R2 #115): one Apply command
+/// per saved workspace, glyph-prefixed (#119), with the window count
+/// and the current/startup marks as the detail. Applying is the
+/// shell's business (the planner decides what it takes); the payload
+/// is the workspace id and nothing else.
 /// </summary>
 public sealed class WorkspacesPaletteProvider : IPaletteProvider
 {
+    private readonly IReadOnlyList<Workspace> _workspaces;
+    private readonly string? _activeWorkspaceId;
+    private readonly string? _startupWorkspaceId;
+
+    /// <summary>The seam's original shape (no workspaces known): contributes nothing.</summary>
+    public WorkspacesPaletteProvider()
+        : this(Array.Empty<Workspace>(), null, null)
+    {
+    }
+
+    public WorkspacesPaletteProvider(
+        IReadOnlyList<Workspace> workspaces, string? activeWorkspaceId, string? startupWorkspaceId)
+    {
+        _workspaces = workspaces;
+        _activeWorkspaceId = activeWorkspaceId;
+        _startupWorkspaceId = startupWorkspaceId;
+    }
+
     public string Name => "Workspaces";
-    public IEnumerable<PaletteCommand> GetCommands() => Array.Empty<PaletteCommand>();
+
+    public IEnumerable<PaletteCommand> GetCommands()
+    {
+        foreach (var ws in _workspaces)
+        {
+            var marks = new List<string>
+            {
+                ws.Windows.Count == 1 ? "1 window" : $"{ws.Windows.Count} windows",
+            };
+            if (ws.Id == _activeWorkspaceId)
+                marks.Add("current");
+            if (ws.Id == _startupWorkspaceId)
+                marks.Add("opens at launch");
+            var glyphPrefix = WorkspaceGlyphs.SymbolFor(ws.Glyph) is { } symbol ? symbol + " " : "";
+            yield return new PaletteCommand(
+                Id: $"workspace.apply.{ws.Id}",
+                Title: $"{glyphPrefix}Apply workspace: {ws.Name}",
+                Detail: string.Join(" · ", marks),
+                Category: "Workspaces",
+                Keywords: $"workspace apply layout windows session arrange {ws.Name}",
+                Source: PaletteCommandSource.Workspace,
+                Payload: ws.Id);
+        }
+    }
 }
 
 /// <summary>
@@ -462,6 +505,9 @@ public static class CommandRegistry
     private static IReadOnlyList<PaletteCommand> BuildActions() => new[]
     {
         Action("switch-window", "Switch window…", "window switcher open windows recent", detail: "Windows"),
+        Action("save-workspace", "Save current arrangement as workspace", "workspace save current arrangement layout windows", detail: "Workspaces"),
+        Action("snapshot-session", "Take session snapshot", "session snapshot save windows now one-off", detail: "Workspaces"),
+        Action("restore-session", "Restore session snapshot", "session snapshot restore windows back one-off", detail: "Workspaces"),
         Action("settings", "Open Settings", "settings preferences options configure", GestureOf(ShortcutCatalog.SettingsId)),
         Action("downloads", "Open Downloads", "downloads files manager finished", GestureOf(ShortcutCatalog.DownloadsId)),
         Action("home", "Go to Muse home", "home start page main", GestureOf(ShortcutCatalog.HomeId)),
@@ -506,12 +552,15 @@ public static class CommandRegistry
         return palette.All();
     }
 
-    /// <summary>Assemble the palette the shell opens (R1 #102): every provider, in display order.</summary>
+    /// <summary>Assemble the palette the shell opens (R1 #102; workspaces join in R2 #115): every provider, in display order.</summary>
     public static CommandPalette CreateDefault(
         IReadOnlyList<AccountProfile> profiles,
         string activeProfileId,
         IReadOnlyList<DownloadRecord> recentDownloads,
-        IReadOnlyList<WindowDescriptor> windows)
+        IReadOnlyList<WindowDescriptor> windows,
+        IReadOnlyList<Workspace>? workspaces = null,
+        string? activeWorkspaceId = null,
+        string? startupWorkspaceId = null)
     {
         var palette = new CommandPalette();
         palette.Register(new StaticPaletteProvider("Actions", BuiltinActions));
@@ -520,7 +569,8 @@ public static class CommandRegistry
         palette.Register(new DownloadsPaletteProvider(recentDownloads));
         palette.Register(new SettingsSectionsPaletteProvider());
         palette.Register(new HelpTopicsPaletteProvider());
-        palette.Register(new WorkspacesPaletteProvider());
+        palette.Register(new WorkspacesPaletteProvider(
+            workspaces ?? Array.Empty<Workspace>(), activeWorkspaceId, startupWorkspaceId));
         return palette;
     }
 }
@@ -611,6 +661,7 @@ public sealed class CommandPalette
                 PaletteCommandSource.Action => 30,
                 PaletteCommandSource.Profile => 15,
                 PaletteCommandSource.Window => 15,
+                PaletteCommandSource.Workspace => 15,
                 PaletteCommandSource.Settings => 5,
                 PaletteCommandSource.Download => 5,
                 _ => 0,
