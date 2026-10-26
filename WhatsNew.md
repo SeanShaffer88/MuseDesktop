@@ -2,6 +2,27 @@
 
 The release notes MuseDesktop shows on the first launch of a new version (S9 #82). This file is generated from CHANGELOG.md's current-version section at release time (see RELEASE_CHECKLIST.md) — do not edit it by hand; a test pins it to the changelog so the two can't drift.
 
+## [1.5.0] — Unreleased
+
+Round 2, Slice R5 (items 141–150) of the enhancement program: focus & productivity — the final slice of the +50 programme. Everything in this slice is local-only: the timers count minutes on this PC, the lists and tallies live in small files beside your settings, and nothing is ever sent anywhere.
+
+### Added
+
+- **Focus mode + focus timer (#141)** — focus mode (F8) now fills the screen: the main window maximizes and the app chrome hides, as before. Turn on the focus timer in Settings → Focus & productivity and a focus block counts down in the status bar while you work; when it ends, a gentle tray reminder suggests a break — dismiss it and carry on whenever you like. It is never a dialog, never blocks anything, and quiet hours hold it back like every other MuseDesktop balloon. Focus time you actually spend is counted toward the weekly stats.
+- **Session timer (#142)** — Pomodoro-style cycles per profile: work / short break, with a long break after a set of work blocks (25 / 5 / 15, every 4 by default — all adjustable in Settings). The countdown lives in the status bar and the tray tooltip; pausing freezes the clock honestly (paused minutes never count as work), and stopping mid-block banks the minutes you did work.
+- **Reading list (#143)** — *Save page to reading list* in the ⋯ menu keeps the current page for later: its title and its in-app path only, never the full address (a saved page can't carry a query string or a token). The list is per profile, lives under ⋯ → *Reading list…*, Ctrl+K finds saved pages too, and entries mark read as you finish them. Only Muse pages can be saved — that's what the list is for.
+- **Window groups-lite (#144)** — name a set of the windows you have open right now ("Deep work") from the window switcher's right-click menu; the switcher groups them under their name, and choosing the group raises all of them. Groups are deliberately lighter than workspaces: they label live windows and are forgotten when the app exits — nothing is saved.
+- **Full-text history search (#145)** — Ctrl+K now searches this session's page history too: every word you type must appear in a page's title or path, duplicates collapse to the most recent visit, and results show titles + paths (never a full address in the list; the page itself opens in the app). MuseDesktop keeps no browsing history between sessions by design, so the search covers the session you're in — the help page says so plainly.
+- **Weekly digest (#146)** — ⋯ → *Weekly digest…* builds a plain summary of the week so far — launches, downloads completed, notes taken, pages saved, focus time, your most active profile — from the counts kept on this PC. It is generated only when you ask, shown on a simple page, and sent nowhere.
+- **Command scheduling (#147)** — schedule any command-palette action to run at startup, daily at a time, or once at a chosen moment (Settings → Focus & productivity). Schedules run only while MuseDesktop is running — nothing is registered with Windows Task Scheduler, and a daily command whose time passed while the app was closed runs once when you next launch, never in a burst.
+- **Quick note capture (#148)** — ⋯ → *Quick note…* (or Ctrl+K) files a note under the profile you're using; *Open notes* shows the notebook. An optional global hotkey (Ctrl+Alt+N by default, off until you turn it on in Settings) opens the capture from any app, under the same rules as the show/hide hotkey — it can never be the same combination as show/hide or as an in-app shortcut.
+- **Window tiling presets (#149)** — beyond R1's halves: quarters, thirds, and two-thirds placements for the current window, from Ctrl+K ("Tile: …") and the switcher's right-click menu for any window. The math is the same work-area discipline as the halves — the taskbar is never covered.
+- **Stats dashboard (#150)** — ⋯ → *Stats dashboard…* draws the week's counts per profile (launches, downloads completed, focus minutes) as simple bar charts, from the same local tallies the digest reads. *Clear stats data* deletes the tally file; the counts are the only thing it holds — no titles, no paths, no page data.
+
+### Notes
+
+- Core test suite grows by 38 cases (857 → 895). All v1.5.0 runtime behavior is **Unverified** on a real Windows machine pending the `RELEASE_CHECKLIST.md` R5 pass.
+
 ## [1.4.0] — Unreleased
 
 Round 2, Slice R4 (items 131–140) of the enhancement program: downloads round 2.
