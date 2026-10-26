@@ -1,0 +1,45 @@
+<Window x:Class="MuseDesktop.ScheduleRuleWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Scheduled command"
+        Width="460" MinWidth="400"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize" SizeToContent="Height"
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
+    <StackPanel Margin="18,14,18,14">
+        <TextBlock Text="Run this command:"/>
+        <ComboBox x:Name="ActionCombo" Margin="0,6,0,0" DisplayMemberPath="Title"
+                  AutomationProperties.Name="Command to run"/>
+        <TextBlock Text="When:" Margin="0,12,0,0"/>
+        <ComboBox x:Name="TriggerCombo" Margin="0,6,0,0"
+                  SelectionChanged="OnTriggerChanged"
+                  AutomationProperties.Name="When to run it">
+            <ComboBoxItem Content="At startup"/>
+            <ComboBoxItem Content="Daily at a time"/>
+            <ComboBoxItem Content="Once at a date and time"/>
+        </ComboBox>
+        <StackPanel x:Name="DailyPanel" Orientation="Horizontal" Margin="0,10,0,0" Visibility="Collapsed">
+            <TextBlock Text="Time of day (24h):" VerticalAlignment="Center"/>
+            <TextBox x:Name="DailyTimeText" Width="70" Margin="8,0,0,0" Text="09:00"
+                     AutomationProperties.Name="Daily time, hours and minutes"/>
+        </StackPanel>
+        <StackPanel x:Name="OncePanel" Orientation="Horizontal" Margin="0,10,0,0" Visibility="Collapsed">
+            <TextBlock Text="Date:" VerticalAlignment="Center"/>
+            <TextBox x:Name="OnceDateText" Width="104" Margin="8,0,0,0"
+                     AutomationProperties.Name="One-off date, year month day"/>
+            <TextBlock Text="Time:" VerticalAlignment="Center" Margin="10,0,0,0"/>
+            <TextBox x:Name="OnceTimeText" Width="70" Margin="8,0,0,0" Text="09:00"
+                     AutomationProperties.Name="One-off time, hours and minutes"/>
+        </StackPanel>
+        <CheckBox x:Name="EnabledCheck" Content="Enabled" IsChecked="True" Margin="0,12,0,0"/>
+        <TextBlock x:Name="ErrorText" Margin="0,10,0,0" TextWrapping="Wrap"
+                   Foreground="{StaticResource AccentBrush}"/>
+        <TextBlock Margin="0,10,0,0" TextWrapping="Wrap" FontSize="11"
+                   Foreground="{StaticResource MutedBrush}"
+                   Text="Schedules run only while MuseDesktop is running. Nothing is registered with Windows Task Scheduler."/>
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+            <Button x:Name="OkButton" Content="OK" Width="86" Height="30" IsDefault="True" Click="OnOk"
+                    Background="{StaticResource AccentBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0"/>
+            <Button Content="Cancel" Width="86" Height="30" Margin="8,0,0,0" IsCancel="True"/>
+        </StackPanel>
+    </StackPanel>
+</Window>

@@ -538,6 +538,91 @@
                     <TextBlock x:Name="PortableNote" Style="{StaticResource Note}" Margin="0,10,0,0"/>
                 </StackPanel>
 
+                <StackPanel x:Name="SectionFocus">
+                    <TextBlock x:Name="HeaderFocus" Text="Focus &amp; productivity" Style="{StaticResource SectionHeader}"/>
+
+                    <!-- R5 #141: focus timer. -->
+                    <CheckBox x:Name="FocusTimerAutoStartCheck" Content="Start the focus timer when focus mode turns on"
+                              ToolTip="Focus mode (F8) always hides the app chrome and fills the screen; with this on, a focus block also counts down in the status bar"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
+                        <TextBlock Text="Focus block length (minutes):" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBox x:Name="FocusTimerMinutesText" Width="60"
+                                 AutomationProperties.Name="Focus block length in minutes"
+                                 ToolTip="1–240 minutes"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
+                        <TextBlock Text="Suggested break length (minutes):" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBox x:Name="FocusBreakMinutesText" Width="60"
+                                 AutomationProperties.Name="Suggested break length in minutes"
+                                 ToolTip="1–120 minutes"/>
+                    </StackPanel>
+                    <CheckBox x:Name="FocusBreakRemindersCheck" Content="Remind me to take a break when a focus block ends" Margin="0,4,0,0"
+                              ToolTip="A gentle tray reminder — never a dialog, and quiet hours hold it back like every other MuseDesktop balloon"/>
+
+                    <!-- R5 #142: session timer. -->
+                    <TextBlock Style="{StaticResource Note}" Margin="0,14,0,2"
+                               Text="Session timer — repeating work / break cycles (Pomodoro-style) from the ⋯ menu or Ctrl+K. Its countdown shows in the status bar and the tray tooltip."/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
+                        <TextBlock Text="Work (minutes):" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBox x:Name="SessionWorkMinutesText" Width="60"
+                                 AutomationProperties.Name="Session timer work minutes"
+                                 ToolTip="1–240 minutes"/>
+                        <TextBlock Text="Short break:" VerticalAlignment="Center" Margin="14,0,8,0"/>
+                        <TextBox x:Name="SessionBreakMinutesText" Width="60"
+                                 AutomationProperties.Name="Session timer short break minutes"
+                                 ToolTip="1–120 minutes"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
+                        <TextBlock Text="Long break (minutes):" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBox x:Name="SessionLongBreakMinutesText" Width="60"
+                                 AutomationProperties.Name="Session timer long break minutes"
+                                 ToolTip="1–240 minutes"/>
+                        <TextBlock Text="Work blocks before it:" VerticalAlignment="Center" Margin="14,0,8,0"/>
+                        <TextBox x:Name="SessionCyclesText" Width="60"
+                                 AutomationProperties.Name="Work blocks before a long break"
+                                 ToolTip="1–12 work blocks"/>
+                    </StackPanel>
+
+                    <!-- R5 #148: quick-note global hotkey (the S11 capture pattern). -->
+                    <TextBlock Style="{StaticResource Note}" Margin="0,14,0,2"
+                               Text="Quick note — jot a note for the profile you're using (⋯ menu → Quick note…, or Ctrl+K). The optional global hotkey opens the capture from any app; it can never be the same combination as the show/hide hotkey or an in-app shortcut."/>
+                    <CheckBox x:Name="QuickNoteHotkeyCheck" Content="Enable the quick-note global hotkey"
+                              ToolTip="Registers the combination below with Windows while MuseDesktop runs"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
+                        <Button x:Name="QuickNoteHotkeyButton" Content="Ctrl+Alt+N" Width="170" Click="OnCaptureQuickNoteHotkey"
+                                ToolTip="Click, then press the key combination you want"/>
+                        <Button Content="Reset" Width="70" Margin="8,0,0,0" Click="OnResetQuickNoteHotkey"
+                                ToolTip="Back to Ctrl+Alt+N"/>
+                    </StackPanel>
+                    <TextBlock x:Name="QuickNoteHotkeyStatus" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
+
+                    <!-- R5 #147: scheduled commands. -->
+                    <TextBlock Style="{StaticResource Note}" Margin="0,14,0,2"
+                               Text="Scheduled commands — run a command-palette action at startup, daily at a time, or once. They run only while MuseDesktop is running; nothing is registered with Windows Task Scheduler."/>
+                    <ListBox x:Name="SchedulesList" Height="110" Margin="0,4,0,0"
+                             Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
+                             BorderBrush="{StaticResource HairlineBrush}"
+                             AutomationProperties.Name="Scheduled commands"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <Button Content="Add…" Width="80" Click="OnAddSchedule"
+                                ToolTip="Schedule a command"/>
+                        <Button Content="Edit…" Width="80" Margin="8,0,0,0" Click="OnEditSchedule"
+                                ToolTip="Edit the selected schedule"/>
+                        <Button Content="Remove" Width="80" Margin="8,0,0,0" Click="OnRemoveSchedule"
+                                ToolTip="Remove the selected schedule"/>
+                    </StackPanel>
+
+                    <!-- R5 #146/#150: the reports. -->
+                    <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                        <Button Content="Weekly digest…" Width="130" Click="OnOpenWeeklyDigest"
+                                ToolTip="A plain summary of this week, counted on this PC"/>
+                        <Button Content="Stats dashboard…" Width="140" Margin="8,0,0,0" Click="OnOpenStatsDashboard"
+                                ToolTip="This week's counts per profile, as simple charts"/>
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="Everything in this section is local: timers count minutes on this PC, notes and tallies live in small files beside your settings, and nothing is sent anywhere."/>
+                </StackPanel>
+
                 <StackPanel x:Name="SectionPrivacy">
                     <TextBlock x:Name="HeaderPrivacy" Text="Privacy &amp; security" Style="{StaticResource SectionHeader}"/>
 

@@ -37,6 +37,10 @@ public sealed class GlobalHotkeyManager : IDisposable
 
     private readonly DiagnosticLog _log;
     private readonly Action _pressed;
+    private readonly int _registrationId;
+    private readonly Func<AppSettings, HotkeyResolution> _resolver;
+    private readonly Func<ShortcutGesture, string> _activeText;
+    private readonly string _featureName;
     private HwndSource? _source;
     private IntPtr _handle;
     private bool _registered;
@@ -45,10 +49,28 @@ public sealed class GlobalHotkeyManager : IDisposable
     /// <summary>What Settings shows about the hotkey right now (live registration state, not the saved clone's).</summary>
     public string StatusText { get; private set; } = "";
 
-    public GlobalHotkeyManager(DiagnosticLog log, Action pressed)
+    /// <summary>
+    /// One RegisterHotKey registration on the main window's handle.
+    /// The defaults are the S11 show/hide hotkey exactly; R5's
+    /// quick-note hotkey (#148) passes its own registration id,
+    /// resolver (Core's QuickNoteHotkey), and wording — the P/Invoke,
+    /// the hook, and the failure handling are shared, because a
+    /// registration that fails is the same state for both.
+    /// </summary>
+    public GlobalHotkeyManager(DiagnosticLog log, Action pressed,
+        int registrationId = HotkeyNative.RegistrationId,
+        Func<AppSettings, HotkeyResolution>? resolver = null,
+        Func<ShortcutGesture, string>? activeText = null,
+        string featureName = "global hotkey")
     {
         _log = log;
         _pressed = pressed;
+        _registrationId = registrationId;
+        _resolver = resolver ?? (settings => GlobalHotkey.Resolve(
+            settings.GlobalHotkeyEnabled, settings.GlobalHotkeyGesture, settings.ShortcutOverrides));
+        _activeText = activeText ?? (gesture =>
+            $"Active: {gesture.DisplayText()} shows or hides MuseDesktop from any app.");
+        _featureName = featureName;
     }
 
     /// <summary>Attach the message hook. Call once the window's handle exists (SourceInitialized).</summary>
@@ -73,16 +95,15 @@ public sealed class GlobalHotkeyManager : IDisposable
         if (_disposed || _handle == IntPtr.Zero)
             return;
         Unregister();
-        var resolution = GlobalHotkey.Resolve(
-            settings.GlobalHotkeyEnabled, settings.GlobalHotkeyGesture, settings.ShortcutOverrides);
+        var resolution = _resolver(settings);
         switch (resolution.Kind)
         {
             case HotkeyResolutionKind.Disabled:
-                StatusText = "The global hotkey is off.";
+                StatusText = $"The {_featureName} is off.";
                 return;
             case HotkeyResolutionKind.BlockedByConflict:
                 StatusText = $"{resolution.Gesture.DisplayText()} clashes with {resolution.ConflictOwner} " +
-                             "inside MuseDesktop, so the global hotkey isn't registered. Pick a different combination.";
+                             $"inside MuseDesktop, so the {_featureName} isn't registered. Pick a different combination.";
                 _log.Warn($"Global hotkey not registered: {resolution.Gesture.DisplayText()} " +
                           $"is already used by {resolution.ConflictOwner} inside the app");
                 return;
@@ -95,11 +116,11 @@ public sealed class GlobalHotkeyManager : IDisposable
         }
         try
         {
-            if (RegisterHotKey(_handle, HotkeyNative.RegistrationId,
+            if (RegisterHotKey(_handle, _registrationId,
                     HotkeyNative.ModifiersFor(resolution.Gesture), vk))
             {
                 _registered = true;
-                StatusText = $"Active: {resolution.Gesture.DisplayText()} shows or hides MuseDesktop from any app.";
+                StatusText = _activeText(resolution.Gesture);
             }
             else
             {
@@ -112,7 +133,7 @@ public sealed class GlobalHotkeyManager : IDisposable
         }
         catch (Exception ex)
         {
-            StatusText = "The global hotkey couldn't be registered — see the log.";
+            StatusText = $"The {_featureName} couldn't be registered — see the log.";
             _log.Warn($"Global hotkey registration failed: {ex.Message}");
         }
     }
@@ -122,13 +143,13 @@ public sealed class GlobalHotkeyManager : IDisposable
         if (!_registered)
             return;
         _registered = false;
-        try { UnregisterHotKey(_handle, HotkeyNative.RegistrationId); }
+        try { UnregisterHotKey(_handle, _registrationId); }
         catch { /* teardown must not hang on the API */ }
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
-        if (msg == HotkeyNative.WmHotkey && wParam.ToInt32() == HotkeyNative.RegistrationId)
+        if (msg == HotkeyNative.WmHotkey && wParam.ToInt32() == _registrationId)
         {
             handled = true;
             _pressed();

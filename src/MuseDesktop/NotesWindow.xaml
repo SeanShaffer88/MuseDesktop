@@ -1,0 +1,38 @@
+<Window x:Class="MuseDesktop.NotesWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Notes"
+        Width="560" Height="480" MinWidth="420" MinHeight="320"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
+    <DockPanel Margin="14,12,14,12">
+        <TextBlock DockPanel.Dock="Top"
+                   Text="Your quick notes for this profile — kept on this PC only, newest first."/>
+        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,10,0,0">
+            <Button x:Name="NewButton" Content="New note…" Width="104" Height="28" Click="OnNew"/>
+            <Button x:Name="DeleteButton" Content="Delete" Width="84" Height="28" Margin="8,0,0,0" Click="OnDelete"/>
+            <Button Content="Close" Width="84" Height="28" Margin="8,0,0,0" IsCancel="True"/>
+        </StackPanel>
+        <ListBox x:Name="NoteList" Margin="0,10,0,0"
+                 Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
+                 BorderBrush="{StaticResource HairlineBrush}"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 AutomationProperties.Name="Notes">
+            <ListBox.ItemContainerStyle>
+                <Style TargetType="ListBoxItem">
+                    <Setter Property="AutomationProperties.Name" Value="{Binding AutomationName}"/>
+                </Style>
+            </ListBox.ItemContainerStyle>
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <StackPanel Margin="4,3">
+                        <TextBlock Text="{Binding Text}" FontSize="13" TextWrapping="Wrap" MaxHeight="52"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Text="{Binding When}" FontSize="11"
+                                   Foreground="{StaticResource MutedBrush}"/>
+                    </StackPanel>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </DockPanel>
+</Window>

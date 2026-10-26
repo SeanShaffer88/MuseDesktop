@@ -42,6 +42,9 @@ public partial class SettingsWindow : Window
     private readonly Func<string>? _notificationTest;
     private readonly Func<string>? _globalHotkeyStatus;
     private readonly Action<AppSettings, string>? _applyWorkspace;
+    private readonly Func<string>? _quickNoteHotkeyStatus;
+    private readonly Action? _openWeeklyDigest;
+    private readonly Action? _openStatsDashboard;
 
     /// <summary>Workspace glyph choices (R2 #119), parallel to WorkspaceGlyphCombo's items: null ("No icon") then the palette keys.</summary>
     private readonly List<string?> _glyphKeys = new();
@@ -52,7 +55,10 @@ public partial class SettingsWindow : Window
     public SettingsWindow(AppSettings working, DiagnosticLog log, WebPrivacyGateway? privacy,
         Action<AppSettings, string> switchProfile, Func<string>? notificationTest = null,
         Func<string>? globalHotkeyStatus = null,
-        Action<AppSettings, string>? applyWorkspace = null)
+        Action<AppSettings, string>? applyWorkspace = null,
+        Func<string>? quickNoteHotkeyStatus = null,
+        Action? openWeeklyDigest = null,
+        Action? openStatsDashboard = null)
     {
         _working = working;
         _log = log;
@@ -61,6 +67,9 @@ public partial class SettingsWindow : Window
         _notificationTest = notificationTest;
         _globalHotkeyStatus = globalHotkeyStatus;
         _applyWorkspace = applyWorkspace;
+        _quickNoteHotkeyStatus = quickNoteHotkeyStatus;
+        _openWeeklyDigest = openWeeklyDigest;
+        _openStatsDashboard = openStatsDashboard;
         InitializeComponent();
 
         // S5 #48: reopen at the remembered size; the last section is
@@ -84,6 +93,7 @@ public partial class SettingsWindow : Window
             (SettingsSearch.AccessibilityId, SectionAccessibility, HeaderAccessibility),
             (SettingsSearch.DownloadsId, SectionDownloads, HeaderDownloads),
             (SettingsSearch.DataId, SectionData, HeaderData),
+            (SettingsSearch.FocusId, SectionFocus, HeaderFocus),
             (SettingsSearch.PrivacyId, SectionPrivacy, HeaderPrivacy),
         };
 
@@ -288,6 +298,20 @@ public partial class SettingsWindow : Window
         ProtocolLinksCheck.IsChecked = _working.RegisterProtocolLinks;
         ProtocolStatus.Text = ProtocolRegistration.StatusText(_working);
 
+        // R5: focus & productivity — timer shapes as plain numbers,
+        // the quick-note hotkey editor (same capture pattern as S11),
+        // and the scheduled-command list.
+        FocusTimerAutoStartCheck.IsChecked = _working.FocusTimerAutoStart;
+        FocusTimerMinutesText.Text = _working.FocusTimerMinutes.ToString();
+        FocusBreakMinutesText.Text = _working.FocusBreakMinutes.ToString();
+        FocusBreakRemindersCheck.IsChecked = _working.FocusBreakReminders;
+        SessionWorkMinutesText.Text = _working.SessionWorkMinutes.ToString();
+        SessionBreakMinutesText.Text = _working.SessionBreakMinutes.ToString();
+        SessionLongBreakMinutesText.Text = _working.SessionLongBreakMinutes.ToString();
+        SessionCyclesText.Text = _working.SessionCyclesBeforeLongBreak.ToString();
+        RefreshQuickNoteHotkeyControls();
+        RebuildScheduleRows();
+
         var current = ZoomMath.FormatPercent(_working.ZoomFactor);
         ZoomCombo.SelectedItem = ZoomCombo.Items.Contains(current) ? current : "100%";
 
@@ -380,6 +404,27 @@ public partial class SettingsWindow : Window
         // capture handler, like the shortcut overrides).
         _working.RegisterProtocolLinks = ProtocolLinksCheck.IsChecked == true;
         _working.GlobalHotkeyEnabled = GlobalHotkeyCheck.IsChecked == true;
+        // R5: focus & productivity harvest — lenient like the R4
+        // fields: a junk number keeps the previous (sanitized) value.
+        // The schedules list edits the working list in place (its
+        // Add/Edit/Remove handlers), so there is nothing to harvest;
+        // the quick-note gesture is write-through in its capture
+        // handler, like the show/hide gesture.
+        _working.FocusTimerAutoStart = FocusTimerAutoStartCheck.IsChecked == true;
+        if (int.TryParse(FocusTimerMinutesText.Text, out var focusMinutes))
+            _working.FocusTimerMinutes = focusMinutes;
+        if (int.TryParse(FocusBreakMinutesText.Text, out var focusBreak))
+            _working.FocusBreakMinutes = focusBreak;
+        _working.FocusBreakReminders = FocusBreakRemindersCheck.IsChecked == true;
+        if (int.TryParse(SessionWorkMinutesText.Text, out var workMinutes))
+            _working.SessionWorkMinutes = workMinutes;
+        if (int.TryParse(SessionBreakMinutesText.Text, out var breakMinutes))
+            _working.SessionBreakMinutes = breakMinutes;
+        if (int.TryParse(SessionLongBreakMinutesText.Text, out var longBreakMinutes))
+            _working.SessionLongBreakMinutes = longBreakMinutes;
+        if (int.TryParse(SessionCyclesText.Text, out var cycles))
+            _working.SessionCyclesBeforeLongBreak = cycles;
+        _working.QuickNoteHotkeyEnabled = QuickNoteHotkeyCheck.IsChecked == true;
         _working.AskWhereToSave = AskWhereToSaveCheck.IsChecked == true;
         _working.NotifyWhenDownloadCompletes = NotifyDownloadCompleteCheck.IsChecked == true;
         _working.CollisionPolicy = CollisionPolicyCombo.SelectedIndex == 1
@@ -2079,7 +2124,7 @@ public partial class SettingsWindow : Window
     /// </summary>
     private void OnSettingsPreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (_capturingActionId is null && !_capturingGlobalHotkey)
+        if (_capturingActionId is null && !_capturingGlobalHotkey && !_capturingQuickNoteHotkey)
             return;
         var key = e.Key == System.Windows.Input.Key.System ? e.SystemKey : e.Key;
         if (key == System.Windows.Input.Key.Tab)
@@ -2118,6 +2163,19 @@ public partial class SettingsWindow : Window
             return;
         }
 
+        if (_capturingQuickNoteHotkey)
+        {
+            _capturingQuickNoteHotkey = false;
+            var okNote = QuickNoteHotkey.TrySetGesture(
+                _working.ShortcutOverrides, _working.GlobalHotkeyGesture, gesture, out var noteError);
+            if (okNote)
+                _working.QuickNoteHotkeyGesture = gesture.Format();
+            RefreshQuickNoteHotkeyControls(okNote
+                ? $"Quick-note hotkey is now {gesture.DisplayText()} — it applies when you choose OK."
+                : noteError ?? "");
+            return;
+        }
+
         var actionId = _capturingActionId!;
         var ok = ShortcutBindings.TrySet(
             _working.ShortcutOverrides, actionId, gesture,
@@ -2129,6 +2187,12 @@ public partial class SettingsWindow : Window
         {
             ok = false;
             error = $"{gesture.DisplayText()} is the global show/hide hotkey — the two have to stay different.";
+        }
+        // R5: the same rule for the quick-note hotkey, while it's on.
+        if (ok && _working.QuickNoteHotkeyEnabled && gesture == EffectiveQuickNoteGesture())
+        {
+            ok = false;
+            error = $"{gesture.DisplayText()} is the quick-note hotkey — the two have to stay different.";
         }
         if (ok)
             _working.ShortcutOverrides = updated;
@@ -2143,8 +2207,10 @@ public partial class SettingsWindow : Window
     {
         _capturingActionId = null;
         _capturingGlobalHotkey = false;
+        _capturingQuickNoteHotkey = false;
         RebuildShortcutRows();
         RefreshGlobalHotkeyControls();
+        RefreshQuickNoteHotkeyControls();
     }
 
     // ───────────────────────── S11: the global hotkey editor (#96) ─────────────────────────
@@ -2179,6 +2245,101 @@ public partial class SettingsWindow : Window
         RefreshGlobalHotkeyControls(
             $"Global hotkey is back to {GlobalHotkey.DefaultGesture.DisplayText()} — it applies when you choose OK.");
     }
+
+    // ───────────────────────── R5: the quick-note hotkey editor (#148) ─────────────────────────
+
+    /// <summary>True while the quick-note hotkey button is armed for capture.</summary>
+    private bool _capturingQuickNoteHotkey;
+
+    /// <summary>The working settings' effective quick-note gesture: the stored one, or Core's default.</summary>
+    private ShortcutGesture EffectiveQuickNoteGesture() =>
+        _working.QuickNoteHotkeyGesture is { } text && ShortcutGesture.TryParse(text, out var parsed)
+            ? parsed
+            : QuickNoteHotkey.DefaultGesture;
+
+    private void RefreshQuickNoteHotkeyControls(string? statusOverride = null)
+    {
+        QuickNoteHotkeyCheck.IsChecked = _working.QuickNoteHotkeyEnabled;
+        QuickNoteHotkeyButton.Content = EffectiveQuickNoteGesture().DisplayText();
+        QuickNoteHotkeyStatus.Text = statusOverride ?? _quickNoteHotkeyStatus?.Invoke() ?? "";
+    }
+
+    private void OnCaptureQuickNoteHotkey(object sender, RoutedEventArgs e)
+    {
+        _capturingQuickNoteHotkey = true;
+        QuickNoteHotkeyButton.Content = "Press keys… (Esc cancels)";
+        QuickNoteHotkeyStatus.Text = "";
+        QuickNoteHotkeyButton.Focus();
+    }
+
+    private void OnResetQuickNoteHotkey(object sender, RoutedEventArgs e)
+    {
+        _working.QuickNoteHotkeyGesture = null;
+        RefreshQuickNoteHotkeyControls(
+            $"Quick-note hotkey is back to {QuickNoteHotkey.DefaultGesture.DisplayText()} — it applies when you choose OK.");
+    }
+
+    // ───────────────────────── R5: scheduled commands (#147) ─────────────────────────
+
+    /// <summary>The schedules list shows Core's Describe line per rule; selection maps back by index (the list is rebuilt on every edit).</summary>
+    private void RebuildScheduleRows()
+    {
+        SchedulesList.ItemsSource = _working.CommandSchedules
+            .Select(r => r.Describe())
+            .ToList();
+    }
+
+    private ScheduledCommand? SelectedSchedule() =>
+        SchedulesList.SelectedIndex >= 0 && SchedulesList.SelectedIndex < _working.CommandSchedules.Count
+            ? _working.CommandSchedules[SchedulesList.SelectedIndex]
+            : null;
+
+    private void OnAddSchedule(object sender, RoutedEventArgs e)
+    {
+        if (_working.CommandSchedules.Count >= CommandScheduler.MaxRules)
+        {
+            System.Windows.MessageBox.Show(this,
+                $"There can be at most {CommandScheduler.MaxRules} scheduled commands.",
+                "Scheduled commands", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        var dialog = new ScheduleRuleWindow { Owner = this };
+        dialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(dialog);
+        if (dialog.ShowDialog() == true && dialog.Rule is { } rule)
+        {
+            _working.CommandSchedules.Add(rule);
+            RebuildScheduleRows();
+        }
+    }
+
+    private void OnEditSchedule(object sender, RoutedEventArgs e)
+    {
+        if (SelectedSchedule() is not { } existing)
+            return;
+        var dialog = new ScheduleRuleWindow(existing) { Owner = this };
+        dialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(dialog);
+        if (dialog.ShowDialog() == true && dialog.Rule is { } rule)
+        {
+            var index = _working.CommandSchedules.IndexOf(existing);
+            if (index >= 0)
+                _working.CommandSchedules[index] = rule;
+            RebuildScheduleRows();
+        }
+    }
+
+    private void OnRemoveSchedule(object sender, RoutedEventArgs e)
+    {
+        if (SelectedSchedule() is not { } existing)
+            return;
+        _working.CommandSchedules.Remove(existing);
+        RebuildScheduleRows();
+    }
+
+    // ───────────────────────── R5: the reports (#146/#150) ─────────────────────────
+
+    private void OnOpenWeeklyDigest(object sender, RoutedEventArgs e) => _openWeeklyDigest?.Invoke();
+
+    private void OnOpenStatsDashboard(object sender, RoutedEventArgs e) => _openStatsDashboard?.Invoke();
 
     private void OnResetShortcut(object sender, RoutedEventArgs e)
     {

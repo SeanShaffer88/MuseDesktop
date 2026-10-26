@@ -114,6 +114,24 @@ public partial class MainWindow : Window
     // (#98 + the S6 #58 focus ring share the one border).
     private GlobalHotkeyManager? _hotkeyManager;
     private readonly PendingIntentQueue _pendingIntents = new();
+
+    // v1.5.0 (R5) — focus & productivity (#141–#150): the focus timer
+    // and the per-profile session timer (both Core state machines,
+    // ticked from _productivityTimer), the session-only window groups
+    // (#144), the command scheduler's bookkeeping (#147: startup rules
+    // stay pending until the first unlocked tick), and the quick-note
+    // hotkey's manager (#148 — a second registration on this handle).
+    private readonly FocusTimer _focusTimer = new();
+    private SessionTimer? _sessionTimer;
+    private readonly WindowGroupSet _windowGroups = new();
+    private GlobalHotkeyManager? _noteHotkeyManager;
+    private DispatcherTimer? _productivityTimer;
+    private bool _schedulerStartupPending = true;
+    private DateTimeOffset _lastSchedulerCheckUtc = DateTimeOffset.MinValue;
+    private int _focusMinutesDrained;
+    private int _sessionMinutesDrained;
+    private WindowState _focusPrevState = WindowState.Normal;
+    private string _lastTimerTrayText = "";
     private bool _browserFocused;
     private bool _dropHintOn;
 
@@ -308,9 +326,16 @@ public partial class MainWindow : Window
         _scheduleTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
         _scheduleTimer.Tick += (_, _) => EvaluateSchedule();
         _scheduleTimer.Start();
+
+        // R5: the one-second productivity tick — both Core timers and
+        // (about every 15 s) the command scheduler ride it.
+        _productivityTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _productivityTimer.Tick += (_, _) => OnProductivityTick();
+        _productivityTimer.Start();
         Loaded += OnLoaded;
         Closing += OnClosing;
         Closed += (_, _) => _hotkeyManager?.Dispose();
+        Closed += (_, _) => _noteHotkeyManager?.Dispose();
         PreviewKeyDown += OnPreviewKeyDown;
         // R1 #103: the main window is the MRU list's permanent first
         // citizen — touched here so the switcher always knows it.
@@ -331,6 +356,18 @@ public partial class MainWindow : Window
         _hotkeyManager = new GlobalHotkeyManager(_log, OnGlobalHotkeyPressed);
         _hotkeyManager.Attach(this);
         _hotkeyManager.Apply(_settings);
+        // R5 #148: the quick-note hotkey — a second registration on
+        // the same handle, resolved by Core's QuickNoteHotkey (its own
+        // id, its own gesture, never the show/hide combination).
+        _noteHotkeyManager = new GlobalHotkeyManager(_log, OnQuickNoteHotkeyPressed,
+            HotkeyNative.RegistrationIdQuickNote,
+            settings => QuickNoteHotkey.Resolve(
+                settings.QuickNoteHotkeyEnabled, settings.QuickNoteHotkeyGesture,
+                settings.ShortcutOverrides, settings.GlobalHotkeyGesture),
+            gesture => $"Active: {gesture.DisplayText()} opens quick note capture from any app.",
+            "quick-note hotkey");
+        _noteHotkeyManager.Attach(this);
+        _noteHotkeyManager.Apply(_settings);
     }
 
     // S6 #58 focus-ring handlers (named so S8 #71's recreated web view
@@ -1473,6 +1510,16 @@ public partial class MainWindow : Window
     {
         _autoRetryAttempts.Remove(record.FullPath);
 
+        // R5 #150: count the completion in the weekly stats (the
+        // dashboard + digest read the same tally). Best-effort.
+        try
+        {
+            var stats = WeeklyStatsStore.Load(AppPaths.WeeklyStatsPath);
+            stats.RecordDownload(_settings.ActiveProfileId, DateTimeOffset.UtcNow);
+            WeeklyStatsStore.Save(AppPaths.WeeklyStatsPath, stats);
+        }
+        catch (Exception ex) { _log.Warn($"Weekly download tally failed: {ex.Message}"); }
+
         if (_settings.AutoSortDownloads)
         {
             try
@@ -2010,7 +2057,10 @@ public partial class MainWindow : Window
             (workingClone, id) => SwitchToProfile(workingClone, id),
             notificationTest: RunTestNotification,
             globalHotkeyStatus: () => _hotkeyManager?.StatusText ?? "",
-            applyWorkspace: ApplyWorkspaceFromSettings) { Owner = this };
+            applyWorkspace: ApplyWorkspaceFromSettings,
+            quickNoteHotkeyStatus: () => _noteHotkeyManager?.StatusText ?? "",
+            openWeeklyDigest: () => OpenProductivity(showStats: false),
+            openStatsDashboard: () => OpenProductivity(showStats: true)) { Owner = this };
         // S6 #56: closing Settings returns focus to whatever invoked it
         // (usually the page itself).
         if (FocusReturn.ShowDialog(dialog) != true)
@@ -2124,6 +2174,8 @@ public partial class MainWindow : Window
         RebuildWorkspacesMenu();
         // S11 #96/#99 live apply (see the adoption above).
         _hotkeyManager?.Apply(_settings);
+        // R5 #148: the quick-note hotkey re-registers on the same pass.
+        _noteHotkeyManager?.Apply(_settings);
         ProtocolRegistration.Sync(_settings, _log);
 
         // Delete the data folders of profiles removed in the dialog. When
@@ -3247,8 +3299,350 @@ public partial class MainWindow : Window
         FocusItem.IsChecked = on;
         Toolbar.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
         StatusBar.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
-        if (on) SetStatus("Focus mode — press F8 or Esc to exit");
+        if (on)
+        {
+            // R5 #141: focus mode fills the screen — the window
+            // maximizes (its prior state is restored on exit) on top
+            // of the chrome hiding. Full screen (F11) manages its own
+            // state and is left alone.
+            _focusPrevState = WindowState;
+            if (!_isFullScreen && WindowState != WindowState.Maximized)
+                WindowState = WindowState.Maximized;
+            if (_settings.FocusTimerAutoStart)
+                StartFocusTimer();
+            SetStatus("Focus mode — press F8 or Esc to exit");
+        }
+        else
+        {
+            // Leaving focus mode stops the focus timer; the minutes it
+            // banked still count toward the weekly stats.
+            if (_focusTimer.State != FocusTimerState.Idle)
+            {
+                _focusTimer.Stop(DateTimeOffset.Now);
+                DrainTimerMinutes();
+            }
+            if (!_isFullScreen && _focusPrevState != WindowState.Maximized
+                && WindowState == WindowState.Maximized)
+                WindowState = _focusPrevState;
+        }
     }
+
+    // ─────────────────────── R5: focus & productivity ───────────────────────
+
+    /// <summary>Start (or restart) a focus block with the saved length (R5 #141). Focus mode comes on with it — a focus timer without the focused window is just a clock.</summary>
+    private void StartFocusTimer()
+    {
+        if (!_focusMode)
+            SetFocusMode(true);
+        _focusTimer.Start(DateTimeOffset.Now, _settings.FocusTimerMinutes);
+        SetStatus($"{_focusTimer.StatusLine(DateTimeOffset.Now)} — focus timer started");
+    }
+
+    /// <summary>The session timer toggle (R5 #142): start a fresh Pomodoro session for the active profile, or stop the running one (banking its elapsed work minutes).</summary>
+    private void ToggleSessionTimer()
+    {
+        var now = DateTimeOffset.Now;
+        if (_sessionTimer is { IsRunning: true })
+        {
+            _sessionTimer.Stop(now);
+            DrainTimerMinutes();
+            _sessionTimer = null;
+            _tray.SetTimerText(null);
+            SetStatus("Session timer stopped");
+            return;
+        }
+        _sessionTimer = new SessionTimer(new SessionTimerConfig(
+            _settings.SessionWorkMinutes, _settings.SessionBreakMinutes,
+            _settings.SessionLongBreakMinutes, _settings.SessionCyclesBeforeLongBreak));
+        _sessionMinutesDrained = 0;
+        _sessionTimer.Start(now);
+        SetStatus($"Session timer — {_sessionTimer.StatusLine(now)}");
+    }
+
+    /// <summary>
+    /// The one-second productivity tick (R5): advance both Core
+    /// timers, surface their events (the break reminder is a tray
+    /// balloon + status line — gentle, dismissible, quiet-hours
+    /// gated by the tray's own policy, never a dialog), keep the tray
+    /// tooltip's countdown current, drain banked focus minutes into
+    /// the weekly stats, and run the command scheduler (R5 #147)
+    /// about every 15 seconds. While the app is locked nothing fires
+    /// and the startup rules stay pending: a locked app runs no
+    /// commands.
+    /// </summary>
+    private void OnProductivityTick()
+    {
+        var now = DateTimeOffset.Now;
+
+        var focus = _focusTimer.Tick(now);
+        if (focus.FocusJustCompleted)
+        {
+            // Gentle by construction (R5 #141): the balloon fires on
+            // this tick only (completion is reported exactly once),
+            // the suggestion then waits in the status line until the
+            // user takes the break (⋯ menu), dismisses it by starting
+            // something else, or leaves focus mode. Nothing blocks.
+            if (_settings.FocusBreakReminders)
+                _tray.ShowReminder("Focus block done",
+                    $"Nice work — {_settings.FocusTimerMinutes} minutes focused. Take a break?");
+            SetStatus($"Focus block done — ⋯ menu → Take a break ({_settings.FocusBreakMinutes} min) whenever you're ready");
+        }
+        if (focus.BreakJustCompleted)
+            SetStatus("Break over — start a focus block whenever you're ready");
+
+        if (_sessionTimer is { IsRunning: true } session)
+        {
+            var tick = session.Tick(now);
+            if (tick.PhaseChanged)
+            {
+                var line = session.StatusLine(now);
+                SetStatus($"Session timer — {line}");
+                _tray.ShowReminder("Session timer",
+                    tick.EnteredPhase == SessionPhase.Work
+                        ? "Break over — back to work."
+                        : "Work block done — take your break.");
+            }
+        }
+
+        DrainTimerMinutes();
+        UpdateTimerTrayText(now);
+
+        if (!_isLocked && now - _lastSchedulerCheckUtc >= TimeSpan.FromSeconds(15))
+        {
+            _lastSchedulerCheckUtc = now;
+            RunDueSchedules(now);
+        }
+    }
+
+    /// <summary>The tray tooltip's countdown (R5 #141/#142): the session timer wins when both run — it's the one with cycles to report.</summary>
+    private void UpdateTimerTrayText(DateTimeOffset now)
+    {
+        var text = _sessionTimer is { IsRunning: true } session
+            ? session.StatusLine(now)
+            : _focusTimer.State != FocusTimerState.Idle
+                ? _focusTimer.StatusLine(now)
+                : "";
+        if (text == _lastTimerTrayText)
+            return;
+        _lastTimerTrayText = text;
+        _tray.SetTimerText(string.IsNullOrEmpty(text) ? null : text);
+    }
+
+    /// <summary>Move newly banked focus minutes from both timers into the weekly stats file (R5 #150). Best-effort: a failed tally never disturbs a timer.</summary>
+    private void DrainTimerMinutes()
+    {
+        var focusDelta = _focusTimer.FocusMinutesBanked - _focusMinutesDrained;
+        var sessionDelta = _sessionTimer is null
+            ? 0
+            : _sessionTimer.FocusMinutesBanked - _sessionMinutesDrained;
+        if (focusDelta <= 0 && sessionDelta <= 0)
+            return;
+        _focusMinutesDrained += Math.Max(0, focusDelta);
+        _sessionMinutesDrained += Math.Max(0, sessionDelta);
+        try
+        {
+            var stats = WeeklyStatsStore.Load(AppPaths.WeeklyStatsPath);
+            if (focusDelta > 0)
+                stats.RecordFocusMinutes(_settings.ActiveProfileId, focusDelta, DateTimeOffset.UtcNow);
+            if (sessionDelta > 0)
+                stats.RecordFocusMinutes(_settings.ActiveProfileId, sessionDelta, DateTimeOffset.UtcNow);
+            WeeklyStatsStore.Save(AppPaths.WeeklyStatsPath, stats);
+        }
+        catch (Exception ex) { _log.Warn($"Weekly focus tally failed: {ex.Message}"); }
+    }
+
+    /// <summary>Run the scheduled commands that are due (R5 #147). Core stamps each due rule before it runs, so the settings are saved FIRST — a command that fails can't refire in a loop.</summary>
+    private void RunDueSchedules(DateTimeOffset now)
+    {
+        List<ScheduledCommand> due;
+        try
+        {
+            due = CommandScheduler.Evaluate(_settings.CommandSchedules, now, _schedulerStartupPending).ToList();
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Command schedule check failed: {ex.Message}");
+            return;
+        }
+        _schedulerStartupPending = false;
+        if (due.Count == 0)
+            return;
+        SaveSettings();
+        foreach (var rule in due)
+        {
+            _log.Info($"Scheduled command running: {rule.CommandId} ({rule.Trigger})");
+            ExecutePaletteAction(rule.CommandId);
+        }
+    }
+
+    /// <summary>Take the suggested break (R5 #141): offered when a focus block has just finished; the break counts down in the status bar and the tray.</summary>
+    private void StartFocusBreak()
+    {
+        var now = DateTimeOffset.Now;
+        if (_focusTimer.StartBreak(now, _settings.FocusBreakMinutes))
+            SetStatus(_focusTimer.StatusLine(now));
+        else
+            SetStatus("No break is waiting — one is offered when a focus block ends");
+    }
+
+    /// <summary>Save the current page to the active profile's reading list (R5 #143). Only Muse pages save — Core's AppRoute gate decides, and the status line says so when it refuses.</summary>
+    private void SavePageToReadingList()
+    {
+        var url = _webReady ? Browser.Source?.ToString() : null;
+        try
+        {
+            var lists = ReadingListStore.Load(AppPaths.ReadingListPath);
+            var entry = lists.Add(_settings.ActiveProfileId, _pageTitle, url, DateTimeOffset.UtcNow);
+            if (entry is null)
+            {
+                SetStatus("The reading list only holds Muse pages — this page can't be saved to it");
+                return;
+            }
+            ReadingListStore.Save(AppPaths.ReadingListPath, lists);
+            SetStatus($"Saved to the reading list — {entry.Title}");
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Reading list save failed: {ex.Message}");
+            SetStatus("Couldn't save to the reading list — see the log");
+        }
+    }
+
+    /// <summary>The reading-list window (R5 #143): store work rides delegates so the window always shows the store's current truth.</summary>
+    private void OpenReadingList()
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        var profileId = _settings.ActiveProfileId;
+        var dialog = new ReadingListWindow(
+            refresh: () => ReadingListStore.Load(AppPaths.ReadingListPath).EntriesFor(profileId),
+            openRoute: route =>
+            {
+                if (_webReady)
+                    Browser.CoreWebView2.Navigate("https://muse.ai" + route);
+            },
+            setRead: (id, read) =>
+            {
+                var lists = ReadingListStore.Load(AppPaths.ReadingListPath);
+                if (lists.SetRead(profileId, id, read))
+                    ReadingListStore.Save(AppPaths.ReadingListPath, lists);
+            },
+            remove: id =>
+            {
+                var lists = ReadingListStore.Load(AppPaths.ReadingListPath);
+                if (lists.Remove(profileId, id))
+                    ReadingListStore.Save(AppPaths.ReadingListPath, lists);
+            })
+            { Owner = this };
+        dialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(dialog);
+        ShellTextScaling.Apply(dialog, _settings.ShellFontScale);
+        FocusReturn.ShowDialog(dialog);
+    }
+
+    /// <summary>Quick note capture (R5 #148) — one dialog for the menu, the palette, and the global hotkey, filed under the active profile.</summary>
+    private void ShowQuickNote()
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        if (!IsVisible)
+            ShowFromTray();
+        var dialog = new QuickNoteWindow { Owner = this };
+        dialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(dialog);
+        ShellTextScaling.Apply(dialog, _settings.ShellFontScale);
+        if (dialog.ShowDialog() != true)
+            return;
+        try
+        {
+            var notes = ProfileNotesStore.Load(AppPaths.NotesPath);
+            if (notes.Add(_settings.ActiveProfileId, dialog.Text, DateTimeOffset.UtcNow) is not null)
+            {
+                ProfileNotesStore.Save(AppPaths.NotesPath, notes);
+                SetStatus("Note saved");
+            }
+        }
+        catch (Exception ex) { _log.Warn($"Quick note save failed: {ex.Message}"); }
+    }
+
+    /// <summary>The quick-note hotkey press (R5 #148): bring the app forward and open the capture — while locked, the lock screen is the only answer, exactly like the show/hide hotkey.</summary>
+    private void OnQuickNoteHotkeyPressed()
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        ShowQuickNote();
+    }
+
+    /// <summary>The notebook window (R5 #148): the active profile's notes, with capture and delete riding delegates.</summary>
+    private void OpenNotes()
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        var profileId = _settings.ActiveProfileId;
+        var dialog = new NotesWindow(
+            refresh: () => ProfileNotesStore.Load(AppPaths.NotesPath).NotesFor(profileId),
+            newNote: ShowQuickNote,
+            delete: id =>
+            {
+                var notes = ProfileNotesStore.Load(AppPaths.NotesPath);
+                if (notes.Delete(profileId, id))
+                    ProfileNotesStore.Save(AppPaths.NotesPath, notes);
+            })
+            { Owner = this };
+        dialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(dialog);
+        ShellTextScaling.Apply(dialog, _settings.ShellFontScale);
+        FocusReturn.ShowDialog(dialog);
+    }
+
+    /// <summary>The digest + dashboard window (R5 #146/#150): both reports build fresh from the local stores on every open — the digest is on-demand by definition, never cached, never scheduled.</summary>
+    private void OpenProductivity(bool showStats)
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        var digest = WeeklyDigest.Build(
+            WeeklyStatsStore.Load(AppPaths.WeeklyStatsPath), _settings,
+            ReadingListStore.Load(AppPaths.ReadingListPath),
+            ProfileNotesStore.Load(AppPaths.NotesPath),
+            DownloadHistoryStore.Load(AppPaths.DownloadsHistoryPath, _settings.DownloadHistoryCap),
+            CurrentWindowDescriptors().Count, DateTimeOffset.UtcNow);
+        var dialog = new ProductivityWindow(showStats, digest.RenderText(),
+            statsSource: () => StatsReport.Build(
+                WeeklyStatsStore.Load(AppPaths.WeeklyStatsPath), _settings, DateTimeOffset.UtcNow),
+            clearStats: () =>
+            {
+                try { File.Delete(AppPaths.WeeklyStatsPath); }
+                catch (Exception ex) { _log.Warn($"Clearing weekly stats failed: {ex.Message}"); }
+            })
+            { Owner = this };
+        dialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(dialog);
+        ShellTextScaling.Apply(dialog, _settings.ShellFontScale);
+        FocusReturn.ShowDialog(dialog);
+    }
+
+    // ─────────────────────── R5: menu handlers ───────────────────────
+
+    private void OnQuickNote(object sender, RoutedEventArgs e) => ShowQuickNote();
+    private void OnNotes(object sender, RoutedEventArgs e) => OpenNotes();
+    private void OnSaveToReadingList(object sender, RoutedEventArgs e) => SavePageToReadingList();
+    private void OnReadingList(object sender, RoutedEventArgs e) => OpenReadingList();
+    private void OnStartFocusTimer(object sender, RoutedEventArgs e) => StartFocusTimer();
+    private void OnTakeBreak(object sender, RoutedEventArgs e) => StartFocusBreak();
+    private void OnSessionTimer(object sender, RoutedEventArgs e) => ToggleSessionTimer();
+    private void OnWeeklyDigest(object sender, RoutedEventArgs e) => OpenProductivity(showStats: false);
+    private void OnStatsDashboard(object sender, RoutedEventArgs e) => OpenProductivity(showStats: true);
 
     // #3 Back/Forward history dropdowns (right-click or long-press).
     private void OnBackHistoryMenu(object sender, MouseButtonEventArgs e)
@@ -3417,10 +3811,18 @@ public partial class MainWindow : Window
         IReadOnlyList<DownloadRecord> downloads;
         try { downloads = DownloadHistoryStore.Load(AppPaths.DownloadsHistoryPath, _settings.DownloadHistoryCap); }
         catch { downloads = Array.Empty<DownloadRecord>(); }
+        // R5 #143/#145: the active profile's reading list and this
+        // session's navigation history join the palette — same
+        // fail-soft loading as the downloads.
+        IReadOnlyList<ReadingListEntry> reading;
+        try { reading = ReadingListStore.Load(AppPaths.ReadingListPath).EntriesFor(_settings.ActiveProfileId); }
+        catch { reading = Array.Empty<ReadingListEntry>(); }
         return CommandRegistry.CreateDefault(
             Profiles.VisibleProfiles(_settings), _settings.ActiveProfileId, downloads, CurrentWindowDescriptors(),
             _settings.Workspaces, _settings.ActiveWorkspaceId, _settings.StartupWorkspaceId,
-            groupSettings: _settings);
+            groupSettings: _settings,
+            readingEntries: reading,
+            historyEntries: _history.Entries);
     }
 
     /// <summary>
@@ -3460,10 +3862,27 @@ public partial class MainWindow : Window
         var windows = CurrentWindowDescriptors();
         if (windows.Count == 0)
             return;
-        var dialog = new SwitcherWindow(windows, ActivateTrackedWindow) { Owner = this };
+        // R5 #144: groups name live windows only — prune against the
+        // current window set before the switcher renders them.
+        _windowGroups.Prune(windows.Select(w => w.Id));
+        var dialog = new SwitcherWindow(windows, ActivateTrackedWindow,
+            _windowGroups, ShowWindowGroup,
+            (windowId, preset) =>
+            {
+                if (FindTrackedWindow(windowId) is { } target)
+                    TileWindowToPreset(target, preset);
+            })
+            { Owner = this };
         dialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(dialog);
         ShellTextScaling.Apply(dialog, _settings.ShellFontScale);
         dialog.ShowDialog();
+    }
+
+    /// <summary>Raise a whole window group (R5 #144): activate every member — last-to-first, so the group's most recently used window ends in front.</summary>
+    private void ShowWindowGroup(IReadOnlyList<string> windowIds)
+    {
+        foreach (var id in windowIds.Reverse())
+            ActivateTrackedWindow(id);
     }
 
     private void OnCommandPalette(object sender, RoutedEventArgs e) => OpenPalette();
@@ -3567,6 +3986,20 @@ public partial class MainWindow : Window
                 if (command.Payload is { } workspaceId)
                     ApplyWorkspaceById(workspaceId);
                 break;
+            case PaletteCommandSource.ReadingList:
+                // R5 #143: the payload is an app ROUTE (never a full
+                // address — that's all the reading list can hold).
+                if (command.Payload is { } route && _webReady)
+                    Browser.CoreWebView2.Navigate("https://muse.ai" + route);
+                break;
+            case PaletteCommandSource.History:
+                // R5 #145: the payload is the page URL, in-process
+                // only; navigation passes the ordinary link policy,
+                // exactly like restoring a closed page.
+                if (command.Payload is { } historyUrl && _webReady
+                    && UrlPolicy.ClassifyNavigation(historyUrl) == LinkDisposition.InApp)
+                    Browser.CoreWebView2.Navigate(historyUrl);
+                break;
         }
     }
 
@@ -3611,6 +4044,17 @@ public partial class MainWindow : Window
                     SetStatus("No app lock is set — add one in Settings → Privacy & security");
                 break;
             case "action.quick-dictate": QuickDictate(); break;
+            // R5 #141–#150: focus & productivity — the same handlers
+            // the ⋯ menu uses, so the scheduler (#147) runs exactly
+            // what a click would.
+            case "action.focus-timer": StartFocusTimer(); break;
+            case "action.session-timer": ToggleSessionTimer(); break;
+            case "action.reading-list-add": SavePageToReadingList(); break;
+            case "action.reading-list": OpenReadingList(); break;
+            case "action.quick-note": ShowQuickNote(); break;
+            case "action.notes": OpenNotes(); break;
+            case "action.weekly-digest": OpenProductivity(showStats: false); break;
+            case "action.stats-dashboard": OpenProductivity(showStats: true); break;
             case "action.exit": ExitApp(); break;
         }
     }
@@ -3627,7 +4071,15 @@ public partial class MainWindow : Window
         }
         if (FindTrackedWindow(windowId) is not { } window)
             return;
-        if (command.Id.StartsWith("window.tile-left.", StringComparison.Ordinal))
+        if (command.Id.StartsWith("window.tile-preset.", StringComparison.Ordinal))
+        {
+            // R5 #149: window.tile-preset.<Preset>.<windowId>
+            var rest = command.Id["window.tile-preset.".Length..];
+            var presetName = rest[..rest.LastIndexOf('.')];
+            if (WindowTilingPresets.TryParse(presetName, out var preset))
+                TileWindowToPreset(window, preset);
+        }
+        else if (command.Id.StartsWith("window.tile-left.", StringComparison.Ordinal))
             TileWindow(window, TileSide.Left);
         else if (command.Id.StartsWith("window.tile-right.", StringComparison.Ordinal))
             TileWindow(window, TileSide.Right);
@@ -3701,6 +4153,25 @@ public partial class MainWindow : Window
         window.Top = half.Top;
         window.Width = half.Width;
         window.Height = half.Height;
+        window.Activate();
+    }
+
+    /// <summary>Apply a tiling preset (R5 #149) to a window: Core's geometry over the work area of the monitor the window mostly sits on — the same discipline as TileWindow.</summary>
+    private void TileWindowToPreset(Window window, TilePreset preset)
+    {
+        var areas = MonitorRects.AllWorkAreasInDip();
+        if (areas.Count == 0)
+            return;
+        var index = WindowTiling.IndexOfLargestOverlap(WindowRectDip(window), areas);
+        if (index < 0)
+            index = 0;
+        var rect = WindowTilingPresets.Rect(areas[index], preset);
+        if (window.WindowState != WindowState.Normal)
+            window.WindowState = WindowState.Normal;
+        window.Left = rect.Left;
+        window.Top = rect.Top;
+        window.Width = rect.Width;
+        window.Height = rect.Height;
         window.Activate();
     }
 

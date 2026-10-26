@@ -91,6 +91,7 @@ public sealed class TrayController : IDisposable
     private System.Drawing.Icon? _composedIcon;
     private string _baseText = "MuseDesktop";
     private string? _profileColorHex;
+    private string? _timerText;
     private AttentionSignal _attention = AttentionSignal.None;
 
     public TrayController(
@@ -628,10 +629,52 @@ public sealed class TrayController : IDisposable
 
     private void ApplyText()
     {
-        if (_icon is not null)
-            _icon.Text = _locked
-                ? "MuseDesktop — locked"
-                : _baseText + TrayIconPlanner.TooltipSuffix(_attention);
+        if (_icon is null)
+            return;
+        var text = _locked
+            ? "MuseDesktop — locked"
+            : _baseText + TrayIconPlanner.TooltipSuffix(_attention)
+              + (string.IsNullOrEmpty(_timerText) ? "" : $" · {_timerText}");
+        // NotifyIcon text is capped at 127 characters; a long timer
+        // line must never push the tooltip into an exception.
+        _icon.Text = text.Length <= 127 ? text : text[..127];
+    }
+
+    /// <summary>
+    /// The session/focus timer's tray line (R5 #141/#142): appended
+    /// to the tooltip so the countdown is visible without opening the
+    /// app. Null/empty clears it. Cheap to call every second — it
+    /// no-ops when the text is unchanged.
+    /// </summary>
+    public void SetTimerText(string? text)
+    {
+        if (_timerText == text)
+            return;
+        _timerText = text;
+        ApplyText();
+    }
+
+    /// <summary>
+    /// A gentle reminder balloon (R5 #141/#142): the break suggestion
+    /// and session-timer phase changes. Passes through the same
+    /// quiet-hours / Do-Not-Disturb gate as every MuseDesktop
+    /// balloon — a reminder that ignores quiet hours isn't gentle.
+    /// </summary>
+    public void ShowReminder(string title, string text)
+    {
+        try
+        {
+            if (_icon is null) return;
+            if (!NotificationAllowed($"{title} balloon"))
+                return;
+            _icon.BalloonTipTitle = title;
+            _icon.BalloonTipText = text;
+            _icon.ShowBalloonTip(4000);
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Reminder balloon failed: {ex.Message}");
+        }
     }
 
     private void RefreshIcon()
