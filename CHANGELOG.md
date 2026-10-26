@@ -4,6 +4,29 @@ All notable changes to MuseDesktop. Format follows Keep a Changelog; versions us
 
 Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhancement program; they were never published as releases. Everything in them shipped together as **1.0.0** (2026-10-24).
 
+## [1.1.0] — Unreleased
+
+Round 2, Slice R1 (items 101–110) of the enhancement program: the command palette and the window command surface.
+
+### Added
+
+- **The command palette (#101)** — Ctrl+K opens a keyboard-first search over everything the shell can do: every action, your profiles, every Settings section, the Help pages, your recent downloads, and your open windows. A few letters are enough — they don't have to be the start of the words — and the actions you run are remembered (action names only, never page or file names) and pinned as "Recent" the next time you open it.
+- **Palette providers (#102)** — the palette is fed by one registry of providers: built-in actions, profiles, Settings sections, Help topics, recent downloads (Open and Show in folder), and open windows each contribute their commands. Workspaces get their provider seam now and light up in a later round-2 slice.
+- **The window switcher (#103)** — ⋯ menu → *Switch window…* (or the palette's own "Switch window…" command) lists your open windows most-recently-used first, each with its profile color dot and page title; the window you were just in is already selected — arrow keys and Enter jump straight there.
+- **Window actions in the palette (#104)** — for every open window: tile left, tile right (to half of the monitor's work area, so the taskbar stays visible), move to the next monitor, toggle always-on-top, and — for the main window — toggle focus mode.
+- **Go-to-profile chords (#105)** — Ctrl+Shift+1 through Ctrl+Shift+9 switch to the 1st–9th profile, in profile order. In-app only, on purpose: there is no Windows-wide version, because Ctrl+Shift+number belongs to other apps too and MuseDesktop won't take those keys away from them everywhere.
+- **Settings search, upgraded (#108)** — Settings search now uses the palette's one fuzzy matcher and ranks the best match first (a word in a section's own title counts for more than the same word in its keyword list); the Settings window scrolls to the best match instead of the first in layout order.
+- **A Commands help page (#109)** — Help gains an eighth page, *Commands & the command palette*: what the palette is, the switcher, the chords, and the tray middle-click — ending with the full command list, generated from the palette itself every time the page is shown, so it can never drift from what Ctrl+K really offers.
+- **Tray middle-click (#110)** — middle-clicking the tray icon opens the palette in its compact form. While the app is locked it answers with the lock screen, like every other tray surface.
+
+### Changed
+
+- **Always-on-top has one setter now** — the ⋯ menu check, the toolbar pin, and the palette's window action all funnel through the same code path, so they can never disagree about the setting, the check mark, or the status line.
+
+### Notes
+
+- Core test suite grows by 31 cases (644 → 675). All v1.1.0 runtime behavior is **Unverified** on a real Windows machine pending the `RELEASE_CHECKLIST.md` R1 pass.
+
 ## [0.14.0] — Unreleased
 
 Slice 10 (items 89–95) of the 100-enhancement program: diagnostics, support & help.
