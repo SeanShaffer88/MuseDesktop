@@ -28,6 +28,21 @@ public sealed class DownloadRecord
 
     /// <summary>For a failed download, the interrupt reason name (e.g. "NetworkFailed") — never a URL.</summary>
     public string? FailureReason { get; set; }
+
+    /// <summary>
+    /// A short note the user attached to this entry (R4 #137), kept with
+    /// the history on this PC only. Files written by older builds have
+    /// no note field and read as null.
+    /// </summary>
+    public string? Note { get; set; }
+
+    /// <summary>
+    /// The verify-after-download outcome (R4 #136): true = the file's
+    /// SHA-256 matched the hash the user pasted, false = it did NOT,
+    /// null = never checked. A later re-download of the same name is a
+    /// new record, so a stale verdict can never ride along.
+    /// </summary>
+    public bool? HashVerified { get; set; }
 }
 
 /// <summary>
@@ -107,6 +122,66 @@ public static class DownloadHistoryStore
     }
 
     public static void Clear(string path) => Save(path, new List<DownloadRecord>());
+
+    /// <summary>
+    /// Mutate one stored entry in place (matched like
+    /// <see cref="Remove"/>: full path + completion time) and persist.
+    /// Returns true when an entry matched. The R4 note (#137) and
+    /// hash-verdict (#136) writes go through here.
+    /// </summary>
+    public static bool UpdateRecord(string path, DownloadRecord record, Action<DownloadRecord> mutate, int cap = MaxEntries)
+    {
+        var records = Load(path, cap);
+        var match = records.FirstOrDefault(r =>
+            string.Equals(r.FullPath, record.FullPath, StringComparison.OrdinalIgnoreCase)
+            && r.CompletedUtc == record.CompletedUtc);
+        if (match is null)
+            return false;
+        mutate(match);
+        Save(path, records, cap);
+        return true;
+    }
+
+    /// <summary>Attach (or clear) a note on one entry (R4 #137). Notes are trimmed and capped at 200 characters.</summary>
+    public static bool SetNote(string path, DownloadRecord record, string? note, int cap = MaxEntries)
+    {
+        var cleaned = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+        if (cleaned is { Length: > 200 })
+            cleaned = cleaned[..200];
+        return UpdateRecord(path, record, r => r.Note = cleaned, cap);
+    }
+
+    /// <summary>Record a verify-after-download verdict on one entry (R4 #136); null clears it.</summary>
+    public static bool SetHashVerified(string path, DownloadRecord record, bool? verified, int cap = MaxEntries) =>
+        UpdateRecord(path, record, r => r.HashVerified = verified, cap);
+
+    /// <summary>
+    /// Point history entries at their files' new locations after a sort
+    /// or archive move (R4 #131/#138): keys are the OLD full paths,
+    /// values the NEW ones; file names follow their paths. Returns how
+    /// many entries were rewritten.
+    /// </summary>
+    public static int RewritePaths(string path, IReadOnlyDictionary<string, string> newPathByOld, int cap = MaxEntries)
+    {
+        if (newPathByOld.Count == 0)
+            return 0;
+        var lookup = new Dictionary<string, string>(newPathByOld, StringComparer.OrdinalIgnoreCase);
+        var records = Load(path, cap);
+        var changed = 0;
+        foreach (var record in records)
+        {
+            if (lookup.TryGetValue(record.FullPath, out var newPath) &&
+                !string.Equals(newPath, record.FullPath, StringComparison.OrdinalIgnoreCase))
+            {
+                record.FullPath = newPath;
+                record.FileName = Path.GetFileName(newPath);
+                changed++;
+            }
+        }
+        if (changed > 0)
+            Save(path, records, cap);
+        return changed;
+    }
 }
 
 /// <summary>State filter for the Downloads window history list (S2 #16).</summary>

@@ -155,6 +155,11 @@ public partial class SettingsWindow : Window
         foreach (var cap in DownloadHistoryStore.AllowedCaps)
             HistoryCapCombo.Items.Add(cap.ToString());
 
+        // R4 (#139): the auto-retry attempt choices, 1–5.
+        for (var attempts = DownloadRetryPolicy.MinMaxAttempts;
+             attempts <= DownloadRetryPolicy.MaxMaxAttempts; attempts++)
+            RetryAttemptsCombo.Items.Add(attempts.ToString());
+
         // S8 #75: the per-profile data-cap choices (Off / 500 MB /
         // 1 GB / 2 GB), parallel to ProfileDataCaps.Allowed.
         foreach (var cap in ProfileDataCaps.Allowed)
@@ -246,6 +251,27 @@ public partial class SettingsWindow : Window
         CollisionPolicyCombo.SelectedIndex = _working.CollisionPolicy == DownloadCollisionPolicy.AskWhereToSave ? 1 : 0;
         HistoryCapCombo.SelectedItem = DownloadHistoryStore.SanitizeCap(_working.DownloadHistoryCap).ToString();
         DownloadsFolderText.Text = _working.DownloadsFolder ?? "";
+
+        // R4: downloads round 2 controls.
+        AutoSortDownloadsCheck.IsChecked = _working.AutoSortDownloads;
+        SortCategoriesCheck.IsChecked = _working.DownloadSortUseCategories;
+        SortRulesText.Text = DownloadSortRule.FormatLines(_working.DownloadSortRules);
+        SortRulesNote.Text = "";
+        BandwidthLimitText.Text = _working.DownloadBandwidthLimitKBps.ToString();
+        DownloadQuietCheck.IsChecked = _working.DownloadQuietHoursEnabled;
+        DownloadQuietStartText.Text = TimeOfDayText.Format(_working.DownloadQuietStartMinutes);
+        DownloadQuietEndText.Text = TimeOfDayText.Format(_working.DownloadQuietEndMinutes);
+        DownloadQuietLargeText.Text = _working.DownloadQuietLargeFileMB.ToString();
+        DuplicateGuardCheck.IsChecked = _working.DownloadDuplicateGuard;
+        AutoRetryCheck.IsChecked = _working.DownloadAutoRetryEnabled;
+        RetryAttemptsCombo.SelectedItem =
+            DownloadRetryPolicy.SanitizeMaxAttempts(_working.DownloadAutoRetryMaxAttempts).ToString();
+        ArchiveFolderText.Text = _working.DownloadArchiveFolder ?? "";
+        ArchiveDaysText.Text = _working.DownloadArchiveAfterDays.ToString();
+        var activeProfile = _working.Profiles.FirstOrDefault(p => p.Id == _working.ActiveProfileId);
+        ProfileQuotaText.Text = activeProfile is null
+            ? "0"
+            : (activeProfile.DownloadQuotaBytes / (1024d * 1024d)).ToString("0.##");
 
         // S6: extended zoom range (its handler rebuilds the step lists
         // when it changes), reduce motion, the shortcut editor rows.
@@ -364,6 +390,34 @@ public partial class SettingsWindow : Window
         _working.DownloadsFolder = string.IsNullOrWhiteSpace(DownloadsFolderText.Text)
             ? null
             : DownloadsFolderText.Text.Trim();
+        // R4: downloads round 2 harvest. Every field parses leniently —
+        // a junk value keeps the previous (sanitized) one, never a crash.
+        _working.AutoSortDownloads = AutoSortDownloadsCheck.IsChecked == true;
+        _working.DownloadSortUseCategories = SortCategoriesCheck.IsChecked == true;
+        _working.DownloadSortRules = DownloadSortRule.ParseLines(SortRulesText.Text, out var ruleErrors);
+        SortRulesNote.Text = ruleErrors.Count > 0 ? $"Rule problem: {ruleErrors[0]}" : "";
+        if (int.TryParse(BandwidthLimitText.Text, out var kbps))
+            _working.DownloadBandwidthLimitKBps = kbps;
+        _working.DownloadQuietHoursEnabled = DownloadQuietCheck.IsChecked == true;
+        if (TimeOfDayText.TryParseMinutes(DownloadQuietStartText.Text, out var quietStart))
+            _working.DownloadQuietStartMinutes = quietStart;
+        if (TimeOfDayText.TryParseMinutes(DownloadQuietEndText.Text, out var quietEnd))
+            _working.DownloadQuietEndMinutes = quietEnd;
+        if (int.TryParse(DownloadQuietLargeText.Text, out var largeMb))
+            _working.DownloadQuietLargeFileMB = largeMb;
+        _working.DownloadDuplicateGuard = DuplicateGuardCheck.IsChecked == true;
+        _working.DownloadAutoRetryEnabled = AutoRetryCheck.IsChecked == true;
+        if (RetryAttemptsCombo.SelectedItem is string attemptsText && int.TryParse(attemptsText, out var attempts))
+            _working.DownloadAutoRetryMaxAttempts = attempts;
+        _working.DownloadArchiveFolder = string.IsNullOrWhiteSpace(ArchiveFolderText.Text)
+            ? null
+            : ArchiveFolderText.Text.Trim();
+        if (int.TryParse(ArchiveDaysText.Text, out var archiveDays))
+            _working.DownloadArchiveAfterDays = archiveDays;
+        var quotaProfile = _working.Profiles.FirstOrDefault(p => p.Id == _working.ActiveProfileId);
+        if (quotaProfile is not null &&
+            double.TryParse(ProfileQuotaText.Text, out var quotaMb) && quotaMb >= 0)
+            quotaProfile.DownloadQuotaBytes = (long)(quotaMb * 1024 * 1024);
         if (ZoomCombo.SelectedItem is string pct &&
             int.TryParse(pct.TrimEnd('%'), out var value))
         {
@@ -1416,6 +1470,23 @@ public partial class SettingsWindow : Window
         FocusReturn.Restore(invoker);
         if (chosen)
             DownloadsFolderText.Text = dialog.FolderName;
+    }
+
+    /// <summary>Pick the archive folder (R4 #138); empty text means the per-folder default.</summary>
+    private void OnBrowseArchiveFolder(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFolderDialog
+        {
+            Title = "Choose where archived downloads go",
+            InitialDirectory = Directory.Exists(ArchiveFolderText.Text)
+                ? ArchiveFolderText.Text
+                : AppPaths.DownloadsHint,
+        };
+        var invoker = FocusReturn.Capture();
+        var chosen = dialog.ShowDialog(this) == true;
+        FocusReturn.Restore(invoker);
+        if (chosen)
+            ArchiveFolderText.Text = dialog.FolderName;
     }
 
     // ───────────────────────── S7: privacy & security ─────────────────────────

@@ -672,6 +672,8 @@ public static class ProfileBundle
             AvatarGlyph = source.AvatarGlyph,
             ZoomFactor = source.ZoomFactor,
             DataCapBytes = source.DataCapBytes,
+            // R4 #140: the downloads quota is a setting, not sign-in data — it travels.
+            DownloadQuotaBytes = source.DownloadQuotaBytes,
         };
         var envelope = new Envelope { Profile = carried };
         var text = MagicLine + "\n" + JsonSerializer.Serialize(envelope, Options);
@@ -754,6 +756,7 @@ public static class ProfileBundle
             AvatarGlyph = source.AvatarGlyph,
             ZoomFactor = source.ZoomFactor,
             DataCapBytes = source.DataCapBytes,
+            DownloadQuotaBytes = source.DownloadQuotaBytes,
         };
         // Sanitize through the same repairs a settings load applies
         // (name cap, color/glyph must be palette keys, zoom clamp,

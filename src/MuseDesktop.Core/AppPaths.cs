@@ -43,6 +43,9 @@ public static class AppPaths
     /// <summary>Finished-download history for the Downloads window (v0.4.0).</summary>
     public static string DownloadsHistoryPath => Location.DownloadsHistoryPath;
 
+    /// <summary>The download sort journal (R4 #131): applied sort/archive batches, kept for Undo.</summary>
+    public static string DownloadSortJournalPath => Path.Combine(RootDir, "download-sort-journal.json");
+
     /// <summary>The command palette's action history (R1 #106): built-in action ids only, beside the settings, so portable mode carries it too.</summary>
     public static string PaletteHistoryPath => Path.Combine(RootDir, "palette-history.json");
 

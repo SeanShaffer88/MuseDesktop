@@ -437,6 +437,66 @@
                     </StackPanel>
                     <TextBlock Style="{StaticResource Note}"
                                Text="History keeps names, sizes, dates, and paths only — never the addresses files came from. Failed downloads are listed too."/>
+
+                    <TextBlock Text="Sorting, scheduling &amp; more (v1.4.0):" Margin="0,14,0,4" FontWeight="SemiBold"/>
+                    <CheckBox x:Name="AutoSortDownloadsCheck" Content="Sort each finished download into a subfolder automatically"
+                              ToolTip="Uses your rules below first, then the built-in file-type folders. The Downloads window's Sort does the same on demand, with a preview and Undo"/>
+                    <CheckBox x:Name="SortCategoriesCheck" Content="Use the built-in file-type folders (Images, Documents, Archives, Audio, Video, Programs, Other)"
+                              ToolTip="Applies when no custom rule matches a file"/>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="Custom sort rules — one per line: extensions or a *pattern*, then =, then the subfolder. Example: pdf, docx = Documents  ·  *invoice* = Finance"/>
+                    <TextBox x:Name="SortRulesText" Height="58" AcceptsReturn="True" TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto"
+                             ToolTip="Custom download sort rules, tried in order before the file-type folders"
+                             AutomationProperties.Name="Custom sort rules"/>
+                    <TextBlock x:Name="SortRulesNote" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
+                        <TextBlock Text="Bandwidth limit (KB/s, 0 = no limit):" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBox x:Name="BandwidthLimitText" Width="80"
+                                 ToolTip="A cap on all downloads together. WebView2 can't slow a single transfer, so MuseDesktop pauses the newest download while the total is over the limit and resumes it when there's room"/>
+                    </StackPanel>
+                    <CheckBox x:Name="DownloadQuietCheck" Content="Hold large downloads during quiet hours"
+                              ToolTip="Files known to be large wait until the window ends, then start by themselves. Small files — and files whose size isn't known yet — still download"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
+                        <TextBlock Text="From:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBox x:Name="DownloadQuietStartText" Width="56"
+                                 ToolTip="Quiet-hours start, 24-hour clock (e.g. 09:00)"/>
+                        <TextBlock Text="To:" VerticalAlignment="Center" Margin="10,0,6,0"/>
+                        <TextBox x:Name="DownloadQuietEndText" Width="56"
+                                 ToolTip="Quiet-hours end, 24-hour clock (e.g. 17:00). A window can run past midnight"/>
+                        <TextBlock Text="Large means (MB):" VerticalAlignment="Center" Margin="10,0,6,0"/>
+                        <TextBox x:Name="DownloadQuietLargeText" Width="64"
+                                 ToolTip="Files at least this big wait out the quiet hours; 0 holds every download"/>
+                    </StackPanel>
+                    <CheckBox x:Name="DuplicateGuardCheck" Content="Warn when a download looks like one already downloaded"
+                              ToolTip="Same file name (and size, when known) as a finished download whose file is still on disk. Keeping both saves the new one under a fresh name"/>
+                    <CheckBox x:Name="AutoRetryCheck" Content="Retry failed downloads automatically"
+                              ToolTip="Network and server failures only, with a growing wait between tries. Disk, permission, and cancelled downloads never retry"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
+                        <TextBlock Text="Automatic retries per download:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="RetryAttemptsCombo" Width="70"
+                                  ToolTip="How many times a failed download retries itself (1 to 5)"/>
+                    </StackPanel>
+                    <DockPanel LastChildFill="True" Margin="0,10,0,0">
+                        <Button DockPanel.Dock="Right" Content="Browse…" Width="76" Margin="8,0,0,0"
+                                Click="OnBrowseArchiveFolder"/>
+                        <TextBox x:Name="ArchiveFolderText" IsReadOnly="True"
+                                 ToolTip="Where archived downloads go; empty uses an Archive folder inside the downloads folder"/>
+                    </DockPanel>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="Archive folder — the Downloads window's Archive button moves finished downloads into dated subfolders here."/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
+                        <TextBlock Text="When sorting, archive downloads older than (days, 0 = only when I ask):" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBox x:Name="ArchiveDaysText" Width="64"
+                                 ToolTip="Finished downloads older than this go to the archive when Sort runs, instead of a type subfolder"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
+                        <TextBlock Text="Download quota for the profile you're using (MB, 0 = no cap):" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBox x:Name="ProfileQuotaText" Width="80"
+                                 ToolTip="A soft cap on this profile's downloads folder: a heads-up at 80% and again at the cap. It never blocks a download and never deletes anything"/>
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="The quota belongs to the profile you're using now — switch profiles to set theirs. It only ever warns."/>
                 </StackPanel>
 
                 <StackPanel x:Name="SectionData">
