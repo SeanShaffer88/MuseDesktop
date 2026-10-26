@@ -131,6 +131,24 @@ public partial class SettingsWindow : Window
         foreach (var (key, _) in ProfileColors.Palette)
             WorkspaceAccentCombo.Items.Add(key);
 
+        // R3 #121/#128: the profile avatar choices are the same glyph
+        // palette (shown as "symbol key", like the workspace list), and
+        // the template choices are the three built-in starters.
+        _avatarGlyphKeys.Add(null);
+        ProfileGlyphCombo.Items.Add("No icon");
+        foreach (var (key, symbol) in WorkspaceGlyphs.Palette)
+        {
+            _avatarGlyphKeys.Add(key);
+            ProfileGlyphCombo.Items.Add($"{symbol} {key}");
+        }
+        foreach (var template in ProfileTemplates.All)
+        {
+            _templateKeys.Add(template.Key);
+            ProfileTemplateCombo.Items.Add($"{template.Name} — {template.Description}");
+        }
+        if (ProfileTemplateCombo.Items.Count > 0)
+            ProfileTemplateCombo.SelectedIndex = 0;
+
         // S2 (#16/#21): collision-policy and history-cap choices.
         CollisionPolicyCombo.Items.Add("Save as a new name");
         CollisionPolicyCombo.Items.Add("Ask where to save");
@@ -471,6 +489,7 @@ public partial class SettingsWindow : Window
             ? ""
             : ProfileDataInfo.Describe(AppPaths.ProfileDir(selected.Id), selected);
         ProfileCapNote.Text = selected is null ? "" : DescribeCap(selected);
+        UpdateProfileRound2Controls(selected);
     }
 
     /// <summary>The #75 cap line for the selected profile: the cap, the promise, and the last cleanup (never silent).</summary>
@@ -572,6 +591,15 @@ public partial class SettingsWindow : Window
     private readonly List<string?> _copyFromIds = new();
     private string? _copyFromId;
     private bool _syncingProfileControls;
+
+    // ── R3: avatar glyph keys parallel to ProfileGlyphCombo items
+    // (null = "No icon", then the workspace-glyph palette keys — the
+    // same list the workspace section builds), group ids parallel to
+    // ProfileGroupCombo items (null = "No group"), and template keys
+    // parallel to ProfileTemplateCombo items. ──
+    private readonly List<string?> _avatarGlyphKeys = new();
+    private readonly List<string?> _groupIds = new();
+    private readonly List<string> _templateKeys = new();
 
     /// <summary>Rename (S3 #24): write-through on focus loss, like the other per-profile controls.</summary>
     private void OnProfileNameLostFocus(object sender, RoutedEventArgs e)
@@ -719,6 +747,510 @@ public partial class SettingsWindow : Window
         }
         _switchProfile(_working, selected.Id);
         // The app is exiting for the restart; this window goes with it.
+    }
+
+    // ─────────────────── R3: profiles round 2 (#121–#130) ───────────────────
+
+    /// <summary>The schedule day checkboxes in Mon..Sun order (their masks are ProfileSchedule.MaskFor).</summary>
+    private System.Windows.Controls.CheckBox[] ScheduleDayChecks() => new[]
+    {
+        SchedMon, SchedTue, SchedWed, SchedThu, SchedFri, SchedSat, SchedSun,
+    };
+
+    private static readonly DayOfWeek[] ScheduleDayOrder =
+    {
+        DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday,
+        DayOfWeek.Thursday, DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday,
+    };
+
+    /// <summary>
+    /// Fill every R3 control from the selected profile + working
+    /// settings (called at the end of UpdateProfileButtons). All writes
+    /// run under the profile sync guard so the change handlers below
+    /// never write back.
+    /// </summary>
+    private void UpdateProfileRound2Controls(AccountProfile? selected)
+    {
+        _syncingProfileControls = true;
+        // #121 avatar.
+        var glyphIndex = selected?.AvatarGlyph is { } glyph ? _avatarGlyphKeys.IndexOf(glyph) : 0;
+        ProfileGlyphCombo.SelectedIndex = glyphIndex >= 0 ? glyphIndex : 0;
+        ProfileGlyphCombo.IsEnabled = selected is not null;
+        // #127 group membership + the group list itself.
+        RefreshProfileGroupCombo(selected);
+        // #130 archive: the profile in use can't be archived (its
+        // checkbox is disabled; Core un-archives it as a fail-safe too).
+        ProfileArchivedCheck.IsChecked = selected?.Archived == true;
+        ProfileArchivedCheck.IsEnabled = selected is not null && selected.Id != _working.ActiveProfileId;
+        // #122 PIN status.
+        var hasPin = selected is not null && ProfileLock.HasValidRecord(selected);
+        ProfilePinStatus.Text = selected is null ? ""
+            : hasPin && selected.LockEnabled ? "On — asked at launch with this profile"
+            : hasPin ? "Set, but turned off"
+            : "Off";
+        SetProfilePinButton.Content = hasPin ? "Change PIN…" : "Set PIN…";
+        SetProfilePinButton.IsEnabled = selected is not null;
+        RemoveProfilePinButton.IsEnabled = hasPin;
+        // #123 schedule editor.
+        var rule = selected is null ? null : ProfileSchedule.RuleFor(_working, selected.Id);
+        ProfileScheduleCheck.IsChecked = rule is not null;
+        ProfileScheduleCheck.IsEnabled = selected is not null;
+        ProfileScheduleStartText.Text = ProfileSchedule.FormatMinutes(rule?.StartMinutes ?? 9 * 60);
+        ProfileScheduleEndText.Text = ProfileSchedule.FormatMinutes(rule?.EndMinutes ?? 17 * 60);
+        var checks = ScheduleDayChecks();
+        // No rule yet: the day boxes pre-show Weekdays, matching the
+        // 09:00–17:00 defaults above — ticking the schedule box then
+        // creates that canonical rule in one click.
+        var shownMask = rule?.DaysMask ?? ProfileSchedule.WeekdaysMask;
+        for (var i = 0; i < checks.Length; i++)
+            checks[i].IsChecked = (shownMask & ProfileSchedule.MaskFor(ScheduleDayOrder[i])) != 0;
+        UpdateScheduleControlsEnabled(selected, rule is not null);
+        ProfileScheduleText.Text = selected is null ? ""
+            : rule is not null
+                ? $"Scheduled: {ProfileSchedule.Describe(rule)} — {(selected.Archived ? "paused while this profile is archived." : _working.ProfileScheduleAutoSwitch ? "MuseDesktop switches on its own at the start time." : "MuseDesktop asks before switching.")}"
+                : "No schedule for this profile.";
+        ScheduleAutoCheck.IsChecked = _working.ProfileScheduleAutoSwitch;
+        _syncingProfileControls = false;
+        // Health is a snapshot, not a live value: changing the
+        // selection clears it rather than showing another profile's.
+        ProfileHealthText.Text = "";
+        RefreshProfileUsageText(selected);
+        CloneProfileButton.IsEnabled = selected is not null;
+        ExportProfileButton.IsEnabled = selected is not null;
+    }
+
+    /// <summary>Enable/disable the schedule time + day editors with the schedule switch.</summary>
+    private void UpdateScheduleControlsEnabled(AccountProfile? selected, bool on)
+    {
+        var enabled = selected is not null && on;
+        ProfileScheduleStartText.IsEnabled = enabled;
+        ProfileScheduleEndText.IsEnabled = enabled;
+        foreach (var check in ScheduleDayChecks())
+            check.IsEnabled = enabled;
+    }
+
+    /// <summary>The #129 usage line for the selected profile plus the all-profiles total (counts read fresh from the local tally file).</summary>
+    private void RefreshProfileUsageText(AccountProfile? selected)
+    {
+        var usage = ProfileUsageStore.Load(AppPaths.ProfileUsagePath);
+        var report = ProfileUsageReport.Build(_working, usage);
+        if (selected is null)
+        {
+            ProfileUsageText.Text = "";
+            return;
+        }
+        var row = report.Rows.FirstOrDefault(r => r.ProfileId == selected.Id);
+        var mine = row is null || row.Launches == 0
+            ? "never launched yet"
+            : $"{row.Launches} launch{(row.Launches == 1 ? "" : "es")}"
+              + (row.LastUsedUtc is { } used ? $", last {used.ToLocalTime():yyyy-MM-dd}" : "");
+        ProfileUsageText.Text =
+            $"Usage (this PC only): {selected.Name} — {mine}. All profiles: {report.TotalLaunches} launches counted. " +
+            "These counts never leave this PC.";
+    }
+
+    // #121: avatar glyph write-through.
+    private void OnProfileGlyphChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_syncingProfileControls)
+            return;
+        if (SelectedProfile is { } selected)
+        {
+            var idx = ProfileGlyphCombo.SelectedIndex;
+            selected.AvatarGlyph = idx >= 0 && idx < _avatarGlyphKeys.Count ? _avatarGlyphKeys[idx] : null;
+        }
+    }
+
+    /// <summary>Rebuild the group combo (R3 #127): "No group" then the working group list, selecting the profile's group.</summary>
+    private void RefreshProfileGroupCombo(AccountProfile? selected)
+    {
+        _groupIds.Clear();
+        _groupIds.Add(null);
+        var items = new List<string> { "No group" };
+        foreach (var g in _working.ProfileGroups)
+        {
+            _groupIds.Add(g.Id);
+            items.Add(g.Name);
+        }
+        ProfileGroupCombo.ItemsSource = items;
+        var index = selected?.GroupId is { } gid ? _groupIds.IndexOf(gid) : 0;
+        ProfileGroupCombo.SelectedIndex = index >= 0 ? index : 0;
+        ProfileGroupCombo.IsEnabled = selected is not null;
+        DeleteGroupButton.IsEnabled = _working.ProfileGroups.Count > 0;
+    }
+
+    private void OnProfileGroupChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_syncingProfileControls)
+            return;
+        if (SelectedProfile is { } selected)
+        {
+            var idx = ProfileGroupCombo.SelectedIndex;
+            selected.GroupId = idx >= 0 && idx < _groupIds.Count ? _groupIds[idx] : null;
+        }
+    }
+
+    private void OnAddProfileGroup(object sender, RoutedEventArgs e)
+    {
+        var group = ProfileGroups.Add(_working, NewGroupText.Text);
+        if (group is null)
+        {
+            ProfileNote.Text = $"MuseDesktop supports up to {ProfileGroups.MaxGroups} profile groups.";
+            return;
+        }
+        NewGroupText.Text = "";
+        // Adding a group while a profile is selected files it straight in.
+        if (SelectedProfile is { } selected)
+            selected.GroupId = group.Id;
+        _log.Info($"Profile group added: {group.Name}");
+        UpdateProfileButtons();
+    }
+
+    private void OnDeleteProfileGroup(object sender, RoutedEventArgs e)
+    {
+        var idx = ProfileGroupCombo.SelectedIndex;
+        var groupId = idx >= 0 && idx < _groupIds.Count ? _groupIds[idx] : null;
+        var group = groupId is null ? null : _working.ProfileGroups.FirstOrDefault(g => g.Id == groupId);
+        if (group is null)
+        {
+            ProfileNote.Text = "Pick a group in the list first, then delete it.";
+            return;
+        }
+        var invoker = FocusReturn.Capture();
+        var confirm = System.Windows.MessageBox.Show(this,
+            $"Delete the group \"{group.Name}\"?\n\nIts profiles stay — they just become ungrouped. Nothing else changes.",
+            "Delete profile group", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        FocusReturn.Restore(invoker);
+        if (confirm != MessageBoxResult.Yes)
+            return;
+        ProfileGroups.Remove(_working, group.Id);
+        _log.Info($"Profile group deleted: {group.Name} (members ungrouped)");
+        UpdateProfileButtons();
+    }
+
+    // #130: archive write-through.
+    private void OnProfileArchivedChanged(object sender, RoutedEventArgs e)
+    {
+        if (_syncingProfileControls)
+            return;
+        if (SelectedProfile is not { } selected)
+            return;
+        if (selected.Id == _working.ActiveProfileId)
+        {
+            ProfileArchivedCheck.IsChecked = false; // the profile in use can't hide
+            return;
+        }
+        selected.Archived = ProfileArchivedCheck.IsChecked == true;
+        _log.Info(selected.Archived
+            ? $"Profile {selected.Id} archived (hidden from switchers, data kept)"
+            : $"Profile {selected.Id} restored from archive");
+        ProfileNote.Text = selected.Archived
+            ? $"{selected.Name} is archived: hidden from switchers, but its data stays on this PC and its desktop shortcut still opens it. Untick the box to restore it."
+            : $"{selected.Name} is back in the switchers.";
+        UpdateProfileButtons();
+    }
+
+    // #122: profile PIN set/change/remove — the app lock's flow, one profile at a time.
+    private void OnSetProfilePin(object sender, RoutedEventArgs e)
+    {
+        if (SelectedProfile is not { } selected)
+            return;
+        if (ProfileLock.TryGetRecord(selected, out var existing) && existing is not null)
+        {
+            var current = new PasswordPromptWindow(
+                $"Type the CURRENT PIN for \"{selected.Name}\" first:", confirm: false) { Owner = this };
+            if (FocusReturn.ShowDialog(current) != true)
+                return;
+            if (!ProfileLock.Verify(current.Password, selected))
+            {
+                ProfileNote.Text = "That's not this profile's current PIN — nothing was changed.";
+                return;
+            }
+        }
+        var prompt = new PasswordPromptWindow(
+            $"Choose a PIN or password for \"{selected.Name}\" (4–64 characters). " +
+            "It's asked when MuseDesktop launches with this profile — after the app password, if one is set. " +
+            "It is a privacy screen, not encryption.",
+            confirm: true, AppLock.MinCredentialLength, AppLock.MaxCredentialLength) { Owner = this };
+        if (FocusReturn.ShowDialog(prompt) != true)
+            return;
+        ProfileLock.SetCredential(selected, prompt.Password);
+        ProfileNote.Text = $"PIN set for {selected.Name} — it takes effect when you choose OK.";
+        _log.Info($"Profile PIN set for profile {selected.Id}");
+        UpdateProfileButtons();
+    }
+
+    private void OnRemoveProfilePin(object sender, RoutedEventArgs e)
+    {
+        if (SelectedProfile is not { } selected)
+            return;
+        var current = new PasswordPromptWindow(
+            $"Type the current PIN for \"{selected.Name}\" to remove it:", confirm: false) { Owner = this };
+        if (FocusReturn.ShowDialog(current) != true)
+            return;
+        if (!ProfileLock.Verify(current.Password, selected))
+        {
+            ProfileNote.Text = "That's not this profile's current PIN — nothing was changed.";
+            return;
+        }
+        ProfileLock.RemoveCredential(selected);
+        ProfileNote.Text = $"PIN removed for {selected.Name} — it takes effect when you choose OK.";
+        _log.Info($"Profile PIN removed for profile {selected.Id}");
+        UpdateProfileButtons();
+    }
+
+    // #123: schedule editor write-through (checkbox, times on focus loss, day ticks).
+    private void OnProfileScheduleChanged(object sender, RoutedEventArgs e)
+    {
+        if (_syncingProfileControls)
+            return;
+        if (SelectedProfile is not { } selected)
+            return;
+        if (ProfileScheduleCheck.IsChecked != true)
+        {
+            ProfileSchedule.RemoveRule(_working, selected.Id);
+            _log.Info($"Profile schedule removed for profile {selected.Id}");
+            UpdateProfileButtons();
+            return;
+        }
+        var start = ProfileSchedule.ParseMinutes(ProfileScheduleStartText.Text);
+        var end = ProfileSchedule.ParseMinutes(ProfileScheduleEndText.Text);
+        var mask = 0;
+        var checks = ScheduleDayChecks();
+        for (var i = 0; i < checks.Length; i++)
+            if (checks[i].IsChecked == true)
+                mask |= ProfileSchedule.MaskFor(ScheduleDayOrder[i]);
+        if (start is null || end is null)
+        {
+            ProfileScheduleText.Text = "Times must be 24-hour clock, like 09:00 and 17:00 — the schedule wasn't changed.";
+            return;
+        }
+        if (start == end)
+        {
+            ProfileScheduleText.Text = "The start and end times are the same, which would mean all day — the schedule wasn't changed.";
+            return;
+        }
+        if (mask == 0)
+        {
+            ProfileScheduleText.Text = "Tick at least one day — the schedule wasn't changed.";
+            return;
+        }
+        var rule = new ProfileSwitchRule
+        {
+            ProfileId = selected.Id,
+            DaysMask = mask,
+            StartMinutes = start.Value,
+            EndMinutes = end.Value,
+        };
+        ProfileSchedule.SetRule(_working, rule);
+        _log.Info($"Profile schedule set for profile {selected.Id}: {ProfileSchedule.Describe(rule)}");
+        UpdateProfileButtons();
+    }
+
+    private void OnScheduleAutoChanged(object sender, RoutedEventArgs e)
+    {
+        if (_syncingProfileControls)
+            return;
+        _working.ProfileScheduleAutoSwitch = ScheduleAutoCheck.IsChecked == true;
+        UpdateProfileButtons();
+    }
+
+    // #124: clone the selected profile (settings + appearance; never sign-in data).
+    private void OnCloneProfile(object sender, RoutedEventArgs e)
+    {
+        if (SelectedProfile is not { } selected)
+            return;
+        var clone = Profiles.Clone(_working, selected.Id);
+        if (clone is null)
+        {
+            ProfileNote.Text = $"MuseDesktop supports up to {Profiles.MaxProfiles} profiles — remove one before cloning.";
+            return;
+        }
+        _log.Info($"Profile {selected.Id} cloned to {clone.Id} (settings and appearance only)");
+        RefreshProfileCombo(clone.Id);
+        ProfileNote.Text = $"Cloned as \"{clone.Name}\" — its settings and appearance were copied. " +
+            "Its sign-in was NOT copied: the clone starts signed out, with no PIN and no schedule.";
+    }
+
+    // #128: create from a template (same disk warning as adding by hand past the soft threshold).
+    private void OnAddFromTemplate(object sender, RoutedEventArgs e)
+    {
+        var idx = ProfileTemplateCombo.SelectedIndex;
+        if (idx < 0 || idx >= _templateKeys.Count)
+            return;
+        if (_working.Profiles.Count >= Profiles.MaxProfiles)
+        {
+            ProfileNote.Text = $"MuseDesktop supports up to {Profiles.MaxProfiles} profiles.";
+            return;
+        }
+        if (_working.Profiles.Count >= Profiles.SoftProfileWarningThreshold)
+        {
+            var warnInvoker = FocusReturn.Capture();
+            var warn = System.Windows.MessageBox.Show(this,
+                $"You already have {_working.Profiles.Count} profiles. " +
+                "Each profile keeps its own Muse sign-in data on this PC, so many profiles use more disk.\n\n" +
+                "Add another profile?",
+                "Profiles", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            FocusReturn.Restore(warnInvoker);
+            if (warn != MessageBoxResult.Yes)
+                return;
+        }
+        var created = ProfileTemplates.Create(_working, _templateKeys[idx]);
+        if (created is null)
+        {
+            ProfileNote.Text = "That template couldn't be used.";
+            return;
+        }
+        _log.Info($"Profile created from the {_templateKeys[idx]} template: {created.Id}");
+        RefreshProfileCombo(created.Id);
+    }
+
+    // #125: counts-only health snapshot (folder walk + cache plan + cookie count + backup catalog, all reduced to numbers by the providers).
+    private async void OnRefreshProfileHealth(object sender, RoutedEventArgs e)
+    {
+        if (SelectedProfile is not { } selected)
+            return;
+        RefreshProfileHealthButton.IsEnabled = false;
+        try
+        {
+            var dir = AppPaths.ProfileDir(selected.Id);
+            var dataBytes = ProfileDataInfo.MeasureFolderBytes(dir);
+            long? cacheBytes = null;
+            try
+            {
+                cacheBytes = CacheCleanup.BuildPlan(dir, 0).Candidates.Sum(c => c.Bytes);
+            }
+            catch (Exception) { /* the plan is best-effort — "couldn't be measured" is the honest line */ }
+            int? cookieCount = null;
+            if (_privacy is not null)
+            {
+                var summary = await _privacy.GetCookieSummaryAsync(selected.Id);
+                cookieCount = summary?.Count;
+            }
+            var lastBackup = BackupRotation.Catalog(BackupService.ExistingNames())
+                .FirstOrDefault(i => i.Kind == BackupRotation.SettingsKind)?.Stamp;
+            var report = ProfileHealth.Build(selected,
+                new ProfileHealthFacts(dataBytes, cacheBytes, cookieCount, lastBackup));
+            ProfileHealthText.Text =
+                string.Join("\n", report.Lines.Select(l => $"{l.Label}: {l.Value}"))
+                + "\nCounts only — no site names, no page data, nothing leaves this PC.";
+        }
+        finally
+        {
+            RefreshProfileHealthButton.IsEnabled = true;
+        }
+    }
+
+    // #129: delete the local tally file (all profiles at once — it is one small file by design).
+    private void OnClearProfileUsage(object sender, RoutedEventArgs e)
+    {
+        var invoker = FocusReturn.Capture();
+        var confirm = System.Windows.MessageBox.Show(this,
+            "Clear the launch counts for every profile?\n\n" +
+            "The counts live only on this PC and are never sent anywhere. Clearing can't be undone.",
+            "Clear usage counts", MessageBoxButton.YesNo, MessageBoxImage.Question);
+        FocusReturn.Restore(invoker);
+        if (confirm != MessageBoxResult.Yes)
+            return;
+        ProfileUsageStore.Clear(AppPaths.ProfileUsagePath);
+        _log.Info("Profile usage counts cleared from Settings");
+        UpdateProfileButtons();
+    }
+
+    // #126: export the selected profile as a bundle (settings + appearance only).
+    private void OnExportProfile(object sender, RoutedEventArgs e)
+    {
+        if (SelectedProfile is not { } selected)
+            return;
+        HarvestControls();
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            FileName = $"musedesktop-profile-{selected.Name}.json",
+            Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
+            Title = "Export profile bundle",
+        };
+        var invoker = FocusReturn.Capture();
+        var chosen = dialog.ShowDialog(this) == true;
+        FocusReturn.Restore(invoker);
+        if (!chosen)
+            return;
+        invoker = FocusReturn.Capture();
+        var encrypt = System.Windows.MessageBox.Show(this,
+            ProfileBundle.ContentsNote + "\n\nEncrypt the bundle with a password?",
+            "Export profile", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+        FocusReturn.Restore(invoker);
+        if (encrypt == MessageBoxResult.Cancel)
+            return;
+        string? password = null;
+        if (encrypt == MessageBoxResult.Yes)
+        {
+            var prompt = new PasswordPromptWindow(
+                "Choose a password for this encrypted bundle. You'll need it to import the file — it can't be recovered.",
+                confirm: true) { Owner = this };
+            if (FocusReturn.ShowDialog(prompt) != true)
+                return;
+            password = prompt.Password;
+        }
+        try
+        {
+            File.WriteAllText(dialog.FileName, ProfileBundle.Export(selected, password));
+            ProfileNote.Text = $"Profile bundle saved to {dialog.FileName}. {ProfileBundle.ContentsNote}";
+            _log.Info($"Profile bundle exported for profile {selected.Id} (encrypted: {password is not null})");
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Profile bundle export failed: {ex.Message}");
+            ProfileNote.Text = $"Couldn't write that file ({ex.Message}).";
+        }
+    }
+
+    // #126: import a bundle as a NEW profile (never an overwrite, never sign-in data).
+    private void OnImportProfile(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
+            Title = "Import profile bundle",
+        };
+        var invoker = FocusReturn.Capture();
+        var chosen = dialog.ShowDialog(this) == true;
+        FocusReturn.Restore(invoker);
+        if (!chosen)
+            return;
+        string text;
+        try
+        {
+            text = File.ReadAllText(dialog.FileName);
+        }
+        catch (Exception ex)
+        {
+            ProfileNote.Text = $"Couldn't read that file ({ex.Message}).";
+            return;
+        }
+        string? password = null;
+        if (ProfileBundle.NeedsPassword(text))
+        {
+            var prompt = new PasswordPromptWindow(
+                "This profile bundle is encrypted. Type its password to import it:",
+                confirm: false) { Owner = this };
+            if (FocusReturn.ShowDialog(prompt) != true)
+                return;
+            password = prompt.Password;
+        }
+        if (!ProfileBundle.TryImport(text, password, out var imported, out var error) || imported is null)
+        {
+            ProfileNote.Text = error ?? "That file couldn't be imported.";
+            return;
+        }
+        if (_working.Profiles.Count >= Profiles.MaxProfiles)
+        {
+            ProfileNote.Text = $"MuseDesktop supports up to {Profiles.MaxProfiles} profiles — remove one before importing.";
+            return;
+        }
+        _working.Profiles.Add(imported);
+        _log.Info($"Profile bundle imported as new profile {imported.Id} (settings and appearance only)");
+        RefreshProfileCombo(imported.Id);
+        ProfileNote.Text = $"Imported as the new profile \"{imported.Name}\". {ProfileBundle.ContentsNote} It starts signed out.";
     }
 
     // ───────────────────────── R2: workspaces & sessions ─────────────────────────

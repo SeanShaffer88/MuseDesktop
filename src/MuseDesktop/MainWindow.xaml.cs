@@ -84,6 +84,17 @@ public partial class MainWindow : Window
     private readonly AppLockThrottle _lockThrottle = new();
     private LockWindow? _lockWindow;
 
+    // R3 #122/#123 — the per-profile PIN gate for hidden launches
+    // (App hands over the launch profile's record; the first real
+    // show presents it, after the global lock) and the profile
+    // schedule's minute timer. The profile throttle is separate from
+    // the app lock's: they are different credentials.
+    private AppLockRecord? _pendingProfileLockRecord;
+    private readonly AppLockThrottle _profileLockThrottle = new();
+    private LockWindow? _profileLockWindow;
+    private DispatcherTimer? _scheduleTimer;
+    private bool _schedulePromptOpen;
+
     // v1.0.0 (S11) — the global show/hide hotkey (#96: its manager
     // owns the RegisterHotKey registration on this window's handle),
     // the launch intent queued behind the lock (#99/#100: one slot,
@@ -202,7 +213,7 @@ public partial class MainWindow : Window
             ResumeWebView,
             () => _settings.Profiles,
             () => _settings.ActiveProfileId,
-            SwitchToProfileFromMenu,
+            id => SwitchToProfileFromMenu(id),
             OpenDownloadsFromTray,
             OpenSettingsWindow,
             () => OnOpenInNewWindow(this, new RoutedEventArgs()),
@@ -219,7 +230,8 @@ public partial class MainWindow : Window
             openPalette: () => OpenPalette(compact: true),
             workspaces: () => _settings.Workspaces,
             activeWorkspaceId: () => _settings.ActiveWorkspaceId,
-            applyWorkspace: id => ApplyWorkspaceById(id));
+            applyWorkspace: id => ApplyWorkspaceById(id),
+            profileGroups: () => _settings.ProfileGroups);
 
         // S6 #54: live regions for assistive-tech announcements, and
         // the download events that feed them (the wording is Core's).
@@ -259,6 +271,13 @@ public partial class MainWindow : Window
         // workspace's accent override if the last session left one.
         RebuildWorkspacesMenu();
         ApplyWorkspaceAccent();
+        // R3 #123: the profile schedule is re-checked once a minute
+        // while the app runs — Core decides, this window only asks
+        // (or, in auto mode, switches). While the app isn't running
+        // nothing is evaluated; the next launch's first minute covers it.
+        _scheduleTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
+        _scheduleTimer.Tick += (_, _) => EvaluateSchedule();
+        _scheduleTimer.Start();
         Loaded += OnLoaded;
         Closing += OnClosing;
         Closed += (_, _) => _hotkeyManager?.Dispose();
@@ -419,6 +438,14 @@ public partial class MainWindow : Window
         if (_isLocked)
         {
             PresentLockWindow();
+            return;
+        }
+        // R3 #122: a profile PIN deferred from a hidden launch gates
+        // the first real show — after the global lock above, so the
+        // global credential is always asked first.
+        if (_pendingProfileLockRecord is not null)
+        {
+            PresentProfileLockWindow();
             return;
         }
         _tray.OnShown();
@@ -1661,7 +1688,8 @@ public partial class MainWindow : Window
         var clone = _settings.Clone();
         if (sectionId is not null && SettingsSearch.IsKnownSection(sectionId))
             clone.SettingsLastSection = sectionId;
-        var dialog = new SettingsWindow(clone, _log, _privacyGateway, SwitchToProfile,
+        var dialog = new SettingsWindow(clone, _log, _privacyGateway,
+            (workingClone, id) => SwitchToProfile(workingClone, id),
             notificationTest: RunTestNotification,
             globalHotkeyStatus: () => _hotkeyManager?.StatusText ?? "",
             applyWorkspace: ApplyWorkspaceFromSettings) { Owner = this };
@@ -1709,6 +1737,12 @@ public partial class MainWindow : Window
         _settings.Workspaces = clone.Workspaces;
         _settings.StartupWorkspaceId = clone.StartupWorkspaceId;
         _settings.AutoSaveSession = clone.AutoSaveSession;
+        // R3: profile groups, schedule rules, and the ask-vs-auto
+        // choice ride the same adoption. The schedule HOLD is state
+        // (like the S9 records) and is NOT adopted.
+        _settings.ProfileGroups = clone.ProfileGroups;
+        _settings.ProfileSwitchRules = clone.ProfileSwitchRules;
+        _settings.ProfileScheduleAutoSwitch = clone.ProfileScheduleAutoSwitch;
         _settings.AlwaysOnTop = clone.AlwaysOnTop;
         // S5: appearance + Settings-window memory ride the same adoption.
         _settings.Theme = clone.Theme;
@@ -1834,10 +1868,23 @@ public partial class MainWindow : Window
     /// profile state, relaunches detached after a short delay (the single-
     /// instance mutex frees as this process exits), and exits.
     /// </summary>
-    private void SwitchToProfile(AppSettings workingClone, string targetProfileId)
+    private void SwitchToProfile(AppSettings workingClone, string targetProfileId, bool fromSchedule = false)
     {
         _settings.Profiles = workingClone.Profiles;
+        // R3 #123/#127: a switch launched from the Settings dialog
+        // also adopts its group + schedule edits (for menu/tray/palette
+        // switches the "clone" IS the live settings — a no-op there).
+        _settings.ProfileGroups = workingClone.ProfileGroups;
+        _settings.ProfileSwitchRules = workingClone.ProfileSwitchRules;
+        _settings.ProfileScheduleAutoSwitch = workingClone.ProfileScheduleAutoSwitch;
         _settings.ActiveProfileId = targetProfileId;
+        if (!fromSchedule)
+        {
+            // R3 #123: a switch the user chose by hand holds the
+            // schedule off the chosen profile until the current
+            // window ends (or the next one begins) — manual wins.
+            ProfileSchedule.RecordManualSwitch(_settings, targetProfileId, DateTimeOffset.Now);
+        }
         _settings.Sanitized();
         SaveSettings();
         _log.Info($"Switching to profile {targetProfileId}; restarting");
@@ -1869,11 +1916,18 @@ public partial class MainWindow : Window
     /// switch. The clone argument SwitchToProfile expects is the live
     /// settings here — it only reads the profile list from it.
     /// </summary>
-    private void SwitchToProfileFromMenu(string targetProfileId)
+    private void SwitchToProfileFromMenu(string targetProfileId, bool fromSchedule = false)
     {
         var target = _settings.Profiles.FirstOrDefault(p => p.Id == targetProfileId);
         if (target is null || targetProfileId == _settings.ActiveProfileId)
             return;
+        if (fromSchedule)
+        {
+            // The schedule already asked (or auto mode is on): no
+            // second confirmation, and no manual hold is recorded.
+            SwitchToProfile(_settings, targetProfileId, fromSchedule: true);
+            return;
+        }
         var invoker = FocusReturn.Capture();
         var confirm = System.Windows.MessageBox.Show(this,
             $"Switch to profile \"{target.Name}\"?\n\n" +
@@ -1887,45 +1941,163 @@ public partial class MainWindow : Window
         SwitchToProfile(_settings, targetProfileId);
     }
 
-    /// <summary>Rebuild the ⋯ menu's Switch-profile submenu (S3 #25): active checked + disabled, accent dot as a real colored ellipse.</summary>
-    private void RebuildSwitchProfileMenu()
+    /// <summary>
+    /// One schedule tick (R3 #123): Core's verdict for right now. Ask
+    /// first (the default) proposes the switch in a dialog and records
+    /// the manual hold on No; auto mode switches straight away.
+    /// Locked, safe-mode, a dialog already open, or a prompt already
+    /// showing all skip the tick — the next minute asks again.
+    /// </summary>
+    private void EvaluateSchedule()
     {
-        SwitchProfileItem.Items.Clear();
-        SwitchProfileItem.IsEnabled = _settings.Profiles.Count > 1;
-        foreach (var p in _settings.Profiles)
+        if (_isLocked || _safeMode || _schedulePromptOpen || _pendingProfileLockRecord is not null)
+            return;
+        if (System.Windows.Application.Current.Windows.OfType<Window>()
+                .Any(w => w != this && w is not LockWindow && w.IsVisible))
+            return; // a dialog or second window is up; don't stack a prompt on it
+        var decision = ProfileSchedule.Evaluate(_settings, DateTimeOffset.Now, _settings.ActiveProfileId);
+        if (!decision.ShouldSwitch || decision.ProfileId is not { } targetId)
+            return;
+        var target = _settings.Profiles.FirstOrDefault(p => p.Id == targetId);
+        if (target is null)
+            return;
+        var rule = ProfileSchedule.ActiveRule(_settings, DateTimeOffset.Now);
+        var when = rule is null ? "" : $" ({ProfileSchedule.Describe(rule)})";
+        if (_settings.ProfileScheduleAutoSwitch)
         {
-            var id = p.Id;
-            var item = new MenuItem
+            _log.Info($"Profile schedule: auto-switching to profile {targetId}{when}");
+            SwitchToProfileFromMenu(targetId, fromSchedule: true);
+            return;
+        }
+        _schedulePromptOpen = true;
+        try
+        {
+            var invoker = FocusReturn.Capture();
+            var answer = System.Windows.MessageBox.Show(this,
+                $"It's \"{target.Name}\" time{when}.\n\n" +
+                "Switch to that profile now? MuseDesktop restarts to switch.\n\n" +
+                "Choose No and it won't ask again until this scheduled time is over — " +
+                "a profile you picked yourself is always left alone.",
+                "Scheduled profile switch", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            FocusReturn.Restore(invoker);
+            if (answer == MessageBoxResult.Yes)
             {
-                Header = Profiles.MenuLabel(p),
-                IsChecked = id == _settings.ActiveProfileId,
-                IsEnabled = id != _settings.ActiveProfileId,
-            };
-            if (ProfileColors.HexFor(p.DisplayColor) is { } hex)
-            {
-                item.Icon = new System.Windows.Shapes.Ellipse
-                {
-                    Width = 10,
-                    Height = 10,
-                    Fill = new System.Windows.Media.SolidColorBrush(
-                        (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hex)),
-                };
+                SwitchToProfileFromMenu(targetId, fromSchedule: true);
             }
-            item.Click += (_, _) => SwitchToProfileFromMenu(id);
-            SwitchProfileItem.Items.Add(item);
+            else
+            {
+                // Declining is a manual choice: the hold keeps the
+                // schedule quiet until this window ends.
+                ProfileSchedule.RecordManualSwitch(_settings, _settings.ActiveProfileId, DateTimeOffset.Now);
+                SaveSettings();
+                _log.Info("Profile schedule: suggestion declined — the manual choice holds until the window ends");
+            }
+        }
+        finally
+        {
+            _schedulePromptOpen = false;
         }
     }
 
-    /// <summary>Shows the active profile name in the ⋯ menu and tray tooltip when more than one profile exists.</summary>
+    /// <summary>
+    /// App hands over the launch profile's PIN record for a hidden
+    /// (tray) launch (R3 #122): the first real show presents it via
+    /// <see cref="PresentProfileLockWindow"/>, after the global lock.
+    /// </summary>
+    public void RequireProfileUnlock(AppLockRecord record) =>
+        _pendingProfileLockRecord = record;
+
+    /// <summary>The deferred profile-PIN screen (R3 #122): the global lock window's shape, with the profile's own record and throttle.</summary>
+    private void PresentProfileLockWindow()
+    {
+        if (_pendingProfileLockRecord is not { } record)
+            return;
+        if (_profileLockWindow is not null)
+        {
+            _profileLockWindow.Activate();
+            return;
+        }
+        var window = new LockWindow(record, _profileLockThrottle, exitOnClose: false) { Owner = this };
+        ShellTextScaling.Apply(window, _settings.ShellFontScale);
+        _profileLockWindow = window;
+        window.Closed += (_, _) =>
+        {
+            _profileLockWindow = null;
+            if (window.Unlocked)
+            {
+                _pendingProfileLockRecord = null;
+                _log.Info("Profile PIN accepted at first show");
+                ShowFromTray();
+            }
+            // Not unlocked: the app stays in the tray — the tray icon
+            // reopens this screen (ShowFromTray routes here).
+        };
+        window.Show();
+        window.Activate();
+    }
+
+    /// <summary>Rebuild the ⋯ menu's Switch-profile submenu (S3 #25): active checked + disabled, accent dot as a real colored ellipse. R3: archived profiles are hidden (#130), profiles with avatars lead with their glyph (#121), and groups gather their members under a heading (#127) when any exist.</summary>
+    private void RebuildSwitchProfileMenu()
+    {
+        SwitchProfileItem.Items.Clear();
+        var visible = Profiles.VisibleProfiles(_settings);
+        SwitchProfileItem.IsEnabled = visible.Count > 1;
+        var placed = new HashSet<string>();
+        foreach (var group in _settings.ProfileGroups)
+        {
+            var members = ProfileGroups.VisibleMembers(_settings, group.Id);
+            if (members.Count == 0)
+                continue;
+            var header = new MenuItem { Header = group.Name };
+            foreach (var member in members)
+            {
+                header.Items.Add(BuildSwitchProfileMenuItem(member));
+                placed.Add(member.Id);
+            }
+            SwitchProfileItem.Items.Add(header);
+        }
+        foreach (var p in visible)
+        {
+            if (placed.Contains(p.Id))
+                continue;
+            SwitchProfileItem.Items.Add(BuildSwitchProfileMenuItem(p));
+        }
+    }
+
+    /// <summary>One switchable profile row (S3 #25 shape, R3 label): glyph-or-dot label, accent ellipse, click switches with the usual confirm.</summary>
+    private MenuItem BuildSwitchProfileMenuItem(AccountProfile p)
+    {
+        var id = p.Id;
+        var item = new MenuItem
+        {
+            Header = Profiles.DisplayLabel(p),
+            IsChecked = id == _settings.ActiveProfileId,
+            IsEnabled = id != _settings.ActiveProfileId,
+        };
+        if (ProfileColors.HexFor(p.DisplayColor) is { } hex)
+        {
+            item.Icon = new System.Windows.Shapes.Ellipse
+            {
+                Width = 10,
+                Height = 10,
+                Fill = new System.Windows.Media.SolidColorBrush(
+                    (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hex)),
+            };
+        }
+        item.Click += (_, _) => SwitchToProfileFromMenu(id);
+        return item;
+    }
+
+    /// <summary>Shows the active profile name in the ⋯ menu and tray tooltip when more than one switchable profile exists.</summary>
     private void RefreshProfileIndicator()
     {
         var active = _settings.Profiles.FirstOrDefault(p => p.Id == _settings.ActiveProfileId);
-        var multi = _settings.Profiles.Count > 1;
+        var multi = Profiles.VisibleProfiles(_settings).Count > 1;
         ProfileItem.Visibility = multi ? Visibility.Visible : Visibility.Collapsed;
         ProfileSeparator.Visibility = multi ? Visibility.Visible : Visibility.Collapsed;
         if (multi && active is not null)
-            ProfileItem.Header = $"Profile: {Profiles.MenuLabel(active)}";
-        _tray.SetText(multi && active is not null ? $"MuseDesktop — {Profiles.MenuLabel(active)}" : "MuseDesktop");
+            ProfileItem.Header = $"Profile: {Profiles.DisplayLabel(active)}";
+        _tray.SetText(multi && active is not null ? $"MuseDesktop — {Profiles.DisplayLabel(active)}" : "MuseDesktop");
         // S4 #37: the tray icon carries the active profile's tint.
         _tray.SetProfileColor(active?.DisplayColor);
         RebuildSwitchProfileMenu();
@@ -2927,8 +3099,9 @@ public partial class MainWindow : Window
         try { downloads = DownloadHistoryStore.Load(AppPaths.DownloadsHistoryPath, _settings.DownloadHistoryCap); }
         catch { downloads = Array.Empty<DownloadRecord>(); }
         return CommandRegistry.CreateDefault(
-            _settings.Profiles, _settings.ActiveProfileId, downloads, CurrentWindowDescriptors(),
-            _settings.Workspaces, _settings.ActiveWorkspaceId, _settings.StartupWorkspaceId);
+            Profiles.VisibleProfiles(_settings), _settings.ActiveProfileId, downloads, CurrentWindowDescriptors(),
+            _settings.Workspaces, _settings.ActiveWorkspaceId, _settings.StartupWorkspaceId,
+            groupSettings: _settings);
     }
 
     /// <summary>
@@ -3005,7 +3178,8 @@ public partial class MainWindow : Window
             new("main",
                 string.IsNullOrWhiteSpace(_pageTitle) ? "Muse" : _pageTitle,
                 active?.Name, active?.DisplayColor,
-                IsMain: true, SupportsFocusMode: true, IsActive: IsActive),
+                IsMain: true, SupportsFocusMode: true, IsActive: IsActive,
+                ProfileGlyphKey: active?.AvatarGlyph),
         };
         foreach (var (window, id) in _trackedWindows)
         {
@@ -3017,7 +3191,8 @@ public partial class MainWindow : Window
                 id,
                 string.IsNullOrWhiteSpace(title) ? "Muse — second window" : title,
                 active?.Name, active?.DisplayColor,
-                IsMain: false, SupportsFocusMode: false, IsActive: window.IsActive));
+                IsMain: false, SupportsFocusMode: false, IsActive: window.IsActive,
+                ProfileGlyphKey: active?.AvatarGlyph));
         }
         return _windowMru.Sort(list);
     }
@@ -3039,7 +3214,16 @@ public partial class MainWindow : Window
                 ExecutePaletteAction(command.Id);
                 break;
             case PaletteCommandSource.Profile:
-                if (command.Payload is { } profileId)
+                if (command.Id.StartsWith("profile-group.switch.", StringComparison.Ordinal))
+                {
+                    // R3 #127: the payload is a GROUP id — resolve it
+                    // to the group's current switch target, then run
+                    // the ordinary profile switch (with its confirm).
+                    if (command.Payload is { } groupId
+                        && ProfileGroups.SwitchTarget(_settings, groupId) is { } groupTarget)
+                        SwitchToProfileFromMenu(groupTarget.Id);
+                }
+                else if (command.Payload is { } profileId)
                     SwitchToProfileFromMenu(profileId);
                 break;
             case PaletteCommandSource.Settings:
@@ -4089,7 +4273,7 @@ public partial class MainWindow : Window
         if (modifiers == (ModifierKeys.Control | ModifierKeys.Shift)
             && ProfileChords.TryIndex(
                 new ShortcutGesture(ToGestureModifiers(modifiers), key.ToString()), out var chordIndex)
-            && ProfileChords.ProfileIdAt(_settings.Profiles, chordIndex) is { } chordProfileId)
+            && ProfileChords.ProfileIdAt(Profiles.Visible(_settings.Profiles), chordIndex) is { } chordProfileId)
         {
             if (chordProfileId != _settings.ActiveProfileId)
                 SwitchToProfileFromMenu(chordProfileId);

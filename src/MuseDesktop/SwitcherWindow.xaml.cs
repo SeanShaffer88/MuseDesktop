@@ -26,9 +26,11 @@ public sealed class SwitcherRow
 
     public WindowDescriptor Window { get; }
     public string Title => string.IsNullOrWhiteSpace(Window.Title) ? "Muse window" : Window.Title;
+    // R3 #121: the profile's avatar glyph rides the descriptor and
+    // leads the profile name here, like every other switcher surface.
     public string ProfileLabel => Window.ProfileName is null
         ? (Window.IsMain ? "Main window" : "Second window")
-        : $"{(Window.IsMain ? "Main window" : "Second window")} · profile {Window.ProfileName}";
+        : $"{(Window.IsMain ? "Main window" : "Second window")} · profile {(WorkspaceGlyphs.SymbolFor(Window.ProfileGlyphKey) is { } symbol ? symbol + " " : "")}{Window.ProfileName}";
     public Brush? DotBrush { get; }
     public Visibility DotVisibility => DotBrush is null ? Visibility.Collapsed : Visibility.Visible;
     public string AutomationName => $"{Title}, {ProfileLabel}";

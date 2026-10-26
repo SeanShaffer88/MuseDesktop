@@ -61,6 +61,10 @@ public sealed class TrayController : IDisposable
     private readonly Func<IReadOnlyList<Workspace>>? _workspaces;
     private readonly Func<string?>? _activeWorkspaceId;
     private readonly Action<string>? _applyWorkspace;
+    // Profile groups (R3 #127): optional like the workspace delegates —
+    // when supplied, the switch submenu gathers grouped profiles
+    // under their group headings.
+    private readonly Func<IReadOnlyList<ProfileGroup>>? _profileGroups;
 
     private Forms.NotifyIcon? _icon;
     private Forms.ToolStripMenuItem? _openItem;
@@ -119,7 +123,8 @@ public sealed class TrayController : IDisposable
         Action? openPalette = null,
         Func<IReadOnlyList<Workspace>>? workspaces = null,
         Func<string?>? activeWorkspaceId = null,
-        Action<string>? applyWorkspace = null)
+        Action<string>? applyWorkspace = null,
+        Func<IReadOnlyList<ProfileGroup>>? profileGroups = null)
     {
         _log = log;
         _dispatcher = dispatcher;
@@ -151,6 +156,7 @@ public sealed class TrayController : IDisposable
         _workspaces = workspaces;
         _activeWorkspaceId = activeWorkspaceId;
         _applyWorkspace = applyWorkspace;
+        _profileGroups = profileGroups;
     }
 
     public bool IsSuspended => _suspended;
@@ -395,27 +401,55 @@ public sealed class TrayController : IDisposable
             }
             _switchItem.DropDownItems.Clear();
 
-            var profiles = _profiles();
+            // R3: archived profiles are hidden (#130), labels carry
+            // the avatar glyph when there is one (#121), and groups
+            // gather their members under a heading (#127).
+            var profiles = Profiles.Visible(_profiles());
             var activeId = _activeProfileId();
             _switchItem.Enabled = profiles.Count > 1;
+            var placed = new HashSet<string>();
+            if (_profileGroups is not null)
+            {
+                foreach (var group in _profileGroups())
+                {
+                    var members = profiles.Where(p => p.GroupId == group.Id).ToList();
+                    if (members.Count == 0)
+                        continue;
+                    var header = new Forms.ToolStripMenuItem(group.Name);
+                    foreach (var member in members)
+                    {
+                        header.DropDownItems.Add(BuildSwitchItem(member, activeId));
+                        placed.Add(member.Id);
+                    }
+                    _switchItem.DropDownItems.Add(header);
+                }
+            }
             foreach (var p in profiles)
             {
-                var id = p.Id;
-                var item = new Forms.ToolStripMenuItem(Profiles.MenuLabel(p))
-                {
-                    Checked = id == activeId,
-                    Enabled = id != activeId,
-                };
-                if (ProfileColors.HexFor(p.DisplayColor) is { } hex)
-                    item.Image = ColorSwatch(hex);
-                item.Click += (_, _) => _dispatcher.Invoke(() => _switchProfile(id));
-                _switchItem.DropDownItems.Add(item);
+                if (placed.Contains(p.Id))
+                    continue;
+                _switchItem.DropDownItems.Add(BuildSwitchItem(p, activeId));
             }
         }
         catch (Exception ex)
         {
             _log.Warn($"Tray switch-profile menu failed: {ex.Message}");
         }
+    }
+
+    /// <summary>One switchable profile row for the tray menu (R3 label: glyph-or-dot; the color rides as the swatch image).</summary>
+    private Forms.ToolStripMenuItem BuildSwitchItem(AccountProfile p, string activeId)
+    {
+        var id = p.Id;
+        var item = new Forms.ToolStripMenuItem(Profiles.DisplayLabel(p))
+        {
+            Checked = id == activeId,
+            Enabled = id != activeId,
+        };
+        if (ProfileColors.HexFor(p.DisplayColor) is { } hex)
+            item.Image = ColorSwatch(hex);
+        item.Click += (_, _) => _dispatcher.Invoke(() => _switchProfile(id));
+        return item;
     }
 
     /// <summary>

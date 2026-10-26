@@ -143,6 +143,23 @@
                         <ComboBox x:Name="ProfileColorCombo" Width="140" SelectionChanged="OnProfileColorChanged"
                                   ToolTip="A small color dot next to this profile's name in menus, the tray, and here"/>
                     </StackPanel>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
+                        <TextBlock Text="Avatar icon:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="ProfileGlyphCombo" Width="140" SelectionChanged="OnProfileGlyphChanged"
+                                  ToolTip="A small symbol shown before this profile's name in the switcher, menus, and the tray — and stamped onto its desktop-shortcut icon"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
+                        <TextBlock Text="Group:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="ProfileGroupCombo" Width="140" SelectionChanged="OnProfileGroupChanged"
+                                  ToolTip="Groups gather profiles under one heading in the switcher and menus — handy when you have many profiles"/>
+                        <Button x:Name="DeleteGroupButton" Content="Delete group" Width="96" Margin="8,0,0,0" Click="OnDeleteProfileGroup"
+                                ToolTip="Deletes the selected group; its profiles stay, just ungrouped"/>
+                    </StackPanel>
+                    <DockPanel LastChildFill="True" Margin="0,6,0,0">
+                        <Button x:Name="AddGroupButton" DockPanel.Dock="Right" Content="Add group" Width="84" Margin="8,0,0,0"
+                                Click="OnAddProfileGroup"/>
+                        <TextBox x:Name="NewGroupText" ToolTip="Name for a new profile group, e.g. Clients"/>
+                    </DockPanel>
                     <TextBlock Style="{StaticResource Note}" Margin="0,10,0,0"
                                Text="When this profile starts:"/>
                     <RadioButton x:Name="ProfileStartLastRadio" GroupName="ProfileStartPage"
@@ -183,6 +200,49 @@
                         <TextBox x:Name="ProfileDownloadsFolderText" IsReadOnly="True"
                                  ToolTip="This profile's downloads land here; empty uses the shared Downloads folder"/>
                     </DockPanel>
+                    <CheckBox x:Name="ProfileArchivedCheck" Content="Archive this profile (hide it from switchers; its data stays on this PC)"
+                              Margin="0,10,0,0" Checked="OnProfileArchivedChanged" Unchecked="OnProfileArchivedChanged"
+                              ToolTip="Archived profiles disappear from the switcher, menus, and shortcut keys, but nothing is deleted and a desktop shortcut for the profile still opens it. Untick to restore. The profile you're using can't be archived"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,10,0,0">
+                        <TextBlock Text="Profile PIN:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock x:Name="ProfilePinStatus" VerticalAlignment="Center"/>
+                        <Button x:Name="SetProfilePinButton" Content="Set PIN…" Width="84" Margin="8,0,0,0" Click="OnSetProfilePin"
+                                ToolTip="Ask for a PIN whenever MuseDesktop launches with this profile. The app password (if set) is still asked first. A PIN is a privacy screen, not encryption"/>
+                        <Button x:Name="RemoveProfilePinButton" Content="Remove PIN" Width="96" Margin="8,0,0,0" Click="OnRemoveProfilePin"
+                                ToolTip="Remove this profile's PIN (asks for the current PIN first)"/>
+                    </StackPanel>
+                    <CheckBox x:Name="ProfileScheduleCheck" Content="Switch to this profile on a schedule:"
+                              Margin="0,10,0,0" Checked="OnProfileScheduleChanged" Unchecked="OnProfileScheduleChanged"
+                              ToolTip="During the hours below, MuseDesktop offers to switch to this profile (or switches on its own, if you tick the box further down). Switching by hand always wins"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="18,4,0,0">
+                        <TextBlock Text="From" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBox x:Name="ProfileScheduleStartText" Width="56" LostFocus="OnProfileScheduleChanged"
+                                 ToolTip="Start time, 24-hour clock — e.g. 09:00"/>
+                        <TextBlock Text="to" VerticalAlignment="Center" Margin="8,0,6,0"/>
+                        <TextBox x:Name="ProfileScheduleEndText" Width="56" LostFocus="OnProfileScheduleChanged"
+                                 ToolTip="End time, 24-hour clock — e.g. 17:00. An end earlier than the start runs past midnight"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="18,4,0,0">
+                        <CheckBox x:Name="SchedMon" Content="Mon" Margin="0,0,8,0" Checked="OnProfileScheduleChanged" Unchecked="OnProfileScheduleChanged"/>
+                        <CheckBox x:Name="SchedTue" Content="Tue" Margin="0,0,8,0" Checked="OnProfileScheduleChanged" Unchecked="OnProfileScheduleChanged"/>
+                        <CheckBox x:Name="SchedWed" Content="Wed" Margin="0,0,8,0" Checked="OnProfileScheduleChanged" Unchecked="OnProfileScheduleChanged"/>
+                        <CheckBox x:Name="SchedThu" Content="Thu" Margin="0,0,8,0" Checked="OnProfileScheduleChanged" Unchecked="OnProfileScheduleChanged"/>
+                        <CheckBox x:Name="SchedFri" Content="Fri" Margin="0,0,8,0" Checked="OnProfileScheduleChanged" Unchecked="OnProfileScheduleChanged"/>
+                        <CheckBox x:Name="SchedSat" Content="Sat" Margin="0,0,8,0" Checked="OnProfileScheduleChanged" Unchecked="OnProfileScheduleChanged"/>
+                        <CheckBox x:Name="SchedSun" Content="Sun" Checked="OnProfileScheduleChanged" Unchecked="OnProfileScheduleChanged"/>
+                    </StackPanel>
+                    <TextBlock x:Name="ProfileScheduleText" Style="{StaticResource Note}" Margin="18,2,0,0"/>
+                    <CheckBox x:Name="ScheduleAutoCheck" Content="Switch automatically when a schedule starts (don't ask first)"
+                              Margin="18,4,0,0" Checked="OnScheduleAutoChanged" Unchecked="OnScheduleAutoChanged"
+                              ToolTip="Off (the default): when a scheduled time arrives, MuseDesktop asks before switching. On: it switches right away. Either way, a profile you picked by hand is left alone until its time is up"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <Button x:Name="RefreshProfileHealthButton" Content="Profile health…" Width="110" Click="OnRefreshProfileHealth"
+                                ToolTip="Counts only: this profile's data size, disposable cache, cookie count, and last backup. Nothing about which sites or pages"/>
+                        <Button x:Name="ClearProfileUsageButton" Content="Clear usage counts" Width="140" Margin="8,0,0,0" Click="OnClearProfileUsage"
+                                ToolTip="Deletes the launch counts for every profile. They are stored only on this PC and never sent anywhere"/>
+                    </StackPanel>
+                    <TextBlock x:Name="ProfileHealthText" Style="{StaticResource Note}"/>
+                    <TextBlock x:Name="ProfileUsageText" Style="{StaticResource Note}" Margin="0,4,0,0"/>
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                         <Button x:Name="SwitchProfileButton" Content="Switch to this profile" Width="150" Click="OnSwitchProfile"
                                 ToolTip="Restarts MuseDesktop signed in with the selected profile"/>
@@ -191,6 +251,16 @@
                         <Button x:Name="CreateShortcutButton" Content="Create desktop shortcut" Width="164" Margin="8,0,0,0" Click="OnCreateProfileShortcut"
                                 ToolTip="Puts a shortcut on the Desktop that opens MuseDesktop with this profile"/>
                     </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <Button x:Name="CloneProfileButton" Content="Clone profile" Width="110" Click="OnCloneProfile"
+                                ToolTip="A new profile with this one's settings and appearance. Sign-in data is never copied — the clone starts signed out"/>
+                        <Button x:Name="ExportProfileButton" Content="Export profile…" Width="116" Margin="8,0,0,0" Click="OnExportProfile"
+                                ToolTip="Save this profile's settings and appearance as a small bundle file you can import on another PC"/>
+                        <Button x:Name="ImportProfileButton" Content="Import profile…" Width="116" Margin="8,0,0,0" Click="OnImportProfile"
+                                ToolTip="Add a profile from a bundle file. Importing always creates a new profile — it never overwrites one"/>
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="Cloning and bundles carry settings and appearance only — never sign-in data, cookies, the profile PIN, its schedule, or usage counts."/>
                     <TextBlock x:Name="ProfileNote" Style="{StaticResource Note}"/>
                     <TextBlock Style="{StaticResource Note}" Margin="0,8,0,2"
                                Text="New profile — optionally copy settings (start page, downloads folder, zoom, color) from an existing one. Sign-ins are never copied:"/>
@@ -201,6 +271,13 @@
                                 Click="OnAddProfile"/>
                         <TextBox x:Name="NewProfileNameText" ToolTip="Name for a new profile, e.g. Work"/>
                     </DockPanel>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
+                        <TextBlock Text="Or start from a template:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="ProfileTemplateCombo" Width="180"
+                                  ToolTip="Starter looks: Work (blue flag, home page), Personal (purple heart), Reading (orange moon, 125% zoom)"/>
+                        <Button x:Name="AddFromTemplateButton" Content="Add from template" Width="140" Margin="8,0,0,0" Click="OnAddFromTemplate"
+                                ToolTip="Creates a profile with the template's name, color, icon, and start page — change anything about it afterwards"/>
+                    </StackPanel>
                     <TextBlock Style="{StaticResource Note}"
                                Text="Each profile is a separate Muse sign-in (its own cookies and data on this PC). Switching restarts the app immediately, discarding other unsaved changes in this window. You can't remove the profile you're currently using."/>
                 </StackPanel>
