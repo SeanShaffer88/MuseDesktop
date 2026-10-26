@@ -7,6 +7,7 @@ using MenuItem = System.Windows.Controls.MenuItem;
 using TextChangedEventArgs = System.Windows.Controls.TextChangedEventArgs;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
@@ -35,6 +36,9 @@ public partial class MainWindow : Window
     private DispatcherTimer? _navPressTimer;
     private string _pageTitle = "";
     private bool _webInitFailed;
+    // R5B #202: the snippet a bookmark jump is hunting, set when the
+    // jump navigates and consumed by the next completed navigation.
+    private string? _pendingBookmarkSnippet;
     private bool _isFullScreen;
     private WindowState _preFullScreenState;
     private WindowStyle _preFullScreenStyle;
@@ -318,6 +322,8 @@ public partial class MainWindow : Window
         // R2 #115/#119: the ⋯ menu's workspace list, and the active
         // workspace's accent override if the last session left one.
         RebuildWorkspacesMenu();
+        // R5B #206: the ⋯ menu's snippet list, from the active profile's store.
+        RebuildSnippetsMenu();
         ApplyWorkspaceAccent();
         // R3 #123: the profile schedule is re-checked once a minute
         // while the app runs — Core decides, this window only asks
@@ -893,6 +899,17 @@ public partial class MainWindow : Window
         catch (Exception ex) { _log.Warn($"Find wiring failed: {ex.Message}"); }
         core.ContainsFullScreenElementChanged += OnFullScreenElementChanged;
         core.ProcessFailed += OnProcessFailed;
+        // R5B: the page bridge (PageScripts) — the conversation
+        // tools' one channel into the hosted page. Registered per
+        // web view; every later document in it gets the script. A
+        // failure here loses the R5B page features and nothing else:
+        // the page itself is untouched either way.
+        core.WebMessageReceived += OnPageWebMessage;
+        try
+        {
+            await core.AddScriptToExecuteOnDocumentCreatedAsync(PageScripts.DocumentScript);
+        }
+        catch (Exception ex) { _log.Warn($"Page bridge install failed: {ex.Message}"); }
         Browser.ZoomFactorChanged += (_, _) =>
         {
             ZoomLabel.Text = ZoomMath.FormatPercent(Browser.ZoomFactor);
@@ -1010,6 +1027,17 @@ public partial class MainWindow : Window
             if (src is not null)
                 _history.Record(src, Browser.CoreWebView2.DocumentTitle);
             SaveSettings();
+            // R5B: re-assert the profile's page style on the new
+            // document (the bridge's ready message is the primary
+            // path; this covers a missed one), and land a pending
+            // bookmark jump now that its conversation is in.
+            _ = ApplyPageStyleAsync();
+            if (_pendingBookmarkSnippet is not null)
+            {
+                var snippet = _pendingBookmarkSnippet;
+                _pendingBookmarkSnippet = null;
+                _ = FindBookmarkedMessageAsync(snippet);
+            }
         }
         else
         {
@@ -2063,7 +2091,12 @@ public partial class MainWindow : Window
             openStatsDashboard: () => OpenProductivity(showStats: true)) { Owner = this };
         // S6 #56: closing Settings returns focus to whatever invoked it
         // (usually the page itself).
-        if (FocusReturn.ShowDialog(dialog) != true)
+        var settingsAccepted = FocusReturn.ShowDialog(dialog) == true;
+        // R5B #206: snippet edits inside the dialog are live (their
+        // own store, like the Privacy section's actions), so the ⋯
+        // list follows them even when the dialog itself is cancelled.
+        RebuildSnippetsMenu();
+        if (!settingsAccepted)
             return;
 
         var removedProfileIds = _settings.Profiles
@@ -2111,6 +2144,9 @@ public partial class MainWindow : Window
         _settings.ProfileGroups = clone.ProfileGroups;
         _settings.ProfileSwitchRules = clone.ProfileSwitchRules;
         _settings.ProfileScheduleAutoSwitch = clone.ProfileScheduleAutoSwitch;
+        // R5B: the drafts switch (the per-profile conversation-view
+        // fields ride the Profiles adoption above, like the zoom).
+        _settings.DraftsAutosaveEnabled = clone.DraftsAutosaveEnabled;
         _settings.AlwaysOnTop = clone.AlwaysOnTop;
         // S5: appearance + Settings-window memory ride the same adoption.
         _settings.Theme = clone.Theme;
@@ -2172,6 +2208,9 @@ public partial class MainWindow : Window
         _workspaceAccentKey = null;
         ApplyWorkspaceAccent();
         RebuildWorkspacesMenu();
+        // R5B #201/#205 live apply: the page takes the (possibly
+        // changed) profile's CSS right away.
+        _ = ApplyPageStyleAsync();
         // S11 #96/#99 live apply (see the adoption above).
         _hotkeyManager?.Apply(_settings);
         // R5 #148: the quick-note hotkey re-registers on the same pass.
@@ -3299,6 +3338,8 @@ public partial class MainWindow : Window
         FocusItem.IsChecked = on;
         Toolbar.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
         StatusBar.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
+        // R5B: the left rail is chrome too — focus mode hides it with the rest.
+        LeftRail.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
         if (on)
         {
             // R5 #141: focus mode fills the screen — the window
@@ -3540,6 +3581,364 @@ public partial class MainWindow : Window
         dialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(dialog);
         ShellTextScaling.Apply(dialog, _settings.ShellFontScale);
         FocusReturn.ShowDialog(dialog);
+    }
+
+    // ─────────────────── R5B: conversation tools (#201–#206) ───────────────────
+
+    /// <summary>
+    /// The page bridge's other end (R5B). Everything the page posts
+    /// is untrusted input: Core's parser decides the shape, and a
+    /// null parse is simply ignored — a changed page can at worst
+    /// make these features stop, never fault the shell. Nothing the
+    /// page sends is ever logged (a draft is the user's own words; a
+    /// snippet is a piece of a conversation).
+    /// </summary>
+    private async void OnPageWebMessage(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
+    {
+        string json;
+        try { json = e.WebMessageAsJson; }
+        catch { return; }
+        if (PageBridge.TryParse(json) is not { } message)
+            return;
+        switch (message.Kind)
+        {
+            case PageBridgeKind.Ready:
+                await PushPageStateAsync();
+                break;
+            case PageBridgeKind.Bookmark:
+                if (!_isLocked)
+                    PromptAndSaveBookmark(message.Text);
+                break;
+            case PageBridgeKind.Draft:
+                OnPageDraftChanged(message.Text);
+                break;
+            case PageBridgeKind.DraftSent:
+                OnPageDraftSent();
+                break;
+        }
+    }
+
+    /// <summary>Feed the page everything the profile asks for (R5B #201/#205 style, then the route's saved draft for #204) — called on the bridge's ready handshake, when the document the handshake came from is the one on screen.</summary>
+    private async Task PushPageStateAsync()
+    {
+        await ApplyPageStyleAsync();
+        if (!_settings.DraftsAutosaveEnabled || _isLocked || !_webReady)
+            return;
+        var route = AppRoute.FromUrl(Browser.Source?.ToString());
+        if (route is null)
+            return;
+        string? draft;
+        try { draft = ConversationDraftStore.Load(AppPaths.DraftsPath).Get(_settings.ActiveProfileId, route); }
+        catch { draft = null; }
+        if (string.IsNullOrEmpty(draft))
+            return;
+        try
+        {
+            await Browser.CoreWebView2.ExecuteScriptAsync(PageScripts.RestoreDraft(draft));
+        }
+        catch (Exception ex) { _log.Warn($"Draft restore failed: {ex.Message}"); }
+    }
+
+    /// <summary>Apply the active profile's conversation CSS (#201/#205) to the current page — the style element is replaced, never stacked, and an all-default profile clears it back to the page as shipped.</summary>
+    private async Task ApplyPageStyleAsync()
+    {
+        if (!_webReady)
+            return;
+        try
+        {
+            await Browser.CoreWebView2.ExecuteScriptAsync(
+                PageScripts.ApplyStyle(PageStyleCss.Build(ActiveProfile())));
+        }
+        catch (Exception ex) { _log.Warn($"Page style apply failed: {ex.Message}"); }
+    }
+
+    /// <summary>The bookmark save flow (R5B #202, SEAN's design): the nickname comes FIRST and is required — the prompt loops until a usable name is given or the user cancels; there is no path that saves an unnamed bookmark.</summary>
+    private void PromptAndSaveBookmark(string snippet)
+    {
+        if (AppRoute.FromUrl(Browser.Source?.ToString()) is null)
+        {
+            SetStatus("Bookmarks only work on Muse pages");
+            return;
+        }
+        while (true)
+        {
+            var prompt = new TextPromptWindow("Bookmark this message",
+                "Give this bookmark a nickname — you'll pick it out by this name later. A nickname is required.",
+                "", okText: "Save bookmark") { Owner = this };
+            ShellTextScaling.Apply(prompt, _settings.ShellFontScale);
+            if (FocusReturn.ShowDialog(prompt) != true)
+                return;
+            if (MessageBookmarks.CleanNickname(prompt.Text) is null)
+            {
+                var invoker = FocusReturn.Capture();
+                System.Windows.MessageBox.Show(this,
+                    "A bookmark needs a nickname — type a name, or Cancel to skip saving.",
+                    "Nickname required", MessageBoxButton.OK, MessageBoxImage.Information);
+                FocusReturn.Restore(invoker);
+                continue;
+            }
+            try
+            {
+                var all = MessageBookmarkStore.Load(AppPaths.BookmarksPath);
+                var saved = all.Add(_settings.ActiveProfileId, prompt.Text, _pageTitle,
+                    Browser.Source?.ToString(), snippet, DateTimeOffset.UtcNow);
+                if (saved is null)
+                {
+                    SetStatus("That message couldn't be bookmarked");
+                    return;
+                }
+                MessageBookmarkStore.Save(AppPaths.BookmarksPath, all);
+                SetStatus($"Bookmarked as “{saved.Nickname}” — revisit it from Bookmarks, at the window's left edge");
+            }
+            catch (Exception ex)
+            {
+                _log.Warn($"Bookmark save failed: {ex.Message}");
+                SetStatus("Couldn't save the bookmark — see the log");
+            }
+            return;
+        }
+    }
+
+    /// <summary>The bookmarks window (R5B #202): store work rides delegates, like the reading list's.</summary>
+    private void OpenBookmarks()
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        if (!IsVisible)
+            ShowFromTray();
+        var profileId = _settings.ActiveProfileId;
+        var dialog = new BookmarksWindow(
+            refresh: () => MessageBookmarkStore.Load(AppPaths.BookmarksPath).EntriesFor(profileId),
+            jump: JumpToBookmark,
+            rename: (id, name) =>
+            {
+                var all = MessageBookmarkStore.Load(AppPaths.BookmarksPath);
+                if (!all.Rename(profileId, id, name))
+                    return false;
+                MessageBookmarkStore.Save(AppPaths.BookmarksPath, all);
+                return true;
+            },
+            remove: id =>
+            {
+                var all = MessageBookmarkStore.Load(AppPaths.BookmarksPath);
+                if (all.Remove(profileId, id))
+                    MessageBookmarkStore.Save(AppPaths.BookmarksPath, all);
+            })
+            { Owner = this };
+        dialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(dialog);
+        ShellTextScaling.Apply(dialog, _settings.ShellFontScale);
+        FocusReturn.ShowDialog(dialog);
+    }
+
+    private void OnBookmarks(object sender, RoutedEventArgs e) => OpenBookmarks();
+
+    /// <summary>Jump to a bookmark (R5B #202): open its conversation, then find + highlight the message by its snippet. Already there = find right away; anywhere else = navigate and let the completed navigation run the find.</summary>
+    private void JumpToBookmark(MessageBookmark bookmark)
+    {
+        if (!_webReady)
+        {
+            SetStatus("The page isn't ready yet — try the bookmark again in a moment");
+            return;
+        }
+        if (!IsVisible)
+            ShowFromTray();
+        var current = AppRoute.FromUrl(Browser.Source?.ToString());
+        if (current == bookmark.Route)
+        {
+            _ = FindBookmarkedMessageAsync(bookmark.Snippet);
+            return;
+        }
+        _pendingBookmarkSnippet = bookmark.Snippet;
+        Browser.CoreWebView2.Navigate(AppRoute.ToUrl(bookmark.Route));
+        SetStatus($"Opening “{bookmark.Nickname}”…");
+    }
+
+    /// <summary>Run the find for a landed bookmark jump (R5B #202) and report honestly: found + highlighted, or landed in the conversation without a match — the message may have been edited since it was marked.</summary>
+    private async Task FindBookmarkedMessageAsync(string snippet)
+    {
+        // The conversation is a live app page: give its renderer a
+        // beat to put the messages in before searching for one.
+        await Task.Delay(600);
+        if (!_webReady)
+            return;
+        var found = false;
+        try
+        {
+            found = await Browser.CoreWebView2.ExecuteScriptAsync(PageScripts.FindSnippet(snippet)) == "true";
+        }
+        catch (Exception ex) { _log.Warn($"Bookmark find failed: {ex.Message}"); }
+        SetStatus(found
+            ? "Found your bookmarked message — it's highlighted"
+            : "Couldn't find that message — it may have been edited since you bookmarked it");
+    }
+
+    /// <summary>A draft changed in the page (R5B #204): file it under the current conversation for the active profile. Empty text clears the draft — that IS the sent/cleared signal from the composer's side.</summary>
+    private void OnPageDraftChanged(string text)
+    {
+        if (!_settings.DraftsAutosaveEnabled || _isLocked)
+            return;
+        var route = AppRoute.FromUrl(Browser.Source?.ToString());
+        if (route is null)
+            return;
+        try
+        {
+            var drafts = ConversationDraftStore.Load(AppPaths.DraftsPath);
+            if (drafts.Set(_settings.ActiveProfileId, route, text, DateTimeOffset.UtcNow))
+                ConversationDraftStore.Save(AppPaths.DraftsPath, drafts);
+        }
+        catch (Exception ex) { _log.Warn($"Draft save failed: {ex.Message}"); }
+    }
+
+    /// <summary>A send was attempted in the page (R5B #204): the draft for this conversation has done its job — clear it.</summary>
+    private void OnPageDraftSent()
+    {
+        var route = AppRoute.FromUrl(Browser.Source?.ToString());
+        if (route is null)
+            return;
+        try
+        {
+            var drafts = ConversationDraftStore.Load(AppPaths.DraftsPath);
+            if (drafts.Remove(_settings.ActiveProfileId, route))
+                ConversationDraftStore.Save(AppPaths.DraftsPath, drafts);
+        }
+        catch (Exception ex) { _log.Warn($"Draft clear failed: {ex.Message}"); }
+    }
+
+    private void OnExportConversationMarkdown(object sender, RoutedEventArgs e) =>
+        _ = ExportConversationAsync(pdf: false);
+
+    private void OnExportConversationPdf(object sender, RoutedEventArgs e) =>
+        _ = ExportConversationAsync(pdf: true);
+
+    /// <summary>
+    /// Export the current conversation (R5B #203). Markdown: the
+    /// page's own messages (read by the bridge's extractor, shaped by
+    /// Core) written to the file the user picks. PDF: the pinned
+    /// SDK's PrintToPdfAsync over the conversation page as it appears
+    /// — the same engine as Save as PDF, offered under the export
+    /// name with the conversation's own file name.
+    /// </summary>
+    private async Task ExportConversationAsync(bool pdf)
+    {
+        if (!_webReady)
+        {
+            SetStatus("The page isn't ready yet");
+            return;
+        }
+        if (pdf)
+        {
+            var pdfDialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Filter = "PDF file (*.pdf)|*.pdf",
+                FileName = ConversationExport.SuggestFileName(_pageTitle, DateTimeOffset.Now, ".pdf"),
+                Title = "Export conversation as PDF",
+            };
+            var pdfInvoker = FocusReturn.Capture();
+            var pdfChosen = pdfDialog.ShowDialog(this) == true;
+            FocusReturn.Restore(pdfInvoker);
+            if (!pdfChosen) return;
+            try
+            {
+                var printSettings = Browser.CoreWebView2.Environment.CreatePrintSettings();
+                var ok = await Browser.CoreWebView2.PrintToPdfAsync(pdfDialog.FileName, printSettings);
+                SetStatus(ok
+                    ? $"Exported the conversation to {Path.GetFileName(pdfDialog.FileName)}"
+                    : "Exporting the PDF failed");
+                if (!ok) _log.Warn("Conversation PDF export: PrintToPdfAsync reported failure");
+            }
+            catch (Exception ex)
+            {
+                _log.Warn($"Conversation PDF export failed: {ex.Message}");
+                SetStatus("Exporting the PDF failed");
+            }
+            return;
+        }
+
+        string? extractionJson = null;
+        try
+        {
+            var raw = await Browser.CoreWebView2.ExecuteScriptAsync(PageScripts.ExtractConversation);
+            if (raw is not null && raw != "null")
+                extractionJson = JsonSerializer.Deserialize<string>(raw);
+        }
+        catch (Exception ex) { _log.Warn($"Conversation extraction failed: {ex.Message}"); }
+        var messages = ConversationExport.TryParseExtraction(extractionJson);
+        if (messages is null || messages.Count == 0)
+        {
+            SetStatus("Couldn't read this conversation from the page — nothing was exported");
+            return;
+        }
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Filter = "Markdown file (*.md)|*.md",
+            FileName = ConversationExport.SuggestFileName(_pageTitle, DateTimeOffset.Now, ".md"),
+            Title = "Export conversation as Markdown",
+        };
+        var invoker = FocusReturn.Capture();
+        var chosen = dialog.ShowDialog(this) == true;
+        FocusReturn.Restore(invoker);
+        if (!chosen) return;
+        try
+        {
+            File.WriteAllText(dialog.FileName,
+                ConversationExport.RenderMarkdown(_pageTitle, DateTimeOffset.Now, messages));
+            SetStatus($"Exported {messages.Count} messages to {Path.GetFileName(dialog.FileName)}");
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Conversation export failed: {ex.Message}");
+            SetStatus("Exporting the conversation failed");
+        }
+    }
+
+    /// <summary>Insert a snippet into the composer (R5B #206): the text lands in the message box for the user to edit — inserting is all this does; sending stays the user's act.</summary>
+    private async void InsertSnippetIntoComposer(PromptSnippet snippet)
+    {
+        if (!_webReady)
+        {
+            SetStatus("The page isn't ready yet");
+            return;
+        }
+        if (!IsVisible)
+            ShowFromTray();
+        var inserted = false;
+        try
+        {
+            inserted = await Browser.CoreWebView2.ExecuteScriptAsync(
+                PageScripts.InsertSnippet(snippet.Body)) == "true";
+        }
+        catch (Exception ex) { _log.Warn($"Snippet insert failed: {ex.Message}"); }
+        SetStatus(inserted
+            ? $"Inserted snippet “{snippet.Name}” — it's in the message box, unsent"
+            : "Couldn't find the message box on this page — the snippet wasn't inserted");
+    }
+
+    /// <summary>The ⋯ menu's snippet submenu (R5B #206): one item per snippet in the active profile's library, rebuilt wherever the store may have changed (startup, Settings OK).</summary>
+    private void RebuildSnippetsMenu()
+    {
+        SnippetsItem.Items.Clear();
+        IReadOnlyList<PromptSnippet> snippets;
+        try { snippets = PromptSnippetStore.Load(AppPaths.SnippetsPath).EntriesFor(_settings.ActiveProfileId); }
+        catch { snippets = Array.Empty<PromptSnippet>(); }
+        if (snippets.Count == 0)
+        {
+            SnippetsItem.Items.Add(new MenuItem
+            {
+                Header = "No snippets yet — add them in Settings → Account profiles",
+                IsEnabled = false,
+            });
+            return;
+        }
+        foreach (var snippet in snippets)
+        {
+            var captured = snippet;
+            var item = new MenuItem { Header = captured.Name };
+            item.Click += (_, _) => InsertSnippetIntoComposer(captured);
+            SnippetsItem.Items.Add(item);
+        }
     }
 
     /// <summary>Quick note capture (R5 #148) — one dialog for the menu, the palette, and the global hotkey, filed under the active profile.</summary>
@@ -3817,12 +4216,22 @@ public partial class MainWindow : Window
         IReadOnlyList<ReadingListEntry> reading;
         try { reading = ReadingListStore.Load(AppPaths.ReadingListPath).EntriesFor(_settings.ActiveProfileId); }
         catch { reading = Array.Empty<ReadingListEntry>(); }
+        // R5B #202/#206: the active profile's bookmarks and snippets
+        // join the palette the same fail-soft way.
+        IReadOnlyList<MessageBookmark> bookmarks;
+        try { bookmarks = MessageBookmarkStore.Load(AppPaths.BookmarksPath).EntriesFor(_settings.ActiveProfileId); }
+        catch { bookmarks = Array.Empty<MessageBookmark>(); }
+        IReadOnlyList<PromptSnippet> snippets;
+        try { snippets = PromptSnippetStore.Load(AppPaths.SnippetsPath).EntriesFor(_settings.ActiveProfileId); }
+        catch { snippets = Array.Empty<PromptSnippet>(); }
         return CommandRegistry.CreateDefault(
             Profiles.VisibleProfiles(_settings), _settings.ActiveProfileId, downloads, CurrentWindowDescriptors(),
             _settings.Workspaces, _settings.ActiveWorkspaceId, _settings.StartupWorkspaceId,
             groupSettings: _settings,
             readingEntries: reading,
-            historyEntries: _history.Entries);
+            historyEntries: _history.Entries,
+            bookmarks: bookmarks,
+            snippets: snippets);
     }
 
     /// <summary>
@@ -4000,6 +4409,23 @@ public partial class MainWindow : Window
                     && UrlPolicy.ClassifyNavigation(historyUrl) == LinkDisposition.InApp)
                     Browser.CoreWebView2.Navigate(historyUrl);
                 break;
+            case PaletteCommandSource.Bookmark:
+                // R5B #202: the payload is the bookmark id — resolve
+                // it against the store NOW, so the jump uses the
+                // bookmark as it stands, not as the palette found it.
+                if (command.Payload is { } bookmarkId
+                    && MessageBookmarkStore.Load(AppPaths.BookmarksPath)
+                        .Find(_settings.ActiveProfileId, bookmarkId) is { } bookmark)
+                    JumpToBookmark(bookmark);
+                break;
+            case PaletteCommandSource.Snippet:
+                // R5B #206: same resolve-at-run-time discipline — an
+                // edited snippet inserts its current text.
+                if (command.Payload is { } snippetId
+                    && PromptSnippetStore.Load(AppPaths.SnippetsPath)
+                        .Find(_settings.ActiveProfileId, snippetId) is { } snippet)
+                    InsertSnippetIntoComposer(snippet);
+                break;
         }
     }
 
@@ -4055,6 +4481,10 @@ public partial class MainWindow : Window
             case "action.notes": OpenNotes(); break;
             case "action.weekly-digest": OpenProductivity(showStats: false); break;
             case "action.stats-dashboard": OpenProductivity(showStats: true); break;
+            // R5B #202/#203: the conversation tools' fixed doors.
+            case "action.bookmarks": OpenBookmarks(); break;
+            case "action.export-conversation": _ = ExportConversationAsync(pdf: false); break;
+            case "action.export-conversation-pdf": _ = ExportConversationAsync(pdf: true); break;
             case "action.exit": ExitApp(); break;
         }
     }

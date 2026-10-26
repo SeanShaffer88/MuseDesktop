@@ -210,6 +210,12 @@ public static class SettingsReset
         target.SessionCyclesBeforeLongBreak = fresh.SessionCyclesBeforeLongBreak;
         target.QuickNoteHotkeyEnabled = fresh.QuickNoteHotkeyEnabled;
         target.QuickNoteHotkeyGesture = fresh.QuickNoteHotkeyGesture;
+        // R5B field (v1.6.0): drafts autosave returns to on. The
+        // per-profile conversation-view choices live on the profiles
+        // (preserved below, like every per-profile setting), and the
+        // bookmarks / drafts / snippets stores are user data in
+        // their own files — a preferences reset touches none of them.
+        target.DraftsAutosaveEnabled = fresh.DraftsAutosaveEnabled;
         // S9 fields (v0.13.0): the update channel returns to stable
         // only, the check frequency to every launch, any snooze is
         // cleared, and What's New shows again. NOT preferences, so

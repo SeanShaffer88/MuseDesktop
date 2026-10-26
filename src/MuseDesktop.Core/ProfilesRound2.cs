@@ -674,6 +674,15 @@ public static class ProfileBundle
             DataCapBytes = source.DataCapBytes,
             // R4 #140: the downloads quota is a setting, not sign-in data — it travels.
             DownloadQuotaBytes = source.DownloadQuotaBytes,
+            // R5B #201/#205: the conversation-view choices are
+            // appearance settings — they travel like the zoom does.
+            // (Bookmarks, drafts, and snippets do NOT travel: they
+            // live in their own local stores, outside settings
+            // entirely, so no bundle can carry them.)
+            ConversationScrollbars = source.ConversationScrollbars,
+            ChatTextScalePercent = source.ChatTextScalePercent,
+            ReadingColumnWidthPx = source.ReadingColumnWidthPx,
+            ChatLineSpacingPercent = source.ChatLineSpacingPercent,
         };
         var envelope = new Envelope { Profile = carried };
         var text = MagicLine + "\n" + JsonSerializer.Serialize(envelope, Options);
@@ -757,6 +766,13 @@ public static class ProfileBundle
             ZoomFactor = source.ZoomFactor,
             DataCapBytes = source.DataCapBytes,
             DownloadQuotaBytes = source.DownloadQuotaBytes,
+            // R5B #201/#205: the conversation-view choices, mirrored
+            // from Export's carried copy (EnsureValid clamps them
+            // below like any hand-edited value).
+            ConversationScrollbars = source.ConversationScrollbars,
+            ChatTextScalePercent = source.ChatTextScalePercent,
+            ReadingColumnWidthPx = source.ReadingColumnWidthPx,
+            ChatLineSpacingPercent = source.ChatLineSpacingPercent,
         };
         // Sanitize through the same repairs a settings load applies
         // (name cap, color/glyph must be palette keys, zoom clamp,

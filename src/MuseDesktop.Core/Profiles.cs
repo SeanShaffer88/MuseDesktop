@@ -107,6 +107,25 @@ public sealed class AccountProfile
     /// </summary>
     public double? ZoomFactor { get; set; }
 
+    // ── Conversation view (R5B #201/#205) ────────────────────────────
+    // The first per-profile settings that restyle the hosted page —
+    // a scoped, user-requested exception to the standing no-restyle
+    // rule (see DECISIONS.md, v1.6.0). They are applied by injecting
+    // CSS built by PageStyleCss; if the page's shape changes, the
+    // rules simply stop matching and the page renders as shipped.
+
+    /// <summary>Always-visible, wider conversation scrollbar (R5B #201). On by default — the page's auto-hiding overlay scrollbar is the complaint this answers.</summary>
+    public bool ConversationScrollbars { get; set; } = true;
+
+    /// <summary>Chat text scale in percent (R5B #205): 100 = the page's own size; clamped to 50–200 by ReadingComfort on load.</summary>
+    public int ChatTextScalePercent { get; set; } = ReadingComfort.DefaultTextScalePercent;
+
+    /// <summary>Reading-column max width in pixels (R5B #205): 0 = the page's own width; otherwise clamped to 480–1600.</summary>
+    public int ReadingColumnWidthPx { get; set; } = ReadingComfort.DefaultColumnWidthPx;
+
+    /// <summary>Message line spacing in percent (R5B #205): 0 = the page's own spacing; otherwise clamped to 100–200.</summary>
+    public int ChatLineSpacingPercent { get; set; } = ReadingComfort.DefaultLineSpacingPercent;
+
     /// <summary>When this profile was last launched with (S3 #27). Session state — never copied to a new profile (S3 #29).</summary>
     public DateTimeOffset? LastUsedUtc { get; set; }
 
@@ -247,6 +266,11 @@ public static class Profiles
             // R3 #121: unknown avatar glyph keys become "no glyph" —
             // the same repair ProfileColors gives unknown colors.
             p.AvatarGlyph = WorkspaceGlyphs.Sanitize(p.AvatarGlyph);
+            // R5B #205: the reading-comfort numbers clamp to their
+            // ranges (0 stays 0 = "the page's own" for width/spacing).
+            p.ChatTextScalePercent = ReadingComfort.ClampTextScale(p.ChatTextScalePercent);
+            p.ReadingColumnWidthPx = ReadingComfort.ClampColumnWidth(p.ReadingColumnWidthPx);
+            p.ChatLineSpacingPercent = ReadingComfort.ClampLineSpacing(p.ChatLineSpacingPercent);
             // R3 #122: a profile lock whose stored record no longer
             // parses turns the lock OFF (fail-open, exactly like the
             // app lock) — a corrupt record must never lock its owner
@@ -339,6 +363,12 @@ public static class Profiles
             // is never read by this code at all).
             AvatarGlyph = source.AvatarGlyph,
             GroupId = source.GroupId,
+            // R5B #201/#205: the conversation-view choices are
+            // appearance and copy with it.
+            ConversationScrollbars = source.ConversationScrollbars,
+            ChatTextScalePercent = source.ChatTextScalePercent,
+            ReadingColumnWidthPx = source.ReadingColumnWidthPx,
+            ChatLineSpacingPercent = source.ChatLineSpacingPercent,
             LastUsedUtc = null,
         };
 

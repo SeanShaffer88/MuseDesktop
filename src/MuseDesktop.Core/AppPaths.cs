@@ -73,6 +73,15 @@ public static class AppPaths
     /// <summary>The weekly stats (R5 #150): per-profile per-week counts (launches, downloads, focus minutes) — local-only, clearable from the dashboard, in their own file.</summary>
     public static string WeeklyStatsPath => Path.Combine(RootDir, "weekly-stats.json");
 
+    /// <summary>The message bookmarks (R5B #202): per profile — nickname + conversation route + message snippet. Local-only by design (SEAN's): bookmarks are revisited from inside the app and are never exported, so they live in their own file, never in settings.</summary>
+    public static string BookmarksPath => Path.Combine(RootDir, "bookmarks.json");
+
+    /// <summary>The composer drafts (R5B #204): per profile, per conversation route — the user's unsent words, kept only to hand them back. Own file, never in settings, never logged.</summary>
+    public static string DraftsPath => Path.Combine(RootDir, "drafts.json");
+
+    /// <summary>The prompt snippets (R5B #206): per profile — the user's own reusable prompt text. Own file, never in settings, never logged.</summary>
+    public static string SnippetsPath => Path.Combine(RootDir, "snippets.json");
+
     /// <summary>Installers the in-app updater downloads + the kept current/previous slots (v0.13.0, S9 #81/#84). Beside the settings, so portable mode carries them too.</summary>
     public static string UpdatesDir => Path.Combine(RootDir, "updates");
 

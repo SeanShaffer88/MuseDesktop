@@ -304,6 +304,13 @@ public static class HelpCatalog
             "Focus mode, timers, reading list & notes",
             "focus mode timer pomodoro session break reminder reading list saved pages quick note notes scheduled commands weekly digest stats dashboard tiling presets window groups concentrate",
             HelpAction.OpenSettings, "Open Settings — focus & productivity", SettingsSearch.FocusId),
+        // R5B (#201–#206): the conversation tools how-to page, also
+        // listed last — it answers "how do bookmarks / drafts /
+        // snippets / reading comfort work", which no older page owned.
+        new HelpPage("conversation-tools",
+            "Bookmarks, drafts, snippets & reading comfort",
+            "bookmark marked message nickname scrollbars scrollbar visible wider draft unsent lost typed export conversation markdown pdf snippet prompt insert reuse reading comfort text size column width line spacing",
+            HelpAction.OpenSettings, "Open Settings — account profiles", SettingsSearch.ProfilesId),
     };
 
     public static HelpPage? ById(string? id) =>
