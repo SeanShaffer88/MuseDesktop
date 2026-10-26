@@ -1,0 +1,52 @@
+<Window x:Class="MuseDesktop.SwitcherWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Switch window"
+        Width="480" Height="360" MinWidth="360" MinHeight="240"
+        WindowStartupLocation="CenterOwner"
+        ShowInTaskbar="False"
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
+    <Window.Resources>
+        <Style x:Key="Note" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,6,0,0"/>
+        </Style>
+    </Window.Resources>
+
+    <DockPanel Margin="14,12,14,12">
+        <TextBlock DockPanel.Dock="Top" Text="Open windows, most recently used first:"/>
+        <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource Note}"
+                   Text="Arrow keys choose a window, Enter switches to it, Esc cancels."/>
+        <ListBox x:Name="WindowList" Margin="0,10,0,0"
+                 Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
+                 BorderBrush="{StaticResource HairlineBrush}"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 MouseDoubleClick="OnDoubleClick" PreviewKeyDown="OnListKeyDown"
+                 AutomationProperties.Name="Open windows">
+            <ListBox.ItemContainerStyle>
+                <Style TargetType="ListBoxItem">
+                    <Setter Property="AutomationProperties.Name" Value="{Binding AutomationName}"/>
+                </Style>
+            </ListBox.ItemContainerStyle>
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Grid Margin="4,3">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="18"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Ellipse Grid.Column="0" Width="10" Height="10" VerticalAlignment="Center"
+                                 Fill="{Binding DotBrush}" Visibility="{Binding DotVisibility}"/>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="{Binding Title}" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                            <TextBlock Text="{Binding ProfileLabel}" FontSize="11"
+                                       Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis"/>
+                        </StackPanel>
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </DockPanel>
+</Window>

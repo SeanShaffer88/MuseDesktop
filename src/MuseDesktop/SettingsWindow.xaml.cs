@@ -1493,7 +1493,9 @@ public partial class SettingsWindow : Window
             var hit = matchIds.Contains(id);
             container.Visibility = hit ? Visibility.Visible : Visibility.Collapsed;
             header.Background = hit ? SearchHighlightBrush() : null;
-            if (hit && firstMatch is null)
+            // R1 #108: search results are ranked now — the window
+            // scrolls to the BEST match, not the first in layout order.
+            if (hit && matches.Count > 0 && id == matches[0].Id)
                 firstMatch = container;
         }
         SearchSummary.Text = matches.Count == 0

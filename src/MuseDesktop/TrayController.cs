@@ -53,6 +53,8 @@ public sealed class TrayController : IDisposable
     private readonly Action? _lockNow;
     // Quick dictate (S11 #97): optional like the lock delegates.
     private readonly Action? _quickDictate;
+    // Command palette (R1 #110): middle-click opens it compact.
+    private readonly Action? _openPalette;
 
     private Forms.NotifyIcon? _icon;
     private Forms.ToolStripMenuItem? _openItem;
@@ -106,7 +108,8 @@ public sealed class TrayController : IDisposable
         Func<bool>? isLocked = null,
         Func<bool>? lockConfigured = null,
         Action? lockNow = null,
-        Action? quickDictate = null)
+        Action? quickDictate = null,
+        Action? openPalette = null)
     {
         _log = log;
         _dispatcher = dispatcher;
@@ -134,6 +137,7 @@ public sealed class TrayController : IDisposable
         _lockConfigured = lockConfigured;
         _lockNow = lockNow;
         _quickDictate = quickDictate;
+        _openPalette = openPalette;
     }
 
     public bool IsSuspended => _suspended;
@@ -209,6 +213,12 @@ public sealed class TrayController : IDisposable
             {
                 if (e.Button == Forms.MouseButtons.Left)
                     OnIconLeftClick();
+                // R1 #110: middle-click opens the command palette in
+                // its compact form. The main window's handler owns
+                // the lock gate — while locked it answers with the
+                // lock screen, like every other tray surface.
+                else if (e.Button == Forms.MouseButtons.Middle && _openPalette is not null)
+                    _dispatcher.Invoke(_openPalette);
             };
             _icon.DoubleClick += (_, _) =>
             {

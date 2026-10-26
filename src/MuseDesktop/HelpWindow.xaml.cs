@@ -21,13 +21,21 @@ public partial class HelpWindow : Window
     private readonly Action<HelpPage> _onAction;
     private HelpPage? _current;
 
-    public HelpWindow(string helpMarkdown, Action<HelpPage> onAction)
+    public HelpWindow(string helpMarkdown, Action<HelpPage> onAction, string? initialPageId = null)
     {
         _markdown = helpMarkdown;
         _onAction = onAction;
         InitializeComponent();
         SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(this);
         RefillList(SearchText.Text);
+        // R1: a caller (the palette) can land on a specific page —
+        // the commands page most often — instead of page one.
+        if (initialPageId is not null && PageList.ItemsSource is IEnumerable<HelpPage> pages)
+        {
+            var index = pages.ToList().FindIndex(p => p.Id == initialPageId);
+            if (index >= 0)
+                PageList.SelectedIndex = index;
+        }
     }
 
     private void RefillList(string? query)
@@ -56,9 +64,16 @@ public partial class HelpWindow : Window
         _current = PageList.SelectedItem as HelpPage;
         if (_current is null)
             return;
-        BodyText.Text = HelpCatalog.ExtractBody(_markdown, _current)
-                        ?? "This page's text is missing from the help file that shipped with the app — " +
-                           "the steps in the catalog couldn't be shown. Reinstalling MuseDesktop restores it.";
+        var body = HelpCatalog.ExtractBody(_markdown, _current)
+                   ?? "This page's text is missing from the help file that shipped with the app — " +
+                      "the steps in the catalog couldn't be shown. Reinstalling MuseDesktop restores it.";
+        // R1 #109: the commands page's list is GENERATED from the
+        // palette registry at the moment it's shown — the registry is
+        // the single source, so the page can never drift from what
+        // Ctrl+K actually offers.
+        if (_current.Id == HelpCatalog.CommandsPageId)
+            body += "\n\n" + CommandsHelp.Render(CommandRegistry.HelpListing());
+        BodyText.Text = body;
         if (_current.Action != HelpAction.None && _current.ActionLabel is not null)
         {
             ActionButton.Content = _current.ActionLabel;
