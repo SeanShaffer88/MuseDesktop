@@ -55,6 +55,12 @@ public sealed class TrayController : IDisposable
     private readonly Action? _quickDictate;
     // Command palette (R1 #110): middle-click opens it compact.
     private readonly Action? _openPalette;
+    // Workspaces (R2 #115): optional like the lock delegates — the
+    // submenu lists the saved workspaces (glyph + name, #119) and
+    // applies one through the main window's own apply path.
+    private readonly Func<IReadOnlyList<Workspace>>? _workspaces;
+    private readonly Func<string?>? _activeWorkspaceId;
+    private readonly Action<string>? _applyWorkspace;
 
     private Forms.NotifyIcon? _icon;
     private Forms.ToolStripMenuItem? _openItem;
@@ -64,6 +70,7 @@ public sealed class TrayController : IDisposable
     private Forms.ToolStripMenuItem? _settingsItem;
     private Forms.ToolStripMenuItem? _lockItem;
     private Forms.ToolStripMenuItem? _switchItem;
+    private Forms.ToolStripMenuItem? _workspacesItem;
     private Forms.ToolStripMenuItem? _downloadsItem;
     private Forms.ToolStripMenuItem? _statusItem;
     private bool _locked;
@@ -109,7 +116,10 @@ public sealed class TrayController : IDisposable
         Func<bool>? lockConfigured = null,
         Action? lockNow = null,
         Action? quickDictate = null,
-        Action? openPalette = null)
+        Action? openPalette = null,
+        Func<IReadOnlyList<Workspace>>? workspaces = null,
+        Func<string?>? activeWorkspaceId = null,
+        Action<string>? applyWorkspace = null)
     {
         _log = log;
         _dispatcher = dispatcher;
@@ -138,6 +148,9 @@ public sealed class TrayController : IDisposable
         _lockNow = lockNow;
         _quickDictate = quickDictate;
         _openPalette = openPalette;
+        _workspaces = workspaces;
+        _activeWorkspaceId = activeWorkspaceId;
+        _applyWorkspace = applyWorkspace;
     }
 
     public bool IsSuspended => _suspended;
@@ -196,6 +209,13 @@ public sealed class TrayController : IDisposable
             // reflects the current list/active profile.
             _switchItem = new Forms.ToolStripMenuItem("Switch profile");
             menu.Items.Add(_switchItem);
+            // Workspaces (R2 #115): same rebuild-on-open pattern; the
+            // item exists only when the window wired the delegates.
+            if (_workspaces is not null && _applyWorkspace is not null)
+            {
+                _workspacesItem = new Forms.ToolStripMenuItem("Workspaces");
+                menu.Items.Add(_workspacesItem);
+            }
             // Suspend status (S4 #32): informational, refreshed on open.
             _statusItem = new Forms.ToolStripMenuItem { Enabled = false };
             menu.Items.Add(_statusItem);
@@ -203,6 +223,7 @@ public sealed class TrayController : IDisposable
             {
                 RebuildDownloadsMenu();
                 RebuildSwitchMenu();
+                RebuildWorkspacesMenu();
                 RefreshLockState();
                 RefreshStatusItem();
             };
@@ -298,6 +319,7 @@ public sealed class TrayController : IDisposable
         if (_downloadsItem is not null) _downloadsItem.Enabled = !locked;
         if (_settingsItem is not null) _settingsItem.Enabled = !locked;
         if (locked && _switchItem is not null) _switchItem.Enabled = false;
+        if (locked && _workspacesItem is not null) _workspacesItem.Enabled = false;
     }
 
     /// <summary>
@@ -393,6 +415,54 @@ public sealed class TrayController : IDisposable
         catch (Exception ex)
         {
             _log.Warn($"Tray switch-profile menu failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Rebuild the Workspaces submenu (R2 #115): one item per saved
+    /// workspace, labeled with its glyph (#119), the active one
+    /// checked, and the workspace's accent shown as a swatch when it
+    /// has one. With no workspaces the item disables itself with the
+    /// reason — the tray never offers an empty promise.
+    /// </summary>
+    private void RebuildWorkspacesMenu()
+    {
+        if (_workspacesItem is null || _workspaces is null || _applyWorkspace is null)
+            return;
+        try
+        {
+            foreach (Forms.ToolStripItem old in _workspacesItem.DropDownItems)
+            {
+                old.Image?.Dispose();
+                old.Dispose();
+            }
+            _workspacesItem.DropDownItems.Clear();
+
+            var workspaces = _workspaces();
+            var activeId = _activeWorkspaceId?.Invoke();
+            _workspacesItem.Enabled = workspaces.Count > 0;
+            if (workspaces.Count == 0)
+            {
+                _workspacesItem.DropDownItems.Add(
+                    new Forms.ToolStripMenuItem("No workspaces saved yet") { Enabled = false });
+                return;
+            }
+            foreach (var ws in workspaces)
+            {
+                var id = ws.Id;
+                var item = new Forms.ToolStripMenuItem(WorkspaceGlyphs.MenuLabel(ws))
+                {
+                    Checked = id == activeId,
+                };
+                if (ProfileColors.HexFor(ws.AccentColor) is { } hex)
+                    item.Image = ColorSwatch(hex);
+                item.Click += (_, _) => _dispatcher.Invoke(() => _applyWorkspace(id));
+                _workspacesItem.DropDownItems.Add(item);
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Tray workspaces menu failed: {ex.Message}");
         }
     }
 

@@ -28,6 +28,7 @@ public static class SettingsSearch
     public const string BehaviorId = "behavior";
     public const string TrayId = "tray";
     public const string ProfilesId = "profiles";
+    public const string WorkspacesId = "workspaces";
     public const string AppearanceId = "appearance";
     public const string ZoomId = "zoom";
     public const string AccessibilityId = "accessibility";
@@ -43,6 +44,8 @@ public static class SettingsSearch
             "tray icon single click double click reopen flash taskbar attention quiet hours do not disturb notifications balloon silent night"),
         new SettingsSectionInfo(ProfilesId, "Account profiles",
             "profile account sign-in rename accent color dot switch remove add copy settings start page home custom url zoom downloads folder data size last used shortcut desktop storage cap limit cache cleanup"),
+        new SettingsSectionInfo(WorkspacesId, "Workspaces & sessions",
+            "workspace workspaces session sessions layout windows arrangement save apply startup launch auto-save restore snapshot crash glyph icon accent duplicate rename delete"),
         new SettingsSectionInfo(AppearanceId, "Appearance & toolbar",
             "theme dark light follow windows system accent color shell text size font scale toolbar customize reorder hide show buttons layout reset appearance"),
         new SettingsSectionInfo(ZoomId, "Zoom",
@@ -171,6 +174,14 @@ public static class SettingsReset
         target.GlobalHotkeyEnabled = fresh.GlobalHotkeyEnabled;
         target.GlobalHotkeyGesture = fresh.GlobalHotkeyGesture;
         target.RegisterProtocolLinks = fresh.RegisterProtocolLinks;
+        // R2 fields (v1.2.0): the startup-workspace choice and the
+        // auto-save opt-in are preferences and reset; the workspace
+        // LIST itself is user data like the profile list, and the
+        // active/pending pointers are session state — all three are
+        // preserved below (a dangling startup pointer after a list
+        // edit is Sanitized's job, not the reset's).
+        target.StartupWorkspaceId = fresh.StartupWorkspaceId;
+        target.AutoSaveSession = fresh.AutoSaveSession;
         // S9 fields (v0.13.0): the update channel returns to stable
         // only, the check frequency to every launch, any snooze is
         // cleared, and What's New shows again. NOT preferences, so

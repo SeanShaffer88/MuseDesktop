@@ -4,6 +4,27 @@ All notable changes to MuseDesktop. Format follows Keep a Changelog; versions us
 
 Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhancement program; they were never published as releases. Everything in them shipped together as **1.0.0** (2026-10-24).
 
+## [1.2.0] — Unreleased
+
+Round 2, Slice R2 (items 111–120) of the enhancement program: workspaces & sessions.
+
+### Added
+
+- **Workspaces (#111)** — save the windows you have open as a named workspace: ⋯ menu → *Save current arrangement as workspace* — one click, no prompt (rename it later in Settings). A workspace remembers each window's profile, where it sits, and which Muse section it shows, stored as an app route ("/chat", "/projects") — never the full page address, so no query string or token from an address can ever be written into a saved layout.
+- **Apply workspace (#112)** — from the ⋯ menu, the tray, Ctrl+K, or Settings: windows open and close to match the layout, and the main window navigates (it never closes). Two honest asks: if the workspace belongs to another profile, MuseDesktop restarts into that profile first (with your OK) and applies it there; and if applying would close a window while a download is running, it asks first — the download itself belongs to the app, not the window, and keeps going either way.
+- **Startup workspace (#113)** — Settings → *Workspaces & sessions* can mark one workspace to open at launch: its windows open instead of the single default window.
+- **Session snapshot (#114)** — ⋯ menu → *Take session snapshot* remembers the open windows once; *Restore session snapshot* brings them back later, through the same planner (and the same download guard) as a workspace apply. The snapshot lives in its own file, separate from the app's own session bookkeeping, so neither overwrites the other.
+- **Switching surfaces + accent override (#115)** — workspaces apply from the tray's new *Workspaces* submenu, the ⋯ menu, and the command palette: the provider seam from R1 lights up with one "Apply workspace:" command per workspace. A workspace can also carry an accent override — while it's the active workspace, the shell accent uses its color. Your saved Appearance accent is never rewritten; the override is session-only and lifts when another workspace (or none) is active.
+- **Portable workspaces (#116)** — workspaces live in your settings, so Export/Import carries them, including the password-encrypted export; an older settings file without them simply loads with none. They version with the settings file's schema, and a damaged entry is repaired on load the way profiles are: windows naming a deleted profile drop, and a route that can't be one reads as Home.
+- **Crash-session restore (#117)** — the app keeps a small journal of the open windows (routes only). If MuseDesktop didn't shut down cleanly, the next launch offers *Restore previous windows* — once. If a restored session dies before any page loads, the offer is not repeated: a restore that seems to be the problem is never looped.
+- **Auto-save session (#118)** — Settings → *Workspaces & sessions* → "Pick up where I left off" (off by default): after a normal exit, the windows you left open come back at the next launch. Routes only, like everything in this slice.
+- **Workspace glyphs (#119)** — each workspace can wear one of twelve text glyphs (★ ● ◆ ▲ ■ ♥ ♪ ☀ ☾ ⚑ ✚ ⌂), shown beside its name in the tray menu, the ⋯ menu, and the palette — the same fixed-palette discipline as profile colors, so a glyph renders the same everywhere instead of depending on an icon font.
+- **Workspace management (#120)** — Settings → *Workspaces & sessions*: rename, duplicate ("Focus" → "Focus copy"), delete, glyph, accent override, the startup choice, and **Apply now**. Deleting follows the profiles' deferred-safety pattern: it edits the Settings copy only, so Cancel undoes it and OK makes it stick — and deleting a layout never closes a window or touches any data.
+
+### Notes
+
+- Core test suite grows by 42 cases (675 → 717). All v1.2.0 runtime behavior is **Unverified** on a real Windows machine pending the `RELEASE_CHECKLIST.md` R2 pass.
+
 ## [1.1.0] — Unreleased
 
 Round 2, Slice R1 (items 101–110) of the enhancement program: the command palette and the window command surface.

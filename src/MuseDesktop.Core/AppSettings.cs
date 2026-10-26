@@ -288,6 +288,33 @@ public sealed class AppSettings
     /// </summary>
     public List<string> PendingProfileFolderDeletions { get; set; } = new();
 
+    // Workspaces & sessions (v1.2.0, R2 #111–#120). Workspaces store
+    // app ROUTES only (see AppRoute) — never full page URLs — and ride
+    // the settings file, so plain and encrypted export/import carry
+    // them with everything else (#116); the payload versions with
+    // this file's SchemaVersion, and Sanitized repairs it like the
+    // profile list.
+    /// <summary>Saved workspaces (#111): named layouts of (profile, placement, app route) windows.</summary>
+    public List<Workspace> Workspaces { get; set; } = new();
+
+    /// <summary>The workspace applied at launch instead of the single default window (#113), or null for none. Repaired by Workspaces.EnsureValid when it names nothing.</summary>
+    public string? StartupWorkspaceId { get; set; }
+
+    /// <summary>The workspace most recently applied or saved (#115) — drives the tray/palette "current" mark and the accent override. Session-adjacent state: Settings edits a clone and OK does not adopt it back.</summary>
+    public string? ActiveWorkspaceId { get; set; }
+
+    /// <summary>
+    /// A workspace to apply once at the next launch (#112): set when
+    /// applying a workspace first requires a profile switch (which
+    /// restarts the app); the new process applies it, then clears it.
+    /// State, not a preference — like <see cref="ActiveWorkspaceId"/>,
+    /// a Settings clone never adopts it.
+    /// </summary>
+    public string? PendingWorkspaceApplyId { get; set; }
+
+    /// <summary>Auto-save session (#118): restore the windows left open at exit (app routes only). Off by default — the windows you left are yours to reopen until you opt in.</summary>
+    public bool AutoSaveSession { get; set; }
+
     /// <summary>Legacy shared last-page (pre-v0.3.1). Migrated into LastUrlByProfile for the default profile on load, then cleared.</summary>
     public string? LastUrl { get; set; }
 
@@ -319,6 +346,10 @@ public sealed class AppSettings
         // After the profile list is final: pending deletions must never
         // name a live profile (S3 #28).
         global::MuseDesktop.Core.Profiles.SanitizePendingDeletions(this);
+        // R2 #111: workspace repairs run after the profile list is
+        // final too — a workspace window naming a deleted profile
+        // drops, and the startup/active pointers follow the list.
+        global::MuseDesktop.Core.Workspaces.EnsureValid(this);
         if (string.IsNullOrWhiteSpace(DownloadsFolder))
             DownloadsFolder = null;
         else

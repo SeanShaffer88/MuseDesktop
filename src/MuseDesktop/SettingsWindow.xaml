@@ -205,6 +205,39 @@
                                Text="Each profile is a separate Muse sign-in (its own cookies and data on this PC). Switching restarts the app immediately, discarding other unsaved changes in this window. You can't remove the profile you're currently using."/>
                 </StackPanel>
 
+                <StackPanel x:Name="SectionWorkspaces">
+                    <TextBlock x:Name="HeaderWorkspaces" Text="Workspaces &amp; sessions" Style="{StaticResource SectionHeader}"/>
+                    <ComboBox x:Name="WorkspaceCombo" SelectionChanged="OnWorkspaceSelectionChanged"
+                              ToolTip="Your saved workspaces — named sets of windows you can re-apply from the ⋯ menu, the tray, or Ctrl+K"/>
+                    <TextBox x:Name="WorkspaceNameText" LostFocus="OnWorkspaceNameLostFocus" Margin="0,6,0,0"
+                             ToolTip="The workspace's name, as shown in menus"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
+                        <TextBlock Text="Icon:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="WorkspaceGlyphCombo" Width="140" SelectionChanged="OnWorkspaceGlyphChanged"
+                                  ToolTip="A symbol shown next to the workspace's name in the tray menu and the command palette"/>
+                        <TextBlock Text="Accent override:" VerticalAlignment="Center" Margin="16,0,8,0"/>
+                        <ComboBox x:Name="WorkspaceAccentCombo" Width="140" SelectionChanged="OnWorkspaceAccentChanged"
+                                  ToolTip="While this workspace is applied, MuseDesktop's accent uses this color instead of the Appearance accent. The saved Appearance accent itself is never changed"/>
+                    </StackPanel>
+                    <CheckBox x:Name="WorkspaceStartupCheck" Content="Open this workspace when MuseDesktop starts" Margin="0,10,0,0"
+                              Click="OnWorkspaceStartupChanged"
+                              ToolTip="At launch, this workspace's windows open instead of the single default window"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <Button x:Name="WorkspaceApplyButton" Content="Apply now" Width="92" Click="OnApplyWorkspace"
+                                ToolTip="Apply this workspace right away (Settings closes, like a profile switch)"/>
+                        <Button x:Name="WorkspaceDuplicateButton" Content="Duplicate" Width="84" Margin="8,0,0,0" Click="OnDuplicateWorkspace"
+                                ToolTip="Copy this workspace — its windows, icon, and accent — under a new name"/>
+                        <Button x:Name="WorkspaceDeleteButton" Content="Delete" Width="76" Margin="8,0,0,0" Click="OnDeleteWorkspace"
+                                ToolTip="Deletes the saved layout when you choose OK. No window closes and no data is touched — only the saved layout goes away"/>
+                    </StackPanel>
+                    <TextBlock x:Name="WorkspaceNote" Style="{StaticResource Note}" Margin="0,8,0,0"/>
+                    <CheckBox x:Name="AutoSaveSessionCheck" Margin="0,12,0,0"
+                              Content="Pick up where I left off — reopen the windows I had open"
+                              ToolTip="When MuseDesktop starts, the windows from the last session come back. Off by default."/>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="A workspace remembers which profile each window belongs to, where it sits, and which Muse section it shows (chat, projects, …) — never the full page address, and never a query string. After a crash, MuseDesktop offers your previous windows once, whether or not the box above is ticked."/>
+                </StackPanel>
+
                 <StackPanel x:Name="SectionAppearance">
                     <TextBlock x:Name="HeaderAppearance" Text="Appearance &amp; toolbar" Style="{StaticResource SectionHeader}"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">

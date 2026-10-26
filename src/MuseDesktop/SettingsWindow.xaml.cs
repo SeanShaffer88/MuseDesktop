@@ -41,10 +41,18 @@ public partial class SettingsWindow : Window
     private readonly Action<AppSettings, string> _switchProfile;
     private readonly Func<string>? _notificationTest;
     private readonly Func<string>? _globalHotkeyStatus;
+    private readonly Action<AppSettings, string>? _applyWorkspace;
+
+    /// <summary>Workspace glyph choices (R2 #119), parallel to WorkspaceGlyphCombo's items: null ("No icon") then the palette keys.</summary>
+    private readonly List<string?> _glyphKeys = new();
+
+    /// <summary>True while workspace controls are being filled from the working settings (their change handlers must not write back).</summary>
+    private bool _syncingWorkspaceControls;
 
     public SettingsWindow(AppSettings working, DiagnosticLog log, WebPrivacyGateway? privacy,
         Action<AppSettings, string> switchProfile, Func<string>? notificationTest = null,
-        Func<string>? globalHotkeyStatus = null)
+        Func<string>? globalHotkeyStatus = null,
+        Action<AppSettings, string>? applyWorkspace = null)
     {
         _working = working;
         _log = log;
@@ -52,6 +60,7 @@ public partial class SettingsWindow : Window
         _switchProfile = switchProfile;
         _notificationTest = notificationTest;
         _globalHotkeyStatus = globalHotkeyStatus;
+        _applyWorkspace = applyWorkspace;
         InitializeComponent();
 
         // S5 #48: reopen at the remembered size; the last section is
@@ -69,6 +78,7 @@ public partial class SettingsWindow : Window
             (SettingsSearch.BehaviorId, SectionBehavior, HeaderBehavior),
             (SettingsSearch.TrayId, SectionTray, HeaderTray),
             (SettingsSearch.ProfilesId, SectionProfiles, HeaderProfiles),
+            (SettingsSearch.WorkspacesId, SectionWorkspaces, HeaderWorkspaces),
             (SettingsSearch.AppearanceId, SectionAppearance, HeaderAppearance),
             (SettingsSearch.ZoomId, SectionZoom, HeaderZoom),
             (SettingsSearch.AccessibilityId, SectionAccessibility, HeaderAccessibility),
@@ -105,6 +115,21 @@ public partial class SettingsWindow : Window
             _colorKeys.Add(key);
             ProfileColorCombo.Items.Add(key);
         }
+
+        // R2 #119/#115: workspace glyph + accent choices — the glyph
+        // list shows its symbol beside the key; the accent list is the
+        // profile palette under a "use the app accent" first entry,
+        // parallel to _colorKeys (null then the palette keys).
+        _glyphKeys.Add(null);
+        WorkspaceGlyphCombo.Items.Add("No icon");
+        foreach (var (key, symbol) in WorkspaceGlyphs.Palette)
+        {
+            _glyphKeys.Add(key);
+            WorkspaceGlyphCombo.Items.Add($"{symbol} {key}");
+        }
+        WorkspaceAccentCombo.Items.Add("Use app accent");
+        foreach (var (key, _) in ProfileColors.Palette)
+            WorkspaceAccentCombo.Items.Add(key);
 
         // S2 (#16/#21): collision-policy and history-cap choices.
         CollisionPolicyCombo.Items.Add("Save as a new name");
@@ -234,6 +259,13 @@ public partial class SettingsWindow : Window
 
         RefreshProfileCombo(_working.ActiveProfileId);
 
+        // R2: workspaces & sessions — the management list plus the
+        // auto-save opt-in (#118; harvested like the other plain
+        // checkboxes, the workspace fields write through like the
+        // profile fields do).
+        AutoSaveSessionCheck.IsChecked = _working.AutoSaveSession;
+        RefreshWorkspaceCombo(_working.ActiveWorkspaceId);
+
         // S7: privacy section state — the autofill toggles (#68), the
         // clear-data plan note (#61), the app lock (#64), the privacy
         // report (#67), and the two live reads (#62/#63, fire-and-
@@ -291,6 +323,7 @@ public partial class SettingsWindow : Window
         if (QuietEndCombo.SelectedIndex >= 0)
             _working.QuietHoursEndMinutes = QuietEndCombo.SelectedIndex * 60;
         _working.CheckForUpdates = CheckUpdatesCheck.IsChecked == true;
+        _working.AutoSaveSession = AutoSaveSessionCheck.IsChecked == true;
         // S9: frequency + channel + What's New (the snooze itself is
         // written by its own button / the update window, not harvested).
         if (UpdateFrequencyCombo.SelectedIndex >= 0 && UpdateFrequencyCombo.SelectedIndex < UpdateFrequencyChoices.Length)
@@ -686,6 +719,155 @@ public partial class SettingsWindow : Window
         }
         _switchProfile(_working, selected.Id);
         // The app is exiting for the restart; this window goes with it.
+    }
+
+    // ───────────────────────── R2: workspaces & sessions ─────────────────────────
+
+    /// <summary>The workspace the section is editing (the combo's selection).</summary>
+    private Workspace? SelectedWorkspace => WorkspaceCombo.SelectedItem as Workspace;
+
+    /// <summary>Rebuild the workspace list (R2 #120), keeping the selection by id — the profiles combo's pattern.</summary>
+    private void RefreshWorkspaceCombo(string? selectId)
+    {
+        WorkspaceCombo.ItemsSource = null;
+        WorkspaceCombo.ItemsSource = _working.Workspaces;
+        WorkspaceCombo.DisplayMemberPath = nameof(Workspace.Name);
+        WorkspaceCombo.SelectedItem = _working.Workspaces.FirstOrDefault(w => w.Id == selectId)
+                                      ?? _working.Workspaces.FirstOrDefault();
+        UpdateWorkspaceControls();
+    }
+
+    /// <summary>Fill the section's controls from the selected workspace (guarded, like the profile controls).</summary>
+    private void UpdateWorkspaceControls()
+    {
+        var selected = SelectedWorkspace;
+        _syncingWorkspaceControls = true;
+        WorkspaceNameText.Text = selected?.Name ?? "";
+        WorkspaceNameText.IsEnabled = selected is not null;
+        var glyphIndex = selected?.Glyph is { } glyph ? _glyphKeys.IndexOf(glyph) : 0;
+        WorkspaceGlyphCombo.SelectedIndex = glyphIndex >= 0 ? glyphIndex : 0;
+        WorkspaceGlyphCombo.IsEnabled = selected is not null;
+        var accentIndex = selected?.AccentColor is { } accent ? _colorKeys.IndexOf(accent) : 0;
+        WorkspaceAccentCombo.SelectedIndex = accentIndex >= 0 ? accentIndex : 0;
+        WorkspaceAccentCombo.IsEnabled = selected is not null;
+        WorkspaceStartupCheck.IsChecked = selected is not null && _working.StartupWorkspaceId == selected.Id;
+        WorkspaceStartupCheck.IsEnabled = selected is not null;
+        _syncingWorkspaceControls = false;
+        WorkspaceApplyButton.IsEnabled = selected is not null && _applyWorkspace is not null;
+        WorkspaceDuplicateButton.IsEnabled = selected is not null
+                                             && _working.Workspaces.Count < Workspaces.MaxWorkspaces;
+        WorkspaceDeleteButton.IsEnabled = selected is not null;
+        WorkspaceNote.Text = selected is null
+            ? "No workspaces yet — save one from the main window's ⋯ menu (Save current arrangement as workspace)."
+            : DescribeWorkspace(selected);
+    }
+
+    /// <summary>The facts line for a workspace: its windows and their profiles, and when it last ran.</summary>
+    private string DescribeWorkspace(Workspace ws)
+    {
+        var profiles = ws.Windows
+            .Select(w => _working.Profiles.FirstOrDefault(p => p.Id == w.ProfileId)?.Name ?? w.ProfileId)
+            .Distinct()
+            .ToList();
+        var text = $"{ws.Windows.Count} window(s)"
+                   + (profiles.Count > 0 ? $" · profile: {string.Join(", ", profiles)}" : "");
+        if (ws.LastAppliedUtc is { } applied)
+            text += $" · Last applied: {applied.LocalDateTime:MMM d, HH:mm}";
+        if (_working.StartupWorkspaceId == ws.Id)
+            text += " · Opens at launch";
+        return text;
+    }
+
+    private void OnWorkspaceSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) =>
+        UpdateWorkspaceControls();
+
+    private void OnWorkspaceNameLostFocus(object sender, RoutedEventArgs e)
+    {
+        var selected = SelectedWorkspace;
+        if (selected is null)
+            return;
+        var name = WorkspaceNameText.Text.Trim();
+        if (name.Length == 0)
+        {
+            WorkspaceNameText.Text = selected.Name;
+            return;
+        }
+        if (name.Length > 40)
+            name = name[..40];
+        if (name != selected.Name)
+        {
+            selected.Name = name;
+            _log.Info($"Workspace {selected.Id} renamed to '{name}'");
+            RefreshWorkspaceCombo(selected.Id);
+        }
+    }
+
+    private void OnWorkspaceGlyphChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_syncingWorkspaceControls || SelectedWorkspace is not { } selected)
+            return;
+        var index = WorkspaceGlyphCombo.SelectedIndex;
+        selected.Glyph = index >= 0 && index < _glyphKeys.Count ? _glyphKeys[index] : null;
+    }
+
+    private void OnWorkspaceAccentChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_syncingWorkspaceControls || SelectedWorkspace is not { } selected)
+            return;
+        var index = WorkspaceAccentCombo.SelectedIndex;
+        selected.AccentColor = index >= 0 && index < _colorKeys.Count ? _colorKeys[index] : null;
+    }
+
+    private void OnWorkspaceStartupChanged(object sender, RoutedEventArgs e)
+    {
+        if (_syncingWorkspaceControls || SelectedWorkspace is not { } selected)
+            return;
+        if (WorkspaceStartupCheck.IsChecked == true)
+            _working.StartupWorkspaceId = selected.Id;
+        else if (_working.StartupWorkspaceId == selected.Id)
+            _working.StartupWorkspaceId = null;
+        UpdateWorkspaceControls();
+    }
+
+    private void OnDuplicateWorkspace(object sender, RoutedEventArgs e)
+    {
+        if (SelectedWorkspace is not { } selected)
+            return;
+        var copy = Workspaces.Duplicate(selected, _working);
+        _working.Workspaces.Add(copy);
+        _log.Info($"Workspace duplicated: '{selected.Name}' → '{copy.Name}'");
+        RefreshWorkspaceCombo(copy.Id);
+    }
+
+    /// <summary>
+    /// Delete a workspace (R2 #120) with the profiles' deferred-safety
+    /// shape: the removal happens on the working clone only — Cancel
+    /// in this window undoes it, OK makes it stick — and nothing else
+    /// is touched (no window closes, no folder exists to delete). A
+    /// startup pointer at the deleted workspace clears here so the
+    /// section never shows a choice that names nothing.
+    /// </summary>
+    private void OnDeleteWorkspace(object sender, RoutedEventArgs e)
+    {
+        if (SelectedWorkspace is not { } selected)
+            return;
+        _working.Workspaces.Remove(selected);
+        if (_working.StartupWorkspaceId == selected.Id)
+            _working.StartupWorkspaceId = null;
+        if (_working.ActiveWorkspaceId == selected.Id)
+            _working.ActiveWorkspaceId = null;
+        _log.Info($"Workspace deleted: '{selected.Name}' (applies on OK)");
+        RefreshWorkspaceCombo(_working.Workspaces.FirstOrDefault()?.Id);
+    }
+
+    /// <summary>Apply the selected workspace now (R2 #120): harvest first (so the apply sees the section's own edits), hand the clone to the main window like the profile switch does, and close with OK so the adoption there runs on the same values.</summary>
+    private void OnApplyWorkspace(object sender, RoutedEventArgs e)
+    {
+        if (SelectedWorkspace is not { } selected || _applyWorkspace is null)
+            return;
+        HarvestControls();
+        _applyWorkspace(_working, selected.Id);
+        DialogResult = true;
     }
 
     private void OnBrowseDownloadsFolder(object sender, RoutedEventArgs e)
