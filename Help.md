@@ -105,6 +105,18 @@ Try this:
 4. If a proxy is involved (work/school networks), the button below opens Diagnostics, which shows the proxy Windows is configured with — MuseDesktop never overrides it; WebView2 follows Windows.
 5. Still stuck every launch? Start MuseDesktop with --safe-mode (it opens at the home page and skips the update check), or use the guided reset in Settings → Data — it backs your settings up before changing anything.
 
+## Updating to a new version
+
+What you see: the status bar (or the ⋯ menu) says a new version of MuseDesktop is available, and the update window offers Download, then Install.
+
+Why it happens: MuseDesktop checks GitHub Releases for newer versions (Settings → Behavior controls whether it checks, and how often). Nothing downloads and nothing installs until you accept — an update is always your decision, never a surprise.
+
+Try this:
+1. Choose Download: the installer is downloaded with progress shown, and its SHA-256 fingerprint is checked against the fingerprint published with the release before it can run. If the two don't match, the file is deleted and nothing runs.
+2. Choose Install: from there, everything is automatic. You don't need to close MuseDesktop first — the installer closes it for you (even if it's hidden in the tray), installs the new version over the old one, and reopens MuseDesktop when it's done. Your sign-in and settings carry over.
+3. Rather wait? The same window can snooze the reminder until tomorrow or next week — MuseDesktop won't keep asking in between.
+4. Changed your mind afterwards? Diagnostics can reinstall the previous version, when that version arrived through the in-app updater. That older installer still uses the classic setup wizard: you'll click through it yourself, and it doesn't reopen MuseDesktop for you.
+
 ## Commands & the command palette
 
 What you see: you want to get to a setting, a download, another window, or a help page without clicking through menus — or you middle-clicked the tray icon and a small search box appeared.

@@ -4,6 +4,26 @@ All notable changes to MuseDesktop. Format follows Keep a Changelog; versions us
 
 Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhancement program; they were never published as releases. Everything in them shipped together as **1.0.0** (2026-10-24).
 
+## [1.8.4] — Unreleased
+
+Follow-on slice R7D (directed 2026-10-27): seamless updates.
+
+### Changed
+
+- **Updating is hands-free after you accept.** You still get
+  the say: the update window offers the new version, you
+  choose Download, the installer is checked against the
+  release's published fingerprint, and you choose Install.
+  From that click on, there's nothing else to do — you don't
+  have to close MuseDesktop first or click through a setup
+  wizard. The installer closes the app if it's running
+  (even hidden in the tray, even locked), installs the new
+  version over the old one, and reopens MuseDesktop when
+  it's done. Your sign-in and settings carry over, as
+  always. Rollback is unchanged: reinstalling the previous
+  version from Diagnostics keeps the classic installer
+  wizard and doesn't reopen the app for you.
+
 ## [1.8.3] — Unreleased
 
 Follow-on slice R7C (directed 2026-10-27): a beep when an

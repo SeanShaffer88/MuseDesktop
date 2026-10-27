@@ -3126,6 +3126,8 @@ public partial class MainWindow : Window
     /// (via App's wake handler) and this launch's own leftover intent.
     /// While locked, Core's rule queues it (last wins) and the lock
     /// screen is the only answer; OnAppUnlocked applies what queued.
+    /// The one exception is exit-for-update (R7D), which Core's rule
+    /// applies immediately even while locked — see ApplyLaunchIntentNow.
     /// </summary>
     public void ApplyLaunchIntent(LaunchIntent intent)
     {
@@ -3148,6 +3150,19 @@ public partial class MainWindow : Window
     {
         switch (intent.Kind)
         {
+            case LaunchIntentKind.ExitForUpdate:
+                // R7D: the installer is waiting to replace this build
+                // and will reopen the app when it finishes. Close
+                // cleanly through the ordinary exit path — no window
+                // is shown for this (the app may be hidden in the
+                // tray; the wake reaches here either way), no prompt:
+                // the user already accepted this update. Routing
+                // (Core) applies this intent immediately, even behind
+                // the app lock — exiting reveals nothing, and the
+                // lock re-engages at the next launch as after any exit.
+                _log.Info("Closing for update — the installer will reopen MuseDesktop");
+                ExitApp();
+                break;
             case LaunchIntentKind.ShowWindow:
                 ShowFromTray();
                 break;
@@ -3308,7 +3323,7 @@ public partial class MainWindow : Window
         if (_updateRelease is not null)
         {
             var invoker = FocusReturn.Capture();
-            var window = new UpdateWindow(_updateRelease, _settings, _log, SaveSettings, ExitApp)
+            var window = new UpdateWindow(_updateRelease, _settings, _log, SaveSettings)
             { Owner = this };
             ShellTextScaling.Apply(window, _settings.ShellFontScale);
             window.ShowDialog();
