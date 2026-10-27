@@ -33,18 +33,30 @@ public partial class NotesWindow : Window
     public NotesWindow(
         Func<IReadOnlyList<NoteEntry>> refresh,
         Action newNote,
-        Action<string> delete)
+        Action<string> delete,
+        string? selectedNoteId = null)
     {
         _refresh = refresh;
         _newNote = newNote;
         _delete = delete;
         InitializeComponent();
-        Reload();
+        Reload(selectedNoteId);
     }
 
     /// <summary>Re-read the notebook (the main window calls this after a capture it hosted).</summary>
-    public void Reload() =>
-        NoteList.ItemsSource = _refresh().Select(n => new NoteRow(n)).ToList();
+    public void Reload(string? selectedNoteId = null)
+    {
+        var rows = _refresh().Select(n => new NoteRow(n)).ToList();
+        NoteList.ItemsSource = rows;
+        EmptyStateText.Text = "No notes yet. Choose New note or use the quick-note shortcut to capture one.";
+        EmptyStateText.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (selectedNoteId is not null
+            && rows.FirstOrDefault(row => row.Note.Id == selectedNoteId) is { } selected)
+        {
+            NoteList.SelectedItem = selected;
+            NoteList.ScrollIntoView(selected);
+        }
+    }
 
     private void OnNew(object sender, RoutedEventArgs e)
     {

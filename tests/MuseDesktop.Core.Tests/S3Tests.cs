@@ -207,6 +207,28 @@ public class S3Tests
     }
 
     [Fact]
+    public void ProfileData_CachedSizeIsBoundedAndExplicitlyInvalidatable()
+    {
+        var dir = Directory.CreateTempSubdirectory("musedesktop-s3-cache");
+        try
+        {
+            var path = Path.Combine(dir.FullName, "data.bin");
+            File.WriteAllBytes(path, new byte[1024]);
+            Assert.Equal(1024, ProfileDataInfo.MeasureFolderBytesCached(dir.FullName));
+
+            File.WriteAllBytes(path, new byte[2048]);
+            Assert.Equal(1024, ProfileDataInfo.MeasureFolderBytesCached(dir.FullName));
+            ProfileDataInfo.InvalidateCachedFolderBytes(dir.FullName);
+            Assert.Equal(2048, ProfileDataInfo.MeasureFolderBytesCached(dir.FullName));
+        }
+        finally
+        {
+            ProfileDataInfo.InvalidateCachedFolderBytes(dir.FullName);
+            dir.Delete(recursive: true);
+        }
+    }
+
+    [Fact]
     public void LastUsed_SurvivesSettingsRoundtrip()
     {
         var stamp = new DateTimeOffset(2026, 10, 24, 8, 30, 0, TimeSpan.FromHours(-5));

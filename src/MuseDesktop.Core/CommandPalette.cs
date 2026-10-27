@@ -173,6 +173,7 @@ public enum PaletteCommandSource
     // against the store at run time; refused by the history the same.
     Bookmark,
     Snippet,
+    Note,
 }
 
 /// <summary>
@@ -365,7 +366,7 @@ public sealed class DownloadsPaletteProvider : IPaletteProvider
                 Title: r.FileName,
                 Detail: $"Open download · {detail}",
                 Category: "Downloads",
-                Keywords: "download open file",
+                Keywords: $"download open file {r.Note}",
                 Source: PaletteCommandSource.Download,
                 Payload: r.FullPath);
             yield return new PaletteCommand(
@@ -576,6 +577,7 @@ public static class CommandRegistry
         Action("restore-session", "Restore session snapshot", "session snapshot restore windows back one-off", detail: "Workspaces"),
         Action("settings", "Open Settings", "settings preferences options configure", GestureOf(ShortcutCatalog.SettingsId)),
         Action("downloads", "Open Downloads", "downloads files manager finished", GestureOf(ShortcutCatalog.DownloadsId)),
+        Action("activity-center", "Recent activity", "recent activity notifications balloons history", detail: "App"),
         Action("home", "Go to Muse home", "home start page main", GestureOf(ShortcutCatalog.HomeId)),
         Action("reload", "Reload page", "reload refresh page", GestureOf("reload")),
         Action("find", "Find in page", "find search page text", GestureOf("find")),
@@ -655,7 +657,8 @@ public static class CommandRegistry
         // R5B #202/#206: the active profile's message bookmarks and
         // prompt snippets — optional and trailing like the rest.
         IReadOnlyList<MessageBookmark>? bookmarks = null,
-        IReadOnlyList<PromptSnippet>? snippets = null)
+        IReadOnlyList<PromptSnippet>? snippets = null,
+        IReadOnlyList<NoteEntry>? noteEntries = null)
     {
         var palette = new CommandPalette();
         palette.Register(new StaticPaletteProvider("Actions", BuiltinActions));
@@ -665,13 +668,30 @@ public static class CommandRegistry
         palette.Register(new WindowsPaletteProvider(windows));
         if (historyEntries is not null)
             palette.Register(new HistoryPaletteProvider(historyEntries));
-        palette.Register(new DownloadsPaletteProvider(recentDownloads));
+        palette.Register(new DownloadsPaletteProvider(recentDownloads, max: recentDownloads.Count));
         if (readingEntries is not null)
             palette.Register(new ReadingListPaletteProvider(readingEntries));
         if (bookmarks is not null)
             palette.Register(new MessageBookmarksPaletteProvider(bookmarks));
         if (snippets is not null)
             palette.Register(new PromptSnippetsPaletteProvider(snippets));
+        if (noteEntries is not null)
+        {
+            palette.Register(new StaticPaletteProvider("Notes", noteEntries.Select(note =>
+            {
+                var preview = string.Join(" ", note.Text.Split((char[]?)null,
+                    StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+                var title = preview.Length <= 80 ? preview : preview[..80].TrimEnd() + "…";
+                return new PaletteCommand(
+                    Id: $"note.open.{note.Id}",
+                    Title: title,
+                    Detail: $"Quick note · {note.CreatedUtc.ToLocalTime():yyyy-MM-dd HH:mm}",
+                    Category: "Notes",
+                    Keywords: $"note quick note {note.Text}",
+                    Source: PaletteCommandSource.Note,
+                    Payload: note.Id);
+            })));
+        }
         palette.Register(new SettingsSectionsPaletteProvider());
         palette.Register(new HelpTopicsPaletteProvider());
         palette.Register(new WorkspacesPaletteProvider(
@@ -769,6 +789,7 @@ public sealed class CommandPalette
                 PaletteCommandSource.Workspace => 15,
                 PaletteCommandSource.Settings => 5,
                 PaletteCommandSource.Download => 5,
+                PaletteCommandSource.Note => 5,
                 _ => 0,
             };
             var rank = history?.RankOf(command.Id) ?? -1;
@@ -886,12 +907,7 @@ public static class ActionHistoryStore
 
     public static void Save(string path, ActionHistory history)
     {
-        var dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-        var tmp = path + ".tmp";
-        File.WriteAllText(tmp, history.Serialize());
-        File.Move(tmp, path, overwrite: true);
+        AtomicFile.WriteAllText(path, history.Serialize());
     }
 
     /// <summary>Record a run action and persist. Returns false when the command isn't history material.</summary>

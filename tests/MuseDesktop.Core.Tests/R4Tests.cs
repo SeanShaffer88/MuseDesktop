@@ -18,6 +18,11 @@ public class R4Tests
 {
     private static readonly DateTimeOffset Now = new(2026, 10, 26, 12, 0, 0, TimeSpan.FromHours(-5));
 
+    private sealed class CallbackProgress<T>(Action<T> callback) : IProgress<T>
+    {
+        public void Report(T value) => callback(value);
+    }
+
     private sealed class TempDir : IDisposable
     {
         public string Path { get; } = System.IO.Path.Combine(
@@ -233,6 +238,57 @@ public class R4Tests
     }
 
     // ──────────────────────── #131 journal + undo ────────────────────────
+
+    [Fact]
+    public void MoveTransaction_RollsBackEarlierMovesWhenALaterMoveFails()
+    {
+        var files = new HashSet<string>(StringComparer.Ordinal) { "source-a", "source-b" };
+        var moves = new[]
+        {
+            new DownloadMove("source-a", "destination-a", "Documents"),
+            new DownloadMove("source-b", "destination-b", "Documents"),
+        };
+        var result = DownloadMoveTransaction.Apply(moves, files.Contains, (source, destination) =>
+        {
+            if (source == "source-b")
+                throw new IOException("Injected later-move failure");
+            Assert.True(files.Remove(source));
+            Assert.True(files.Add(destination));
+        });
+
+        Assert.Same(moves[1], result.FailedMove);
+        Assert.IsType<IOException>(result.Failure);
+        Assert.Empty(result.Applied);
+        Assert.Empty(result.RollbackFailures);
+        Assert.Contains("source-a", files);
+        Assert.Contains("source-b", files);
+        Assert.DoesNotContain("destination-a", files);
+    }
+
+    [Fact]
+    public void MoveTransaction_RetainsUnrestoredMovesForRecovery()
+    {
+        var files = new HashSet<string>(StringComparer.Ordinal) { "source-a", "source-b" };
+        var moves = new[]
+        {
+            new DownloadMove("source-a", "destination-a", "Documents"),
+            new DownloadMove("source-b", "destination-b", "Documents"),
+        };
+        var result = DownloadMoveTransaction.Apply(moves, files.Contains, (source, destination) =>
+        {
+            if (source is "source-b" or "destination-a")
+                throw new IOException("Injected move failure");
+            Assert.True(files.Remove(source));
+            Assert.True(files.Add(destination));
+        });
+
+        Assert.Single(result.Applied);
+        Assert.Same(moves[0], result.Applied[0]);
+        Assert.Single(result.RollbackFailures);
+        Assert.Same(moves[0], result.RollbackFailures[0].Move);
+        Assert.Contains("destination-a", files);
+        Assert.Contains("source-b", files);
+    }
 
     [Fact]
     public void SortJournal_RoundTrips_AppendLastRemove()
@@ -544,7 +600,154 @@ public class R4Tests
         Assert.NotNull(missing.Error);
     }
 
+    [Fact]
+    public async Task History_ConcurrentSyncAndAsyncMutationsDoNotLoseIndependentUpdates()
+    {
+        using var dir = new TempDir();
+        var historyPath = System.IO.Path.Combine(dir.Path, "downloads.json");
+        var records = Enumerable.Range(0, 32)
+            .Select(index => new DownloadRecord
+            {
+                FileName = $"asset-{index}.zip",
+                FullPath = System.IO.Path.Combine(dir.Path, $"asset-{index}.zip"),
+                SizeBytes = index + 1,
+                CompletedUtc = Now.AddSeconds(index),
+                State = DownloadRecordState.Completed,
+            })
+            .ToList();
+        DownloadHistoryStore.Save(historyPath, records, cap: 50);
+
+        await Task.WhenAll(records.Select((record, index) => Task.Run(async () =>
+        {
+            if (index % 2 == 0)
+                Assert.True(await DownloadHistoryStore.SetNoteAsync(historyPath, record, $"note-{index}", cap: 50));
+            else
+                Assert.True(DownloadHistoryStore.SetHashVerified(historyPath, record, true, cap: 50));
+        })));
+
+        var saved = DownloadHistoryStore.Load(historyPath, cap: 50)
+            .ToDictionary(record => record.FileName, StringComparer.Ordinal);
+        Assert.Equal(records.Count, saved.Count);
+        foreach (var index in Enumerable.Range(0, records.Count))
+        {
+            var record = saved[$"asset-{index}.zip"];
+            if (index % 2 == 0)
+                Assert.Equal($"note-{index}", record.Note);
+            else
+                Assert.True(record.HashVerified);
+        }
+    }
+
+    [Fact]
+    public async Task History_CancelledAsyncMutationDoesNotHoldTransactionGate()
+    {
+        using var dir = new TempDir();
+        var historyPath = System.IO.Path.Combine(dir.Path, "downloads.json");
+        var record = new DownloadRecord
+        {
+            FileName = "asset.zip",
+            FullPath = dir.Make("asset.zip"),
+            SizeBytes = 1,
+            CompletedUtc = Now,
+        };
+        DownloadHistoryStore.Save(historyPath, new List<DownloadRecord> { record });
+
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            DownloadHistoryStore.SetNoteAsync(historyPath, record, "cancelled", cancellationToken: cancellation.Token));
+
+        Assert.True(await DownloadHistoryStore.SetNoteAsync(historyPath, record, "still works"));
+        Assert.Equal("still works", Assert.Single(DownloadHistoryStore.Load(historyPath)).Note);
+    }
+
+    [Fact]
+    public async Task History_MetadataCanBePersistedAsynchronously()
+    {
+        using var dir = new TempDir();
+        var historyPath = System.IO.Path.Combine(dir.Path, "downloads.json");
+        var record = new DownloadRecord
+        {
+            FileName = "asset.zip",
+            FullPath = dir.Make("asset.zip"),
+            SizeBytes = 1,
+            CompletedUtc = Now,
+            State = DownloadRecordState.Completed,
+        };
+        DownloadHistoryStore.Save(historyPath, new List<DownloadRecord> { record });
+
+        Assert.True(await DownloadHistoryStore.SetNoteAsync(historyPath, record, " reviewed "));
+        Assert.True(await DownloadHistoryStore.SetHashVerifiedAsync(historyPath, record, true));
+        var saved = Assert.Single(DownloadHistoryStore.Load(historyPath));
+        Assert.Equal("reviewed", saved.Note);
+        Assert.True(saved.HashVerified);
+    }
+
+    [Fact]
+    public async Task Hash_ReportsBytesAndHonorsCancellation()
+    {
+        using var dir = new TempDir();
+        var path = System.IO.Path.Combine(dir.Path, "large.bin");
+        var bytes = new byte[400_000];
+        Random.Shared.NextBytes(bytes);
+        File.WriteAllBytes(path, bytes);
+        var reported = new List<long>();
+        var result = DownloadHash.Verify(path, new string('0', 64), new CallbackProgress<long>(reported.Add), CancellationToken.None);
+        Assert.True(result.ExpectedValid);
+        Assert.NotEmpty(reported);
+        Assert.Equal(bytes.Length, reported[^1]);
+
+        var asyncReported = new List<long>();
+        var asyncResult = await DownloadHash.VerifyAsync(
+            path, new string('0', 64), new CallbackProgress<long>(asyncReported.Add));
+        Assert.True(asyncResult.ExpectedValid);
+        Assert.Equal(bytes.Length, asyncReported[^1]);
+
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+            DownloadHash.VerifyAsync(path, new string('0', 64), cancellationToken: cancelled.Token));
+    }
+
     // ──────────────────────── #134 batch capture ────────────────────────
+
+    [Fact]
+    public void BatchParser_DeterministicAdversarialInputsStaySafeAndBounded()
+    {
+        var random = new Random(0x4D5553);
+        var segments = new[]
+        {
+            "plain", "..", "%2e%2e", "report%2Fsecret.txt", "x:y", "%00", "", "é漢字",
+            "a%5Cb", "space%20name.zip", "#fragment", "?token=private",
+        };
+        var input = new List<string>();
+        for (var i = 0; i < 250; i++)
+        {
+            if (random.Next(4) == 0)
+            {
+                var noise = new string(Enumerable.Range(0, random.Next(1, 48))
+                    .Select(_ => (char)random.Next(1, 127)).ToArray());
+                input.Add(noise);
+            }
+            else
+            {
+                input.Add($"https://example.test/{segments[random.Next(segments.Length)]}-{i}.zip");
+            }
+        }
+
+        var parsed = BatchLinkParser.Parse(string.Join("\r\n", input));
+        Assert.InRange(parsed.Links.Count, 0, BatchLinkParser.MaxLinks);
+        Assert.All(parsed.Links, link =>
+        {
+            Assert.True(Uri.TryCreate(link.Uri, UriKind.Absolute, out var uri));
+            Assert.True(uri!.Scheme is "http" or "https");
+            Assert.False(string.IsNullOrWhiteSpace(uri.Host));
+            Assert.InRange(link.FileName.Length, 1, 120);
+            Assert.DoesNotContain('/', link.FileName);
+            Assert.DoesNotContain('\\', link.FileName);
+            Assert.DoesNotContain('\0', link.FileName);
+        });
+    }
 
     [Fact]
     public void BatchParser_ValidatesDedupesAndNames()
@@ -654,6 +857,7 @@ public class R4Tests
     [Fact]
     public void RetryPolicy_BoundsAndSwitch()
     {
+        Assert.Equal(100, DownloadRetryPolicy.MaxSessionFailures);
         Assert.Equal(1, DownloadRetryPolicy.SanitizeMaxAttempts(0));
         Assert.Equal(5, DownloadRetryPolicy.SanitizeMaxAttempts(99));
         Assert.Equal(3, DownloadRetryPolicy.SanitizeMaxAttempts(3));

@@ -567,6 +567,14 @@
                     </StackPanel>
                     <TextBlock x:Name="ImportNote" Style="{StaticResource Note}"
                                Text="Export saves the settings shown here (including profiles and per-profile start pages) as a small JSON file. Sign-ins themselves are not exported — those stay in each profile's own data."/>
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button Content="Export full backup…" Width="148" Click="OnExportLocalData"
+                                ToolTip="Export settings and local app records in one portable file; password encryption is available"/>
+                        <Button Content="Import full backup…" Width="148" Margin="8,0,0,0" Click="OnImportLocalData"
+                                ToolTip="Preview a full backup; it is applied only when you choose OK in Settings"/>
+                    </StackPanel>
+                    <TextBlock x:Name="LocalDataBackupNote" Style="{StaticResource Note}"
+                               Text="A full backup includes local notes, drafts, bookmarks, reading lists, statistics, and download history (including saved file paths). It excludes sign-ins/cookies, downloaded files, logs, and transient session state. Import is staged until you choose OK."/>
                     <Button Content="Reset all settings to defaults…" Width="230" HorizontalAlignment="Left"
                             Margin="0,12,0,0" Click="OnResetSettings"
                             ToolTip="Restores every preference to its default. Your current settings are exported to a backup file first; profiles, sign-ins, and downloads are not touched"/>

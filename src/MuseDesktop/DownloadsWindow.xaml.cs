@@ -25,8 +25,11 @@ public partial class DownloadsWindow : Window
     private readonly Func<IReadOnlyList<BatchLink>, Task>? _startBatchAsync;
     private readonly AppSettings _settings;
     private readonly int _historyCap;
-    private readonly DispatcherTimer? _refreshTimer;
+    private readonly DispatcherTimer? _historySearchTimer;
+    private readonly DispatcherTimer? _activeRefreshTimer;
+    private readonly DispatcherTimer? _speedSampleTimer;
     private readonly DownloadSpeedHistory _speedHistory = new();
+    private CancellationTokenSource? _hashCancellation;
     private List<DownloadRecord> _allRecords = new();
     private bool _hasUndoBatch;
 
@@ -83,16 +86,57 @@ public partial class DownloadsWindow : Window
         _historyCap = DownloadHistoryStore.SanitizeCap(historyCap);
         InitializeComponent();
         AddLinksButton.IsEnabled = _startBatchAsync is not null;
+        _historySearchTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(140) };
+        _historySearchTimer.Tick += (_, _) =>
+        {
+            _historySearchTimer?.Stop();
+            ApplyHistoryQuery();
+        };
+        _activeRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+        _activeRefreshTimer.Tick += (_, _) =>
+        {
+            _activeRefreshTimer?.Stop();
+            RefreshActive();
+        };
+        _speedSampleTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(750) };
+        _speedSampleTimer.Tick += (_, _) =>
+        {
+            if (_tracker is not null)
+            {
+                _speedHistory.Add(DateTimeOffset.Now, _tracker.TotalSpeed);
+                DrawSpeedGraph();
+            }
+        };
         Refresh();
         RefreshActive();
-        if (_tracker is not null)
+        if (_tracker is { } tracker)
         {
-            // Live progress without event plumbing: poll the tracker models
-            // while the window is open; the list is small by construction.
-            _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(750) };
-            _refreshTimer.Tick += (_, _) => { RefreshActive(); RefreshHistoryOnly(); };
-            _refreshTimer.Start();
-            Closed += (_, _) => _refreshTimer.Stop();
+            // Tracker events refresh rows/history; the separate 750 ms
+            // timer samples only the visible in-memory speed graph.
+            tracker.Changed += OnTrackerChanged;
+            tracker.Completed += OnTrackerHistoryChanged;
+            tracker.Failed += OnTrackerHistoryChanged;
+            _speedHistory.Add(DateTimeOffset.Now, tracker.TotalSpeed);
+            DrawSpeedGraph();
+            _speedSampleTimer?.Start();
+            Closed += (_, _) =>
+            {
+                _historySearchTimer?.Stop();
+                _activeRefreshTimer?.Stop();
+                _speedSampleTimer?.Stop();
+                tracker.Changed -= OnTrackerChanged;
+                tracker.Completed -= OnTrackerHistoryChanged;
+                tracker.Failed -= OnTrackerHistoryChanged;
+            };
+        }
+        else
+        {
+            Closed += (_, _) =>
+            {
+                _historySearchTimer?.Stop();
+                _activeRefreshTimer?.Stop();
+                _speedSampleTimer?.Stop();
+            };
         }
     }
 
@@ -111,9 +155,9 @@ public partial class DownloadsWindow : Window
     }
 
     /// <summary>
-    /// Reload history from disk (a download may have finished while this
-    /// window is open) — but only rebind when something actually changed,
-    /// so the 750 ms poll doesn't steal the user's selection mid-click.
+    /// Reload history after a completion/failure event, but only rebind
+    /// when something actually changed so a notification cannot steal the
+    /// user's selection unnecessarily.
     /// </summary>
     private void RefreshHistoryOnly()
     {
@@ -128,6 +172,7 @@ public partial class DownloadsWindow : Window
             return;
         _allRecords = loaded;
         ApplyHistoryQuery();
+        UpdateButtons();
     }
 
     private void ApplyHistoryQuery()
@@ -150,6 +195,7 @@ public partial class DownloadsWindow : Window
             "NameAscending" => DownloadHistorySort.NameAscending,
             _ => DownloadHistorySort.NewestFirst,
         };
+        _historySearchTimer?.Stop();
         var filtered = DownloadHistoryQuery.Apply(_allRecords, SearchText?.Text, filter, sort);
         DownloadsList.ItemsSource = filtered.Select(r => new Row { Record = r }).ToList();
         if (_allRecords.Count == 0)
@@ -161,6 +207,33 @@ public partial class DownloadsWindow : Window
     }
 
     private void OnSearchOrFilterChanged(object sender, object e) => ApplyHistoryQuery();
+
+    private void OnSearchTextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        _historySearchTimer?.Stop();
+        _historySearchTimer?.Start();
+    }
+
+    private void OnTrackerChanged()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(new Action(OnTrackerChanged));
+            return;
+        }
+        if (!IsLoaded)
+            return;
+        _activeRefreshTimer?.Stop();
+        _activeRefreshTimer?.Start();
+    }
+
+    private void OnTrackerHistoryChanged()
+    {
+        if (Dispatcher.CheckAccess())
+            RefreshHistoryOnly();
+        else
+            Dispatcher.BeginInvoke(new Action(RefreshHistoryOnly));
+    }
 
     private void UpdateButtons()
     {
@@ -367,11 +440,8 @@ public partial class DownloadsWindow : Window
             ? "Nothing is downloading right now."
             : $"{rows.Count} item(s) — Pause/Resume use WebView2's own download controls; Retry is available for this session's failures only.";
         UpdateActiveButtons();
-        // R4 #135: feed the speed graph from the same poll that refreshes
-        // this list. Samples live in memory only — closing the window
-        // forgets them, and they never leave the PC.
-        _speedHistory.Add(DateTimeOffset.Now, _tracker.TotalSpeed);
-        DrawSpeedGraph();
+        // The graph has its own low-frequency sample timer; progress
+        // events may arrive in bursts and must not distort the time axis.
     }
 
     /// <summary>Redraw the speed polyline from the sampled history (R4 #135).</summary>
@@ -398,7 +468,14 @@ public partial class DownloadsWindow : Window
         CancelButton.IsEnabled = row is { IsSessionFailed: false } &&
                                   row.State is DownloadActivityState.InProgress or DownloadActivityState.Paused;
         RetryButton.IsEnabled = row is { IsSessionFailed: true } && _retryAsync is not null;
+        var active = _tracker?.Snapshot() ?? Array.Empty<ActiveDownload>();
+        PauseAllButton.IsEnabled = active.Any(download => download.State == DownloadActivityState.InProgress);
+        ResumeAllButton.IsEnabled = active.Any(download => download.State == DownloadActivityState.Paused && download.CanResume);
     }
+
+    private void OnPauseAll(object sender, RoutedEventArgs e) => _tracker?.PauseAll();
+
+    private void OnResumeAll(object sender, RoutedEventArgs e) => _tracker?.ResumeAll();
 
     private void OnActiveSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) =>
         UpdateActiveButtons();
@@ -442,7 +519,7 @@ public partial class DownloadsWindow : Window
     // ───────────────────────── R4: notes (#137) + verify (#136) ─────────────────────────
 
     /// <summary>Attach or edit the selected entry's note (R4 #137). The note persists with the history file, on this PC only.</summary>
-    private void OnEditNote(object sender, RoutedEventArgs e)
+    private async void OnEditNote(object sender, RoutedEventArgs e)
     {
         if (Selected is not { } row)
             return;
@@ -458,7 +535,7 @@ public partial class DownloadsWindow : Window
             return;
         try
         {
-            if (DownloadHistoryStore.SetNote(AppPaths.DownloadsHistoryPath, row.Record, prompt.Text, _historyCap))
+            if (await DownloadHistoryStore.SetNoteAsync(AppPaths.DownloadsHistoryPath, row.Record, prompt.Text, _historyCap))
                 NoteText.Text = $"Note saved for \"{row.Record.FileName}\".";
             else
                 NoteText.Text = "That entry is no longer in the history — the note wasn't saved.";
@@ -478,6 +555,12 @@ public partial class DownloadsWindow : Window
     /// </summary>
     private async void OnVerifyHash(object sender, RoutedEventArgs e)
     {
+        if (_hashCancellation is { } activeHash)
+        {
+            activeHash.Cancel();
+            NoteText.Text = "Cancelling SHA-256 verification…";
+            return;
+        }
         if (Selected is not { } row)
             return;
         if (!File.Exists(row.Record.FullPath))
@@ -500,30 +583,65 @@ public partial class DownloadsWindow : Window
             NoteText.Text = "That doesn't look like a SHA-256 hash (64 hex characters) — nothing was checked.";
             return;
         }
-        VerifyButton.IsEnabled = false;
+
         var path = row.Record.FullPath;
         var expected = prompt.Text;
-        var result = await Task.Run(() => DownloadHash.Verify(path, expected));
-        if (result.Error is not null)
+        var tokenSource = new CancellationTokenSource();
+        _hashCancellation = tokenSource;
+        VerifyButton.Content = "Cancel verify";
+        VerifyButton.IsEnabled = true;
+        long totalBytes;
+        try { totalBytes = new FileInfo(path).Length; }
+        catch { totalBytes = 0; }
+        long lastShown = 0;
+        var hashFinished = false;
+        var progress = new Progress<long>(bytesRead =>
         {
-            NoteText.Text = $"Couldn't check \"{row.Record.FileName}\": {result.Error}";
-        }
-        else
+            if (hashFinished || !ReferenceEquals(_hashCancellation, tokenSource))
+                return;
+            if (bytesRead - lastShown < 1024 * 1024 && bytesRead < totalBytes)
+                return;
+            lastShown = bytesRead;
+            NoteText.Text = $"Checking SHA-256… {DownloadText.FormatBytes(bytesRead)} of {DownloadText.FormatBytes(totalBytes)} read. Select Cancel verify to stop.";
+        });
+        try
         {
-            try
+            var result = await DownloadHash.VerifyAsync(path, expected, progress, tokenSource.Token);
+            hashFinished = true;
+            if (result.Error is not null)
             {
-                DownloadHistoryStore.SetHashVerified(AppPaths.DownloadsHistoryPath, row.Record, result.Matches, _historyCap);
+                NoteText.Text = $"Couldn't check \"{row.Record.FileName}\": {result.Error}";
             }
-            catch (Exception ex)
+            else
             {
-                _log.Warn($"Hash verdict save failed: {ex.Message}");
+                try
+                {
+                    await DownloadHistoryStore.SetHashVerifiedAsync(AppPaths.DownloadsHistoryPath, row.Record, result.Matches, _historyCap);
+                }
+                catch (Exception ex)
+                {
+                    _log.Warn($"Hash verdict save failed: {ex.Message}");
+                }
+                _log.Info($"SHA-256 check: {row.Record.FileName} — {(result.Matches ? "match" : "MISMATCH")}");
+                NoteText.Text = result.Matches
+                    ? $"SHA-256 matches — \"{row.Record.FileName}\" is exactly the file that hash describes."
+                    : $"SHA-256 does NOT match — \"{row.Record.FileName}\" is not the file that hash describes. Treat it with care.";
             }
-            _log.Info($"SHA-256 check: {row.Record.FileName} — {(result.Matches ? "match" : "MISMATCH")}");
-            NoteText.Text = result.Matches
-                ? $"SHA-256 matches — \"{row.Record.FileName}\" is exactly the file that hash describes."
-                : $"SHA-256 does NOT match — \"{row.Record.FileName}\" is not the file that hash describes. Treat it with care.";
+            Refresh();
         }
-        Refresh();
+        catch (OperationCanceledException)
+        {
+            NoteText.Text = $"SHA-256 verification cancelled for \"{row.Record.FileName}\"; no verdict was saved.";
+        }
+        finally
+        {
+            hashFinished = true;
+            if (ReferenceEquals(_hashCancellation, tokenSource))
+                _hashCancellation = null;
+            tokenSource.Dispose();
+            VerifyButton.Content = "Verify SHA-256…";
+            UpdateButtons();
+        }
     }
 
     // ───────────────────────── R4: sort / archive / undo (#131, #138) ─────────────────────────
@@ -536,42 +654,93 @@ public partial class DownloadsWindow : Window
     /// </summary>
     private List<DownloadMove> ApplyMoves(IReadOnlyList<DownloadMove> moves, bool journal = true)
     {
-        var applied = new List<DownloadMove>();
-        foreach (var move in moves)
+        var execution = DownloadMoveTransaction.Apply(moves, File.Exists, (source, destination) =>
         {
-            try
-            {
-                var dir = Path.GetDirectoryName(move.DestinationPath);
-                if (!string.IsNullOrEmpty(dir))
-                    Directory.CreateDirectory(dir);
-                File.Move(move.SourcePath, move.DestinationPath);
-                applied.Add(move);
-            }
-            catch (Exception ex)
-            {
-                _log.Warn($"Download move failed ({move.RuleName}): {Path.GetFileName(move.SourcePath)} — {ex.Message}");
-            }
+            var dir = Path.GetDirectoryName(destination);
+            if (!string.IsNullOrEmpty(dir))
+                Directory.CreateDirectory(dir);
+            File.Move(source, destination);
+        });
+        var applied = execution.Applied.ToList();
+        if (execution.FailedMove is { } failedMove && execution.Failure is { } failure)
+        {
+            _log.Warn($"Download move failed ({failedMove.RuleName}): {Path.GetFileName(failedMove.SourcePath)} — {failure.Message}");
+            foreach (var rollback in execution.RollbackFailures)
+                _log.Error($"Download move rollback failed ({rollback.Move.RuleName}): {Path.GetFileName(rollback.Move.DestinationPath)} — {rollback.Error.Message}");
         }
+
         if (applied.Count == 0)
             return applied;
-        try
+
+        if (journal)
         {
-            if (journal)
+            try
             {
                 DownloadSortJournalStore.Append(AppPaths.DownloadSortJournalPath, new DownloadSortBatch
                 {
                     AppliedUtc = DateTimeOffset.UtcNow,
-                    Moves = applied,
+                    Moves = applied.ToList(),
                 });
             }
+            catch (Exception ex)
+            {
+                _log.Warn($"Download sort journal save failed; attempting to roll back moved files: {ex.Message}");
+                RollBackMoves(applied);
+                if (applied.Count == 0)
+                    return applied;
+
+                // If some files could not be restored, make one more attempt
+                // to record only those still moved, so Undo can recover them.
+                try
+                {
+                    DownloadSortJournalStore.Append(AppPaths.DownloadSortJournalPath, new DownloadSortBatch
+                    {
+                        AppliedUtc = DateTimeOffset.UtcNow,
+                        Moves = applied.ToList(),
+                    });
+                }
+                catch (Exception retryException)
+                {
+                    _log.Error($"Could not journal files that remain moved after rollback failed: {retryException.Message}");
+                }
+            }
+        }
+
+        try
+        {
             var map = applied.ToDictionary(m => m.SourcePath, m => m.DestinationPath);
             DownloadHistoryStore.RewritePaths(AppPaths.DownloadsHistoryPath, map, _historyCap);
         }
         catch (Exception ex)
         {
-            _log.Warn($"Download sort bookkeeping failed: {ex.Message}");
+            _log.Warn($"Download history path update failed: {ex.Message}");
         }
         return applied;
+    }
+
+    /// <summary>Best-effort reverse of moves, retaining only files still at their new locations.</summary>
+    private void RollBackMoves(List<DownloadMove> applied)
+    {
+        for (var i = applied.Count - 1; i >= 0; i--)
+        {
+            var move = applied[i];
+            try
+            {
+                if (!File.Exists(move.DestinationPath))
+                {
+                    applied.RemoveAt(i);
+                    continue;
+                }
+                if (File.Exists(move.SourcePath))
+                    throw new IOException("The original path is now occupied; refusing to overwrite it during rollback.");
+                File.Move(move.DestinationPath, move.SourcePath);
+                applied.RemoveAt(i);
+            }
+            catch (Exception ex)
+            {
+                _log.Error($"Download move rollback failed ({move.RuleName}): {Path.GetFileName(move.DestinationPath)} — {ex.Message}");
+            }
+        }
     }
 
     /// <summary>The preview text for a move plan: one line per move, capped, so the confirm dialog stays readable.</summary>
@@ -688,8 +857,11 @@ public partial class DownloadsWindow : Window
             return;
         }
         var applied = ApplyMoves(undo, journal: false);
-        DownloadSortJournalStore.RemoveLast(journalPath);
-        NoteText.Text = $"Put {applied.Count} of {undo.Count} file(s) back.";
+        if (applied.Count == undo.Count)
+            DownloadSortJournalStore.RemoveLast(journalPath);
+        NoteText.Text = applied.Count == undo.Count
+            ? $"Put {applied.Count} of {undo.Count} file(s) back."
+            : $"Put {applied.Count} of {undo.Count} file(s) back; the undo entry was kept so you can retry the remaining move(s).";
         Refresh();
     }
 

@@ -239,7 +239,7 @@ public sealed class MessageBookmarks
     /// </summary>
     public static string? CleanNickname(string? nickname)
     {
-        var clean = CleanText(nickname);
+        var clean = CleanText(nickname, MaxNicknameLength);
         if (clean.Length == 0)
             return null;
         return clean.Length <= MaxNicknameLength ? clean : clean[..MaxNicknameLength].TrimEnd();
@@ -248,7 +248,7 @@ public sealed class MessageBookmarks
     /// <summary>The stored snippet: the message text the jump will search for — whitespace-collapsed and capped (the head of the message is its most stable part).</summary>
     public static string CleanSnippet(string? text)
     {
-        var clean = CleanText(text);
+        var clean = CleanText(text, MaxSnippetLength);
         return clean.Length <= MaxSnippetLength ? clean : clean[..MaxSnippetLength].TrimEnd();
     }
 
@@ -347,16 +347,39 @@ public sealed class MessageBookmarks
 
     private static string CleanTitle(string? title)
     {
-        var clean = CleanText(title);
+        var clean = CleanText(title, MaxTitleLength);
         return clean.Length <= MaxTitleLength ? clean : clean[..MaxTitleLength].TrimEnd();
     }
 
-    /// <summary>One line, single spaces: titles, nicknames, and snippets are display/find text, never documents.</summary>
-    private static string CleanText(string? text) =>
-        string.IsNullOrWhiteSpace(text)
-            ? ""
-            : string.Join(" ", text.Split((char[]?)null,
-                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+    /// <summary>One line, single spaces, capped during normalization so oversized stored text cannot create a second oversized string.</summary>
+    private static string CleanText(string? text, int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(text) || maxLength <= 0)
+            return "";
+
+        var result = new StringBuilder(Math.Min(text.Length, maxLength));
+        var pendingSpace = false;
+        foreach (var character in text)
+        {
+            if (char.IsWhiteSpace(character))
+            {
+                pendingSpace = result.Length > 0;
+                continue;
+            }
+
+            if (pendingSpace)
+            {
+                if (result.Length == maxLength)
+                    break;
+                result.Append(' ');
+                pendingSpace = false;
+            }
+            if (result.Length == maxLength)
+                break;
+            result.Append(character);
+        }
+        return result.ToString().TrimEnd();
+    }
 }
 
 /// <summary>The message-bookmark store: the same atomic-save, fail-soft-load pattern as the reading-list store.</summary>
@@ -388,12 +411,7 @@ public static class MessageBookmarkStore
 
     public static void Save(string path, MessageBookmarks bookmarks)
     {
-        var dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-        var tmp = path + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(bookmarks, Options));
-        File.Move(tmp, path, overwrite: true);
+        AtomicFile.WriteAllText(path, JsonSerializer.Serialize(bookmarks, Options));
     }
 }
 
@@ -417,7 +435,7 @@ public sealed class MessageBookmarksPaletteProvider : IPaletteProvider
                     ? "Bookmark · in a conversation"
                     : $"Bookmark · {bookmark.ConversationTitle}",
                 Category: "Bookmarks",
-                Keywords: "bookmark marked message saved jump nickname conversation",
+                Keywords: $"bookmark marked message saved jump nickname conversation {bookmark.Snippet}",
                 Source: PaletteCommandSource.Bookmark,
                 Payload: bookmark.Id);
         }
@@ -588,12 +606,7 @@ public static class ConversationDraftStore
 
     public static void Save(string path, ConversationDrafts drafts)
     {
-        var dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-        var tmp = path + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(drafts, Options));
-        File.Move(tmp, path, overwrite: true);
+        AtomicFile.WriteAllText(path, JsonSerializer.Serialize(drafts, Options));
     }
 }
 
@@ -764,12 +777,7 @@ public static class PromptSnippetStore
 
     public static void Save(string path, PromptSnippets snippets)
     {
-        var dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-        var tmp = path + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(snippets, Options));
-        File.Move(tmp, path, overwrite: true);
+        AtomicFile.WriteAllText(path, JsonSerializer.Serialize(snippets, Options));
     }
 }
 
@@ -791,7 +799,7 @@ public sealed class PromptSnippetsPaletteProvider : IPaletteProvider
                 Title: $"Insert snippet: {snippet.Name}",
                 Detail: "Snippet · into the message box",
                 Category: "Snippets",
-                Keywords: "snippet prompt insert saved text template reuse",
+                Keywords: $"snippet prompt insert saved text template reuse {snippet.Body}",
                 Source: PaletteCommandSource.Snippet,
                 Payload: snippet.Id);
         }

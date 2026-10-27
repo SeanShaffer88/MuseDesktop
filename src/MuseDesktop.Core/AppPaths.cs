@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace MuseDesktop.Core;
 
 /// <summary>
@@ -48,6 +50,9 @@ public static class AppPaths
 
     /// <summary>The command palette's action history (R1 #106): built-in action ids only, beside the settings, so portable mode carries it too.</summary>
     public static string PaletteHistoryPath => Path.Combine(RootDir, "palette-history.json");
+
+    /// <summary>Generic, local-only summaries of recent app notifications; no filenames, URLs, or page content.</summary>
+    public static string ActivityHistoryPath => Path.Combine(RootDir, "activity-history.json");
 
     /// <summary>The user's one-off session snapshot (R2 #114): profile + app route + placement per window — never full page URLs.</summary>
     public static string SessionSnapshotPath => Path.Combine(RootDir, "session-snapshot.json");
@@ -116,6 +121,9 @@ public static class AppPaths
 public sealed class DiagnosticLog
 {
     private const long MaxBytes = 1_000_000;
+    private static readonly Regex HttpUrlPattern = new(
+        @"\bhttps?://[^\s""'<>]+",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
     private readonly string _path;
     private readonly object _gate = new();
 
@@ -156,6 +164,7 @@ public sealed class DiagnosticLog
     public static string Sanitize(string message)
     {
         var clean = message.Replace('\r', ' ').Replace('\n', ' ');
+        clean = HttpUrlPattern.Replace(clean, match => UrlPolicy.RedactForLog(match.Value));
         return clean.Length <= 500 ? clean : clean[..500];
     }
 }

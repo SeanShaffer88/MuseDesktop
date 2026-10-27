@@ -131,28 +131,19 @@ public enum WatchdogDecision
 }
 
 /// <summary>
-/// The hung-renderer watchdog's decision model (S8 #80). The shell
-/// pings the page on a timer (a trivial script eval with a timeout);
-/// this policy counts consecutive misses. Two in a row means "hung"
-/// and the shell offers Reload / Wait — it NEVER auto-reloads, because
-/// a missed ping can also mean a busy page (long voice answer, heavy
-/// generation), and yanking the page away mid-thought is worse than
-/// asking. Wait snoozes the watchdog for two minutes and resets the
-/// count; a successful ping at any point resets the count and hides a
-/// showing prompt.
+/// The hung-renderer prompt's decision model (S8 #80). WebView2 reports
+/// RenderProcessUnresponsive natively, repeatedly, while the main renderer
+/// remains unresponsive. A single native report is sufficient to offer
+/// Reload / Wait; Wait snoozes subsequent reports for two minutes. WebView2
+/// has no corresponding "responsive again" event, so a successful page load
+/// is the only automatic signal that clears a visible prompt.
 /// </summary>
 public sealed class WatchdogPolicy
 {
-    /// <summary>Consecutive missed pings before the page counts as hung.</summary>
-    public const int MissThreshold = 2;
-
-    /// <summary>How long Wait silences the watchdog.</summary>
+    /// <summary>How long Wait silences native unresponsive notifications.</summary>
     public static readonly TimeSpan SnoozeDuration = TimeSpan.FromMinutes(2);
 
-    private int _misses;
     private DateTimeOffset? _snoozedUntilUtc;
-
-    public int ConsecutiveMisses => _misses;
 
     /// <summary>True while the Reload/Wait prompt should be on screen.</summary>
     public bool PromptVisible { get; private set; }
@@ -160,40 +151,33 @@ public sealed class WatchdogPolicy
     public bool IsSnoozed(DateTimeOffset now) =>
         _snoozedUntilUtc is { } until && now < until;
 
-    public WatchdogDecision OnPingSucceeded(DateTimeOffset now)
+    public WatchdogDecision OnRendererUnresponsive(DateTimeOffset now)
     {
-        _misses = 0;
-        if (!PromptVisible)
+        if (IsSnoozed(now) || PromptVisible)
             return WatchdogDecision.None;
+        PromptVisible = true;
+        return WatchdogDecision.ShowHungPrompt;
+    }
+
+    /// <summary>A successful page load closes the prompt and starts a fresh incident.</summary>
+    public WatchdogDecision OnPageLoaded()
+    {
+        var wasVisible = PromptVisible;
         PromptVisible = false;
-        return WatchdogDecision.HideHungPrompt;
+        _snoozedUntilUtc = null;
+        return wasVisible ? WatchdogDecision.HideHungPrompt : WatchdogDecision.None;
     }
 
-    public WatchdogDecision OnPingMissed(DateTimeOffset now)
-    {
-        if (IsSnoozed(now))
-            return WatchdogDecision.None;
-        _misses++;
-        if (_misses >= MissThreshold && !PromptVisible)
-        {
-            PromptVisible = true;
-            return WatchdogDecision.ShowHungPrompt;
-        }
-        return WatchdogDecision.None;
-    }
-
-    /// <summary>The user chose Wait: hide the prompt and stay quiet for <see cref="SnoozeDuration"/>.</summary>
+    /// <summary>The user chose Wait: hide the prompt and stay quiet for two minutes.</summary>
     public void Snooze(DateTimeOffset now)
     {
         _snoozedUntilUtc = now + SnoozeDuration;
-        _misses = 0;
         PromptVisible = false;
     }
 
-    /// <summary>The user chose Reload: full reset — a fresh page earns a fresh watchdog.</summary>
+    /// <summary>The user chose Reload: full reset for the next renderer incident.</summary>
     public void OnReloadChosen()
     {
-        _misses = 0;
         PromptVisible = false;
         _snoozedUntilUtc = null;
     }
@@ -311,12 +295,7 @@ public static class StartupTimingsStore
 
     public static void Save(string path, List<StartupTimings> runs)
     {
-        var dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-        var tmp = path + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(runs.Take(MaxKept).ToList(), Options));
-        File.Move(tmp, path, overwrite: true);
+        AtomicFile.WriteAllText(path, JsonSerializer.Serialize(runs.Take(MaxKept).ToList(), Options));
     }
 }
 
@@ -731,6 +710,8 @@ public sealed class DiagnosticsData
     public required string SettingsPath { get; init; }
     public required string LogPath { get; init; }
     public required string ProfileDir { get; init; }
+    public bool RedactLocalPaths { get; init; }
+    public bool RedactProfileName { get; init; }
     public RuntimeHealthResult? Runtime { get; init; }
     public ProxyInfo? Proxy { get; init; }
     public MemorySnapshot? Memory { get; init; }
@@ -785,7 +766,7 @@ public static class DiagnosticsReport
         if (!string.IsNullOrWhiteSpace(data.DotNetVersion))
             facts.Add($"  .NET: {data.DotNetVersion}");
         if (!string.IsNullOrWhiteSpace(data.ActiveProfileName))
-            facts.Add($"  Active profile: {data.ActiveProfileName}");
+            facts.Add($"  Active profile: {(data.RedactProfileName ? "[profile name omitted]" : data.ActiveProfileName)}");
         if (!string.IsNullOrWhiteSpace(data.UpdateChannelLabel))
             facts.Add($"  Update channel: {data.UpdateChannelLabel}");
         if (data.AppLockOn is { } lockOn)
@@ -842,9 +823,9 @@ public static class DiagnosticsReport
         }
         lines.Add("");
         lines.Add("Files");
-        lines.Add($"  Settings: {data.SettingsPath}");
-        lines.Add($"  Log: {data.LogPath}");
-        lines.Add($"  Active profile data: {data.ProfileDir}");
+        lines.Add($"  Settings: {(data.RedactLocalPaths ? "[local path omitted]" : data.SettingsPath)}");
+        lines.Add($"  Log: {(data.RedactLocalPaths ? "[local path omitted]" : data.LogPath)}");
+        lines.Add($"  Active profile data: {(data.RedactLocalPaths ? "[local path omitted]" : data.ProfileDir)}");
         return string.Join(Environment.NewLine, lines);
     }
 }

@@ -18,6 +18,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="40"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="24"/>
         </Grid.RowDefinitions>
@@ -78,8 +79,13 @@
                                           ToolTip="See whether a newer MuseDesktop is available"/>
                                 <MenuItem Header="Downloads…" Click="OnDownloads"
                                           ToolTip="Files Muse has downloaded for you, newest first"/>
+                                <MenuItem Header="Recent activity…" Click="OnActivityCenter"
+                                          ToolTip="Revisit recent app notifications; this list stores no filenames, links, or conversation text"/>
                                 <MenuItem Header="Command palette…" Click="OnCommandPalette" InputGestureText="Ctrl+K"
                                           ToolTip="Every action, profile, setting, download, and window — searchable from the keyboard"/>
+                                <MenuItem Header="New tab" Click="OnNewTab" InputGestureText="Ctrl+T"/>
+                                <MenuItem Header="Close tab" Click="OnCloseActiveTab" InputGestureText="Ctrl+W"/>
+                                <MenuItem Header="Next tab" Click="OnNextTab" InputGestureText="Ctrl+Tab"/>
                                 <MenuItem Header="Switch window…" Click="OnSwitchWindow"
                                           ToolTip="Jump to another open MuseDesktop window, most recently used first"/>
                                 <MenuItem x:Name="WorkspacesItem" Header="Workspaces"
@@ -166,8 +172,25 @@
             </DockPanel>
         </Border>
 
+        <!-- Each tab retains its live WebView2 page; the status text reports observable app/page state only. -->
+        <Border x:Name="TabStrip" Grid.Row="1" Grid.ColumnSpan="2" Height="34" Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,0,1">
+            <DockPanel LastChildFill="True" Margin="6,2">
+                <Button x:Name="NewTabButton" DockPanel.Dock="Right" Content="+" Width="30" Margin="4,0,0,0"
+                        Style="{StaticResource BarButton}" ToolTip="New tab (Ctrl+T)" Click="OnNewTab"
+                        AutomationProperties.Name="New tab"/>
+                <TextBlock x:Name="PageActivityText" DockPanel.Dock="Right" Width="190" Margin="8,0"
+                           VerticalAlignment="Center" TextAlignment="Right" TextTrimming="CharacterEllipsis" FontSize="11"
+                           Foreground="{StaticResource MutedBrush}" AutomationProperties.Name="Page activity"
+                           AutomationProperties.LiveSetting="Polite"/>
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                    <StackPanel x:Name="TabButtonsPanel" Orientation="Horizontal"/>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+
         <!-- Find bar (v0.5.0, S1 #1) -->
-        <Border x:Name="FindBar" Grid.Row="1" Grid.ColumnSpan="2" Background="{StaticResource SurfaceBrush}"
+        <Border x:Name="FindBar" Grid.Row="2" Grid.ColumnSpan="2" Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,0,1"
                 Visibility="Collapsed">
             <StackPanel Orientation="Horizontal" Margin="6,3" VerticalAlignment="Center">
@@ -190,7 +213,7 @@
         <!-- Left rail (R5B #202): the vertical strip at the window's
              left edge. Today it carries the Bookmarks button; it hides
              with the rest of the chrome in focus mode. -->
-        <Border x:Name="LeftRail" Grid.Row="2" Grid.Column="0"
+        <Border x:Name="LeftRail" Grid.Row="3" Grid.Column="0"
                 Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,1,0">
             <StackPanel Orientation="Vertical" Margin="0,6,0,0">
@@ -204,19 +227,17 @@
         <!-- Web content. The first-run / error overlay sits above it until the page loads.
              ContentGrid is named because S8 #71's recovery replaces the web
              view controls inside it when the browser process exits. -->
-        <Grid Grid.Row="2" Grid.Column="1" x:Name="ContentGrid">
+        <Grid Grid.Row="3" Grid.Column="1" x:Name="ContentGrid">
             <!-- Focus ring (S6 #58): the border is always 2px (so the
                  page never shifts); its brush turns accent-colored
                  while keyboard focus is inside the page, transparent
                  while focus is on the shell chrome. -->
-            <Border x:Name="WebFocusRing" BorderThickness="2" BorderBrush="Transparent">
-                <wv2:WebView2 x:Name="Browser" DefaultBackgroundColor="#0B0B0D"
-                              AutomationProperties.Name="Muse web content"/>
-            </Border>
-            <!-- Hidden retry view (S2 #15): same environment/profile, used only to
-                 re-issue a download that failed in this session. Never shown. -->
-            <wv2:WebView2 x:Name="RetryBrowser" Width="1" Height="1" Visibility="Hidden"
-                          IsHitTestVisible="False" DefaultBackgroundColor="#0B0B0D"/>
+            <Grid x:Name="BrowserHost">
+                <Border x:Name="WebFocusRing" BorderThickness="2" BorderBrush="Transparent">
+                    <wv2:WebView2 x:Name="InitialBrowser" DefaultBackgroundColor="#0B0B0D"
+                                  AutomationProperties.Name="Muse web content"/>
+                </Border>
+            </Grid>
             <!-- S8 #80: the hung-page banner. Non-modal on purpose —
                  the user may be mid-voice-call; the page is never
                  reloaded without their say-so. -->
@@ -249,7 +270,7 @@
         </Grid>
 
         <!-- Status bar -->
-        <Border x:Name="StatusBar" Grid.Row="3" Grid.ColumnSpan="2" Background="{StaticResource SurfaceBrush}"
+        <Border x:Name="StatusBar" Grid.Row="4" Grid.ColumnSpan="2" Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,1,0,0">
             <DockPanel LastChildFill="True" Margin="8,0">
                 <Button x:Name="CancelDownloadButton" DockPanel.Dock="Right" Content="&#x2715;" Width="22" Height="18"

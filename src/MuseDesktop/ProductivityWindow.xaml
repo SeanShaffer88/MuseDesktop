@@ -11,7 +11,8 @@
                     AutomationProperties.Name="Clear stats data"/>
             <Button Content="Close" Width="84" Height="28" Margin="8,0,0,0" IsCancel="True"/>
         </StackPanel>
-        <TabControl x:Name="Tabs" Background="{StaticResource SurfaceBrush}"
+        <TabControl x:Name="Tabs" AutomationProperties.Name="Productivity views"
+                    Background="{StaticResource SurfaceBrush}"
                     Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource HairlineBrush}">
             <TabItem Header="Weekly digest" AutomationProperties.Name="Weekly digest tab">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">

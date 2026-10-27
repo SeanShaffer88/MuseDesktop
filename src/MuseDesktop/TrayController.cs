@@ -17,11 +17,6 @@ namespace MuseDesktop;
 /// </summary>
 public sealed class TrayController : IDisposable
 {
-    // How often a blocked suspend (download / possible voice session)
-    // re-checks — long enough to be free, short enough to still save
-    // memory once the block clears.
-    private static readonly TimeSpan BlockedRecheck = TimeSpan.FromMinutes(2);
-
     private readonly DiagnosticLog _log;
     private readonly Dispatcher _dispatcher;
     private readonly Action _showWindow;
@@ -65,6 +60,7 @@ public sealed class TrayController : IDisposable
     // when supplied, the switch submenu gathers grouped profiles
     // under their group headings.
     private readonly Func<IReadOnlyList<ProfileGroup>>? _profileGroups;
+    private readonly Action? _openActivityCenter;
 
     private Forms.NotifyIcon? _icon;
     private Forms.ToolStripMenuItem? _openItem;
@@ -84,6 +80,7 @@ public sealed class TrayController : IDisposable
     private bool _suspended;
     private bool _balloonShown;
     private bool _micBlockLogged;
+    private bool _waitingForActivity;
 
     // Icon composition (S4 #31/#37): the extracted app icon plus the
     // Core-planned overlays, painted by TrayIconRenderer.
@@ -125,7 +122,8 @@ public sealed class TrayController : IDisposable
         Func<IReadOnlyList<Workspace>>? workspaces = null,
         Func<string?>? activeWorkspaceId = null,
         Action<string>? applyWorkspace = null,
-        Func<IReadOnlyList<ProfileGroup>>? profileGroups = null)
+        Func<IReadOnlyList<ProfileGroup>>? profileGroups = null,
+        Action? openActivityCenter = null)
     {
         _log = log;
         _dispatcher = dispatcher;
@@ -158,6 +156,7 @@ public sealed class TrayController : IDisposable
         _activeWorkspaceId = activeWorkspaceId;
         _applyWorkspace = applyWorkspace;
         _profileGroups = profileGroups;
+        _openActivityCenter = openActivityCenter;
     }
 
     public bool IsSuspended => _suspended;
@@ -201,6 +200,12 @@ public sealed class TrayController : IDisposable
             // completed files, rebuilt on every open.
             _downloadsItem = new Forms.ToolStripMenuItem("Downloads");
             menu.Items.Add(_downloadsItem);
+            if (_openActivityCenter is not null)
+            {
+                var activityItem = new Forms.ToolStripMenuItem("Recent activity");
+                activityItem.Click += (_, _) => _dispatcher.Invoke(_openActivityCenter);
+                menu.Items.Add(activityItem);
+            }
             _settingsItem = new Forms.ToolStripMenuItem("Settings…");
             _settingsItem.Click += (_, _) => _dispatcher.Invoke(_openSettings);
             menu.Items.Add(_settingsItem);
@@ -536,6 +541,12 @@ public sealed class TrayController : IDisposable
         return false;
     }
 
+    private void RecordActivity(ActivityKind kind)
+    {
+        if (!ActivityHistoryStore.Record(AppPaths.ActivityHistoryPath, kind, DateTimeOffset.UtcNow))
+            _log.Warn("Recent activity could not be saved; notification content was not logged.");
+    }
+
     /// <summary>
     /// Download-complete balloon (S2 #18): shown only when the caller has
     /// checked the opt-in setting and that the window is hidden, and
@@ -553,6 +564,7 @@ public sealed class TrayController : IDisposable
             _icon.BalloonTipTitle = "Download complete";
             _icon.BalloonTipText = fileName;
             _icon.ShowBalloonTip(4000);
+            RecordActivity(ActivityKind.DownloadComplete);
         }
         catch (Exception ex)
         {
@@ -578,6 +590,7 @@ public sealed class TrayController : IDisposable
             _icon.BalloonTipTitle = "MuseDesktop test notification";
             _icon.BalloonTipText = "This is the test notification you asked for in Settings — MuseDesktop's notifications work.";
             _icon.ShowBalloonTip(4000);
+            RecordActivity(ActivityKind.TestNotification);
             _log.Info(suppression == NotificationSuppression.None
                 ? "Test notification shown (asked for in Settings)"
                 : $"Test notification shown (asked for in Settings) while automatic notifications are held back: {NotificationPolicy.ReasonText(suppression)}");
@@ -670,6 +683,7 @@ public sealed class TrayController : IDisposable
             _icon.BalloonTipTitle = title;
             _icon.BalloonTipText = text;
             _icon.ShowBalloonTip(4000);
+            RecordActivity(ActivityKind.Reminder);
         }
         catch (Exception ex)
         {
@@ -718,6 +732,7 @@ public sealed class TrayController : IDisposable
                 ? "Muse keeps working in the cloud. Click the tray icon to come back."
                 : "Muse keeps working in the cloud. Double-click the tray icon to come back.";
             _icon.ShowBalloonTip(4000);
+            RecordActivity(ActivityKind.HiddenInTray);
         }
     }
 
@@ -725,18 +740,51 @@ public sealed class TrayController : IDisposable
     public void OnShown()
     {
         _hidden = false;
+        _waitingForActivity = false;
         _suspendTimer?.Stop();
         if (_suspended && _resume())
             _suspended = false;
     }
 
-    /// <summary>Settings turned tray suspend off: drop any pending timer.</summary>
-    public void CancelPendingSuspend() => _suspendTimer?.Stop();
+    /// <summary>Settings turned tray suspend off: drop any pending timer or activity wait.</summary>
+    public void CancelPendingSuspend()
+    {
+        _suspendTimer?.Stop();
+        _waitingForActivity = false;
+    }
+
+    /// <summary>Recheck a blocked tray suspend after a download or microphone state event.</summary>
+    public void OnActivityChanged()
+    {
+        if (!_hidden || !_waitingForActivity || !_webReady() || _suspended)
+            return;
+        TrySuspendAfterActivityChange();
+    }
+
+    private async void TrySuspendAfterActivityChange()
+    {
+        switch (SuspendPolicy.Decide(
+                    _suspendEnabled(), _suspendTimeout(), _downloadActive(), _microphoneGranted()))
+        {
+            case SuspendDecision.SuspendNow:
+                _waitingForActivity = false;
+                _suspended = await _trySuspendAsync();
+                break;
+            case SuspendDecision.BlockedByDownload:
+            case SuspendDecision.BlockedByMicrophone:
+                // Stay dormant until a state event changes the blocker.
+                break;
+            default:
+                _waitingForActivity = false;
+                break;
+        }
+    }
 
     private void ArmSuspendTimer()
     {
         if (!_webReady() || _suspended)
             return;
+        _waitingForActivity = false;
         // Disabled / Never: no timer at all (S4 #34). The tick handler
         // re-decides anyway, so a setting changed mid-hide still wins.
         var decision = SuspendPolicy.Decide(
@@ -754,6 +802,7 @@ public sealed class TrayController : IDisposable
     private async void OnSuspendTimerTick(object? sender, EventArgs e)
     {
         _suspendTimer?.Stop();
+        _waitingForActivity = false;
         if (!_hidden || !_webReady() || _suspended)
             return;
         switch (SuspendPolicy.Decide(
@@ -763,8 +812,8 @@ public sealed class TrayController : IDisposable
                 _suspended = await _trySuspendAsync();
                 break;
             case SuspendDecision.BlockedByDownload:
-                // Never sleep mid-download; check again shortly.
-                RearmBlockedRecheck();
+                // Never sleep mid-download; wait for a tracker state event.
+                _waitingForActivity = true;
                 break;
             case SuspendDecision.BlockedByMicrophone:
                 // S4 #35: the mic was granted this session, so a voice
@@ -775,22 +824,16 @@ public sealed class TrayController : IDisposable
                     _micBlockLogged = true;
                     _log.Info("Tray suspend skipped: the microphone was granted to Muse this session, so a voice session may be active");
                 }
-                RearmBlockedRecheck();
+                _waitingForActivity = true;
                 break;
             // Disabled / NeverSuspend: the setting changed while the
             // timer was armed — let the timer die.
         }
     }
 
-    private void RearmBlockedRecheck()
-    {
-        _suspendTimer = new DispatcherTimer { Interval = BlockedRecheck };
-        _suspendTimer.Tick += OnSuspendTimerTick;
-        _suspendTimer.Start();
-    }
-
     public void Dispose()
     {
+        _waitingForActivity = false;
         _suspendTimer?.Stop();
         _clickTimer?.Stop();
         _icon?.Dispose();

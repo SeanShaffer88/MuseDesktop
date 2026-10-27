@@ -105,60 +105,47 @@ public class S8Tests
     // ───────────────────────── #80 watchdog ─────────────────────────
 
     [Fact]
-    public void Watchdog_TwoConsecutiveMissesShowThePrompt()
+    public void Watchdog_NativeUnresponsiveEventShowsPromptOnce()
     {
         var policy = new WatchdogPolicy();
-        Assert.Equal(WatchdogDecision.None, policy.OnPingMissed(T0));
-        Assert.False(policy.PromptVisible);
-        Assert.Equal(WatchdogDecision.ShowHungPrompt, policy.OnPingMissed(T0.AddSeconds(15)));
+        Assert.Equal(WatchdogDecision.ShowHungPrompt, policy.OnRendererUnresponsive(T0));
         Assert.True(policy.PromptVisible);
-        // Further misses don't re-fire the prompt decision.
-        Assert.Equal(WatchdogDecision.None, policy.OnPingMissed(T0.AddSeconds(30)));
+        Assert.Equal(WatchdogDecision.None, policy.OnRendererUnresponsive(T0.AddSeconds(5)));
     }
 
     [Fact]
-    public void Watchdog_ASuccessResetsTheCountAndHidesThePrompt()
+    public void Watchdog_SuccessfulPageLoadHidesPrompt()
     {
         var policy = new WatchdogPolicy();
-        policy.OnPingMissed(T0);
-        Assert.Equal(WatchdogDecision.None, policy.OnPingSucceeded(T0.AddSeconds(15)));
-        Assert.Equal(0, policy.ConsecutiveMisses);
-        policy.OnPingMissed(T0.AddSeconds(30));
-        policy.OnPingMissed(T0.AddSeconds(45));
-        Assert.True(policy.PromptVisible);
-        Assert.Equal(WatchdogDecision.HideHungPrompt, policy.OnPingSucceeded(T0.AddSeconds(60)));
+        policy.OnRendererUnresponsive(T0);
+        Assert.Equal(WatchdogDecision.HideHungPrompt, policy.OnPageLoaded());
         Assert.False(policy.PromptVisible);
+        Assert.Equal(WatchdogDecision.None, policy.OnPageLoaded());
     }
 
     [Fact]
-    public void Watchdog_WaitSnoozesForTwoMinutes()
+    public void Watchdog_WaitSnoozesNativeEventsForTwoMinutes()
     {
         var policy = new WatchdogPolicy();
-        policy.OnPingMissed(T0);
-        policy.OnPingMissed(T0.AddSeconds(15));
-        Assert.True(policy.PromptVisible);
+        policy.OnRendererUnresponsive(T0);
         policy.Snooze(T0.AddSeconds(20));
         Assert.False(policy.PromptVisible);
         Assert.True(policy.IsSnoozed(T0.AddMinutes(2)));
-        // Misses during the snooze are ignored entirely.
-        Assert.Equal(WatchdogDecision.None, policy.OnPingMissed(T0.AddMinutes(1)));
-        Assert.Equal(0, policy.ConsecutiveMisses);
-        // After the snooze, counting starts fresh.
+        Assert.Equal(WatchdogDecision.None, policy.OnRendererUnresponsive(T0.AddMinutes(1)));
         Assert.False(policy.IsSnoozed(T0.AddSeconds(20).Add(WatchdogPolicy.SnoozeDuration).AddSeconds(1)));
-        Assert.Equal(WatchdogDecision.None, policy.OnPingMissed(T0.AddMinutes(3)));
-        Assert.Equal(1, policy.ConsecutiveMisses);
+        Assert.Equal(WatchdogDecision.ShowHungPrompt,
+            policy.OnRendererUnresponsive(T0.AddSeconds(20).Add(WatchdogPolicy.SnoozeDuration).AddSeconds(1)));
     }
 
     [Fact]
-    public void Watchdog_ReloadChosenFullyResets()
+    public void Watchdog_ReloadChosenFullyResetsSnooze()
     {
         var policy = new WatchdogPolicy();
-        policy.OnPingMissed(T0);
-        policy.OnPingMissed(T0.AddSeconds(15));
+        policy.OnRendererUnresponsive(T0);
+        policy.Snooze(T0.AddSeconds(1));
         policy.OnReloadChosen();
         Assert.False(policy.PromptVisible);
-        Assert.Equal(0, policy.ConsecutiveMisses);
-        Assert.False(policy.IsSnoozed(T0.AddSeconds(16)));
+        Assert.False(policy.IsSnoozed(T0.AddSeconds(2)));
     }
 
     // ───────────────────────── #72 safe mode ─────────────────────────
@@ -433,6 +420,60 @@ public class S8Tests
     }
 
     // ───────────────────────── #79 backup rotation ─────────────────────────
+
+    [Fact]
+    public void LocalDataBackup_RoundTripsKnownStoresAndRejectsDamagedInput()
+    {
+        var stores = new Dictionary<string, string?>
+        {
+            ["downloads"] = "[]",
+            ["readingList"] = "{}",
+            ["notes"] = "{}",
+            ["weeklyStats"] = "{}",
+            ["bookmarks"] = "{}",
+            ["drafts"] = "{}",
+            ["snippets"] = "{}",
+            ["privacyStats"] = "{}",
+            ["profileUsage"] = "{}",
+            ["paletteHistory"] = "[]",
+            ["activityHistory"] = "{}",
+        };
+        var json = LocalDataBackup.CreateJson(new AppSettings(), stores, T0);
+
+        Assert.True(LocalDataBackup.TryImport(json, out var backup, out var error), error);
+        Assert.NotNull(backup);
+        Assert.Equal(T0, backup.ExportedUtc);
+        Assert.Equal("[]", backup.Stores["downloads"]);
+        Assert.Contains("Unsent conversation drafts", LocalDataBackup.Preview(backup));
+        Assert.Contains("Sign-ins/cookies", LocalDataBackup.Preview(backup));
+
+        Assert.False(LocalDataBackup.TryImport("{ damaged", out _, out _));
+        Assert.Throws<ArgumentException>(() => LocalDataBackup.CreateJson(
+            new AppSettings(), new Dictionary<string, string?> { ["outside-path"] = "{}" }, T0));
+    }
+
+    [Fact]
+    public void LocalDataBackup_RejectsInvalidStoreShape()
+    {
+        var stores = new Dictionary<string, string?>
+        {
+            ["downloads"] = "{}",
+            ["readingList"] = "{}",
+            ["notes"] = "{}",
+            ["weeklyStats"] = "{}",
+            ["bookmarks"] = "{}",
+            ["drafts"] = "{}",
+            ["snippets"] = "{}",
+            ["privacyStats"] = "{}",
+            ["profileUsage"] = "{}",
+            ["paletteHistory"] = "[]",
+            ["activityHistory"] = "{}",
+        };
+        var json = LocalDataBackup.CreateJson(new AppSettings(), stores, T0);
+
+        Assert.False(LocalDataBackup.TryImport(json, out _, out var error));
+        Assert.Contains("download history", error, StringComparison.OrdinalIgnoreCase);
+    }
 
     [Fact]
     public void BackupRotation_NamesParseAndCatalogSorts()

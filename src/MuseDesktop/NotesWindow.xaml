@@ -8,6 +8,8 @@
     <DockPanel Margin="14,12,14,12">
         <TextBlock DockPanel.Dock="Top"
                    Text="Your quick notes for this profile — kept on this PC only, newest first."/>
+        <TextBlock x:Name="EmptyStateText" DockPanel.Dock="Bottom" Margin="0,10,0,0"
+                   Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Visibility="Collapsed"/>
         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,10,0,0">
             <Button x:Name="NewButton" Content="New note…" Width="104" Height="28" Click="OnNew"/>
             <Button x:Name="DeleteButton" Content="Delete" Width="84" Height="28" Margin="8,0,0,0" Click="OnDelete"/>
@@ -17,6 +19,9 @@
                  Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
                  BorderBrush="{StaticResource HairlineBrush}"
                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 ScrollViewer.CanContentScroll="True"
+                 VirtualizingPanel.IsVirtualizing="True"
+                 VirtualizingPanel.VirtualizationMode="Recycling"
                  AutomationProperties.Name="Notes">
             <ListBox.ItemContainerStyle>
                 <Style TargetType="ListBoxItem">

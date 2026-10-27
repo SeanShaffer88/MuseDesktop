@@ -43,6 +43,25 @@ jobs:
           $p = Start-Process -FilePath "publish/win-x64/MuseDesktop.exe" -ArgumentList "--smoke-test" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "Smoke test failed with exit code $($p.ExitCode)" }
 
+      - name: Generate CycloneDX SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: publish/win-x64
+          format: cyclonedx-json
+          output-file: publish/win-x64/sbom.cdx.json
+          upload-artifact: false
+
+      - name: Record build inputs
+        shell: pwsh
+        run: |
+          $facts = [ordered]@{
+            commit = "${{ github.sha }}"
+            sdk = (dotnet --version)
+            runtimeIdentifier = "win-x64"
+            configuration = "Release"
+          }
+          $facts | ConvertTo-Json | Set-Content publish/win-x64/build-info.json -Encoding utf8
+
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
@@ -81,6 +100,25 @@ jobs:
         run: |
           $p = Start-Process -FilePath "publish/win-arm64/MuseDesktop.exe" -ArgumentList "--smoke-test" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "Smoke test failed with exit code $($p.ExitCode)" }
+
+      - name: Generate CycloneDX SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: publish/win-arm64
+          format: cyclonedx-json
+          output-file: publish/win-arm64/sbom.cdx.json
+          upload-artifact: false
+
+      - name: Record build inputs
+        shell: pwsh
+        run: |
+          $facts = [ordered]@{
+            commit = "${{ github.sha }}"
+            sdk = (dotnet --version)
+            runtimeIdentifier = "win-arm64"
+            configuration = "Release"
+          }
+          $facts | ConvertTo-Json | Set-Content publish/win-arm64/build-info.json -Encoding utf8
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6

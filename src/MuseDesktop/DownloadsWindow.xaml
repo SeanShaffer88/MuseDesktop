@@ -34,6 +34,9 @@
                      Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource HairlineBrush}"
                      SelectionChanged="OnActiveSelectionChanged"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ScrollViewer.CanContentScroll="True"
+                     VirtualizingPanel.IsVirtualizing="True"
+                     VirtualizingPanel.VirtualizationMode="Recycling"
                      AutomationProperties.Name="Active downloads">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
@@ -54,6 +57,12 @@
                 <TextBlock x:Name="ActiveNote" Style="{StaticResource Note}" Margin="10,4,0,0"
                            Text="Nothing is downloading right now."/>
             </StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                <Button x:Name="PauseAllButton" Content="Pause all" Width="82" Height="24" Click="OnPauseAll"
+                        ToolTip="Pause every download that can currently be paused"/>
+                <Button x:Name="ResumeAllButton" Content="Resume all" Width="82" Height="24" Margin="8,0,0,0" Click="OnResumeAll"
+                        ToolTip="Resume every paused download that WebView2 allows"/>
+            </StackPanel>
             <!-- Speed history (R4 #135): samples stay in memory, on this PC only -->
             <TextBlock x:Name="SpeedGraphLabel" Style="{StaticResource Note}" Margin="0,8,0,2"
                        Text="Download speed (this PC only)"/>
@@ -71,7 +80,7 @@
             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,6">
                 <TextBox x:Name="SearchText" Width="180" Height="24" VerticalContentAlignment="Center"
                          Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
-                         BorderBrush="{StaticResource HairlineBrush}" TextChanged="OnSearchOrFilterChanged"
+                         BorderBrush="{StaticResource HairlineBrush}" TextChanged="OnSearchTextChanged"
                          ToolTip="Search by file name" AutomationProperties.Name="Search downloads"/>
                 <ComboBox x:Name="StateFilterCombo" Width="110" Margin="8,0,0,0" SelectionChanged="OnSearchOrFilterChanged"
                           ToolTip="Show all, completed only, or failed only" AutomationProperties.Name="Filter by state">
@@ -90,6 +99,9 @@
                      Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource HairlineBrush}"
                      MouseDoubleClick="OnOpen" SelectionChanged="OnSelectionChanged"
                      ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ScrollViewer.CanContentScroll="True"
+                     VirtualizingPanel.IsVirtualizing="True"
+                     VirtualizingPanel.VirtualizationMode="Recycling"
                      AutomationProperties.Name="Download history">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
@@ -119,7 +131,7 @@
                 <Button x:Name="NoteButton" Content="Note…" Width="76" Height="30" Click="OnEditNote"
                         ToolTip="Attach a short note to the selected history entry (kept on this PC only)"/>
                 <Button x:Name="VerifyButton" Content="Verify SHA-256…" Width="118" Height="30" Margin="8,0,0,0" Click="OnVerifyHash"
-                        ToolTip="Check the selected file against a SHA-256 hash you paste"/>
+                        ToolTip="Check the selected file against a pasted SHA-256 hash; select again while checking to cancel"/>
                 <Button x:Name="SortButton" Content="Sort…" Width="70" Height="30" Margin="8,0,0,0" Click="OnSortDownloads"
                         ToolTip="Move finished downloads into subfolders by type or your rules — preview first, undo after"/>
                 <Button x:Name="UndoSortButton" Content="Undo sort" Width="84" Height="30" Margin="8,0,0,0" Click="OnUndoSort"

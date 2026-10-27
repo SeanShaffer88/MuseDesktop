@@ -181,6 +181,23 @@ public class R1Tests
     }
 
     [Fact]
+    public void Palette_DefaultSearchIncludesTheFullProvidedDownloadHistory()
+    {
+        var records = Enumerable.Range(1, 12)
+            .Select(i => new DownloadRecord
+            {
+                FileName = $"archive-{i}.zip",
+                FullPath = $@"C:\downloads\archive-{i}.zip",
+                State = DownloadRecordState.Completed,
+            })
+            .ToList();
+        var palette = CommandRegistry.CreateDefault(
+            Array.Empty<AccountProfile>(), "default", records, Array.Empty<WindowDescriptor>());
+
+        Assert.Contains(palette.All(), c => c.Id == "download.open.11");
+    }
+
+    [Fact]
     public void Palette_AllDedupesByIdFirstProviderWins()
     {
         var palette = new CommandPalette();

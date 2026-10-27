@@ -49,10 +49,12 @@ public partial class ReadingListWindow : Window
 
     private void Reload(string? keepId = null)
     {
-        EntryList.ItemsSource = _refresh().Select(e => new ReadingListRow(e)).ToList();
+        var rows = _refresh().Select(e => new ReadingListRow(e)).ToList();
+        EntryList.ItemsSource = rows;
+        EmptyStateText.Text = "Your reading list is empty. Save a page from the ⋯ menu or command palette to keep it here.";
+        EmptyStateText.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         if (keepId is not null)
-            EntryList.SelectedItem = ((List<ReadingListRow>)EntryList.ItemsSource)
-                .FirstOrDefault(r => r.Entry.Id == keepId);
+            EntryList.SelectedItem = rows.FirstOrDefault(r => r.Entry.Id == keepId);
     }
 
     private ReadingListRow? Selected => EntryList.SelectedItem as ReadingListRow;

@@ -263,3 +263,49 @@ Toolbar and status bar use the family tokens (near-black surfaces `#0B0B0D`/`#14
 ## 2026-10-20 — Settings format
 
 One JSON file, schema-versioned, written atomically (temp file + replace). A file that fails to parse is copied aside as `settings.json.corrupt-<timestamp>` and defaults are used, so user data is never silently discarded. The WebView2 bootstrapper link used in the missing-runtime message is Microsoft's official fwlink (`https://go.microsoft.com/fwlink/p/?LinkId=2124703`, the Evergreen bootstrapper referenced in Microsoft's WebView2 distribution docs).
+
+## 2026-10-27 — Reliability, download controls, and support-bundle privacy
+
+- **Bulk pause/resume stays on WebView2's own operation contract.** Pause all targets in-progress operations; Resume all targets only paused operations reporting `CanResume`. The UI does not pretend that a server supports range requests or that every paused item can resume.
+- **A previewed move batch is transaction-like, not a sequence of independent best efforts.** A later move failure triggers reverse-order rollback. The Core executor is delegate-driven so tests can inject both the primary failure and a rollback failure; files that remain moved are still returned to the existing journal path for recovery.
+- **Support bundles omit common local path and profile-label metadata.** The bundle's settings copy drops custom download folders and replaces profile display names; download-history JSON excludes `FullPath`; diagnostics redact path fields and profile names; log excerpts additionally redact common absolute Windows paths. The user still reviews an optional screenshot before inclusion. This is defense in depth, not a guarantee that arbitrary user-authored notes or every possible path spelling is non-identifying.
+- **CI retains per-architecture inventory facts.** Each published CI artifact contains a CycloneDX JSON SBOM and `build-info.json` (commit, SDK, RID, configuration). These are inventory/build-input records, not signed attestations; release hashes and signing remain separate.
+
+## 2026-10-27 — Code-block folding is presentation-only
+
+Long code blocks in the hosted conversation receive an expand/collapse control; blocks over 14 lines or 1,000 characters fold after a quiet interval, unless the page exposes an active-generation signal or the user has manually chosen a state. This is a separate, explicitly approved, narrow presentation-only extension to the R5B page-script exception—not a general reopening of page injection. It is a best-effort heuristic, not a change to message content: exports and bookmarks exclude the injected control, and MuseDesktop does not rewrite prompts or set model verbosity. The current integration exposes no Muse-native answer-detail setting; generated-answer detail remains controlled by Muse.
+
+## 2026-10-27 — Async history transaction synchronization
+
+Download history updates now hold a bounded, per-path in-process `SemaphoreSlim` stripe across load, mutation, and atomic save. Sync and async APIs share these transaction gates; the inner `AtomicFile` gate remains separate, and the lock order is always history gate → atomic-file gate. This prevents concurrent note/hash/completion updates from overwriting one another. It does not provide FIFO ordering for conflicting writes or cross-process coordination; the app's single-instance mutex remains the process-level guard. Profile-size invalidation increments a bounded epoch so an older in-flight scan cannot repopulate a cache entry after invalidation.
+
+## 2026-10-27 — Event-driven watchdog and background deadlines
+
+- **Renderer health uses WebView2's native `ProcessFailed` event.** `RenderProcessUnresponsive` directly opens the existing Reload/Wait affordance; the 15-second JavaScript ping, 5-second timeout, and their dispatcher timer are removed. WebView2 repeats the native event while the renderer remains unresponsive. The SDK does not expose a matching recovery callback, so a successful page load clears the banner; choosing Wait dismisses it and snoozes repeated native notifications for two minutes. Nothing auto-reloads.
+- **Download queues are event-triggered.** Started/completed/failed/capacity changes service the batch queue. Held quiet-hours downloads share one one-shot dispatcher wakeup at the earliest known end deadline, and resume/time/settings changes recheck them. The bandwidth governor retains a coalesced 5-second one-shot sample only while transfers are active (or a governor-paused transfer is awaiting headroom), because throughput is a time-based signal; it is disarmed when no governor work remains. Tray suspension's former two-minute blocked recheck now waits for download-state or microphone/navigation events instead.
+- **Schedule work uses one-shot deadlines.** Profile-window boundaries, hold expiry, and the next command schedule are combined into a single timer. Settings, activation, unlock, download completion, system-time changes, and resume trigger immediate reevaluation and rearming; no minute/15-second background scans remain in normal operation (a failed schedule evaluation gets one delayed retry). The one-second focus/session countdown timer runs only while a countdown is active.
+- **Native watchdog recovery limitation:** because WebView2 has no “renderer became responsive” event, an already visible banner is not automatically dismissed solely because a stuck script later resumes; navigation success or the user's Wait/Reload action clears it. This avoids reintroducing script polling.
+
+## 2026-10-27 — Portable local-data backup and staged restore
+
+- **One versioned JSON backup, using the existing .NET cryptography.** The bundle carries settings plus an allowlisted set of local stores: download history, reading lists, notes, weekly stats, bookmarks, drafts, snippets, privacy counters, profile usage, palette recents, and generic activity history. The existing password-encrypted export envelope is offered for the bundle; plain export remains explicit and warned because these records include private text, the app-lock hash, and download paths.
+- **Restore is previewed and staged in Settings.** Import validates the format and each store's JSON shape before preview. It applies only after the user presses OK; Cancel changes nothing. The write set is fixed in code (imported names never become paths); each file is written atomically, and a failed batch attempts reverse-order rollback. Download history uses its existing per-path transaction gate. The import is refused while downloads remain active so their later completion cannot overwrite the restored history or counters.
+- **Deliberate exclusions:** WebView2 profile folders (cookies/sign-ins), downloaded file contents, logs, update installers, and transient session state. Download history does include the original local paths, which the preview and export warning state plainly.
+
+## 2026-10-27 — Recent activity center privacy boundary
+
+- **Activity rows store only an enum and UTC timestamp.** The display wording is fixed in Core; tray balloon titles, messages, file names, URLs, and conversation text are never persisted. Only notifications actually shown are recorded, the store keeps the newest 100, and the Settings backup includes this small local file.
+- **Access stays behind the app lock.** The center opens from the main menu, tray menu, or command palette; clearing history requires confirmation. Persistence uses the existing atomic-file path and no new package or notification framework.
+
+## 2026-10-27 — Tab-host phase 1
+
+The existing WebView2 remains the only visible page. `BrowserHost` provides a replaceable content host, and one `BrowserTabState` owns that view's WebView2 instance, navigation history, readiness, title, and last known good URL. Recovery replaces the view in that host and updates the same state; no tab strip or additional pages are exposed in this phase.
+
+## 2026-10-27 — Tabbed browsing and observable status
+
+- **Tabs keep live pages, not just URLs.** Each of up to 10 tabs owns a WebView2 control, navigation history, title, readiness, and last-good route. Controls share the active profile's WebView2 environment so sign-in remains shared; selecting a tab switches the visible host without discarding page state. Tabs are session-only in this phase, and closing the last tab is refused.
+- **Status reports observable work, not inferred model thoughts.** The tab strip shows loading, ready, load-failure, recovery, or renderer-health states; download progress remains in its existing status UI. MuseDesktop cannot change Muse's hosted model verbosity or reveal private internal reasoning, and it does not scrape chat text or inject prompts for this status feature.
+
+## 2026-10-27 — Session restore previews tab routes
+
+The deliberate session snapshot now includes up to 10 sanitized `muse.ai` paths for the main window and the selected-tab index, in addition to its existing window arrangement. Restore displays those paths and secondary-window routes before any changes; Cancel applies nothing. Titles, query strings, sign-in/provider pages, and full URLs are excluded. Older snapshots without tab routes fall back to their saved main-window route. The separate crash journal now records the same safe tab-route set; an offered crash restore previews it, while explicitly enabled auto-save restoration remains silent.

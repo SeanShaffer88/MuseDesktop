@@ -294,12 +294,7 @@ public static class PrivacyStatsStore
 
     public static void Save(string path, PrivacyStats stats)
     {
-        var dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-        var tmp = path + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(stats.Sanitized(), Options));
-        File.Move(tmp, path, overwrite: true);
+        AtomicFile.WriteAllText(path, JsonSerializer.Serialize(stats.Sanitized(), Options));
     }
 }
 

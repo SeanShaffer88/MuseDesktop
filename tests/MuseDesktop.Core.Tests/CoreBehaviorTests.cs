@@ -84,7 +84,10 @@ public class CoreBehaviorTests
             File.WriteAllText(path, "{ this is not json !!");
             var loaded = SettingsStore.Load(path);
             Assert.Equal(1280, loaded.WindowWidth);
-            Assert.Single(Directory.GetFiles(dir.FullName, "settings.json.corrupt-*"));
+            SettingsStore.Load(path);
+            var backups = Directory.GetFiles(dir.FullName, "settings.json.corrupt-*");
+            Assert.Equal(2, backups.Length);
+            Assert.All(backups, backup => Assert.Equal("{ this is not json !!", File.ReadAllText(backup)));
         }
         finally { dir.Delete(recursive: true); }
     }
@@ -161,6 +164,16 @@ public class CoreBehaviorTests
         Assert.DoesNotContain("\n", clean);
         Assert.DoesNotContain("\r", clean);
         Assert.Equal(500, clean.Length);
+    }
+
+    [Fact]
+    public void Log_SanitizeRedactsHttpUrlQueriesAndFragmentsEvenInExceptionText()
+    {
+        var clean = DiagnosticLog.Sanitize(
+            "Navigation exception for https://muse.ai/chat/123?token=secret#message failed");
+        Assert.Equal("Navigation exception for https://muse.ai/chat/123 failed", clean);
+        Assert.DoesNotContain("secret", clean);
+        Assert.DoesNotContain("#message", clean);
     }
 
     [Fact]
@@ -277,6 +290,16 @@ public class CoreBehaviorTests
         Assert.Equal("Profile", s.Profiles[1].Name);
         Assert.Equal(Profiles.DefaultId, s.ActiveProfileId);
         Assert.Equal("WebView2-work", Profiles.FolderName("work"));
+    }
+
+    [Theory]
+    [InlineData("../outside")]
+    [InlineData("..\\outside")]
+    [InlineData("UPPER")]
+    [InlineData("")]
+    public void Profiles_FolderNameRejectsInvalidPathIdentifiers(string id)
+    {
+        Assert.Throws<ArgumentException>(() => Profiles.FolderName(id));
     }
 
     [Fact]

@@ -23,13 +23,13 @@
 
     <DockPanel Margin="14,12,14,12">
         <StackPanel DockPanel.Dock="Top">
-            <TextBlock Text="Type a command, a profile, a setting, a download, a window…"/>
+            <TextBlock Text="Search commands, downloads, notes, bookmarks, snippets, and pages…"/>
             <TextBox x:Name="SearchText" Margin="0,6,0,0" Height="26" VerticalContentAlignment="Center"
                      Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
                      BorderBrush="{StaticResource HairlineBrush}"
                      TextChanged="OnSearchChanged" PreviewKeyDown="OnSearchKeyDown"
-                     ToolTip="Search commands — a few letters are enough"
-                     AutomationProperties.Name="Search commands"/>
+                     ToolTip="Search actions and your local content — a few letters are enough"
+                     AutomationProperties.Name="Search commands and local content"/>
         </StackPanel>
 
         <TextBlock x:Name="SummaryText" DockPanel.Dock="Bottom" Style="{StaticResource Note}"
@@ -39,6 +39,10 @@
                  Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
                  BorderBrush="{StaticResource HairlineBrush}"
                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 ScrollViewer.CanContentScroll="True"
+                 VirtualizingPanel.IsVirtualizing="True"
+                 VirtualizingPanel.IsVirtualizingWhenGrouping="True"
+                 VirtualizingPanel.VirtualizationMode="Recycling"
                  MouseDoubleClick="OnDoubleClick" PreviewKeyDown="OnListKeyDown"
                  SelectionChanged="OnSelectionChanged"
                  AutomationProperties.Name="Command results">

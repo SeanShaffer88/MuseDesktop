@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization.Metadata;
+using System.Text.RegularExpressions;
 
 namespace MuseDesktop.Core;
 
@@ -83,9 +84,10 @@ public sealed record BundleFile(string Name, string Description);
 /// <see cref="SanitizeSettingsForBundle"/> strips: the app-lock record
 /// (salt/hash/iterations AND the enabled flag — support learns "app
 /// lock: on/off" from diagnostics.txt instead), every last-page URL,
-/// and every per-profile custom start-page URL. The bundle settings
-/// JSON therefore contains no lock record and no full URLs — pinned by
-/// tests, not by intentions.
+/// every per-profile custom start-page URL, and local download-folder
+/// paths and personal profile names. Download-history paths and common
+/// absolute Windows paths in diagnostics/logs are also omitted — pinned by tests,
+/// not by intentions.
 /// </summary>
 public static class SupportBundle
 {
@@ -99,6 +101,15 @@ public static class SupportBundle
     /// <summary>How many trailing log lines the bundle carries (the whole log is capped at ~1 MB by rollover; a tail is what support reads).</summary>
     public const int LogTailLineCount = 500;
 
+    /// <summary>Hard cap for the completed support archive, including an optional screenshot.</summary>
+    public const long MaxArchiveBytes = 64L * 1024 * 1024;
+
+    /// <summary>Maximum screenshot render size (8 megapixels) before the opt-in capture is declined.</summary>
+    public const long MaxScreenshotPixels = 8_000_000;
+
+    /// <summary>Maximum encoded screenshot size admitted to the archive.</summary>
+    public const int MaxScreenshotBytes = 32 * 1024 * 1024;
+
     /// <summary>The bundle's file list, in zip order (manifest last in the list but written first-class like the others).</summary>
     public static IReadOnlyList<BundleFile> Contents(bool includeScreenshot)
     {
@@ -106,9 +117,9 @@ public static class SupportBundle
         {
             new(ManifestFile, "This list: what every file in the bundle is."),
             new(DiagnosticsFile, "The Diagnostics report: versions, runtime health, proxy, memory, startup timings, data sizes, and the most recent errors (redacted)."),
-            new(LogFile, $"The last {LogTailLineCount} lines of the diagnostic log, redacted — web addresses are host + path only and anything that looks like a token, credential, or email is removed first."),
-            new(SettingsFile, "Your settings with the sensitive parts removed: the app-lock record, your last-page addresses, and custom start-page addresses are stripped out (see manifest.txt)."),
-            new(DownloadsFile, "Your download history: file names, sizes, dates, and paths only — it never contained the addresses files came from."),
+            new(LogFile, $"The last {LogTailLineCount} lines of the diagnostic log, redacted — web addresses are host + path only; token-like values, credentials, emails, and common absolute Windows paths are removed."),
+            new(SettingsFile, "Your settings with the sensitive parts removed: app-lock material, page addresses, custom local download folders, and personal profile names are stripped or replaced (see manifest.txt)."),
+            new(DownloadsFile, "Your download history: file names, sizes, dates, state, and notes. Local destination paths and source addresses are omitted."),
         };
         if (includeScreenshot)
             files.Add(new(ScreenshotFile, "A picture of the MuseDesktop window that YOU reviewed in the preview before saving. It can show your conversation — that's why it's opt-in."));
@@ -118,7 +129,7 @@ public static class SupportBundle
     /// <summary>The statement every bundle surface repeats: what is NOT in the bundle.</summary>
     public const string ExclusionsStatement =
         "Not included: cookies, sign-in tokens, page or conversation content, web addresses from your settings, " +
-        "and the app-lock password record. Nothing is uploaded anywhere — the bundle is a file you save, and " +
+        "local download-folder paths, download destination paths, personal profile names, and the app-lock password record. Nothing is uploaded anywhere — the bundle is a file you save, and " +
         "you choose whether to share it.";
 
     /// <summary>The preview dialog's text: the file list plus the exclusions statement.</summary>
@@ -150,9 +161,24 @@ public static class SupportBundle
         return string.Join("\n", lines);
     }
 
-    /// <summary>The bundle's log excerpt: the tail, redacted. Never the raw file.</summary>
+    private static readonly Regex WindowsLocalPath = new(
+        @"(?i)\b[A-Z]:\\(?:[^\\/:*?\""<>|\r\n]+\\)*[^\\/:*?\""<>|\r\n]*",
+        RegexOptions.Compiled);
+    private static readonly Regex UncLocalPath = new(
+        @"\\\\[^\\\s]+\\[^\\\s]+(?:\\[^\\\s]+)*",
+        RegexOptions.Compiled);
+
+    /// <summary>Remove common absolute Windows paths from text intended for a support bundle.</summary>
+    public static string RedactLocalPaths(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return text ?? "";
+        return UncLocalPath.Replace(WindowsLocalPath.Replace(text, "[local path omitted]"), "[local path omitted]");
+    }
+
+    /// <summary>The bundle's log excerpt: the tail, with secrets and local paths redacted. Never the raw file.</summary>
     public static string LogExcerpt(string? logText) =>
-        RedactionAudit.Redact(LogReading.TailLines(logText, LogTailLineCount));
+        RedactLocalPaths(RedactionAudit.Redact(LogReading.TailLines(logText, LogTailLineCount)));
 
     /// <summary>
     /// The bundle-safe copy of the settings (see the class remarks for
@@ -172,11 +198,19 @@ public static class SupportBundle
         copy.AppLockHash = null;
         copy.AppLockIterations = 0;
         // Last pages are full conversation URLs; custom start pages are
-        // full URLs the user typed. Both stay home.
+        // full URLs the user typed. Download destinations are local
+        // filesystem paths. All stay on this PC.
         copy.LastUrl = null;
         copy.LastUrlByProfile = new Dictionary<string, string>();
-        foreach (var profile in copy.Profiles)
+        copy.DownloadsFolder = null;
+        copy.DownloadArchiveFolder = null;
+        for (var index = 0; index < copy.Profiles.Count; index++)
+        {
+            var profile = copy.Profiles[index];
+            profile.Name = $"Profile {index + 1}";
             profile.CustomStartUrl = null;
+            profile.DownloadsFolder = null;
+        }
         return copy;
     }
 
