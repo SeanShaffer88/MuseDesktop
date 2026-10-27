@@ -114,17 +114,14 @@ public static class UpdateService
         {
             log.Warn($"Update download: release {release.Tag} has no installer for {ArchToken}");
             return new UpdateDownloadResult(UpdateDownloadOutcome.NoInstallerForArch,
-                Message: $"The {release.Tag} release doesn't include an installer for this PC ({ArchToken}). " +
-                         "You can download the right one from the release page instead.");
+                Message: Strings.Format("update.no_installer_for_arch", release.Tag, ArchToken));
         }
         var sumsAsset = release.FindAsset(SumsFile.AssetName);
         if (sumsAsset is null)
         {
             log.Warn($"Update download: release {release.Tag} publishes no {SumsFile.AssetName} — refusing");
             return new UpdateDownloadResult(UpdateDownloadOutcome.SumsMissing,
-                Message: $"The {release.Tag} release doesn't publish a {SumsFile.AssetName} file, " +
-                         "so MuseDesktop can't verify the installer is exactly what was released. " +
-                         "Nothing was downloaded. (Releases from this project always include the sums file.)");
+                Message: Strings.Format("update.no_sums_file", release.Tag, SumsFile.AssetName));
         }
 
         Directory.CreateDirectory(updatesDir);
@@ -142,8 +139,7 @@ public static class UpdateService
             {
                 log.Warn($"Update download: {SumsFile.AssetName} has no entry for {installer.Name} — refusing");
                 return new UpdateDownloadResult(UpdateDownloadOutcome.SumsMissing,
-                    Message: $"The release's {SumsFile.AssetName} doesn't list {installer.Name}, " +
-                             "so the download can't be verified. Nothing was downloaded.");
+                    Message: Strings.Format("update.sums_missing_entry", SumsFile.AssetName, installer.Name));
             }
 
             var sampler = new DownloadRateSampler();
@@ -177,9 +173,7 @@ public static class UpdateService
                 TryDelete(partialPath);
                 log.Error($"Update download: SHA-256 mismatch for {installer.Name} — file deleted, never launched");
                 return new UpdateDownloadResult(UpdateDownloadOutcome.HashMismatch,
-                    Message: "The downloaded installer's fingerprint (SHA-256) does NOT match the one " +
-                             "published with the release. The file was deleted and will not be run. " +
-                             "This can mean a corrupted download — or that the file isn't what was released.");
+                    Message: Strings.Get("update.hash_mismatch"));
             }
             File.Move(partialPath, finalPath, overwrite: true);
             log.Info($"Update downloaded and verified: {installer.Name} ({release.Tag}, SHA-256 matches the release sums)");
@@ -189,14 +183,14 @@ public static class UpdateService
         {
             TryDelete(partialPath);
             log.Info("Update download cancelled by the user");
-            return new UpdateDownloadResult(UpdateDownloadOutcome.Failed, Message: "The download was cancelled.");
+            return new UpdateDownloadResult(UpdateDownloadOutcome.Failed, Message: Strings.Get("update.download_cancelled"));
         }
         catch (Exception ex)
         {
             TryDelete(partialPath);
             log.Warn($"Update download failed: {ex.Message}");
             return new UpdateDownloadResult(UpdateDownloadOutcome.Failed,
-                Message: "The update couldn't be downloaded. Check your connection and try again.");
+                Message: Strings.Get("update.download_failed"));
         }
     }
 

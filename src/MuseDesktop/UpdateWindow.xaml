@@ -1,10 +1,10 @@
 <Window x:Class="MuseDesktop.UpdateWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="MuseDesktop update"
+        Title="{local:Loc musedesktop_update}"
         Width="520" Height="360" MinWidth="440" MinHeight="300"
         WindowStartupLocation="CenterOwner"
-        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}" xmlns:local="clr-namespace:MuseDesktop">
     <Window.Resources>
         <Style x:Key="Note" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11"/>
@@ -17,38 +17,38 @@
     <DockPanel Margin="16,14,16,14">
         <TextBlock DockPanel.Dock="Top" x:Name="HeadlineText" FontSize="16" FontWeight="SemiBold"
                    TextWrapping="Wrap"
-                   AutomationProperties.Name="Update headline"/>
+                   AutomationProperties.Name="{local:Loc update_headline}"/>
         <TextBlock DockPanel.Dock="Top" Style="{StaticResource Note}" FontSize="12"
-                   Text="MuseDesktop can download the installer for you and check its fingerprint (SHA-256) against the fingerprint published with the release — the installer only ever runs after that check passes, and only when you choose Install. Nothing is downloaded or installed automatically."/>
+                   Text="{local:Loc musedesktop_can_download_the_installer_for}"/>
 
         <StackPanel DockPanel.Dock="Bottom" Margin="0,12,0,0">
             <TextBlock x:Name="StatusText" Style="{StaticResource Note}" FontSize="12" Margin="0,0,0,8"
-                       AutomationProperties.Name="Update download status"/>
+                       AutomationProperties.Name="{local:Loc update_download_status}"/>
             <ProgressBar x:Name="DownloadProgress" Height="8" Minimum="0" Maximum="100"
                          IsIndeterminate="True" Visibility="Collapsed" Margin="0,0,0,10"
-                         AutomationProperties.Name="Update download progress"/>
+                         AutomationProperties.Name="{local:Loc update_download_progress}"/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button x:Name="ReleasePageButton" Content="Release page" Width="104" Height="30"
+                <Button x:Name="ReleasePageButton" Content="{local:Loc release_page}" Width="104" Height="30"
                         Click="OnOpenReleasePage"
-                        ToolTip="Open the release page in your browser instead (the old way)"/>
-                <Button x:Name="SnoozeWeekButton" Content="Remind me next week" Width="146" Height="30" Margin="8,0,0,0"
+                        ToolTip="{local:Loc open_the_release_page_in_your_browser}" KeyboardNavigation.TabIndex="1"/>
+                <Button x:Name="SnoozeWeekButton" Content="{local:Loc remind_me_next_week}" Width="146" Height="30" Margin="8,0,0,0"
                         Click="OnSnoozeNextWeek"
-                        ToolTip="Hide update reminders for a week (Settings → Behavior)"/>
-                <Button x:Name="SnoozeDayButton" Content="Remind me tomorrow" Width="142" Height="30" Margin="8,0,0,0"
+                        ToolTip="{local:Loc hide_update_reminders_for_a_week_settings}" KeyboardNavigation.TabIndex="2"/>
+                <Button x:Name="SnoozeDayButton" Content="{local:Loc remind_me_tomorrow}" Width="142" Height="30" Margin="8,0,0,0"
                         Click="OnSnoozeTomorrow"
-                        ToolTip="Hide update reminders until tomorrow"/>
-                <Button x:Name="CancelDownloadButton" Content="Cancel download" Width="122" Height="30" Margin="8,0,0,0"
+                        ToolTip="{local:Loc hide_update_reminders_until_tomorrow}" KeyboardNavigation.TabIndex="3"/>
+                <Button x:Name="CancelDownloadButton" Content="{local:Loc cancel_download}" Width="122" Height="30" Margin="8,0,0,0"
                         Click="OnCancelDownload" Visibility="Collapsed"
-                        ToolTip="Stop the download (the partial file is deleted)"/>
-                <Button x:Name="InstallButton" Content="Install" Width="92" Height="30" Margin="8,0,0,0"
+                        ToolTip="{local:Loc stop_the_download_the_partial_file_is}" KeyboardNavigation.TabIndex="4"/>
+                <Button x:Name="InstallButton" Content="{local:Loc install}" Width="92" Height="30" Margin="8,0,0,0"
                         Click="OnInstall" Visibility="Collapsed"
                         Background="{StaticResource AccentBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0"
-                        ToolTip="Run the verified installer — MuseDesktop closes and the installer takes over, keeping your sign-in and settings"/>
-                <Button x:Name="DownloadButton" Content="Download update" Width="128" Height="30" Margin="8,0,0,0"
+                        ToolTip="{local:Loc run_the_verified_installer_musedesktop}" KeyboardNavigation.TabIndex="5"/>
+                <Button x:Name="DownloadButton" Content="{local:Loc download_update}" Width="128" Height="30" Margin="8,0,0,0"
                         Click="OnDownload"
                         Background="{StaticResource AccentBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0"
-                        ToolTip="Download the installer for this PC and verify it against the release's SHA256SUMS.txt"/>
-                <Button Content="Close" Width="80" Height="30" Margin="8,0,0,0" IsCancel="True"/>
+                        ToolTip="{local:Loc download_the_installer_for_this_pc_and}" KeyboardNavigation.TabIndex="6"/>
+                <Button Content="{local:Loc close}" Width="80" Height="30" Margin="8,0,0,0" IsCancel="True" KeyboardNavigation.TabIndex="7"/>
             </StackPanel>
         </StackPanel>
 

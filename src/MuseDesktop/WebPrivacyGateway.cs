@@ -103,7 +103,7 @@ public sealed class WebPrivacyGateway
                 if (id == _activeProfileId())
                 {
                     var live = _liveWebView()
-                        ?? throw new InvalidOperationException("the web view isn't running yet");
+                        ?? throw new InvalidOperationException(Strings.Get("gateway.not_running"));
                     await live.Profile.ClearBrowsingDataAsync(kinds);
                     touchedActive = true;
                 }
@@ -123,8 +123,8 @@ public sealed class WebPrivacyGateway
         if (touchedActive)
             _onActiveProfileCleared(choice);
         var summary = failed.Count == 0
-            ? $"Cleared {ClearDataPlan.Title(choice).ToLowerInvariant()} for {string.Join(", ", cleared)}."
-            : $"Cleared for {string.Join(", ", cleared)}; couldn't clear {string.Join(", ", failed)} — see the log.";
+            ? Strings.Format("clear.cleared_for", ClearDataPlan.Title(choice).ToLowerInvariant(), string.Join(", ", cleared))
+            : Strings.Format("clear.cleared_partial", string.Join(", ", cleared), string.Join(", ", failed));
         _log.Info($"Clear data ({choice}): {summary}");
         return new ClearDataResult(failed.Count == 0, touchedActive, summary);
     }
@@ -135,7 +135,7 @@ public sealed class WebPrivacyGateway
     public async Task<IReadOnlyList<PermissionRow>> GetPermissionsAsync()
     {
         var live = _liveWebView()
-            ?? throw new InvalidOperationException("the web view isn't running yet");
+            ?? throw new InvalidOperationException(Strings.Get("gateway.not_running"));
         var settings = await live.Profile.GetNonDefaultPermissionSettingsAsync();
         var rows = new List<PermissionRow>();
         foreach (var s in settings)
@@ -151,7 +151,7 @@ public sealed class WebPrivacyGateway
     public async Task SetPermissionAsync(string kind, string origin, CoreWebView2PermissionState state)
     {
         var live = _liveWebView()
-            ?? throw new InvalidOperationException("the web view isn't running yet");
+            ?? throw new InvalidOperationException(Strings.Get("gateway.not_running"));
         if (!Enum.TryParse<CoreWebView2PermissionKind>(kind, out var parsed))
             throw new InvalidOperationException($"unknown permission kind {kind}");
         await live.Profile.SetPermissionStateAsync(parsed, origin, state);
