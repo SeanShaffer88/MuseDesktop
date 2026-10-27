@@ -4,6 +4,44 @@ All notable changes to MuseDesktop. Format follows Keep a Changelog; versions us
 
 Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhancement program; they were never published as releases. Everything in them shipped together as **1.0.0** (2026-10-24).
 
+## [1.8.2] — Unreleased
+
+Follow-on slice R7B (directed 2026-10-27): a token-usage ring
+in the main window, and the Bookmarks button's move to the
+upper-right corner.
+
+### Added
+
+- **Token-usage ring.** A circular ring in the main window's
+  upper-right corner, immediately left of the zoom controls,
+  shows how full the current conversation's context is, with
+  the percent in its center (a ~ marks an estimate). When the
+  Muse page itself displays a usage figure, the ring reads
+  that; when it doesn't, the ring estimates from the
+  conversation's length and says so — in the ring, its
+  tooltip, and its panel. Clicking the ring opens a small
+  panel with the counts, the source, and a Refresh button.
+  The estimate's limit is a new Settings → Appearance &
+  toolbar value (default 200,000 tokens), used only in
+  estimate mode.
+- **Bookmarks moved.** The Bookmarks button now sits in the
+  upper-right cluster, left of the token ring, instead of on
+  the left rail.
+
+### Removed
+
+- **The left rail is gone.** The slim left strip added in
+  v1.6.0 held only the Bookmarks button; with the button
+  moved, the rail is removed and the conversation reclaims
+  the full window width.
+
+### Changed
+
+- **The titlebar says "MuseDesktop" — and nothing else.** No
+  page title, no profile name; just the app's name, so the
+  window is instantly recognizable in the taskbar and task
+  switcher. (Secondary windows keep their conversation
+  titles, so they stay tellable apart.)
 ## [1.8.1] — Unreleased
 
 Hotfix for the Settings crash found in the v1.7.0 field pass.

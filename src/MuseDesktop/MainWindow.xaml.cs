@@ -48,6 +48,12 @@ public partial class MainWindow : Window
     // R5B #202: the snippet a bookmark jump is hunting, set when the
     // jump navigates and consumed by the next completed navigation.
     private string? _pendingBookmarkSnippet;
+    // R7B: the token ring's current reading (null = no reading yet),
+    // its refresh timer, and the in-flight guard (a probe is a page
+    // round-trip; overlapping probes would only race the renderer).
+    private TokenUsage? _tokenUsage;
+    private DispatcherTimer? _tokenTimer;
+    private bool _tokenRefreshBusy;
     private bool _isFullScreen;
     private WindowState _preFullScreenState;
     private WindowStyle _preFullScreenStyle;
@@ -365,6 +371,13 @@ public partial class MainWindow : Window
         _productivityTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _productivityTimer.Tick += (_, _) => OnProductivityTick();
         _productivityTimer.Start();
+
+        // R7B: the token ring re-reads on a slow tick (a conversation
+        // grows while it sits open); event-driven refreshes (landing
+        // on a conversation, sending a message) ride the same probe.
+        _tokenTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(45) };
+        _tokenTimer.Tick += (_, _) => { if (IsVisible) _ = RefreshTokenUsageAsync(); };
+        _tokenTimer.Start();
         Loaded += OnLoaded;
         Closing += OnClosing;
         Closed += (_, _) => _hotkeyManager?.Dispose();
@@ -511,7 +524,6 @@ public partial class MainWindow : Window
             Background = (System.Windows.Media.Brush)FindResource("BgBrush");
             Toolbar.Background = (System.Windows.Media.Brush)FindResource("SurfaceBrush");
             StatusBar.Background = (System.Windows.Media.Brush)FindResource("SurfaceBrush");
-            LeftRail.Background = (System.Windows.Media.Brush)FindResource("SurfaceBrush");
             return;
         }
         Background = System.Windows.Media.Brushes.Transparent;
@@ -522,7 +534,6 @@ public partial class MainWindow : Window
             System.Windows.Media.Color.FromArgb(alpha, baseColor.R, baseColor.G, baseColor.B));
         Toolbar.Background = chrome;
         StatusBar.Background = chrome;
-        LeftRail.Background = chrome;
     }
 
     /// <summary>
@@ -1249,6 +1260,10 @@ public partial class MainWindow : Window
             // path; this covers a missed one), and land a pending
             // bookmark jump now that its conversation is in.
             _ = ApplyPageStyleAsync();
+            // R7B: a landed page is a fresh conversation (or the
+            // same one reloaded) — re-read the token ring once the
+            // page has had a beat to render its messages.
+            _ = RefreshTokenUsageDelayedAsync(1200);
             if (_pendingBookmarkSnippet is not null)
             {
                 var snippet = _pendingBookmarkSnippet;
@@ -2015,12 +2030,13 @@ public partial class MainWindow : Window
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool FlashWindowEx(ref FlashWindowInfo info);
 
-    /// <summary>OS window title (v0.5.0, S1 #12): composed in Core so the
-    /// profile-name rule (only when more than one profile exists) is tested.</summary>
+    /// <summary>OS window title: the app name and nothing else
+    /// (SEAN, 2026-10-27 — supersedes the S1 #12 composition of page
+    /// title + profile name). Kept as a method because callers refresh
+    /// it on navigation/profile changes; the value never changes.</summary>
     private void ApplyWindowTitle()
     {
-        var active = _settings.Profiles.FirstOrDefault(p => p.Id == _settings.ActiveProfileId);
-        Title = WindowTitle.Compose(_pageTitle, active?.Name, _settings.Profiles.Count > 1);
+        Title = WindowTitle.Text;
     }
 
     private void OnSourceChanged(object? sender, CoreWebView2SourceChangedEventArgs e)
@@ -2436,7 +2452,11 @@ public partial class MainWindow : Window
         _settings.UiLanguage = clone.UiLanguage;
         _settings.AnnouncementKindEnabled = clone.AnnouncementKindEnabled;
         _settings.ShellTextSpacingScale = clone.ShellTextSpacingScale;
+        // R7B: the token ring's estimated limit — adopted here, and
+        // the ring re-reads at once so the new limit shows immediately.
+        _settings.EstimatedContextLimitTokens = clone.EstimatedContextLimitTokens;
         _settings.Sanitized();
+        _ = RefreshTokenUsageAsync();
         if (_webReady)
         {
             // #68 live apply: the value is shared per WebView2
@@ -3606,8 +3626,6 @@ public partial class MainWindow : Window
         FocusItem.IsChecked = on;
         Toolbar.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
         StatusBar.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
-        // R5B: the left rail is chrome too — focus mode hides it with the rest.
-        LeftRail.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
         if (on)
         {
             // R5 #141: focus mode fills the screen — the window
@@ -3892,6 +3910,9 @@ public partial class MainWindow : Window
                 break;
             case PageBridgeKind.DraftSent:
                 OnPageDraftSent();
+                // R7B: a sent message grows the conversation — re-read
+                // the ring after the reply has had time to land.
+                _ = RefreshTokenUsageDelayedAsync(4000);
                 break;
         }
     }
@@ -4012,6 +4033,129 @@ public partial class MainWindow : Window
     }
 
     private void OnBookmarks(object sender, RoutedEventArgs e) => OpenBookmarks();
+
+    // ─────────────────── R7B: the token-usage ring ───────────────────
+
+    /// <summary>Wait a beat, then refresh the ring (R7B) — the delays let a landed page render its messages and a sent message's reply arrive before the probe reads.</summary>
+    private async Task RefreshTokenUsageDelayedAsync(int delayMs)
+    {
+        try { await Task.Delay(delayMs); }
+        catch { return; }
+        await RefreshTokenUsageAsync();
+    }
+
+    /// <summary>
+    /// Read the page's usage probe and re-render the ring (R7B).
+    /// Core decides what the probe means — the page's own counts,
+    /// the page's own percent, or the local estimate — and a failed
+    /// probe (page changed shape, view not ready, locked) keeps the
+    /// last reading rather than blanking the ring. Nothing the probe
+    /// returns is logged: it carries counts and a text LENGTH, never
+    /// the conversation's text.
+    /// </summary>
+    private async Task RefreshTokenUsageAsync()
+    {
+        if (!_webReady || _isLocked || _tokenRefreshBusy)
+            return;
+        _tokenRefreshBusy = true;
+        try
+        {
+            var raw = await Browser.CoreWebView2.ExecuteScriptAsync(PageScripts.UsageProbe);
+            var json = raw is not null && raw != "null" ? JsonSerializer.Deserialize<string>(raw) : null;
+            if (TokenUsageProbe.TryParse(json) is not { } probe)
+                return;
+            _tokenUsage = TokenUsage.Resolve(probe, _settings.EstimatedContextLimitTokens);
+            RenderTokenRing();
+        }
+        catch (Exception ex) { _log.Warn($"Token usage probe failed: {ex.Message}"); }
+        finally { _tokenRefreshBusy = false; }
+    }
+
+    /// <summary>
+    /// Paint the ring from the current reading (R7B): the arc, the
+    /// centered percent (with the ~ honesty mark in estimate mode),
+    /// and the tooltip naming the numbers and their source. No
+    /// reading yet = an empty ring and a "no reading yet" tooltip.
+    /// </summary>
+    private void RenderTokenRing()
+    {
+        var usage = _tokenUsage;
+        if (usage is null)
+        {
+            TokenRingArc.Data = null;
+            TokenRingPercent.Text = "";
+            TokenRingButton.ToolTip = Strings.Get("token.ring_tooltip_unknown");
+            return;
+        }
+        TokenRingPercent.Text = TokenUsageText.FormatRingPercent(usage);
+        TokenRingArc.Data = BuildRingGeometry(usage.Percent);
+        TokenRingButton.ToolTip = usage switch
+        {
+            { UsedTokens: { } used, LimitTokens: { } limit } when usage.IsEstimate =>
+                Strings.Format("token.ring_tooltip_estimate",
+                    TokenUsageText.FormatCount(used), TokenUsageText.FormatCount(limit), usage.PercentRounded),
+            { UsedTokens: { } used, LimitTokens: { } limit } =>
+                Strings.Format("token.ring_tooltip_page",
+                    TokenUsageText.FormatCount(used), TokenUsageText.FormatCount(limit), usage.PercentRounded),
+            _ => Strings.Format("token.ring_tooltip_page_percent_only", usage.PercentRounded),
+        };
+    }
+
+    /// <summary>The ring's arc for a percent (R7B): Core's geometry decides the points; this only transcribes them into a path. A full ring is two half arcs — a single arc segment cannot close a circle.</summary>
+    private static System.Windows.Media.PathGeometry BuildRingGeometry(double percent)
+    {
+        const double center = 13.0, radius = 11.5;
+        var geometry = new System.Windows.Media.PathGeometry();
+        if (percent <= 0)
+            return geometry;
+        var figure = new System.Windows.Media.PathFigure
+        {
+            StartPoint = PointOf(TokenRingGeometry.Point(0, center, radius)),
+            IsClosed = false,
+            IsFilled = false,
+        };
+        if (percent >= 100)
+        {
+            figure.Segments.Add(ArcTo(50, center, radius, largeArc: false));
+            figure.Segments.Add(ArcTo(100, center, radius, largeArc: false));
+        }
+        else
+        {
+            figure.Segments.Add(ArcTo(percent, center, radius, TokenRingGeometry.IsLargeArc(percent)));
+        }
+        geometry.Figures.Add(figure);
+        return geometry;
+
+        static System.Windows.Point PointOf((double X, double Y) p) => new(p.X, p.Y);
+        static System.Windows.Media.ArcSegment ArcTo(double pct, double c, double r, bool largeArc) => new()
+        {
+            Point = PointOf(TokenRingGeometry.Point(pct, c, r)),
+            Size = new System.Windows.Size(r * 2, r * 2),
+            SweepDirection = System.Windows.Media.SweepDirection.Clockwise,
+            IsLargeArc = largeArc,
+        };
+    }
+
+    /// <summary>Open the token-usage panel (R7B): the reading's breakdown in words, its source stated plainly, and a Refresh that re-probes the page.</summary>
+    private void OnTokenRing(object sender, RoutedEventArgs e)
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        var dialog = new TokenUsageWindow(_tokenUsage, _settings.EstimatedContextLimitTokens,
+            RefreshTokenUsageForPanelAsync) { Owner = this };
+        dialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(dialog);
+        ShellTextScaling.Apply(dialog, _settings.ShellFontScale);
+        FocusReturn.ShowDialog(dialog);
+    }
+
+    private async Task<TokenUsage?> RefreshTokenUsageForPanelAsync()
+    {
+        await RefreshTokenUsageAsync();
+        return _tokenUsage;
+    }
 
     /// <summary>Jump to a bookmark (R5B #202): open its conversation, then find + highlight the message by its snippet. Already there = find right away; anywhere else = navigate and let the completed navigation run the find.</summary>
     private void JumpToBookmark(MessageBookmark bookmark)

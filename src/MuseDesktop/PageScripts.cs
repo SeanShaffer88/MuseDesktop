@@ -164,6 +164,64 @@ public static class PageScripts
             } catch (e) { return null; }
           };
 
+          // ── usage probe (R7B): read-only, like everything else
+          // here. Two things: the usage figure the PAGE ITSELF
+          // displays (if it displays one — a "12,400 / 200,000
+          // tokens" style label or a context percent, found via
+          // aria-labels, titles, or short visible texts that talk
+          // about context/tokens), and the conversation's total
+          // text LENGTH in characters — the only input the shell's
+          // fallback estimate needs. The text itself never leaves
+          // the page for this; counts and a length only.
+          window.__mdUsageProbe = function () {
+            try {
+              var out = { used: null, limit: null, percent: null, textLength: 0 };
+              var msgs = messageElements();
+              var total = 0;
+              for (var i = 0; i < msgs.length; i++) {
+                var t = msgs[i].innerText || msgs[i].textContent || '';
+                total += t.length;
+              }
+              out.textLength = total;
+              var pairRe = /(?:context|tokens?|usage)[^0-9]{0,40}([0-9][0-9,]*)\s*(?:\/|of)\s*([0-9][0-9,]*)/i;
+              var pctRe = /(?:context|tokens?|usage)[^0-9%]{0,40}([0-9]{1,3}(?:\.[0-9]+)?)\s*%/i;
+              var texts = [];
+              var labelled = document.querySelectorAll('[aria-label], [title]');
+              for (var a = 0; a < labelled.length && texts.length < 400; a++) {
+                var s = (labelled[a].getAttribute('aria-label') || '') + ' ' + (labelled[a].getAttribute('title') || '');
+                if (s.trim()) texts.push(s);
+              }
+              var all = document.querySelectorAll('main *');
+              for (var b = 0; b < all.length && texts.length < 900; b++) {
+                var el = all[b];
+                if (el.children.length) continue;      // leaf elements only
+                var own = (el.textContent || '').trim();
+                if (own && own.length <= 120) texts.push(own);
+              }
+              var parseNum = function (s) { return parseInt(String(s).replace(/,/g, ''), 10); };
+              for (var c = 0; c < texts.length; c++) {
+                var m = pairRe.exec(texts[c]);
+                if (m) {
+                  var used = parseNum(m[1]), limit = parseNum(m[2]);
+                  if (isFinite(used) && isFinite(limit) && limit > 0) {
+                    out.used = used; out.limit = limit;
+                    break;
+                  }
+                }
+              }
+              if (out.used === null) {
+                for (var d = 0; d < texts.length; d++) {
+                  var pm = pctRe.exec(texts[d]);
+                  if (pm) {
+                    var pct = parseFloat(pm[1]);
+                    if (isFinite(pct)) { out.percent = pct; break; }
+                  }
+                }
+              }
+              return JSON.stringify(out);
+            } catch (e) { return null; }
+          };
+
           // ── the composer: drafts (#204) + snippet insert (#206).
           function findComposer() {
             var candidates = document.querySelectorAll(
@@ -291,6 +349,10 @@ public static class PageScripts
     /// <summary>Ask the page for the conversation's messages as a JSON string (the script result is that string, itself JSON-encoded).</summary>
     public const string ExtractConversation =
         "(window.__mdExtractConversation ? window.__mdExtractConversation() : null)";
+
+    /// <summary>Ask the page for its usage probe (R7B): the usage figure the page itself displays, if any, plus the conversation's text length for the shell's fallback estimate — as a JSON string (the script result is that string, itself JSON-encoded). Observe-only: the probe reads labels and counts characters; it changes nothing.</summary>
+    public const string UsageProbe =
+        "(window.__mdUsageProbe ? window.__mdUsageProbe() : null)";
 
     /// <summary>Offer a saved draft back to the page's composer (it lands only when the composer is empty and present, or when it appears).</summary>
     public static string RestoreDraft(string text) =>

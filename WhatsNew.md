@@ -2,103 +2,41 @@
 
 The release notes MuseDesktop shows on the first launch of a new version (S9 #82). This file is generated from CHANGELOG.md's current-version section at release time (see RELEASE_CHECKLIST.md) — do not edit it by hand; a test pins it to the changelog so the two can't drift.
 
-## [1.8.1] — Unreleased
+## [1.8.2] — Unreleased
 
-Hotfix for the Settings crash found in the v1.7.0 field pass.
-
-### Fixed
-
-- **Settings opens again — for real this time.** The fix itself
-  was in v1.8.0's source, but the v1.8.0 installers were built
-  from the tree just before the fix landed, so the crash shipped
-  anyway. v1.8.1's installers are built from the fixed tree and
-  verified against it. (The bug: the profile dropdown carried
-  both a custom item template and a DisplayMemberPath, a
-  combination the Windows UI framework refuses; a guard test
-  now fails the build if it ever recurs.)
-
-## [1.8.0] — Unreleased
-
-Round 2 Slice R7 (items 161–170): accessibility & language
-round 2. The whole shell — every menu, dialog, Settings page,
-and the tray — now speaks through one string catalog, ships in
-English and Spanish, and can learn more languages from pack
-files. Announcements get per-type switches and a quiet visual
-history, every window gets a deliberate keyboard tab order, and
-the shell's own text gains line-spacing choices for low-vision
-readers. As always, only MuseDesktop's own windows are
-translated or restyled; the Muse page is never touched.
+Follow-on slice R7B (directed 2026-10-27): a token-usage ring
+in the main window, and the Bookmarks button's move to the
+upper-right corner.
 
 ### Added
 
-- **#161 Localization framework.** Every string the shell shows
-  — menus, dialogs, Settings, the tray, status lines — lives in
-  a string catalog instead of being written into the windows.
-  A test fails the build if a hard-coded user-facing string
-  turns up in the shell, so the catalog can't quietly fall
-  behind the windows it feeds.
-- **#162 Language picker.** Settings → Language &
-  announcements → Shell language: **System default** (follows
-  the Windows display language), English, Español, plus any
-  language an imported pack adds. No reinstall and no separate
-  download. Windows opened after a change use the new language
-  right away; windows already open switch at the next launch.
-- **#163 Spanish shell language.** A full Spanish translation
-  of every shell string, held to the same completeness
-  standard as English: the coverage guard below counts it at
-  100%, placeholders and all.
-- **#164 Translation coverage guard.** If a language lacks a
-  string, the shell falls back to English for that string —
-  and counts it. Diagnostics shows a per-language coverage
-  report, so a partial translation is always visible, never a
-  silent gap.
-- **#165 Language packs as files.** Anyone can translate the
-  shell: export a template holding every string, translate it,
-  and import the finished file in the same Settings section.
-  The app validates a pack before using it — every string
-  present, no unknown strings, placeholders intact — and
-  refuses a bad pack with the reason in plain words. Packs
-  live in the `language-packs` folder in the data folder.
-- **#166 Right-to-left readiness.** The catalog and the shell
-  layout know each language's reading direction, and windows
-  follow it. No right-to-left language ships yet; the machinery
-  is proven in tests with a synthetic Arabic pack, so adding
-  one later is translation only.
-- **#167 Accessibility audit, extended.** The automated
-  audit that checks every control has an accessible name now
-  covers every window added since round 1 — the command
-  palette, workspaces, profiles extras, the downloads extras,
-  bookmarks and the left rail, the mini window, and the R5/R6
-  surfaces — and runs as tests on every build.
-- **#168 Logical tab order everywhere.** Every window has a
-  deliberate keyboard focus order that follows the order a
-  person reads the screen, pinned by the same audit so a new
-  control can't silently land in the wrong place.
-- **#169 Announcement center.** The spoken announcements
-  (a download finishing, an update waiting, a timer ending,
-  focus mode turning on) get per-type switches in Settings →
-  Language & announcements — turn off the kinds you don't
-  want spoken and keep the rest. Diagnostics keeps a quiet
-  visual history of the last 100 announcements, including the
-  ones a switched-off type didn't speak, so nothing the app
-  said is ever lost.
-- **#170 Shell text spacing.** Line spacing for the app's own
-  windows — Standard, Relaxed, or Wide — in Settings →
-  Language & announcements, for low-vision readers. (WPF has
-  no letter-spacing setting, so the control is line spacing
-  only; see Known limitations.)
+- **Token-usage ring.** A circular ring in the main window's
+  upper-right corner, immediately left of the zoom controls,
+  shows how full the current conversation's context is, with
+  the percent in its center (a ~ marks an estimate). When the
+  Muse page itself displays a usage figure, the ring reads
+  that; when it doesn't, the ring estimates from the
+  conversation's length and says so — in the ring, its
+  tooltip, and its panel. Clicking the ring opens a small
+  panel with the counts, the source, and a Refresh button.
+  The estimate's limit is a new Settings → Appearance &
+  toolbar value (default 200,000 tokens), used only in
+  estimate mode.
+- **Bookmarks moved.** The Bookmarks button now sits in the
+  upper-right cluster, left of the token ring, instead of on
+  the left rail.
 
-Core test suite grows by 94 cases (981 → 1075); everything above is
-**Unverified** on a real machine until the on-machine pass (see
-RELEASE_CHECKLIST).
+### Removed
 
-### Fixed
+- **The left rail is gone.** The slim left strip added in
+  v1.6.0 held only the Bookmarks button; with the button
+  moved, the rail is removed and the conversation reclaims
+  the full window width.
 
-- **Settings would not open (crash, found in the v1.7.0 field
-  pass).** The profile picker in Settings carries a custom item
-  template (color dot + name), and an older line of code also set
-  its DisplayMemberPath — Windows' UI framework refuses the
-  combination and throws, closing the window before it appears.
-  The redundant line is gone (the template already shows the
-  name), and a new test fails the build if any templated control
-  ever gets a DisplayMemberPath again.
+### Changed
+
+- **The titlebar says "MuseDesktop" — and nothing else.** No
+  page title, no profile name; just the app's name, so the
+  window is instantly recognizable in the taskbar and task
+  switcher. (Secondary windows keep their conversation
+  titles, so they stay tellable apart.)

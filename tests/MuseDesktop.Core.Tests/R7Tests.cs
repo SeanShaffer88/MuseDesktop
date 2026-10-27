@@ -975,6 +975,19 @@ public class ShellLocalizationAndAuditTests
     }
 
     [Fact]
+    public void MainWindowTitle_IsNeverComposed()
+    {
+        // SEAN, 2026-10-27: the main window's titlebar says
+        // "MuseDesktop" and nothing else. The S1 #12 composition
+        // (page title + profile name) must never come back: the
+        // shell assigns the Core constant and Compose no longer
+        // exists to call.
+        var main = File.ReadAllText(Path.Combine(ShellDir(), "MainWindow.xaml.cs"));
+        Assert.Contains("Title = WindowTitle.Text;", main);
+        Assert.DoesNotContain("WindowTitle.Compose", main);
+    }
+
+    [Fact]
     public void EveryStringKeyInShellCode_ExistsInTheCatalog()
     {
         var pattern = new Regex(@"Strings\.(?:Get|Format)\(""([A-Za-z0-9_.]+)""");

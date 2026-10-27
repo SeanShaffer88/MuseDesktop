@@ -438,6 +438,17 @@
                     </StackPanel>
                     <TextBlock Style="{StaticResource Note}"
                                Text="{local:Loc back_always_stays_the_toolbar_must_always}"/>
+                    <!-- R7B: the token ring's estimated limit. Used
+                         ONLY when the Muse page reports no token
+                         count of its own; the note says so. -->
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,12,0,0">
+                        <TextBlock Text="{local:Loc token.estimated_limit_label}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBox x:Name="EstimatedLimitText" Width="90"
+                                 AutomationProperties.Name="{local:Loc token.estimated_limit_label}"
+                                 ToolTip="{local:Loc token.estimated_limit_tooltip}" KeyboardNavigation.TabIndex="100"/>
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="{local:Loc token.estimated_limit_note}"/>
                 </StackPanel>
 
                 <StackPanel x:Name="SectionZoom">
@@ -445,13 +456,13 @@
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="{local:Loc default_zoom}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="ZoomCombo" Width="90"
-                                  ToolTip="{local:Loc the_shared_default_zoom_applies_at_ok_and}" KeyboardNavigation.TabIndex="100"/>
+                                  ToolTip="{local:Loc the_shared_default_zoom_applies_at_ok_and}" KeyboardNavigation.TabIndex="101"/>
                     </StackPanel>
                     <TextBlock Style="{StaticResource Note}"
                                Text="{local:Loc applies_immediately_at_ok_and_is_where_the}"/>
                     <CheckBox x:Name="ExtendedZoomCheck" Content="{local:Loc extended_zoom_range_25_500}"
                               Checked="OnExtendedZoomChanged" Unchecked="OnExtendedZoomChanged"
-                              ToolTip="{local:Loc widens_the_zoom_range_and_its_steps_for_low}" KeyboardNavigation.TabIndex="101"/>
+                              ToolTip="{local:Loc widens_the_zoom_range_and_its_steps_for_low}" KeyboardNavigation.TabIndex="102"/>
                     <TextBlock Style="{StaticResource Note}"
                                Text="{local:Loc zoom_steps_get_finer_near_100_either_way}"/>
                 </StackPanel>
@@ -462,7 +473,7 @@
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="{local:Loc reduce_motion}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="ReduceMotionCombo" Width="190"
-                                  ToolTip="{local:Loc follow_windows_reads_the_windows_animation}" KeyboardNavigation.TabIndex="102">
+                                  ToolTip="{local:Loc follow_windows_reads_the_windows_animation}" KeyboardNavigation.TabIndex="103">
                             <ComboBoxItem Content="{local:Loc follow_windows}"/>
                             <ComboBoxItem Content="{local:Loc on_reduce_motion}"/>
                             <ComboBoxItem Content="{local:Loc off_full_motion}"/>
@@ -476,9 +487,9 @@
                     <TextBlock x:Name="ShortcutStatus" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
                     <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                         <Button Content="{local:Loc all_shortcuts}" Width="130" Click="OnOpenShortcutsList"
-                                ToolTip="{local:Loc open_the_searchable_list_of_every_shortcut}" KeyboardNavigation.TabIndex="103"/>
+                                ToolTip="{local:Loc open_the_searchable_list_of_every_shortcut}" KeyboardNavigation.TabIndex="104"/>
                         <Button Content="{local:Loc reset_all_keys}" Width="120" Margin="8,0,0,0" Click="OnResetAllShortcuts"
-                                ToolTip="{local:Loc put_every_changed_shortcut_back_to_its}" KeyboardNavigation.TabIndex="104"/>
+                                ToolTip="{local:Loc put_every_changed_shortcut_back_to_its}" KeyboardNavigation.TabIndex="105"/>
                     </StackPanel>
                     <!-- S11 #96: the global show/hide hotkey. It lives
                          OUTSIDE the in-app shortcut list above on
@@ -489,12 +500,12 @@
                     <TextBlock Style="{StaticResource Note}" Margin="0,14,0,2"
                                Text="{local:Loc global_hotkey_registered_with_windows_so_it}"/>
                     <CheckBox x:Name="GlobalHotkeyCheck" Content="{local:Loc show_or_hide_musedesktop_with_a_global}" Margin="0,2,0,0"
-                              ToolTip="{local:Loc press_the_combination_anywhere_to_bring}" KeyboardNavigation.TabIndex="105"/>
+                              ToolTip="{local:Loc press_the_combination_anywhere_to_bring}" KeyboardNavigation.TabIndex="106"/>
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                         <Button x:Name="GlobalHotkeyButton" MinWidth="170" Click="OnCaptureGlobalHotkey"
-                                ToolTip="{local:Loc the_current_global_hotkey_combination_click}" KeyboardNavigation.TabIndex="106"/>
+                                ToolTip="{local:Loc the_current_global_hotkey_combination_click}" KeyboardNavigation.TabIndex="107"/>
                         <Button Content="{local:Loc reset}" Width="80" Margin="8,0,0,0" Click="OnResetGlobalHotkey"
-                                ToolTip="{local:Loc put_the_global_hotkey_back_to_the_default}" KeyboardNavigation.TabIndex="107"/>
+                                ToolTip="{local:Loc put_the_global_hotkey_back_to_the_default}" KeyboardNavigation.TabIndex="108"/>
                     </StackPanel>
                     <TextBlock x:Name="GlobalHotkeyStatus" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
                     <TextBlock Style="{StaticResource Note}"
@@ -507,15 +518,15 @@
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="{local:Loc app_language}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="LanguageCombo" Width="260"
-                                  ToolTip="{local:Loc the_app_s_own_windows_menus_dialogs_settings}" KeyboardNavigation.TabIndex="108"/>
+                                  ToolTip="{local:Loc the_app_s_own_windows_menus_dialogs_settings}" KeyboardNavigation.TabIndex="109"/>
                     </StackPanel>
                     <TextBlock Style="{StaticResource Note}"
                                Text="{local:Loc system_default_follows_the_windows_display_language}"/>
                     <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                         <Button x:Name="ExportPackButton" Content="{local:Loc export_a_blank_language_pack}" Width="216" Click="OnExportLanguagePack"
-                                ToolTip="{local:Loc save_a_template_with_every_string_in_english}" KeyboardNavigation.TabIndex="109"/>
+                                ToolTip="{local:Loc save_a_template_with_every_string_in_english}" KeyboardNavigation.TabIndex="110"/>
                         <Button x:Name="ImportPackButton" Content="{local:Loc import_a_language_pack}" Width="196" Margin="8,0,0,0" Click="OnImportLanguagePack"
-                                ToolTip="{local:Loc bring_in_a_finished_pack_file_it_is_checked}" KeyboardNavigation.TabIndex="110"/>
+                                ToolTip="{local:Loc bring_in_a_finished_pack_file_it_is_checked}" KeyboardNavigation.TabIndex="111"/>
                     </StackPanel>
                     <TextBlock x:Name="LanguagePackStatus" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
                     <TextBlock Style="{StaticResource Note}" Margin="0,12,0,2"
@@ -523,17 +534,17 @@
                     <TextBlock Style="{StaticResource Note}"
                                Text="{local:Loc choose_which_kinds_of_events_are_spoken}"/>
                     <CheckBox x:Name="AnnouncementDownloadsCheck" Content="{local:Loc settings.announce.downloads}" Margin="0,4,0,0"
-                              KeyboardNavigation.TabIndex="111"/>
-                    <CheckBox x:Name="AnnouncementUpdatesCheck" Content="{local:Loc settings.announce.updates}" Margin="0,2,0,0"
                               KeyboardNavigation.TabIndex="112"/>
-                    <CheckBox x:Name="AnnouncementTimersCheck" Content="{local:Loc settings.announce.timers}" Margin="0,2,0,0"
+                    <CheckBox x:Name="AnnouncementUpdatesCheck" Content="{local:Loc settings.announce.updates}" Margin="0,2,0,0"
                               KeyboardNavigation.TabIndex="113"/>
-                    <CheckBox x:Name="AnnouncementFocusCheck" Content="{local:Loc settings.announce.focus}" Margin="0,2,0,0"
+                    <CheckBox x:Name="AnnouncementTimersCheck" Content="{local:Loc settings.announce.timers}" Margin="0,2,0,0"
                               KeyboardNavigation.TabIndex="114"/>
+                    <CheckBox x:Name="AnnouncementFocusCheck" Content="{local:Loc settings.announce.focus}" Margin="0,2,0,0"
+                              KeyboardNavigation.TabIndex="115"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,12,0,0">
                         <TextBlock Text="{local:Loc text_spacing}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="TextSpacingCombo" Width="230"
-                                  ToolTip="{local:Loc how_much_air_between_lines_of_text_in}" KeyboardNavigation.TabIndex="115">
+                                  ToolTip="{local:Loc how_much_air_between_lines_of_text_in}" KeyboardNavigation.TabIndex="116">
                             <ComboBoxItem Content="{local:Loc settings.text_spacing.standard}"/>
                             <ComboBoxItem Content="{local:Loc settings.text_spacing.relaxed}"/>
                             <ComboBoxItem Content="{local:Loc settings.text_spacing.wide}"/>
@@ -547,85 +558,85 @@
                     <TextBlock x:Name="HeaderDownloads" Text="{local:Loc downloads}" Style="{StaticResource SectionHeader}"/>
                     <DockPanel LastChildFill="True">
                         <Button x:Name="BrowseFolderButton" DockPanel.Dock="Right" Content="{local:Loc browse}" Width="76" Margin="8,0,0,0"
-                                Click="OnBrowseDownloadsFolder" KeyboardNavigation.TabIndex="132"/>
+                                Click="OnBrowseDownloadsFolder" KeyboardNavigation.TabIndex="133"/>
                         <TextBox x:Name="DownloadsFolderText" IsReadOnly="True"
-                                 ToolTip="{local:Loc where_downloads_are_saved}" KeyboardNavigation.TabIndex="133"/>
+                                 ToolTip="{local:Loc where_downloads_are_saved}" KeyboardNavigation.TabIndex="134"/>
                     </DockPanel>
                     <TextBlock Style="{StaticResource Note}"
                                Text="{local:Loc empty_means_your_windows_downloads_folder}"/>
                     <CheckBox x:Name="AskWhereToSaveCheck" Content="{local:Loc ask_where_to_save_each_download}"
-                              ToolTip="{local:Loc shows_a_save_as_dialog_for_every_file}" KeyboardNavigation.TabIndex="134"/>
+                              ToolTip="{local:Loc shows_a_save_as_dialog_for_every_file}" KeyboardNavigation.TabIndex="135"/>
                     <CheckBox x:Name="NotifyDownloadCompleteCheck" Content="{local:Loc tell_me_when_a_download_finishes_while_the}"
-                              ToolTip="{local:Loc shows_a_tray_balloon_naming_the_file_off_by}" KeyboardNavigation.TabIndex="135"/>
+                              ToolTip="{local:Loc shows_a_tray_balloon_naming_the_file_off_by}" KeyboardNavigation.TabIndex="136"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
                         <TextBlock Text="{local:Loc if_the_file_already_exists}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="CollisionPolicyCombo" Width="210"
-                                  ToolTip="{local:Loc save_under_a_new_name_automatically_or_ask}" KeyboardNavigation.TabIndex="136"/>
+                                  ToolTip="{local:Loc save_under_a_new_name_automatically_or_ask}" KeyboardNavigation.TabIndex="137"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
                         <TextBlock Text="{local:Loc keep_download_history}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="HistoryCapCombo" Width="120"
-                                  ToolTip="{local:Loc how_many_finished_downloads_the_downloads}" KeyboardNavigation.TabIndex="137"/>
+                                  ToolTip="{local:Loc how_many_finished_downloads_the_downloads}" KeyboardNavigation.TabIndex="138"/>
                     </StackPanel>
                     <TextBlock Style="{StaticResource Note}"
                                Text="{local:Loc history_keeps_names_sizes_dates_and_paths}"/>
 
                     <TextBlock Text="{local:Loc sorting_scheduling_more_v1_4_0}" Margin="0,14,0,4" FontWeight="SemiBold"/>
                     <CheckBox x:Name="AutoSortDownloadsCheck" Content="{local:Loc sort_each_finished_download_into_a}"
-                              ToolTip="{local:Loc uses_your_rules_below_first_then_the_built}" KeyboardNavigation.TabIndex="138"/>
+                              ToolTip="{local:Loc uses_your_rules_below_first_then_the_built}" KeyboardNavigation.TabIndex="139"/>
                     <CheckBox x:Name="SortCategoriesCheck" Content="{local:Loc use_the_built_in_file_type_folders_images}"
-                              ToolTip="{local:Loc applies_when_no_custom_rule_matches_a_file}" KeyboardNavigation.TabIndex="139"/>
+                              ToolTip="{local:Loc applies_when_no_custom_rule_matches_a_file}" KeyboardNavigation.TabIndex="140"/>
                     <TextBlock Style="{StaticResource Note}"
                                Text="{local:Loc custom_sort_rules_one_per_line_extensions}"/>
                     <TextBox x:Name="SortRulesText" Height="58" AcceptsReturn="True" TextWrapping="Wrap"
                              VerticalScrollBarVisibility="Auto"
                              ToolTip="{local:Loc custom_download_sort_rules_tried_in_order}"
-                             AutomationProperties.Name="{local:Loc custom_sort_rules}" KeyboardNavigation.TabIndex="140"/>
+                             AutomationProperties.Name="{local:Loc custom_sort_rules}" KeyboardNavigation.TabIndex="141"/>
                     <TextBlock x:Name="SortRulesNote" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
                         <TextBlock Text="{local:Loc bandwidth_limit_kb_s_0_no_limit}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBox x:Name="BandwidthLimitText" Width="80"
-                                 ToolTip="{local:Loc a_cap_on_all_downloads_together_webview2}" KeyboardNavigation.TabIndex="141"/>
+                                 ToolTip="{local:Loc a_cap_on_all_downloads_together_webview2}" KeyboardNavigation.TabIndex="142"/>
                     </StackPanel>
                     <CheckBox x:Name="DownloadQuietCheck" Content="{local:Loc hold_large_downloads_during_quiet_hours}"
-                              ToolTip="{local:Loc files_known_to_be_large_wait_until_the}" KeyboardNavigation.TabIndex="142"/>
+                              ToolTip="{local:Loc files_known_to_be_large_wait_until_the}" KeyboardNavigation.TabIndex="143"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
                         <TextBlock Text="{local:Loc from_2}" VerticalAlignment="Center" Margin="0,0,6,0"/>
                         <TextBox x:Name="DownloadQuietStartText" Width="56"
-                                 ToolTip="{local:Loc quiet_hours_start_24_hour_clock_e_g_09_00}" KeyboardNavigation.TabIndex="143"/>
+                                 ToolTip="{local:Loc quiet_hours_start_24_hour_clock_e_g_09_00}" KeyboardNavigation.TabIndex="144"/>
                         <TextBlock Text="{local:Loc to_3}" VerticalAlignment="Center" Margin="10,0,6,0"/>
                         <TextBox x:Name="DownloadQuietEndText" Width="56"
-                                 ToolTip="{local:Loc quiet_hours_end_24_hour_clock_e_g_17_00_a}" KeyboardNavigation.TabIndex="144"/>
+                                 ToolTip="{local:Loc quiet_hours_end_24_hour_clock_e_g_17_00_a}" KeyboardNavigation.TabIndex="145"/>
                         <TextBlock Text="{local:Loc large_means_mb}" VerticalAlignment="Center" Margin="10,0,6,0"/>
                         <TextBox x:Name="DownloadQuietLargeText" Width="64"
-                                 ToolTip="{local:Loc files_at_least_this_big_wait_out_the_quiet}" KeyboardNavigation.TabIndex="145"/>
+                                 ToolTip="{local:Loc files_at_least_this_big_wait_out_the_quiet}" KeyboardNavigation.TabIndex="146"/>
                     </StackPanel>
                     <CheckBox x:Name="DuplicateGuardCheck" Content="{local:Loc warn_when_a_download_looks_like_one_already}"
-                              ToolTip="{local:Loc same_file_name_and_size_when_known_as_a}" KeyboardNavigation.TabIndex="146"/>
+                              ToolTip="{local:Loc same_file_name_and_size_when_known_as_a}" KeyboardNavigation.TabIndex="147"/>
                     <CheckBox x:Name="AutoRetryCheck" Content="{local:Loc retry_failed_downloads_automatically}"
-                              ToolTip="{local:Loc network_and_server_failures_only_with_a}" KeyboardNavigation.TabIndex="147"/>
+                              ToolTip="{local:Loc network_and_server_failures_only_with_a}" KeyboardNavigation.TabIndex="148"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
                         <TextBlock Text="{local:Loc automatic_retries_per_download}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="RetryAttemptsCombo" Width="70"
-                                  ToolTip="{local:Loc how_many_times_a_failed_download_retries}" KeyboardNavigation.TabIndex="148"/>
+                                  ToolTip="{local:Loc how_many_times_a_failed_download_retries}" KeyboardNavigation.TabIndex="149"/>
                     </StackPanel>
                     <DockPanel LastChildFill="True" Margin="0,10,0,0">
                         <Button DockPanel.Dock="Right" Content="{local:Loc browse}" Width="76" Margin="8,0,0,0"
-                                Click="OnBrowseArchiveFolder" KeyboardNavigation.TabIndex="149"/>
+                                Click="OnBrowseArchiveFolder" KeyboardNavigation.TabIndex="150"/>
                         <TextBox x:Name="ArchiveFolderText" IsReadOnly="True"
-                                 ToolTip="{local:Loc where_archived_downloads_go_empty_uses_an}" KeyboardNavigation.TabIndex="150"/>
+                                 ToolTip="{local:Loc where_archived_downloads_go_empty_uses_an}" KeyboardNavigation.TabIndex="151"/>
                     </DockPanel>
                     <TextBlock Style="{StaticResource Note}"
                                Text="{local:Loc archive_folder_the_downloads_window_s}"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
                         <TextBlock Text="{local:Loc when_sorting_archive_downloads_older_than}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBox x:Name="ArchiveDaysText" Width="64"
-                                 ToolTip="{local:Loc finished_downloads_older_than_this_go_to}" KeyboardNavigation.TabIndex="151"/>
+                                 ToolTip="{local:Loc finished_downloads_older_than_this_go_to}" KeyboardNavigation.TabIndex="152"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
                         <TextBlock Text="{local:Loc download_quota_for_the_profile_you_re_using}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBox x:Name="ProfileQuotaText" Width="80"
-                                 ToolTip="{local:Loc a_soft_cap_on_this_profile_s_downloads}" KeyboardNavigation.TabIndex="152"/>
+                                 ToolTip="{local:Loc a_soft_cap_on_this_profile_s_downloads}" KeyboardNavigation.TabIndex="153"/>
                     </StackPanel>
                     <TextBlock Style="{StaticResource Note}"
                                Text="{local:Loc the_quota_belongs_to_the_profile_you_re}"/>
@@ -637,26 +648,26 @@
                                Text="{local:Loc clearing_browsing_data_cookies_cache_site}"/>
                     <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                         <Button Content="{local:Loc open_data_folder}" Width="130" Click="OnOpenDataFolder"
-                                ToolTip="{local:Loc open_the_folder_with_settings_logs_and}" KeyboardNavigation.TabIndex="153"/>
+                                ToolTip="{local:Loc open_the_folder_with_settings_logs_and}" KeyboardNavigation.TabIndex="154"/>
                         <Button Content="{local:Loc backup_guide}" Width="130" Margin="8,0,0,0" Click="OnBackupGuide"
-                                ToolTip="{local:Loc exactly_what_to_copy_to_back_up_your_sign}" KeyboardNavigation.TabIndex="154"/>
+                                ToolTip="{local:Loc exactly_what_to_copy_to_back_up_your_sign}" KeyboardNavigation.TabIndex="155"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                         <Button Content="{local:Loc export_settings}" Width="130" Click="OnExportSettings"
-                                ToolTip="{local:Loc save_these_settings_to_a_file_you_can_keep}" KeyboardNavigation.TabIndex="155"/>
+                                ToolTip="{local:Loc save_these_settings_to_a_file_you_can_keep}" KeyboardNavigation.TabIndex="156"/>
                         <Button Content="{local:Loc import_settings}" Width="130" Margin="8,0,0,0" Click="OnImportSettings"
-                                ToolTip="{local:Loc replace_these_settings_with_ones_from_an}" KeyboardNavigation.TabIndex="156"/>
+                                ToolTip="{local:Loc replace_these_settings_with_ones_from_an}" KeyboardNavigation.TabIndex="157"/>
                     </StackPanel>
                     <TextBlock x:Name="ImportNote" Style="{StaticResource Note}"
                                Text="{local:Loc export_saves_the_settings_shown_here}"/>
                     <Button Content="{local:Loc reset_all_settings_to_defaults}" Width="230" HorizontalAlignment="Left"
                             Margin="0,12,0,0" Click="OnResetSettings"
-                            ToolTip="{local:Loc restores_every_preference_to_its_default}" KeyboardNavigation.TabIndex="157"/>
+                            ToolTip="{local:Loc restores_every_preference_to_its_default}" KeyboardNavigation.TabIndex="158"/>
                     <TextBlock x:Name="ResetNote" Style="{StaticResource Note}"
                                Text="{local:Loc reset_restores_preferences_only_profiles}"/>
                     <Button Content="{local:Loc reset_musedesktop_2}" Width="230" HorizontalAlignment="Left"
                             Margin="0,12,0,0" Click="OnOpenResetWizard"
-                            ToolTip="{local:Loc the_guided_reset_backup_first_then_choose}" KeyboardNavigation.TabIndex="158"/>
+                            ToolTip="{local:Loc the_guided_reset_backup_first_then_choose}" KeyboardNavigation.TabIndex="159"/>
                     <TextBlock Style="{StaticResource Note}"
                                Text="{local:Loc won_t_start_or_won_t_sign_in_the_guided}"/>
                     <TextBlock Text="{local:Loc automatic_backups}" Margin="0,12,0,4" FontWeight="SemiBold"/>
@@ -664,7 +675,7 @@
                                Text="{local:Loc musedesktop_keeps_the_five_most_recent}"/>
                     <Button Content="{local:Loc back_up_now}" Width="130" HorizontalAlignment="Left" Margin="0,6,0,0"
                             Click="OnBackupNow"
-                            ToolTip="{local:Loc write_a_fresh_backup_of_settings_and}" KeyboardNavigation.TabIndex="159"/>
+                            ToolTip="{local:Loc write_a_fresh_backup_of_settings_and}" KeyboardNavigation.TabIndex="160"/>
                     <StackPanel x:Name="BackupRows" Margin="0,6,0,0"/>
                     <TextBlock x:Name="BackupNote" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
                     <TextBlock x:Name="PortableNote" Style="{StaticResource Note}" Margin="0,10,0,0"/>
@@ -675,21 +686,21 @@
 
                     <!-- R5 #141: focus timer. -->
                     <CheckBox x:Name="FocusTimerAutoStartCheck" Content="{local:Loc start_the_focus_timer_when_focus_mode_turns}"
-                              ToolTip="{local:Loc focus_mode_f8_always_hides_the_app_chrome}" KeyboardNavigation.TabIndex="160"/>
+                              ToolTip="{local:Loc focus_mode_f8_always_hides_the_app_chrome}" KeyboardNavigation.TabIndex="161"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
                         <TextBlock Text="{local:Loc focus_block_length_minutes}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBox x:Name="FocusTimerMinutesText" Width="60"
                                  AutomationProperties.Name="{local:Loc focus_block_length_in_minutes}"
-                                 ToolTip="{local:Loc 1_240_minutes}" KeyboardNavigation.TabIndex="161"/>
+                                 ToolTip="{local:Loc 1_240_minutes}" KeyboardNavigation.TabIndex="162"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
                         <TextBlock Text="{local:Loc suggested_break_length_minutes}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBox x:Name="FocusBreakMinutesText" Width="60"
                                  AutomationProperties.Name="{local:Loc suggested_break_length_in_minutes}"
-                                 ToolTip="{local:Loc 1_120_minutes}" KeyboardNavigation.TabIndex="162"/>
+                                 ToolTip="{local:Loc 1_120_minutes}" KeyboardNavigation.TabIndex="163"/>
                     </StackPanel>
                     <CheckBox x:Name="FocusBreakRemindersCheck" Content="{local:Loc remind_me_to_take_a_break_when_a_focus}" Margin="0,4,0,0"
-                              ToolTip="{local:Loc a_gentle_tray_reminder_never_a_dialog_and}" KeyboardNavigation.TabIndex="163"/>
+                              ToolTip="{local:Loc a_gentle_tray_reminder_never_a_dialog_and}" KeyboardNavigation.TabIndex="164"/>
 
                     <!-- R5 #142: session timer. -->
                     <TextBlock Style="{StaticResource Note}" Margin="0,14,0,2"
@@ -698,33 +709,33 @@
                         <TextBlock Text="{local:Loc work_minutes}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBox x:Name="SessionWorkMinutesText" Width="60"
                                  AutomationProperties.Name="{local:Loc session_timer_work_minutes}"
-                                 ToolTip="{local:Loc 1_240_minutes}" KeyboardNavigation.TabIndex="164"/>
+                                 ToolTip="{local:Loc 1_240_minutes}" KeyboardNavigation.TabIndex="165"/>
                         <TextBlock Text="{local:Loc short_break}" VerticalAlignment="Center" Margin="14,0,8,0"/>
                         <TextBox x:Name="SessionBreakMinutesText" Width="60"
                                  AutomationProperties.Name="{local:Loc session_timer_short_break_minutes}"
-                                 ToolTip="{local:Loc 1_120_minutes}" KeyboardNavigation.TabIndex="165"/>
+                                 ToolTip="{local:Loc 1_120_minutes}" KeyboardNavigation.TabIndex="166"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
                         <TextBlock Text="{local:Loc long_break_minutes}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBox x:Name="SessionLongBreakMinutesText" Width="60"
                                  AutomationProperties.Name="{local:Loc session_timer_long_break_minutes}"
-                                 ToolTip="{local:Loc 1_240_minutes}" KeyboardNavigation.TabIndex="166"/>
+                                 ToolTip="{local:Loc 1_240_minutes}" KeyboardNavigation.TabIndex="167"/>
                         <TextBlock Text="{local:Loc work_blocks_before_it}" VerticalAlignment="Center" Margin="14,0,8,0"/>
                         <TextBox x:Name="SessionCyclesText" Width="60"
                                  AutomationProperties.Name="{local:Loc work_blocks_before_a_long_break}"
-                                 ToolTip="{local:Loc 1_12_work_blocks}" KeyboardNavigation.TabIndex="167"/>
+                                 ToolTip="{local:Loc 1_12_work_blocks}" KeyboardNavigation.TabIndex="168"/>
                     </StackPanel>
 
                     <!-- R5 #148: quick-note global hotkey (the S11 capture pattern). -->
                     <TextBlock Style="{StaticResource Note}" Margin="0,14,0,2"
                                Text="{local:Loc quick_note_jot_a_note_for_the_profile_you}"/>
                     <CheckBox x:Name="QuickNoteHotkeyCheck" Content="{local:Loc enable_the_quick_note_global_hotkey}"
-                              ToolTip="{local:Loc registers_the_combination_below_with}" KeyboardNavigation.TabIndex="168"/>
+                              ToolTip="{local:Loc registers_the_combination_below_with}" KeyboardNavigation.TabIndex="169"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
                         <Button x:Name="QuickNoteHotkeyButton" Content="{local:Loc ctrl_alt_n}" Width="170" Click="OnCaptureQuickNoteHotkey"
-                                ToolTip="{local:Loc click_then_press_the_key_combination_you}" KeyboardNavigation.TabIndex="169"/>
+                                ToolTip="{local:Loc click_then_press_the_key_combination_you}" KeyboardNavigation.TabIndex="170"/>
                         <Button Content="{local:Loc reset}" Width="70" Margin="8,0,0,0" Click="OnResetQuickNoteHotkey"
-                                ToolTip="{local:Loc back_to_ctrl_alt_n}" KeyboardNavigation.TabIndex="170"/>
+                                ToolTip="{local:Loc back_to_ctrl_alt_n}" KeyboardNavigation.TabIndex="171"/>
                     </StackPanel>
                     <TextBlock x:Name="QuickNoteHotkeyStatus" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
 
@@ -734,22 +745,22 @@
                     <ListBox x:Name="SchedulesList" Height="110" Margin="0,4,0,0"
                              Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
                              BorderBrush="{StaticResource HairlineBrush}"
-                             AutomationProperties.Name="{local:Loc scheduled_commands}" KeyboardNavigation.TabIndex="171"/>
+                             AutomationProperties.Name="{local:Loc scheduled_commands}" KeyboardNavigation.TabIndex="172"/>
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                         <Button Content="{local:Loc add_2}" Width="80" Click="OnAddSchedule"
-                                ToolTip="{local:Loc schedule_a_command}" KeyboardNavigation.TabIndex="172"/>
+                                ToolTip="{local:Loc schedule_a_command}" KeyboardNavigation.TabIndex="173"/>
                         <Button Content="{local:Loc edit}" Width="80" Margin="8,0,0,0" Click="OnEditSchedule"
-                                ToolTip="{local:Loc edit_the_selected_schedule}" KeyboardNavigation.TabIndex="173"/>
+                                ToolTip="{local:Loc edit_the_selected_schedule}" KeyboardNavigation.TabIndex="174"/>
                         <Button Content="{local:Loc remove}" Width="80" Margin="8,0,0,0" Click="OnRemoveSchedule"
-                                ToolTip="{local:Loc remove_the_selected_schedule}" KeyboardNavigation.TabIndex="174"/>
+                                ToolTip="{local:Loc remove_the_selected_schedule}" KeyboardNavigation.TabIndex="175"/>
                     </StackPanel>
 
                     <!-- R5 #146/#150: the reports. -->
                     <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
                         <Button Content="{local:Loc weekly_digest}" Width="130" Click="OnOpenWeeklyDigest"
-                                ToolTip="{local:Loc a_plain_summary_of_this_week_counted_on_2}" KeyboardNavigation.TabIndex="175"/>
+                                ToolTip="{local:Loc a_plain_summary_of_this_week_counted_on_2}" KeyboardNavigation.TabIndex="176"/>
                         <Button Content="{local:Loc stats_dashboard}" Width="140" Margin="8,0,0,0" Click="OnOpenStatsDashboard"
-                                ToolTip="{local:Loc this_week_s_counts_per_profile_as_simple}" KeyboardNavigation.TabIndex="176"/>
+                                ToolTip="{local:Loc this_week_s_counts_per_profile_as_simple}" KeyboardNavigation.TabIndex="177"/>
                     </StackPanel>
                     <TextBlock Style="{StaticResource Note}"
                                Text="{local:Loc everything_in_this_section_is_local_timers}"/>
@@ -759,20 +770,20 @@
                     <TextBlock x:Name="HeaderPrivacy" Text="{local:Loc privacy_security}" Style="{StaticResource SectionHeader}"/>
 
                     <CheckBox x:Name="PasswordAutosaveCheck" Content="{local:Loc let_muse_save_passwords_in_the_web_view}"
-                              ToolTip="{local:Loc webview2_s_own_password_save_on_by_default}" KeyboardNavigation.TabIndex="177"/>
+                              ToolTip="{local:Loc webview2_s_own_password_save_on_by_default}" KeyboardNavigation.TabIndex="178"/>
                     <CheckBox x:Name="GeneralAutofillCheck" Content="{local:Loc let_the_web_view_remember_and_refill_form}"
-                              ToolTip="{local:Loc webview2_s_general_autofill_for_ordinary}" KeyboardNavigation.TabIndex="178"/>
+                              ToolTip="{local:Loc webview2_s_general_autofill_for_ordinary}" KeyboardNavigation.TabIndex="179"/>
                     <TextBlock Style="{StaticResource Note}"
                                Text="{local:Loc these_are_the_web_engine_s_features_shared}"/>
 
                     <TextBlock Text="{local:Loc clear_browsing_data}" Margin="0,12,0,4" FontWeight="SemiBold"/>
                     <StackPanel Orientation="Horizontal">
                         <ComboBox x:Name="ClearChoiceCombo" Width="140" SelectionChanged="OnClearChoiceChanged"
-                                  ToolTip="{local:Loc what_to_clear_cookies_only_cache_only_or}" KeyboardNavigation.TabIndex="179"/>
+                                  ToolTip="{local:Loc what_to_clear_cookies_only_cache_only_or}" KeyboardNavigation.TabIndex="180"/>
                         <ComboBox x:Name="ClearScopeCombo" Width="150" Margin="8,0,0,0" SelectionChanged="OnClearChoiceChanged"
-                                  ToolTip="{local:Loc clear_just_the_profile_you_re_using_or}" KeyboardNavigation.TabIndex="180"/>
+                                  ToolTip="{local:Loc clear_just_the_profile_you_re_using_or}" KeyboardNavigation.TabIndex="181"/>
                         <Button x:Name="ClearNowButton" Content="{local:Loc clear_2}" Width="76" Margin="8,0,0,0" Click="OnClearDataGranular"
-                                ToolTip="{local:Loc clear_the_chosen_data_now_you_ll_be_asked}" KeyboardNavigation.TabIndex="181"/>
+                                ToolTip="{local:Loc clear_the_chosen_data_now_you_ll_be_asked}" KeyboardNavigation.TabIndex="182"/>
                     </StackPanel>
                     <TextBlock x:Name="ClearPlanNote" Style="{StaticResource Note}"/>
                     <TextBlock x:Name="ClearResultNote" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
@@ -783,15 +794,15 @@
                     <StackPanel x:Name="PermissionRows" Margin="0,4,0,0"/>
                     <Button Content="{local:Loc refresh_permissions}" Width="150" HorizontalAlignment="Left" Margin="0,6,0,0"
                             Click="OnRefreshPermissions"
-                            ToolTip="{local:Loc read_the_running_profile_s_saved_permission}" KeyboardNavigation.TabIndex="182"/>
+                            ToolTip="{local:Loc read_the_running_profile_s_saved_permission}" KeyboardNavigation.TabIndex="183"/>
                     <TextBlock x:Name="PermissionDenialsText" Style="{StaticResource Note}"/>
 
                     <TextBlock Text="{local:Loc microphone_notification_tests}" Margin="0,12,0,4" FontWeight="SemiBold"/>
                     <StackPanel Orientation="Horizontal">
                         <Button Content="{local:Loc test_microphone_2}" Width="140" Click="OnTestMicrophone"
-                                ToolTip="{local:Loc ask_for_the_microphone_the_way_a_page_does}" KeyboardNavigation.TabIndex="183"/>
+                                ToolTip="{local:Loc ask_for_the_microphone_the_way_a_page_does}" KeyboardNavigation.TabIndex="184"/>
                         <Button Content="{local:Loc send_test_notification}" Width="160" Margin="8,0,0,0" Click="OnTestNotification"
-                                ToolTip="{local:Loc show_a_test_tray_notification_now_a_test}" KeyboardNavigation.TabIndex="184"/>
+                                ToolTip="{local:Loc show_a_test_tray_notification_now_a_test}" KeyboardNavigation.TabIndex="185"/>
                     </StackPanel>
                     <TextBlock x:Name="SelfTestResultText" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
                     <TextBlock Style="{StaticResource Note}"
@@ -801,7 +812,7 @@
                     <StackPanel x:Name="SiteDataRows"/>
                     <Button Content="{local:Loc refresh_site_data}" Width="150" HorizontalAlignment="Left" Margin="0,6,0,0"
                             Click="OnRefreshSiteData"
-                            ToolTip="{local:Loc measure_each_profile_s_data_folder_and}" KeyboardNavigation.TabIndex="185"/>
+                            ToolTip="{local:Loc measure_each_profile_s_data_folder_and}" KeyboardNavigation.TabIndex="186"/>
                     <TextBlock Style="{StaticResource Note}"
                                Text="{local:Loc cookie_counts_only_cookie_values_are_never}"/>
 
@@ -810,14 +821,14 @@
                     <CheckBox x:Name="AppLockEnabledCheck" Content="{local:Loc require_my_app_password_or_pin}"
                               Margin="0,6,0,0"
                               ToolTip="{local:Loc ask_for_the_app_password_at_startup_and}"
-                              Checked="OnAppLockEnabledChanged" Unchecked="OnAppLockEnabledChanged" KeyboardNavigation.TabIndex="186"/>
+                              Checked="OnAppLockEnabledChanged" Unchecked="OnAppLockEnabledChanged" KeyboardNavigation.TabIndex="187"/>
                     <CheckBox x:Name="AppLockTrayHideCheck" Content="{local:Loc also_lock_when_the_window_hides_to_the_tray}"
-                              ToolTip="{local:Loc on_by_default_startup_locking_and_lock_now}" KeyboardNavigation.TabIndex="187"/>
+                              ToolTip="{local:Loc on_by_default_startup_locking_and_lock_now}" KeyboardNavigation.TabIndex="188"/>
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                         <Button x:Name="SetLockPasswordButton" Content="{local:Loc set_or_change_password}" Width="170" Click="OnSetLockPassword"
-                                ToolTip="{local:Loc set_a_new_app_password_or_pin_4_64}" KeyboardNavigation.TabIndex="188"/>
+                                ToolTip="{local:Loc set_a_new_app_password_or_pin_4_64}" KeyboardNavigation.TabIndex="189"/>
                         <Button x:Name="RemoveLockPasswordButton" Content="{local:Loc remove_password}" Width="140" Margin="8,0,0,0" Click="OnRemoveLockPassword"
-                                ToolTip="{local:Loc remove_the_app_password_and_turn_the_lock}" KeyboardNavigation.TabIndex="189"/>
+                                ToolTip="{local:Loc remove_the_app_password_and_turn_the_lock}" KeyboardNavigation.TabIndex="190"/>
                     </StackPanel>
                     <TextBlock x:Name="AppLockNote" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
                     <TextBlock Style="{StaticResource Note}"
@@ -827,9 +838,9 @@
                     <TextBlock x:Name="PrivacyReportText" Style="{StaticResource Note}" Margin="0,0,0,0"/>
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                         <Button Content="{local:Loc reset_counters}" Width="120" Click="OnResetPrivacyStats"
-                                ToolTip="{local:Loc start_the_privacy_report_s_counts_over_from}" KeyboardNavigation.TabIndex="190"/>
+                                ToolTip="{local:Loc start_the_privacy_report_s_counts_over_from}" KeyboardNavigation.TabIndex="191"/>
                         <Button Content="{local:Loc view_log}" Width="120" Margin="8,0,0,0" Click="OnViewLog"
-                                ToolTip="{local:Loc read_the_diagnostic_log_in_the_app_with_its_2}" KeyboardNavigation.TabIndex="191"/>
+                                ToolTip="{local:Loc read_the_diagnostic_log_in_the_app_with_its_2}" KeyboardNavigation.TabIndex="192"/>
                     </StackPanel>
                     <TextBlock Style="{StaticResource Note}"
                                Text="{local:Loc the_report_counts_only_what_kind_of_thing}"/>
@@ -837,8 +848,8 @@
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
                     <Button Content="{local:Loc ok}" Width="86" Height="30" IsDefault="True" Click="OnOk"
-                            Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0" KeyboardNavigation.TabIndex="192"/>
-                    <Button Content="{local:Loc cancel}" Width="86" Height="30" Margin="8,0,0,0" IsCancel="True" KeyboardNavigation.TabIndex="193"/>
+                            Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0" KeyboardNavigation.TabIndex="193"/>
+                    <Button Content="{local:Loc cancel}" Width="86" Height="30" Margin="8,0,0,0" IsCancel="True" KeyboardNavigation.TabIndex="194"/>
                 </StackPanel>
             </StackPanel>
         </ScrollViewer>

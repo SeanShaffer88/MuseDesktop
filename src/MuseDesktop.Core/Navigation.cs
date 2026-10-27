@@ -152,19 +152,15 @@ public static class LoadFailureClassifier
     public static string MessageFor(string? webErrorStatus) => Message(Classify(webErrorStatus), webErrorStatus);
 }
 
-/// <summary>Window-title composition (v0.5.0, S1 #12).</summary>
+/// <summary>Window title (v0.5.0, S1 #12; changed 2026-10-27 at
+/// SEAN's direction, superseding the S1 composition rule).</summary>
 public static class WindowTitle
 {
     /// <summary>
-    /// "&lt;page title&gt; — &lt;profile name&gt; — MuseDesktop" when more than
-    /// one profile exists, else "&lt;page title&gt; — MuseDesktop". A blank page
-    /// title falls back to "Muse".
+    /// The main window's titlebar text: the app name and nothing else —
+    /// no page title, no profile name (SEAN, 2026-10-27). The page
+    /// title still exists separately for history and the window
+    /// switcher; it just never reaches the titlebar.
     /// </summary>
-    public static string Compose(string? pageTitle, string? profileName, bool multipleProfiles)
-    {
-        var page = string.IsNullOrWhiteSpace(pageTitle) ? "Muse" : pageTitle.Trim();
-        return multipleProfiles && !string.IsNullOrWhiteSpace(profileName)
-            ? $"{page} — {profileName.Trim()} — MuseDesktop"
-            : $"{page} — MuseDesktop";
-    }
+    public static string Text => "MuseDesktop";
 }

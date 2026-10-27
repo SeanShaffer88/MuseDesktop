@@ -22,15 +22,8 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="24"/>
         </Grid.RowDefinitions>
-        <!-- R5B #202: a slim left rail — the Bookmarks button lives
-             here, at the window's left edge, as SEAN's design asks. -->
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="44"/>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
-
         <!-- Toolbar -->
-        <Border x:Name="Toolbar" Grid.Row="0" Grid.ColumnSpan="2" Background="{StaticResource SurfaceBrush}"
+        <Border x:Name="Toolbar" Grid.Row="0" Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,0,1">
             <DockPanel LastChildFill="True" Margin="6,0">
                 <!-- The two button strips are named: S5 #45 rebuilds their
@@ -165,6 +158,35 @@
                     </Button>
                 </StackPanel>
 
+                <!-- Upper-right cluster (R7B, SEAN's direction
+                     2026-10-27): Bookmarks and the token-usage ring
+                     sit immediately LEFT of the zoom controls. This
+                     panel docks right AFTER the right strip in
+                     document order, so it lands just left of it. Like
+                     the ⋯ button it is fixed chrome, not a toolbar-
+                     layout item — ApplyToolbarLayout never rebuilds
+                     it. It replaces the R5B left rail, which is gone:
+                     the conversation reclaims the full width. -->
+                <StackPanel x:Name="UpperRightCluster" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="BookmarksButton" Style="{StaticResource BarButton}" Content="&#x1F516;"
+                            Width="34" Height="34" Click="OnBookmarks"
+                            ToolTip="{local:Loc bookmarks_messages_you_marked_in}"
+                            AutomationProperties.Name="{local:Loc bookmarks}" KeyboardNavigation.TabIndex="55"/>
+                    <Button x:Name="TokenRingButton" Style="{StaticResource BarButton}" Width="34" Height="34" Margin="2,0,0,0"
+                            Click="OnTokenRing"
+                            ToolTip="{local:Loc token.usage}"
+                            AutomationProperties.Name="{local:Loc token.usage}" KeyboardNavigation.TabIndex="56">
+                        <Grid Width="26" Height="26" IsHitTestVisible="False">
+                            <Ellipse Stroke="{StaticResource FaintBrush}" StrokeThickness="3" Opacity="0.45"/>
+                            <Path x:Name="TokenRingArc" Stroke="{StaticResource AccentBrush}" StrokeThickness="3"
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                            <TextBlock x:Name="TokenRingPercent" Text="" FontSize="8.5"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextBrush}"/>
+                        </Grid>
+                    </Button>
+                </StackPanel>
+
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
                     <Ellipse Width="8" Height="8" Fill="{StaticResource AccentBrush}" VerticalAlignment="Center"/>
                     <TextBlock x:Name="TitleText" Text="Muse" Margin="8,0,0,0" FontSize="13"
@@ -178,7 +200,7 @@
         </Border>
 
         <!-- Find bar (v0.5.0, S1 #1) -->
-        <Border x:Name="FindBar" Grid.Row="1" Grid.ColumnSpan="2" Background="{StaticResource SurfaceBrush}"
+        <Border x:Name="FindBar" Grid.Row="1" Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,0,1"
                 Visibility="Collapsed">
             <StackPanel Orientation="Horizontal" Margin="6,3" VerticalAlignment="Center">
@@ -186,36 +208,22 @@
                          Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}"
                          BorderBrush="{StaticResource HairlineBrush}"
                          KeyDown="OnFindTextKeyDown" TextChanged="OnFindTextChanged"
-                         AutomationProperties.Name="{local:Loc find_in_page_2}" KeyboardNavigation.TabIndex="55"/>
+                         AutomationProperties.Name="{local:Loc find_in_page_2}" KeyboardNavigation.TabIndex="57"/>
                 <TextBlock x:Name="FindCountText" Text="" Margin="8,0" VerticalAlignment="Center"
                            Foreground="{StaticResource MutedBrush}" FontSize="12"/>
                 <Button Style="{StaticResource BarButton}" Content="&#x2191;" Width="28"
-                        ToolTip="{local:Loc previous_match_shift_enter}" Click="OnFindPrevious" AutomationProperties.Name="{local:Loc previous_match}" KeyboardNavigation.TabIndex="56"/>
+                        ToolTip="{local:Loc previous_match_shift_enter}" Click="OnFindPrevious" AutomationProperties.Name="{local:Loc previous_match}" KeyboardNavigation.TabIndex="58"/>
                 <Button Style="{StaticResource BarButton}" Content="&#x2193;" Width="28"
-                        ToolTip="{local:Loc next_match_enter}" Click="OnFindNext" AutomationProperties.Name="{local:Loc next_match}" KeyboardNavigation.TabIndex="57"/>
+                        ToolTip="{local:Loc next_match_enter}" Click="OnFindNext" AutomationProperties.Name="{local:Loc next_match}" KeyboardNavigation.TabIndex="59"/>
                 <Button Style="{StaticResource BarButton}" Content="&#x2715;" Width="28"
-                        ToolTip="{local:Loc close_find_esc}" Click="OnFindClose" AutomationProperties.Name="{local:Loc close_find}" KeyboardNavigation.TabIndex="58"/>
-            </StackPanel>
-        </Border>
-
-        <!-- Left rail (R5B #202): the vertical strip at the window's
-             left edge. Today it carries the Bookmarks button; it hides
-             with the rest of the chrome in focus mode. -->
-        <Border x:Name="LeftRail" Grid.Row="2" Grid.Column="0"
-                Background="{StaticResource SurfaceBrush}"
-                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,1,0">
-            <StackPanel Orientation="Vertical" Margin="0,6,0,0">
-                <Button x:Name="BookmarksButton" Style="{StaticResource BarButton}" Content="&#x1F516;"
-                        Width="34" Height="34" Margin="5,0" Click="OnBookmarks"
-                        ToolTip="{local:Loc bookmarks_messages_you_marked_in}"
-                        AutomationProperties.Name="{local:Loc bookmarks}" KeyboardNavigation.TabIndex="59"/>
+                        ToolTip="{local:Loc close_find_esc}" Click="OnFindClose" AutomationProperties.Name="{local:Loc close_find}" KeyboardNavigation.TabIndex="60"/>
             </StackPanel>
         </Border>
 
         <!-- Web content. The first-run / error overlay sits above it until the page loads.
              ContentGrid is named because S8 #71's recovery replaces the web
              view controls inside it when the browser process exits. -->
-        <Grid Grid.Row="2" Grid.Column="1" x:Name="ContentGrid">
+        <Grid Grid.Row="2" x:Name="ContentGrid">
             <!-- Focus ring (S6 #58): the border is always 2px (so the
                  page never shifts); its brush turns accent-colored
                  while keyboard focus is inside the page, transparent
@@ -241,9 +249,9 @@
                                TextWrapping="Wrap"
                                Text="{local:Loc the_page_hasn_t_answered_musedesktop_s_last}"/>
                     <Button Content="{local:Loc reload_the_page}" Margin="12,0,0,0" Padding="10,4" Click="OnWatchdogReload"
-                            ToolTip="{local:Loc reload_now_chat_drafts_and_scroll_position}" KeyboardNavigation.TabIndex="60"/>
+                            ToolTip="{local:Loc reload_now_chat_drafts_and_scroll_position}" KeyboardNavigation.TabIndex="62"/>
                     <Button Content="{local:Loc wait}" Margin="8,0,0,0" Padding="10,4" Click="OnWatchdogWait"
-                            ToolTip="{local:Loc leave_the_page_exactly_as_it_is_don_t_check}" KeyboardNavigation.TabIndex="61"/>
+                            ToolTip="{local:Loc leave_the_page_exactly_as_it_is_don_t_check}" KeyboardNavigation.TabIndex="63"/>
                 </StackPanel>
             </Border>
             <Border x:Name="Overlay" Background="{StaticResource BgBrush}" Visibility="Visible">
@@ -254,19 +262,19 @@
                                Foreground="{StaticResource MutedBrush}" TextAlignment="Center" TextWrapping="Wrap"/>
                     <Button x:Name="OverlayButton" Content="{local:Loc retry}" Width="110" Height="32" Margin="0,18,0,0"
                             Visibility="Collapsed" Click="OnReload" HorizontalAlignment="Center"
-                            Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0" KeyboardNavigation.TabIndex="62"/>
+                            Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0" KeyboardNavigation.TabIndex="64"/>
                 </StackPanel>
             </Border>
         </Grid>
 
         <!-- Status bar -->
-        <Border x:Name="StatusBar" Grid.Row="3" Grid.ColumnSpan="2" Background="{StaticResource SurfaceBrush}"
+        <Border x:Name="StatusBar" Grid.Row="3" Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,1,0,0">
             <DockPanel LastChildFill="True" Margin="8,0">
                 <Button x:Name="CancelDownloadButton" DockPanel.Dock="Right" Content="&#x2715;" Width="22" Height="18"
                         Visibility="Collapsed" ToolTip="{local:Loc cancel_the_most_recent_download_downloads}" Click="OnCancelDownload"
                         Background="Transparent" Foreground="{StaticResource MutedBrush}" BorderThickness="0"
-                        AutomationProperties.Name="{local:Loc cancel_download}" KeyboardNavigation.TabIndex="63"/>
+                        AutomationProperties.Name="{local:Loc cancel_download}" KeyboardNavigation.TabIndex="65"/>
                 <!-- Live regions (S6 #54): zero-width, invisible, not
                      hit-testable — present in the UIA tree only, so
                      screen readers speak download/update events. -->
