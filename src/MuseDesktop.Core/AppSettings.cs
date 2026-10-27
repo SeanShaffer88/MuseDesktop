@@ -223,6 +223,9 @@ public sealed class AppSettings
     /// <summary>Flash the taskbar button when Muse asks for attention while the window is hidden (S4 #39). Off by default.</summary>
     public bool FlashTaskbarOnAttention { get; set; }
 
+    /// <summary>Beep (and flash the taskbar button) when the page shows an approval card while this window isn't the active one (R7C). On by default — the feature exists because SEAN asked to hear it. The watcher is observe-only: it can never answer the card.</summary>
+    public bool ApprovalBeepEnabled { get; set; } = true;
+
     /// <summary>In-app quiet hours (S4 #38): while on and inside the window, MuseDesktop's own balloons/flash stay quiet (and say so in the log).</summary>
     public bool QuietHoursEnabled { get; set; }
 
