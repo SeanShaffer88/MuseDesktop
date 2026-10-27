@@ -164,11 +164,12 @@ public class S10Tests
         // Seven troubleshooting pages (S10) plus the generated
         // commands page (R1 #109) plus the downloads-organizing
         // page (R4), the focus & productivity page (R5), the
-        // conversation tools page (R5B), and the appearance
-        // round-2 page (R6).
-        Assert.Equal(12, HelpCatalog.Pages.Count);
-        Assert.Equal(12, HelpCatalog.Pages.Select(p => p.Id).Distinct().Count());
-        Assert.Equal(12, HelpCatalog.Pages.Select(p => p.Title).Distinct().Count());
+        // conversation tools page (R5B), the appearance
+        // round-2 page (R6), and the language & announcements
+        // page (R7).
+        Assert.Equal(13, HelpCatalog.Pages.Count);
+        Assert.Equal(13, HelpCatalog.Pages.Select(p => p.Id).Distinct().Count());
+        Assert.Equal(13, HelpCatalog.Pages.Select(p => p.Title).Distinct().Count());
         Assert.All(HelpCatalog.Pages, p =>
         {
             Assert.False(string.IsNullOrWhiteSpace(p.Keywords));
