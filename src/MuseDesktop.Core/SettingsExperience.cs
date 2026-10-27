@@ -186,6 +186,9 @@ public static class SettingsReset
         target.UiLanguage = fresh.UiLanguage;
         target.AnnouncementKindEnabled = fresh.AnnouncementKindEnabled;
         target.ShellTextSpacingScale = fresh.ShellTextSpacingScale;
+        // R7B field (v1.8.2): the token ring's estimated limit is a
+        // preference and resets to the default window.
+        target.EstimatedContextLimitTokens = fresh.EstimatedContextLimitTokens;
         // S7 fields (v0.11.0): password autosave / general autofill
         // return to the WebView2 defaults (both on).
         target.PasswordAutosaveEnabled = fresh.PasswordAutosaveEnabled;

@@ -333,6 +333,19 @@ public sealed class AppSettings
     /// </summary>
     public double ShellTextSpacingScale { get; set; } = 1.0;
 
+    // Token usage ring (v1.8.2, R7B).
+    /// <summary>
+    /// The context limit (tokens) the token ring's ESTIMATE is
+    /// measured against (R7B). It is used only when the Muse page
+    /// reports no usage figure of its own — a page-reported figure
+    /// always wins over this. Default 200,000 (the common large
+    /// context window); sanitized by <see cref="TokenEstimator"/>
+    /// (non-positive restores the default, otherwise clamped to
+    /// 1,000–10,000,000) because only the user knows their plan's
+    /// real window.
+    /// </summary>
+    public int EstimatedContextLimitTokens { get; set; } = TokenEstimator.DefaultLimitTokens;
+
     // Privacy & security (v0.11.0, S7).
     /// <summary>
     /// Let Muse (and its sign-in pages) save passwords in WebView2 and
@@ -513,6 +526,10 @@ public sealed class AppSettings
             UiLanguage = null;
         AnnouncementKindEnabled = AnnouncementSwitches.Sanitize(AnnouncementKindEnabled);
         ShellTextSpacingScale = ShellTextSpacing.Sanitize(ShellTextSpacingScale);
+        // R7B: the token ring's estimated limit repairs like every
+        // other numeric knob — a hand-edited absurdity degrades to
+        // the default or the nearest offered bound, never a crash.
+        EstimatedContextLimitTokens = TokenEstimator.SanitizeLimit(EstimatedContextLimitTokens);
         // After the profile list is final: pending deletions must never
         // name a live profile (S3 #28).
         global::MuseDesktop.Core.Profiles.SanitizePendingDeletions(this);
