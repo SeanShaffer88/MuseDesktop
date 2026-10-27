@@ -48,7 +48,7 @@ public static class SettingsSearch
         new SettingsSectionInfo(WorkspacesId, "Workspaces & sessions",
             "workspace workspaces session sessions layout windows arrangement save apply startup launch auto-save restore snapshot crash glyph icon accent duplicate rename delete"),
         new SettingsSectionInfo(AppearanceId, "Appearance & toolbar",
-            "theme dark light follow windows system accent color shell text size font scale toolbar customize reorder hide show buttons layout reset appearance"),
+            "theme dark light follow windows system accent color shell text size font scale toolbar customize reorder hide show buttons layout reset appearance mica acrylic backdrop material titlebar tint title bar profile color density compact spacing monochrome grayscale overlay badge custom picker hex opacity schedule time of day mini"),
         new SettingsSectionInfo(ZoomId, "Zoom",
             "zoom default percent bigger smaller text size page extended range low vision 500"),
         new SettingsSectionInfo(AccessibilityId, "Keyboard & accessibility",
@@ -232,6 +232,17 @@ public static class SettingsReset
         target.ShellFontScale = fresh.ShellFontScale;
         target.ToolbarOrder = fresh.ToolbarOrder;
         target.ToolbarHidden = fresh.ToolbarHidden;
+        // R6 fields: the round-2 face resets with the rest of it —
+        // backdrop, title bar tint, density, tray styles, the custom
+        // accent, and the theme schedule times.
+        target.Backdrop = fresh.Backdrop;
+        target.TitleBarProfileTint = fresh.TitleBarProfileTint;
+        target.Density = fresh.Density;
+        target.TrayIconStyle = fresh.TrayIconStyle;
+        target.TrayCountOverlay = fresh.TrayCountOverlay;
+        target.CustomAccent = fresh.CustomAccent;
+        target.ThemeLightStartMinutes = fresh.ThemeLightStartMinutes;
+        target.ThemeDarkStartMinutes = fresh.ThemeDarkStartMinutes;
         // A reset returns the app to its first-run state, wizard
         // included: the setup wizard offers itself again next launch.
         target.FirstRunCompleted = fresh.FirstRunCompleted;

@@ -587,6 +587,7 @@ public static class CommandRegistry
         Action("focus-mode", "Toggle focus mode", "focus mode hide toolbar compact chrome", GestureOf("focus-mode")),
         Action("fullscreen", "Toggle full screen", "full screen fullscreen f11", GestureOf("fullscreen")),
         Action("always-on-top", "Toggle always on top", "pin always on top window stay", detail: "Window"),
+        Action("mini-mode", "Toggle mini mode", "mini mode small window strip always on top compact downloads pause resume", detail: "Window"),
         Action("zoom-in", "Zoom in", "zoom in bigger text page", GestureOf("zoom-in")),
         Action("zoom-out", "Zoom out", "zoom out smaller text page", GestureOf("zoom-out")),
         Action("zoom-reset", "Reset zoom to 100%", "zoom reset 100 percent page", GestureOf("zoom-reset")),

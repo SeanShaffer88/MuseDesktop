@@ -311,6 +311,14 @@ public static class HelpCatalog
             "Bookmarks, drafts, snippets & reading comfort",
             "bookmark marked message nickname scrollbars scrollbar visible wider draft unsent lost typed export conversation markdown pdf snippet prompt insert reuse reading comfort text size column width line spacing",
             HelpAction.OpenSettings, "Open Settings — account profiles", SettingsSearch.ProfilesId),
+        // R6 (#151–#160): the appearance round-2 how-to page, also
+        // listed last — it answers "how do the backdrop / tint /
+        // custom accent / schedule / mini mode work", which no older
+        // page owned.
+        new HelpPage("appearance-round-2",
+            "Backdrop, title bar tint, custom accent, theme schedule & mini mode",
+            "backdrop mica acrylic frosted window background titlebar tint title bar profile color mini mode small window always on top favicon tray icon style monochrome profile-colored count badge dot opacity see-through custom accent color picker any color contrast theme schedule light dark time of day density compact spacing white flash",
+            HelpAction.OpenSettings, "Open Settings — appearance & toolbar", SettingsSearch.AppearanceId),
     };
 
     public static HelpPage? ById(string? id) =>

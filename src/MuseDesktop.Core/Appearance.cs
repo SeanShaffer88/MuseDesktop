@@ -13,6 +13,9 @@ public enum ThemeMode
 
     /// <summary>Match the Windows app theme (AppsUseLightTheme), re-evaluated at startup and when Windows reports a change.</summary>
     FollowSystem,
+
+    /// <summary>Light between the user's own light-start and dark-start times (R6 #159), re-evaluated every minute. Appended last so stored values and index-based UI mappings for the older modes never shift.</summary>
+    FollowSchedule,
 }
 
 /// <summary>
@@ -46,11 +49,16 @@ public static class ShellPalettes
 
 public static class ThemeResolution
 {
-    /// <summary>Dark unless the mode says light or the system does (S5 #43). An undefined mode value means Dark.</summary>
-    public static bool IsLight(ThemeMode mode, bool systemIsLight) => mode switch
+    /// <summary>Dark unless the mode says light or the system does (S5 #43). An undefined mode value means Dark. FollowSchedule reads as Dark through this overload — a caller with no clock must not guess at light.</summary>
+    public static bool IsLight(ThemeMode mode, bool systemIsLight) =>
+        IsLight(mode, systemIsLight, scheduleIsLight: false);
+
+    /// <summary>The full resolution (R6 #159): the schedule input only ever speaks for FollowSchedule.</summary>
+    public static bool IsLight(ThemeMode mode, bool systemIsLight, bool scheduleIsLight) => mode switch
     {
         ThemeMode.Light => true,
         ThemeMode.FollowSystem => systemIsLight,
+        ThemeMode.FollowSchedule => scheduleIsLight,
         _ => false,
     };
 }

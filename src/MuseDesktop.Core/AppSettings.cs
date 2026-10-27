@@ -248,6 +248,32 @@ public sealed class AppSettings
     /// <summary>Toolbar items the user hid (S5 #45). Sanitized by ToolbarLayout (Back can never be hidden).</summary>
     public List<string> ToolbarHidden { get; set; } = new();
 
+    // Appearance round 2 (v1.7.0, R6 #151–#160). All global: these
+    // describe the shell's own face, not one profile's page.
+    /// <summary>Backdrop material preference (R6 #151): Auto (Mica when the PC can), None, Mica, or Acrylic. The effective material is BackdropPolicy's call — this is only the wish.</summary>
+    public BackdropPreference Backdrop { get; set; } = BackdropPreference.Auto;
+
+    /// <summary>Title bar tinted with the active profile's color (R6 #152). High Contrast and reduced transparency outrank it (TitleBarTint + the shell's capability checks).</summary>
+    public bool TitleBarProfileTint { get; set; } = true;
+
+    /// <summary>Shell chrome density (R6 #153): Comfortable (the long-standing spacing) or Compact. Independent of ShellFontScale.</summary>
+    public ShellDensity Density { get; set; } = ShellDensity.Comfortable;
+
+    /// <summary>Tray icon painting style (R6 #155).</summary>
+    public TrayIconStyle TrayIconStyle { get; set; } = TrayIconStyle.Color;
+
+    /// <summary>Tray attention overlay style (R6 #155): numbered badge, plain dot, or none.</summary>
+    public TrayOverlayStyle TrayCountOverlay { get; set; } = TrayOverlayStyle.NumberBadge;
+
+    /// <summary>A custom accent color as "#RRGGBB" (R6 #158), or null for the preset in AccentColor. Sanitized by CustomAccent; derived variants pass the same contrast guard as the presets.</summary>
+    public string? CustomAccent { get; set; }
+
+    /// <summary>Theme schedule light-start, minutes after local midnight (R6 #159; default 07:00). Only speaks when Theme is FollowSchedule.</summary>
+    public int ThemeLightStartMinutes { get; set; } = ThemeScheduleMath.DefaultLightStartMinutes;
+
+    /// <summary>Theme schedule dark-start, minutes after local midnight (R6 #159; default 19:00; may be earlier than the light start — the light window wraps midnight).</summary>
+    public int ThemeDarkStartMinutes { get; set; } = ThemeScheduleMath.DefaultDarkStartMinutes;
+
     // Settings-window memory (v0.9.0, S5 #48).
     /// <summary>The Settings section last in view (a SettingsSearch section id), so Settings reopens where it was left. Sanitized to a known id or null.</summary>
     public string? SettingsLastSection { get; set; }
@@ -508,6 +534,24 @@ public sealed class AppSettings
         var (order, hidden) = ToolbarLayout.Sanitize(ToolbarOrder, ToolbarHidden);
         ToolbarOrder = order;
         ToolbarHidden = hidden;
+        // R6: appearance-round-2 repairs — undefined enums fall back
+        // to the default face; a malformed custom accent drops to
+        // the preset (never an unreadable look); schedule times
+        // repair per-field so one bad value keeps the other.
+        if (!Enum.IsDefined(Backdrop))
+            Backdrop = BackdropPreference.Auto;
+        if (!Enum.IsDefined(Density))
+            Density = ShellDensity.Comfortable;
+        if (!Enum.IsDefined(TrayIconStyle))
+            TrayIconStyle = TrayIconStyle.Color;
+        if (!Enum.IsDefined(TrayCountOverlay))
+            TrayCountOverlay = TrayOverlayStyle.NumberBadge;
+        // Fully qualified: the property above shadows the class here.
+        CustomAccent = MuseDesktop.Core.CustomAccent.TryNormalize(CustomAccent);
+        if (!QuietHours.IsValidMinutes(ThemeLightStartMinutes))
+            ThemeLightStartMinutes = ThemeScheduleMath.DefaultLightStartMinutes;
+        if (!QuietHours.IsValidMinutes(ThemeDarkStartMinutes))
+            ThemeDarkStartMinutes = ThemeScheduleMath.DefaultDarkStartMinutes;
         // S5 #48: Settings-window memory — a known section id or
         // nothing; sizes clamped to what a real monitor could show.
         if (!SettingsSearch.IsKnownSection(SettingsLastSection))
