@@ -27,6 +27,8 @@ namespace MuseDesktop;
 ///   {type:"md-bookmark", text}        — bookmark button clicked on a message
 ///   {type:"md-draft", text}           — composer text changed (debounced)
 ///   {type:"md-draft-sent"}            — a send was attempted (Enter / send button)
+///   {type:"md-approval-appeared"}     — an approval card appeared (R7C; presence only, never any card content)
+///   {type:"md-approval-gone"}         — that card went away (R7C)
 /// </summary>
 public static class PageScripts
 {
@@ -316,6 +318,108 @@ public static class PageScripts
             } catch (e) { }
           }, true);
 
+          // ── approval watcher (R7C): OBSERVE ONLY. It reports
+          // that an approval card appeared / went away so the
+          // shell can beep for the user's attention; it never
+          // clicks, focuses, or otherwise touches the card, and
+          // it reports presence only — no card text ever crosses
+          // the bridge. Recognition is structural, never prose:
+          // a visible container holding BOTH an approve-style
+          // action and a deny-style one, where an action is a
+          // real <button> or role="button" element whose ENTIRE
+          // label is exactly one of the known words. Chat text
+          // can quote "allow" and "deny" all day — a message
+          // contains no such button pair, so it can't trip this.
+          // The reported container is the smallest element
+          // holding both actions; the page root, <main> itself,
+          // a message element, and anything containing the
+          // composer are never the card, and the container must
+          // read as a card (well under the whole viewport).
+          var APPROVE_WORDS = ['allow', 'allow once', 'allow always', 'approve', 'yes'];
+          var DENY_WORDS = ['deny', 'reject', 'cancel', 'no'];
+          function isShown(el) {
+            if (!el) return false;
+            var r = el.getBoundingClientRect();
+            if (!r.width || !r.height) return false;
+            if (el.offsetParent === null && getComputedStyle(el).position !== 'fixed') return false;
+            return true;
+          }
+          function actionWord(el) {
+            var label = collapse(el.getAttribute('aria-label') || el.textContent || '').toLowerCase();
+            if (!label || label.length > 24) return '';
+            if (APPROVE_WORDS.indexOf(label) >= 0) return 'approve';
+            if (DENY_WORDS.indexOf(label) >= 0) return 'deny';
+            return '';
+          }
+          function findApprovalCard() {
+            try {
+              var buttons = document.querySelectorAll('button, [role="button"]');
+              var approves = [], denies = [];
+              for (var i = 0; i < buttons.length; i++) {
+                if (!isShown(buttons[i])) continue;
+                var w = actionWord(buttons[i]);
+                if (w === 'approve') approves.push(buttons[i]);
+                else if (w === 'deny') denies.push(buttons[i]);
+              }
+              if (!approves.length || !denies.length) return null;
+              // Smallest common container of an approve/deny pair.
+              var pair = null;
+              outer:
+              for (var a = 0; a < approves.length; a++) {
+                for (var d = 0; d < denies.length; d++) {
+                  var node = approves[a];
+                  while (node && node !== document.body) {
+                    if (node.contains(denies[d])) { pair = node; break outer; }
+                    node = node.parentElement;
+                  }
+                }
+              }
+              if (!pair || pair === document.body || pair === document.documentElement) return null;
+              var main = document.querySelector('main');
+              if (main && pair === main) return null;
+              var testid = (pair.getAttribute('data-testid') || '').toLowerCase();
+              if (testid.indexOf('message') >= 0) return null;      // a message is not a card
+              var composer = findComposer();
+              if (composer && pair.contains(composer)) return null; // the composer block is not a card
+              if (!isShown(pair)) return null;
+              var rect = pair.getBoundingClientRect();
+              var view = window.innerWidth * window.innerHeight;
+              if (view && rect.width * rect.height > view * 0.6) return null; // a card, not the whole app
+              return pair;
+            } catch (e) { return null; }
+          }
+          // Transitions post only after the new state survives a
+          // settle delay (~0.8s), so a framework re-render that
+          // drops and re-adds the node doesn't flap the signal —
+          // and the shell still hears about a card that appears
+          // on an otherwise static page (the confirm timer).
+          var approvalReported = false;
+          var approvalCandidate = null;
+          var approvalCandidateSince = 0;
+          var approvalConfirmTimer = null;
+          function scanApproval() {
+            try {
+              var present = !!findApprovalCard();
+              if (present === approvalReported) { approvalCandidate = null; return; }
+              var now = Date.now();
+              if (approvalCandidate !== present) {
+                approvalCandidate = present;
+                approvalCandidateSince = now;
+                if (!approvalConfirmTimer) {
+                  approvalConfirmTimer = setTimeout(function () {
+                    approvalConfirmTimer = null;
+                    scanApproval();
+                  }, 850);
+                }
+                return;
+              }
+              if (now - approvalCandidateSince < 800) return;
+              approvalReported = present;
+              approvalCandidate = null;
+              post({ type: present ? 'md-approval-appeared' : 'md-approval-gone' });
+            } catch (e) { }
+          }
+
           // ── watch the page: conversations render and grow as the
           // user chats, so buttons/composer binding re-check on
           // mutation (debounced) rather than once.
@@ -326,6 +430,7 @@ public static class PageScripts
               scanTimer = null;
               ensureBookmarkButtons();
               bindComposer();
+              scanApproval();
             }, 600);
           }
           try {
@@ -334,6 +439,7 @@ public static class PageScripts
           } catch (e) { }
           ensureBookmarkButtons();
           bindComposer();
+          scanApproval();
           post({ type: 'md-ready' });
         })();
         """;
