@@ -327,6 +327,13 @@ public static class HelpCatalog
             "Languages, language packs, announcements & text spacing",
             "language español spanish english translation translate pack import export coverage missing strings announcements announce spoken mute narrator screen reader history text spacing line height low vision right-to-left rtl tab order",
             HelpAction.OpenSettings, "Open Settings — language & announcements", SettingsSearch.LanguageId),
+        // R7D: the seamless-updates page, also listed last — it
+        // answers "how do updates work / must I close the app first",
+        // which no older page owned.
+        new HelpPage("updating",
+            "Updating to a new version",
+            "update updating upgrade new version download install installer close app first running tray hidden locked reopen relaunch silent wizard snooze remind later check for updates rollback previous version hands-free automatic",
+            HelpAction.OpenSettings, "Open Settings — behavior", SettingsSearch.BehaviorId),
     };
 
     public static HelpPage? ById(string? id) =>
