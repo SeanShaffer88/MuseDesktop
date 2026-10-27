@@ -75,9 +75,20 @@ translated or restyled; the Muse page is never touched.
   no letter-spacing setting, so the control is line spacing
   only; see Known limitations.)
 
-Core test suite grows by 93 cases (981 → 1074); everything above is
+Core test suite grows by 94 cases (981 → 1075); everything above is
 **Unverified** on a real machine until the on-machine pass (see
 RELEASE_CHECKLIST).
+
+### Fixed
+
+- **Settings would not open (crash, found in the v1.7.0 field
+  pass).** The profile picker in Settings carries a custom item
+  template (color dot + name), and an older line of code also set
+  its DisplayMemberPath — Windows' UI framework refuses the
+  combination and throws, closing the window before it appears.
+  The redundant line is gone (the template already shows the
+  name), and a new test fails the build if any templated control
+  ever gets a DisplayMemberPath again.
 
 ## [1.7.0] — Unreleased
 
