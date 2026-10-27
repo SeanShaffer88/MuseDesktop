@@ -36,16 +36,16 @@ public partial class AboutWindow : Window
         InitializeComponent();
         SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(this);
         FactsText.Text =
-            $"Version: {facts.Version}\n" +
-            $"Release channel: {facts.ChannelLabel}\n" +
-            $"Architecture: {facts.Architecture}\n" +
-            $"Windows: {facts.WindowsVersion}\n" +
-            $".NET: {facts.DotNetVersion}\n" +
-            $"WebView2 runtime: {facts.WebViewVersion}\n" +
+            Strings.Format("about.fact_version", facts.Version) + "\n" +
+            Strings.Format("about.fact_channel", facts.ChannelLabel) + "\n" +
+            Strings.Format("about.fact_architecture", facts.Architecture) + "\n" +
+            Strings.Format("about.fact_windows", facts.WindowsVersion) + "\n" +
+            Strings.Format("about.fact_dotnet", facts.DotNetVersion) + "\n" +
+            Strings.Format("about.fact_webview2", facts.WebViewVersion) + "\n" +
             "\n" +
-            $"Settings: {facts.SettingsPath}\n" +
-            $"Log: {facts.LogPath}\n" +
-            $"Web profile: {facts.ProfileDir}";
+            Strings.Format("about.fact_settings", facts.SettingsPath) + "\n" +
+            Strings.Format("about.fact_log", facts.LogPath) + "\n" +
+            Strings.Format("about.fact_profile", facts.ProfileDir);
         LicensesText.Text = LoadLicensesText();
     }
 
@@ -65,11 +65,11 @@ public partial class AboutWindow : Window
                 var path = Path.Combine(AppContext.BaseDirectory, name);
                 parts.Add(File.Exists(path)
                     ? File.ReadAllText(path).Trim()
-                    : $"({name} isn't beside the app in this install — the same file is in the MuseDesktop repository.)");
+                    : Strings.Format("about.file_missing", name));
             }
             catch (Exception ex)
             {
-                parts.Add($"({name} couldn't be read: {ex.Message})");
+                parts.Add(Strings.Format("about.file_unreadable", name, ex.Message));
             }
         }
         return string.Join("\n\n----------------------------------------\n\n", parts);
@@ -80,7 +80,7 @@ public partial class AboutWindow : Window
         _licensesShown = !_licensesShown;
         FactsText.Visibility = _licensesShown ? Visibility.Collapsed : Visibility.Visible;
         LicensesText.Visibility = _licensesShown ? Visibility.Visible : Visibility.Collapsed;
-        LicensesButton.Content = _licensesShown ? "Back to About" : "Licenses & notices";
+        LicensesButton.Content = _licensesShown ? Strings.Get("about.back") : Strings.Get("licenses_notices");
     }
 
     private void OnCheckForUpdates(object sender, RoutedEventArgs e)

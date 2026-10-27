@@ -31,7 +31,7 @@ public partial class LockWindow : Window
         _record = record;
         _throttle = throttle;
         InitializeComponent();
-        LeaveButton.Content = exitOnClose ? "Exit MuseDesktop" : "Stay locked";
+        LeaveButton.Content = exitOnClose ? Strings.Get("lock.exit_app") : Strings.Get("stay_locked");
         SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(this);
         Loaded += (_, _) =>
         {
@@ -82,8 +82,8 @@ public partial class LockWindow : Window
         PasswordEntry.Clear();
         PasswordEntry.Focus();
         StatusText.Text = startedCooldown
-            ? "That's not the right password. Too many wrong tries — wait for the countdown, then try again."
-            : $"That's not the right password. ({_throttle.ConsecutiveFailures} of {AppLockThrottle.FailuresBeforeCooldown} tries before a short pause)";
+            ? Strings.Get("lock.wrong_cooldown")
+            : Strings.Format("lock.wrong_count", _throttle.ConsecutiveFailures, AppLockThrottle.FailuresBeforeCooldown);
         RefreshCooldownUi();
     }
 
@@ -95,7 +95,7 @@ public partial class LockWindow : Window
         {
             UnlockButton.IsEnabled = false;
             var seconds = Math.Max(1, (int)Math.Ceiling(_throttle.RemainingCooldown(now).TotalSeconds));
-            StatusText.Text = $"Too many wrong tries. Try again in {seconds} s…";
+            StatusText.Text = Strings.Format("ui.too_many_wrong_tries", seconds);
             if (!_cooldownTimer.IsEnabled)
                 _cooldownTimer.Start();
         }
@@ -103,8 +103,8 @@ public partial class LockWindow : Window
         {
             UnlockButton.IsEnabled = true;
             _cooldownTimer.Stop();
-            if (StatusText.Text.StartsWith("Too many wrong tries. Try again", StringComparison.Ordinal))
-                StatusText.Text = "You can try again now.";
+            if (StatusText.Text.StartsWith(Strings.Get("ui.too_many_wrong_tries").Split('{')[0].TrimEnd(), StringComparison.Ordinal))
+                StatusText.Text = Strings.Get("ui.you_can_try_again_now");
         }
     }
 }

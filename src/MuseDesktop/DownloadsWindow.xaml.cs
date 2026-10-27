@@ -40,18 +40,22 @@ public partial class DownloadsWindow : Window
             get
             {
                 var state = Record.State == DownloadRecordState.Failed
-                    ? $"Failed{(string.IsNullOrWhiteSpace(Record.FailureReason) ? "" : $" ({Record.FailureReason})")} · "
+                    ? string.IsNullOrWhiteSpace(Record.FailureReason)
+                        ? Strings.Get("dl.row_failed") + " · "
+                        : Strings.Format("dl.row_failed_reason", Record.FailureReason)
                     : "";
                 // R4 #137/#136: the user's note and the hash verdict ride
                 // the same line — both are facts about THIS entry.
-                var note = string.IsNullOrWhiteSpace(Record.Note) ? "" : $" · Note: {Record.Note}";
+                var note = string.IsNullOrWhiteSpace(Record.Note) ? "" : Strings.Format("dl.row_note", Record.Note);
                 var hash = Record.HashVerified switch
                 {
-                    true => " · SHA-256 verified",
-                    false => " · SHA-256 check FAILED",
+                    true => Strings.Get("dl.row_hash_ok"),
+                    false => Strings.Get("dl.row_hash_failed"),
                     null => "",
                 };
-                return $"{state}{DownloadText.FormatBytes(Record.SizeBytes)} · {Record.CompletedUtc.ToLocalTime():yyyy-MM-dd HH:mm} · {Record.FullPath}{note}{hash}";
+                return state + Strings.Format("dl.row_main",
+                    DownloadText.FormatBytes(Record.SizeBytes),
+                    Record.CompletedUtc.ToLocalTime(), Record.FullPath, note, hash);
             }
         }
     }
@@ -153,11 +157,11 @@ public partial class DownloadsWindow : Window
         var filtered = DownloadHistoryQuery.Apply(_allRecords, SearchText?.Text, filter, sort);
         DownloadsList.ItemsSource = filtered.Select(r => new Row { Record = r }).ToList();
         if (_allRecords.Count == 0)
-            NoteText.Text = "Nothing here yet — files you download from Muse will appear in this list.";
+            NoteText.Text = Strings.Get("ui.nothing_here_yet_files_you_download");
         else if (filtered.Count == 0)
-            NoteText.Text = "No downloads match the current search/filter.";
+            NoteText.Text = Strings.Get("ui.no_downloads_match_the_current_search");
         else
-            NoteText.Text = "Files Muse downloaded for you. The list is kept on this PC only.";
+            NoteText.Text = Strings.Get("ui.files_muse_downloaded_for_you_the_list");
     }
 
     private void OnSearchOrFilterChanged(object sender, object e) => ApplyHistoryQuery();
@@ -189,7 +193,7 @@ public partial class DownloadsWindow : Window
             return;
         if (!File.Exists(row.Record.FullPath))
         {
-            NoteText.Text = $"\"{row.Record.FileName}\" isn't at that location anymore (moved or deleted).";
+            NoteText.Text = Strings.Format("note.file_not_at_location", row.Record.FileName);
             return;
         }
         try
@@ -199,7 +203,7 @@ public partial class DownloadsWindow : Window
         catch (Exception ex)
         {
             _log.Warn($"Downloads window open failed: {ex.Message}");
-            NoteText.Text = $"Couldn't open \"{row.Record.FileName}\".";
+            NoteText.Text = Strings.Format("note.couldnt_open_file", row.Record.FileName);
         }
     }
 
@@ -220,7 +224,7 @@ public partial class DownloadsWindow : Window
             }
             else
             {
-                NoteText.Text = $"The folder for \"{row.Record.FileName}\" no longer exists.";
+                NoteText.Text = Strings.Format("note.folder_no_longer_exists", row.Record.FileName);
             }
         }
         catch (Exception ex)
@@ -237,12 +241,12 @@ public partial class DownloadsWindow : Window
         try
         {
             System.Windows.Clipboard.SetText(row.Record.FullPath);
-            NoteText.Text = $"Copied: {row.Record.FullPath}";
+            NoteText.Text = Strings.Format("note.copied_path", row.Record.FullPath);
         }
         catch (Exception ex)
         {
             _log.Warn($"Downloads window copy-path failed: {ex.Message}");
-            NoteText.Text = "Couldn't copy the path — the clipboard is busy.";
+            NoteText.Text = Strings.Get("ui.couldn_t_copy_the_path_the_clipboard_is");
         }
     }
 
@@ -256,7 +260,7 @@ public partial class DownloadsWindow : Window
             return;
         if (!File.Exists(row.Record.FullPath))
         {
-            NoteText.Text = $"\"{row.Record.FileName}\" isn't at that location anymore (moved or deleted).";
+            NoteText.Text = Strings.Format("note.file_not_at_location", row.Record.FileName);
             return;
         }
         try
@@ -267,7 +271,7 @@ public partial class DownloadsWindow : Window
         catch (Exception ex)
         {
             _log.Warn($"Downloads window open-with failed: {ex.Message}");
-            NoteText.Text = $"Couldn't open the Open-with dialog for \"{row.Record.FileName}\".";
+            NoteText.Text = Strings.Format("note.couldnt_open_with_dialog", row.Record.FileName);
         }
     }
 
@@ -282,10 +286,8 @@ public partial class DownloadsWindow : Window
             return;
         var invoker = FocusReturn.Capture();
         var confirm = System.Windows.MessageBox.Show(this,
-            $"Delete \"{row.Record.FileName}\" from this PC?\n\n" +
-            "The file is deleted (not sent to the Recycle Bin by this action — Windows deletes it directly) " +
-            "and its entry is removed from this list. This can't be undone from MuseDesktop.",
-            "Delete downloaded file", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            Strings.Format("msg.delete_downloaded_body", row.Record.FileName),
+            Strings.Get("msg.delete_downloaded_file"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (confirm != MessageBoxResult.Yes)
         {
             FocusReturn.Restore(invoker);
@@ -297,12 +299,12 @@ public partial class DownloadsWindow : Window
                 File.Delete(row.Record.FullPath);
             DownloadHistoryStore.Remove(AppPaths.DownloadsHistoryPath, row.Record, _historyCap);
             _log.Info($"Downloaded file deleted from Downloads window: {row.Record.FileName}");
-            NoteText.Text = $"Deleted \"{row.Record.FileName}\".";
+            NoteText.Text = Strings.Format("note.deleted_file", row.Record.FileName);
         }
         catch (Exception ex)
         {
             _log.Warn($"Downloads window delete-file failed: {ex.Message}");
-            NoteText.Text = $"Couldn't delete \"{row.Record.FileName}\" ({ex.Message}).";
+            NoteText.Text = Strings.Format("note.couldnt_delete_file", row.Record.FileName, ex.Message);
         }
         Refresh();
     }
@@ -311,8 +313,8 @@ public partial class DownloadsWindow : Window
     {
         var invoker = FocusReturn.Capture();
         var confirm = System.Windows.MessageBox.Show(this,
-            "Clear the download history?\n\nThis only removes the list — the downloaded files themselves stay where they are.",
-            "Clear download history", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            Strings.Get("msg.clear_history_body"),
+            Strings.Get("msg.clear_download_history"), MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (confirm != MessageBoxResult.Yes)
         {
             FocusReturn.Restore(invoker);
@@ -347,7 +349,7 @@ public partial class DownloadsWindow : Window
             {
                 Id = d.Id,
                 FileName = d.FileName,
-                Detail = DownloadText.ActiveDetail(d, now),
+                Detail = DownloadLines.ActiveDetail(d, now),
                 State = d.State,
                 CanResume = d.CanResume,
             })
@@ -356,7 +358,7 @@ public partial class DownloadsWindow : Window
         {
             Id = f.Id,
             FileName = f.FileName,
-            Detail = "Failed this session — Retry starts the download again",
+            Detail = Strings.Get("dl.failed_this_session"),
             State = DownloadActivityState.Failed,
             IsSessionFailed = true,
         }));
@@ -364,8 +366,8 @@ public partial class DownloadsWindow : Window
         if (selectedId is not null)
             ActiveList.SelectedItem = rows.FirstOrDefault(r => r.Id == selectedId);
         ActiveNote.Text = rows.Count == 0
-            ? "Nothing is downloading right now."
-            : $"{rows.Count} item(s) — Pause/Resume use WebView2's own download controls; Retry is available for this session's failures only.";
+            ? Strings.Get("nothing_is_downloading_right_now")
+            : Strings.Format("dl.active_items_note", rows.Count);
         UpdateActiveButtons();
         // R4 #135: feed the speed graph from the same poll that refreshes
         // this list. Samples live in memory only — closing the window
@@ -386,8 +388,10 @@ public partial class DownloadsWindow : Window
             points.Add(new System.Windows.Point(x * width, height - 2 - y * (height - 4)));
         SpeedPolyline.Points = points;
         SpeedGraphLabel.Text = _speedHistory.Peak > 0
-            ? $"Download speed — now {DownloadText.FormatSpeed(_tracker?.TotalSpeed ?? 0)} · peak {DownloadText.FormatSpeed(_speedHistory.Peak)} (this PC only)"
-            : "Download speed (this PC only)";
+            ? Strings.Format("dl.speed_graph",
+                DownloadText.FormatSpeed(_tracker?.TotalSpeed ?? 0),
+                DownloadText.FormatSpeed(_speedHistory.Peak))
+            : Strings.Get("dl.speed_graph_plain");
     }
 
     private void UpdateActiveButtons()
@@ -429,12 +433,12 @@ public partial class DownloadsWindow : Window
         try
         {
             await _retryAsync(row.Id);
-            NoteText.Text = $"Retrying \"{row.FileName}\" — watch the active list / status bar for progress.";
+            NoteText.Text = Strings.Format("note.retrying_file", row.FileName);
         }
         catch (Exception ex)
         {
             _log.Warn($"Retry download failed: {ex.Message}");
-            NoteText.Text = $"Couldn't retry \"{row.FileName}\".";
+            NoteText.Text = Strings.Format("note.couldnt_retry_file", row.FileName);
         }
         RefreshActive();
     }
@@ -447,11 +451,11 @@ public partial class DownloadsWindow : Window
         if (Selected is not { } row)
             return;
         var prompt = new TextPromptWindow(
-            "Download note",
-            $"Note for \"{row.Record.FileName}\" — kept with the download history on this PC only. Clear the text to remove the note.",
+            Strings.Get("dl.note_title"),
+            Strings.Format("dl.note_body", row.Record.FileName),
             row.Record.Note ?? "",
             multiline: false,
-            okText: "Save note")
+            okText: Strings.Get("save_note"))
         { Owner = this };
         ShellTextScaling.Apply(prompt, _settings.ShellFontScale);
         if (prompt.ShowDialog() != true)
@@ -459,14 +463,14 @@ public partial class DownloadsWindow : Window
         try
         {
             if (DownloadHistoryStore.SetNote(AppPaths.DownloadsHistoryPath, row.Record, prompt.Text, _historyCap))
-                NoteText.Text = $"Note saved for \"{row.Record.FileName}\".";
+                NoteText.Text = Strings.Format("note.note_saved_for", row.Record.FileName);
             else
-                NoteText.Text = "That entry is no longer in the history — the note wasn't saved.";
+                NoteText.Text = Strings.Get("ui.that_entry_is_no_longer_in_the_history");
         }
         catch (Exception ex)
         {
             _log.Warn($"Download note save failed: {ex.Message}");
-            NoteText.Text = "Couldn't save the note.";
+            NoteText.Text = Strings.Get("ui.couldn_t_save_the_note");
         }
         Refresh();
     }
@@ -482,22 +486,22 @@ public partial class DownloadsWindow : Window
             return;
         if (!File.Exists(row.Record.FullPath))
         {
-            NoteText.Text = $"\"{row.Record.FileName}\" isn't at that location anymore (moved or deleted).";
+            NoteText.Text = Strings.Format("note.file_not_at_location", row.Record.FileName);
             return;
         }
         var prompt = new TextPromptWindow(
-            "Verify SHA-256",
-            $"Paste the SHA-256 hash \"{row.Record.FileName}\" should have (64 hex characters; spaces and colons are fine). MuseDesktop hashes the file on this PC and compares — nothing is sent anywhere.",
+            Strings.Get("dl.verify_title"),
+            Strings.Format("dl.verify_body", row.Record.FileName),
             "",
             multiline: false,
-            okText: "Verify")
+            okText: Strings.Get("dl.verify_ok"))
         { Owner = this };
         ShellTextScaling.Apply(prompt, _settings.ShellFontScale);
         if (prompt.ShowDialog() != true)
             return;
         if (!DownloadHash.TryNormalizeSha256(prompt.Text, out _))
         {
-            NoteText.Text = "That doesn't look like a SHA-256 hash (64 hex characters) — nothing was checked.";
+            NoteText.Text = Strings.Get("ui.that_doesn_t_look_like_a_sha_256_hash");
             return;
         }
         VerifyButton.IsEnabled = false;
@@ -506,7 +510,7 @@ public partial class DownloadsWindow : Window
         var result = await Task.Run(() => DownloadHash.Verify(path, expected));
         if (result.Error is not null)
         {
-            NoteText.Text = $"Couldn't check \"{row.Record.FileName}\": {result.Error}";
+            NoteText.Text = Strings.Format("note.couldnt_check_file", row.Record.FileName, result.Error);
         }
         else
         {
@@ -520,8 +524,8 @@ public partial class DownloadsWindow : Window
             }
             _log.Info($"SHA-256 check: {row.Record.FileName} — {(result.Matches ? "match" : "MISMATCH")}");
             NoteText.Text = result.Matches
-                ? $"SHA-256 matches — \"{row.Record.FileName}\" is exactly the file that hash describes."
-                : $"SHA-256 does NOT match — \"{row.Record.FileName}\" is not the file that hash describes. Treat it with care.";
+                ? Strings.Format("dl.hash_matches", row.Record.FileName)
+                : Strings.Format("dl.hash_mismatch", row.Record.FileName);
         }
         Refresh();
     }
@@ -577,10 +581,10 @@ public partial class DownloadsWindow : Window
     /// <summary>The preview text for a move plan: one line per move, capped, so the confirm dialog stays readable.</summary>
     private static string PreviewText(IReadOnlyList<DownloadMove> moves)
     {
-        var lines = moves.Take(12).Select(m => $"• {Path.GetFileName(m.SourcePath)}  →  {m.DestinationPath}");
+        var lines = moves.Take(12).Select(m => Strings.Format("dl.sort_line", Path.GetFileName(m.SourcePath), m.DestinationPath));
         var text = string.Join("\n", lines);
         if (moves.Count > 12)
-            text += $"\n• …and {moves.Count - 12} more";
+            text += "\n" + Strings.Format("dl.sort_more", moves.Count - 12);
         return text;
     }
 
@@ -605,14 +609,13 @@ public partial class DownloadsWindow : Window
         }
         if (moves.Count == 0)
         {
-            NoteText.Text = "Nothing to sort — every finished download is already in a subfolder, or no rule matches it.";
+            NoteText.Text = Strings.Get("ui.nothing_to_sort_every_finished_download");
             return;
         }
         var invoker = FocusReturn.Capture();
         var confirm = System.Windows.MessageBox.Show(this,
-            $"Move {moves.Count} file(s) into subfolders?\n\n{PreviewText(moves)}\n\n" +
-            "Nothing is overwritten (name clashes get a \" (1)\" suffix), and Undo sort can put everything back.",
-            "Sort downloads", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            Strings.Format("msg.sort_downloads_body", moves.Count, PreviewText(moves)),
+            Strings.Get("msg.sort_downloads"), MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (confirm != MessageBoxResult.Yes)
         {
             FocusReturn.Restore(invoker);
@@ -620,8 +623,8 @@ public partial class DownloadsWindow : Window
         }
         var applied = ApplyMoves(moves);
         NoteText.Text = applied.Count == moves.Count
-            ? $"Sorted {applied.Count} file(s). Undo sort can put them back."
-            : $"Sorted {applied.Count} of {moves.Count} file(s) — the rest couldn't be moved (see the log). Undo sort can put back the ones that moved.";
+            ? Strings.Format("note.sorted_all", applied.Count)
+            : Strings.Format("note.sorted_some", applied.Count, moves.Count);
         Refresh();
     }
 
@@ -640,21 +643,20 @@ public partial class DownloadsWindow : Window
         }
         if (moves.Count == 0)
         {
-            NoteText.Text = "Nothing to archive — every finished download is already in the archive.";
+            NoteText.Text = Strings.Get("ui.nothing_to_archive_every_finished");
             return;
         }
         var invoker = FocusReturn.Capture();
         var confirm = System.Windows.MessageBox.Show(this,
-            $"Move {moves.Count} file(s) into the archive, in folders named by the day each finished downloading?\n\n{PreviewText(moves)}\n\n" +
-            "Nothing is overwritten, and Undo sort can put everything back.",
-            "Archive downloads", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            Strings.Format("msg.archive_downloads_body", moves.Count, PreviewText(moves)),
+            Strings.Get("msg.archive_downloads"), MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (confirm != MessageBoxResult.Yes)
         {
             FocusReturn.Restore(invoker);
             return;
         }
         var applied = ApplyMoves(moves);
-        NoteText.Text = $"Archived {applied.Count} of {moves.Count} file(s). Undo sort can put them back.";
+        NoteText.Text = Strings.Format("note.archived_some", applied.Count, moves.Count);
         Refresh();
     }
 
@@ -665,7 +667,7 @@ public partial class DownloadsWindow : Window
         var batch = DownloadSortJournalStore.LastBatch(journalPath);
         if (batch is null)
         {
-            NoteText.Text = "Nothing to undo.";
+            NoteText.Text = Strings.Get("ui.nothing_to_undo");
             Refresh();
             return;
         }
@@ -673,15 +675,14 @@ public partial class DownloadsWindow : Window
         if (undo.Count == 0)
         {
             DownloadSortJournalStore.RemoveLast(journalPath);
-            NoteText.Text = "Those files aren't where the sort left them anymore — nothing left to undo.";
+            NoteText.Text = Strings.Get("ui.those_files_aren_t_where_the_sort_left");
             Refresh();
             return;
         }
         var invoker = FocusReturn.Capture();
         var confirm = System.Windows.MessageBox.Show(this,
-            $"Move {undo.Count} file(s) back where they were before the last sort/archive?\n\n{PreviewText(undo)}\n\n" +
-            "Nothing is overwritten — a file that now sits at an original spot keeps it, and the returning file gets a \" (1)\" suffix.",
-            "Undo sort", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            Strings.Format("msg.undo_sort_body", undo.Count, PreviewText(undo)),
+            Strings.Get("msg.undo_sort"), MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (confirm != MessageBoxResult.Yes)
         {
             FocusReturn.Restore(invoker);
@@ -689,7 +690,7 @@ public partial class DownloadsWindow : Window
         }
         var applied = ApplyMoves(undo, journal: false);
         DownloadSortJournalStore.RemoveLast(journalPath);
-        NoteText.Text = $"Put {applied.Count} of {undo.Count} file(s) back.";
+        NoteText.Text = Strings.Format("note.put_back_some", applied.Count, undo.Count);
         Refresh();
     }
 
@@ -706,11 +707,11 @@ public partial class DownloadsWindow : Window
         if (_startBatchAsync is null)
             return;
         var prompt = new TextPromptWindow(
-            "Download a list of links",
-            "Paste one link per line. MuseDesktop keeps only http/https links, drops duplicates, and asks before downloading anything.",
+            Strings.Get("dl.batch_title"),
+            Strings.Get("dl.batch_body"),
             "",
             multiline: true,
-            okText: "Review links")
+            okText: Strings.Get("dl.batch_ok"))
         { Owner = this };
         ShellTextScaling.Apply(prompt, _settings.ShellFontScale);
         if (prompt.ShowDialog() != true)
@@ -719,20 +720,21 @@ public partial class DownloadsWindow : Window
         if (parsed.Links.Count == 0)
         {
             NoteText.Text = parsed.Rejected.Count > 0
-                ? $"No usable links in that list — {parsed.Rejected.Count} line(s) weren't http/https links."
-                : "That list was empty.";
+                ? Strings.Format("dl.batch_none_usable", parsed.Rejected.Count)
+                : Strings.Get("dl.batch_empty");
             return;
         }
-        var names = string.Join("\n", parsed.Links.Take(10).Select(l => $"• {l.FileName}"));
+        var names = string.Join("\n", parsed.Links.Take(10).Select(l => Strings.Format("msg.batch_link_line", l.FileName)));
         if (parsed.Links.Count > 10)
-            names += $"\n• …and {parsed.Links.Count - 10} more";
+            names += Strings.Format("msg.batch_more_links", parsed.Links.Count - 10);
         var rejected = parsed.Rejected.Count > 0
-            ? $"\n\n{parsed.Rejected.Count} line(s) were skipped (not usable links, duplicates, or past the {BatchLinkParser.MaxLinks}-link cap)."
+            ? Strings.Format("msg.batch_rejected_lines", parsed.Rejected.Count, BatchLinkParser.MaxLinks)
             : "";
         var invoker = FocusReturn.Capture();
         var confirm = System.Windows.MessageBox.Show(this,
-            $"Download {parsed.Links.Count} file(s)? At most {DownloadConcurrency.MaxConcurrentDownloads} run at once; the rest queue.\n\n{names}{rejected}",
-            "Download links", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            Strings.Format("msg.download_links_body", parsed.Links.Count,
+                DownloadConcurrency.MaxConcurrentDownloads, names + rejected),
+            Strings.Get("msg.download_links"), MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (confirm != MessageBoxResult.Yes)
         {
             FocusReturn.Restore(invoker);
@@ -741,12 +743,12 @@ public partial class DownloadsWindow : Window
         try
         {
             await _startBatchAsync(parsed.Links);
-            NoteText.Text = $"Batch started: {parsed.Links.Count} link(s) — watch the active list above.";
+            NoteText.Text = Strings.Format("note.batch_started", parsed.Links.Count);
         }
         catch (Exception ex)
         {
             _log.Warn($"Batch download start failed: {ex.Message}");
-            NoteText.Text = "Couldn't start the batch — see the log.";
+            NoteText.Text = Strings.Get("ui.couldn_t_start_the_batch_see_the_log");
         }
         RefreshActive();
     }

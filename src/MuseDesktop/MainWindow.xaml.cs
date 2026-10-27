@@ -175,6 +175,7 @@ public partial class MainWindow : Window
     // and the ProcessFailed handler used to keep separate flags); the
     // hung-page watchdog (#80); safe mode (#72); startup timings
     // (#73); the tray-suspend memory pair (#74); runtime health (#78).
+    private AnnouncementHistory _announcementHistory = new();
     private readonly RecoveryCoordinator _recovery = new();
     private readonly WatchdogPolicy _watchdog = new();
     private DispatcherTimer? _watchdogTimer;
@@ -243,7 +244,7 @@ public partial class MainWindow : Window
             CancelDownloadButton.Visibility = active ? Visibility.Visible : Visibility.Collapsed;
             if (active) StatusText.ToolTip = "";
         };
-        _downloads.Completed += () => StatusText.ToolTip = "Click to open the file";
+        _downloads.Completed += () => StatusText.ToolTip = Strings.Get("ui.click_to_open_the_file");
         // S2 #19: taskbar progress mirror. A failure latches the Error
         // state until the next download starts.
         _downloads.Started += () => { _downloadError = false; UpdateTaskbarProgress(); };
@@ -302,14 +303,26 @@ public partial class MainWindow : Window
         // S6 #54: live regions for assistive-tech announcements, and
         // the download events that feed them (the wording is Core's).
         Announcer.Register(LiveRegionPolite, LiveRegionAssertive);
+        // R7 #169: the announcement center — the per-type switches
+        // and the history live here now; download news is kinded so
+        // the Downloads switch governs it. The wording still mirrors
+        // Core's AnnouncementText (pinned against the catalog).
+        _announcementHistory = AnnouncementHistoryStore.Load(AppPaths.AnnouncementHistoryPath);
+        Announcer.Configure(() => _settings, _announcementHistory);
         _downloads.Completed += () =>
         {
             if (_downloads.CompletedPath is { } path)
-                Announcer.Polite(AnnouncementText.DownloadCompleted(Path.GetFileName(path)));
+                Announcer.Kind(AnnouncementKind.Downloads,
+                    Strings.Format("announce.download.completed", Path.GetFileName(path)));
         };
         _downloads.Failed += () =>
-            Announcer.Assertive(AnnouncementText.DownloadFailed(
-                _downloads.LastFailedName ?? "A download", _downloads.LastFailedReason));
+            Announcer.Kind(AnnouncementKind.Downloads,
+                _downloads.LastFailedReason is { } reason
+                    ? Strings.Format("announce.download.failed_reason",
+                        _downloads.LastFailedName ?? Strings.Get("announce.a_download"), reason)
+                    : Strings.Format("announce.download.failed",
+                        _downloads.LastFailedName ?? Strings.Get("announce.a_download")),
+                assertive: true);
 
         // S6 #58: the ring around the web view lights up while
         // keyboard focus is inside the page, so a keyboard user can
@@ -373,7 +386,8 @@ public partial class MainWindow : Window
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
-        _hotkeyManager = new GlobalHotkeyManager(_log, OnGlobalHotkeyPressed);
+        _hotkeyManager = new GlobalHotkeyManager(_log, OnGlobalHotkeyPressed,
+            featureName: Strings.Get("hotkey.feature.global"));
         _hotkeyManager.Attach(this);
         _hotkeyManager.Apply(_settings);
         // R5 #148: the quick-note hotkey — a second registration on
@@ -384,8 +398,8 @@ public partial class MainWindow : Window
             settings => QuickNoteHotkey.Resolve(
                 settings.QuickNoteHotkeyEnabled, settings.QuickNoteHotkeyGesture,
                 settings.ShortcutOverrides, settings.GlobalHotkeyGesture),
-            gesture => $"Active: {gesture.DisplayText()} opens quick note capture from any app.",
-            "quick-note hotkey");
+            gesture => Strings.Format("hotkey.active_quick_note", gesture.DisplayText()),
+            Strings.Get("hotkey.feature.quick_note"));
         _noteHotkeyManager.Attach(this);
         _noteHotkeyManager.Apply(_settings);
     }
@@ -1040,13 +1054,11 @@ public partial class MainWindow : Window
             _webInitFailed = true;
             _log.Error("WebView2 Runtime not found");
             ShowOverlay(
-                "The WebView2 Runtime is missing",
-                "MuseDesktop displays Muse with Microsoft's WebView2 Runtime. " +
-                "It ships with Windows 11 and most Windows 10 PCs, but this PC does not have it yet. " +
-                "Download the small Evergreen installer from Microsoft, run it, then retry.",
-                "Download WebView2 Runtime",
+                Strings.Get("main.webview2_missing_title"),
+                Strings.Get("main.webview2_missing_body"),
+                Strings.Get("main.webview2_download"),
                 () => OpenExternal(WebView2BootstrapperUrl));
-            SetStatus("WebView2 Runtime missing — see the message above");
+            SetStatus(Strings.Get("status.webview2_runtime_missing_see_the"));
             return;
         }
         catch (Exception ex)
@@ -1054,10 +1066,9 @@ public partial class MainWindow : Window
             _webInitFailed = true;
             _log.Error($"WebView2 init failed: {ex.GetType().Name}: {ex.Message}");
             ShowOverlay(
-                "Muse could not start",
-                $"Something went wrong starting the web view ({ex.Message}). " +
-                $"The log at {AppPaths.LogPath} has the details.",
-                "Retry", null);
+                Strings.Get("main.could_not_start"),
+                Strings.Format("main.start_failed_body", ex.Message, AppPaths.LogPath),
+                Strings.Get("retry"), null);
             return;
         }
 
@@ -1150,7 +1161,7 @@ public partial class MainWindow : Window
         if (_safeMode && restoreUrl is null)
             _log.Info("Safe mode: starting at the Muse home page (no last-page restore, update check skipped)");
         core.Navigate(navigateTo);
-        SetStatus(_safeMode ? "Safe mode — Loading Muse…" : "Loading Muse…");
+        SetStatus(_safeMode ? Strings.Get("status.safe_mode_loading_claude") : Strings.Get("status.loading_claude"));
         StartWatchdog();
         // R2: the startup arrangement (pending workspace apply /
         // crash-journal restore / startup workspace), once, on the
@@ -1170,7 +1181,7 @@ public partial class MainWindow : Window
         string envVersion()
         {
             try { return CoreWebView2Environment.GetAvailableBrowserVersionString(); }
-            catch { return "(unknown version)"; }
+            catch { return Strings.Get("main.unknown_version"); }
         }
     }
 
@@ -1202,7 +1213,7 @@ public partial class MainWindow : Window
             e.Cancel = true;
             _log.Warn($"Blocked navigation: {UrlPolicy.RedactForLog(e.Uri)}");
             RecordPrivacy(PrivacyEventCategory.BlockedNavigation, SchemeOf(e.Uri), HostOf(e.Uri));
-            SetStatus("That link can't open inside MuseDesktop");
+            SetStatus(Strings.Get("status.that_link_can_t_open_inside_musedesktop"));
         }
     }
 
@@ -1212,7 +1223,7 @@ public partial class MainWindow : Window
         if (e.IsSuccess)
         {
             Overlay.Visibility = Visibility.Collapsed;
-            SetStatus("Ready");
+            SetStatus(Strings.Get("status.ready"));
             // S8 #71/#76: a successful load closes the recovery
             // incident and refills both automatic budgets.
             _recovery.OnPageLoaded();
@@ -1255,10 +1266,10 @@ public partial class MainWindow : Window
             _log.Warn($"Navigation failed: {e.WebErrorStatus} for {UrlPolicy.RedactForLog(Browser.Source?.ToString())}");
             _history.NoteClosedPage(Browser.Source?.ToString());
             ShowOverlay(
-                "Muse couldn't be reached",
+                Strings.Get("main.couldnt_be_reached"),
                 LoadFailureClassifier.MessageFor(e.WebErrorStatus.ToString()),
-                "Retry", null);
-            SetStatus($"Load failed: {e.WebErrorStatus}");
+                Strings.Get("retry"), null);
+            SetStatus(Strings.Format("status.load_failed", e.WebErrorStatus));
         }
         UpdateNavButtons();
     }
@@ -1332,12 +1343,12 @@ public partial class MainWindow : Window
                 break;
             case LinkDisposition.ExternalBrowser:
                 OpenExternal(e.Uri);
-                SetStatus("Opened link in your browser");
+                SetStatus(Strings.Get("status.opened_link_in_your_browser"));
                 break;
             default:
                 _log.Warn($"Blocked new-window request: {UrlPolicy.RedactForLog(e.Uri)}");
                 RecordPrivacy(PrivacyEventCategory.BlockedNewWindow, SchemeOf(e.Uri), HostOf(e.Uri));
-                SetStatus("That link was blocked");
+                SetStatus(Strings.Get("status.that_link_was_blocked"));
                 break;
         }
     }
@@ -1381,7 +1392,7 @@ public partial class MainWindow : Window
         {
             FileName = suggestedName,
             InitialDirectory = initialDirectory,
-            Title = "Save download",
+            Title = Strings.Get("ui.save_download"),
         };
         return dialog.ShowDialog(this) == true ? dialog.FileName : null;
     }
@@ -1418,11 +1429,11 @@ public partial class MainWindow : Window
                 _heldDownloads.Add((heldUri, suggestedName,
                     schedule.NextChance ?? DateTimeOffset.UtcNow.AddMinutes(5)));
                 _log.Info($"Download held by quiet hours until {schedule.NextChance?.ToLocalTime():HH:mm}: {suggestedName}");
-                SetStatus($"Download held until {schedule.NextChance?.ToLocalTime():HH:mm} (download quiet hours): {suggestedName}");
+                SetStatus(Strings.Format("status.download_held_until", schedule.NextChance?.ToLocalTime(), suggestedName));
             }
             else
             {
-                SetStatus($"Download skipped (download quiet hours): {suggestedName}");
+                SetStatus(Strings.Format("status.download_skipped_quiet_hours", suggestedName));
             }
             return;
         }
@@ -1444,7 +1455,7 @@ public partial class MainWindow : Window
             {
                 e.Cancel = true;
                 _log.Info($"Download cancelled at save prompt: {suggestedName}");
-                SetStatus("Download cancelled");
+                SetStatus(Strings.Get("status.download_cancelled"));
                 return;
             }
         }
@@ -1477,7 +1488,7 @@ public partial class MainWindow : Window
                         {
                             e.Cancel = true;
                             _log.Info($"Download cancelled at collision save prompt: {suggestedName}");
-                            SetStatus("Download cancelled");
+                            SetStatus(Strings.Get("status.download_cancelled"));
                             return;
                         }
                         candidate = chosen;
@@ -1509,13 +1520,14 @@ public partial class MainWindow : Window
                     if (dupe is not null && File.Exists(dupe.FullPath))
                     {
                         var answer = System.Windows.MessageBox.Show(this,
-                            $"\"{suggestedName}\" was already downloaded on {dupe.CompletedUtc.ToLocalTime():yyyy-MM-dd} ({DownloadText.FormatBytes(dupe.SizeBytes)}) and is still in your downloads.\n\nDownload another copy? The new one is kept alongside it under a fresh name.",
-                            "Already downloaded", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                            Strings.Format("msg.already_downloaded_body", suggestedName,
+                                dupe.CompletedUtc.ToLocalTime(), DownloadText.FormatBytes(dupe.SizeBytes)),
+                            Strings.Get("msg.already_downloaded"), MessageBoxButton.YesNo, MessageBoxImage.Question);
                         if (answer != MessageBoxResult.Yes)
                         {
                             e.Cancel = true;
                             _log.Info($"Duplicate download skipped: {suggestedName}");
-                            SetStatus($"Skipped — already downloaded: {suggestedName}");
+                            SetStatus(Strings.Format("status.skipped_already_downloaded", suggestedName));
                             return;
                         }
                         if (string.Equals(candidate, dupe.FullPath, StringComparison.OrdinalIgnoreCase))
@@ -1551,10 +1563,10 @@ public partial class MainWindow : Window
         var failed = _downloads.TakeSessionFailed(sessionFailedId);
         if (failed is null)
         {
-            SetStatus("That download can't be retried anymore (retries last for this session only)");
+            SetStatus(Strings.Get("status.that_download_can_t_be_retried_anymore"));
             return;
         }
-        await StartHiddenDownloadAsync(failed.Uri, failed.FileName, "Retrying");
+        await StartHiddenDownloadAsync(failed.Uri, failed.FileName, Strings.Get("status.verb_retrying"));
     }
 
     /// <summary>
@@ -1569,7 +1581,7 @@ public partial class MainWindow : Window
     {
         if (!_webReady || Browser.CoreWebView2 is null)
         {
-            SetStatus("Wait for Muse to load, then try the download again");
+            SetStatus(Strings.Get("status.wait_for_muse_to_load_then_try_the"));
             return false;
         }
         try
@@ -1581,14 +1593,14 @@ public partial class MainWindow : Window
                 _retryWebReady = true;
             }
             _log.Info($"{verb} download: {fileName} from {UrlPolicy.RedactForLog(uri)}");
-            SetStatus($"{verb} download: {fileName}…");
+            SetStatus(Strings.Format("status.verb_download", verb, fileName));
             RetryBrowser.CoreWebView2.Navigate(uri);
             return true;
         }
         catch (Exception ex)
         {
             _log.Warn($"{verb} download failed to start: {ex.Message}");
-            SetStatus($"Couldn't start {fileName}");
+            SetStatus(Strings.Format("status.couldnt_start", fileName));
             return false;
         }
     }
@@ -1624,7 +1636,7 @@ public partial class MainWindow : Window
                         decision.NextChance ?? DateTimeOffset.UtcNow.AddMinutes(5)));
                     continue;
                 }
-                await StartHiddenDownloadAsync(held.Uri, held.FileName, "Starting held");
+                await StartHiddenDownloadAsync(held.Uri, held.FileName, Strings.Get("status.verb_starting_held"));
             }
         }
         finally
@@ -1643,7 +1655,7 @@ public partial class MainWindow : Window
     {
         foreach (var link in links)
             _batchQueue.Enqueue(link);
-        SetStatus($"Batch download queued: {links.Count} link(s)");
+        SetStatus(Strings.Format("status.batch_download_queued", links.Count));
         PumpBatchQueue();
         return Task.CompletedTask;
     }
@@ -1664,7 +1676,7 @@ public partial class MainWindow : Window
                 if (DownloadConcurrency.StartableNow(active, _batchQueue.Count) <= 0)
                     return;
                 var link = _batchQueue.Dequeue();
-                if (!await StartHiddenDownloadAsync(link.Url, link.FileName, "Batch"))
+                if (!await StartHiddenDownloadAsync(link.Url, link.FileName, Strings.Get("status.verb_batch")))
                     return;
             }
         }
@@ -1689,7 +1701,7 @@ public partial class MainWindow : Window
             _downloads.Pause(id);
             _log.Info($"Bandwidth limit reached: paused {item?.FileName}");
             if (item is not null)
-                SetStatus($"Bandwidth limit reached — paused {item.FileName} until there's room");
+                SetStatus(Strings.Format("status.bandwidth_limit_reached_paused", item.FileName));
         }
         foreach (var id in toResume)
         {
@@ -1725,7 +1737,7 @@ public partial class MainWindow : Window
         var delay = DownloadRetryPolicy.DelayForAttempt(attempts);
         var max = DownloadRetryPolicy.SanitizeMaxAttempts(_settings.DownloadAutoRetryMaxAttempts);
         _log.Info($"Auto-retry {attempts} of {max} in {delay.TotalSeconds:0}s: {name} ({reason})");
-        SetStatus($"Download failed: {name} — retrying in {delay.TotalSeconds:0} sec (attempt {attempts} of {max})");
+        SetStatus(Strings.Format("status.download_failed_retrying", name, delay.TotalSeconds, attempts, max));
         var id = failed.Id;
         await Task.Delay(delay);
         if (_downloads.SessionFailed.Any(f => f.Id == id))
@@ -1945,7 +1957,7 @@ public partial class MainWindow : Window
                     TrayIconPlanner.Plan(false, signal).BadgeText);
                 TaskbarItemInfo.Description = signal.Kind == AttentionKind.Count
                     ? TrayIconPlanner.TooltipSuffix(signal).TrimStart(' ', '·')
-                    : "MuseDesktop — attention";
+                    : Strings.Get("main.attention");
             }
             else
             {
@@ -2047,7 +2059,7 @@ public partial class MainWindow : Window
         {
             case RecoveryDecision.ReloadPage:
                 _log.Info("Recovery: reloading the page automatically (one automatic recovery per incident)");
-                SetStatus("The page stopped responding — reloading it");
+                SetStatus(Strings.Get("status.the_page_stopped_responding_reloading_it"));
                 try { Browser.CoreWebView2.Navigate(_lastGoodUrl ?? UrlPolicy.HomeUrl); }
                 catch (Exception ex)
                 {
@@ -2057,7 +2069,7 @@ public partial class MainWindow : Window
                 break;
             case RecoveryDecision.RecreateWebView:
                 _log.Info("Recovery: recreating the web view automatically (one automatic recovery per incident)");
-                SetStatus("The web view stopped — rebuilding it");
+                SetStatus(Strings.Get("status.the_web_view_stopped_rebuilding_it"));
                 await RecreateWebViewAsync();
                 break;
             case RecoveryDecision.ShowFailureOverlay:
@@ -2065,7 +2077,7 @@ public partial class MainWindow : Window
                 ShowCrashOverlay(e.ProcessFailedKind.ToString());
                 break;
             default:
-                SetStatus($"Web view problem: {e.ProcessFailedKind}");
+                SetStatus(Strings.Format("status.web_view_problem", e.ProcessFailedKind));
                 break;
         }
     }
@@ -2074,10 +2086,10 @@ public partial class MainWindow : Window
     {
         _history.NoteClosedPage(_lastGoodUrl);
         ShowOverlay(
-            "The page stopped responding",
-            "Muse's web view closed unexpectedly, and the automatic recovery didn't fix it. Reloading usually does, and your work is saved in the cloud.",
-            "Reload Muse", null);
-        SetStatus($"Web view problem: {kindName}");
+            Strings.Get("main.page_stopped_title"),
+            Strings.Get("main.page_stopped_body"),
+            Strings.Get("main.reload_claude"), null);
+        SetStatus(Strings.Format("status.web_view_problem", kindName));
     }
 
     /// <summary>
@@ -2102,7 +2114,7 @@ public partial class MainWindow : Window
             {
                 DefaultBackgroundColor = ThemeManager.BrowserBackground,
             };
-            System.Windows.Automation.AutomationProperties.SetName(fresh, "Muse web content");
+            System.Windows.Automation.AutomationProperties.SetName(fresh, Strings.Get("muse_web_content"));
             fresh.GotKeyboardFocus += OnBrowserGotKeyboardFocus;
             fresh.LostKeyboardFocus += OnBrowserLostKeyboardFocus;
             Browser = fresh;
@@ -2200,7 +2212,7 @@ public partial class MainWindow : Window
         _watchdog.Snooze(DateTimeOffset.UtcNow);
         WatchdogBanner.Visibility = Visibility.Collapsed;
         _log.Info("Watchdog: user chose Wait — quiet for 2 minutes");
-        SetStatus("Page left as-is — the responsiveness check is paused for 2 minutes");
+        SetStatus(Strings.Get("status.page_left_as_is_the_responsiveness"));
     }
 
     // ───────────────────────── UI actions ─────────────────────────
@@ -2301,7 +2313,7 @@ public partial class MainWindow : Window
     private string RunTestNotification()
     {
         var (suppression, shown) = _tray.ShowTestNotification();
-        return GuidedSelfTests.NotificationLine(suppression, shown);
+        return SelfTestLines.Notification(suppression, shown);
     }
 
     private void OnSettings(object sender, RoutedEventArgs e) => OpenSettings();
@@ -2416,6 +2428,14 @@ public partial class MainWindow : Window
         _settings.GlobalHotkeyEnabled = clone.GlobalHotkeyEnabled;
         _settings.GlobalHotkeyGesture = clone.GlobalHotkeyGesture;
         _settings.RegisterProtocolLinks = clone.RegisterProtocolLinks;
+        // R7: the language preference, the announcement switches, and
+        // the text-spacing scale ride the same adoption. (Language
+        // PACKS are files, written by the section's own Import button
+        // like the Privacy section's actions — they are not clone
+        // state, so they survive a Cancel, also like Privacy's.)
+        _settings.UiLanguage = clone.UiLanguage;
+        _settings.AnnouncementKindEnabled = clone.AnnouncementKindEnabled;
+        _settings.ShellTextSpacingScale = clone.ShellTextSpacingScale;
         _settings.Sanitized();
         if (_webReady)
         {
@@ -2432,6 +2452,14 @@ public partial class MainWindow : Window
         ThemeManager.Apply(_settings);
         _tray.RefreshAppearance();
         ApplyToolbarLayout();
+        // R7 live apply: the localizer rebuilds from the adopted
+        // settings — windows opened from now on speak the new
+        // language, and the text-spacing half of ShellTextScaling's
+        // pass below picks up the new scale for THIS window at once.
+        // (This window's own strings were resolved when it was built;
+        // they follow at the next launch — the Settings note and
+        // DECISIONS say exactly that.)
+        Strings.Initialize(_settings);
         ShellTextScaling.Apply(this, _settings.ShellFontScale);
         if (_webReady)
             Browser.ZoomFactor = EffectiveZoom();
@@ -2576,9 +2604,8 @@ public partial class MainWindow : Window
         }
         var invoker = FocusReturn.Capture();
         var confirm = System.Windows.MessageBox.Show(this,
-            $"Switch to profile \"{target.Name}\"?\n\n" +
-            "MuseDesktop restarts now with that profile's sign-in.",
-            "Switch profile", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            Strings.Format("msg.switch_profile_body", target.Name),
+            Strings.Get("msg.switch_profile"), MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (confirm != MessageBoxResult.Yes)
         {
             FocusReturn.Restore(invoker);
@@ -2624,11 +2651,8 @@ public partial class MainWindow : Window
         {
             var invoker = FocusReturn.Capture();
             var answer = System.Windows.MessageBox.Show(this,
-                $"It's \"{target.Name}\" time{when}.\n\n" +
-                "Switch to that profile now? MuseDesktop restarts to switch.\n\n" +
-                "Choose No and it won't ask again until this scheduled time is over — " +
-                "a profile you picked yourself is always left alone.",
-                "Scheduled profile switch", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                Strings.Format("msg.scheduled_switch_body", target.Name, when),
+                Strings.Get("msg.scheduled_switch"), MessageBoxButton.YesNo, MessageBoxImage.Question);
             FocusReturn.Restore(invoker);
             if (answer == MessageBoxResult.Yes)
             {
@@ -2746,7 +2770,7 @@ public partial class MainWindow : Window
         ProfileItem.Visibility = multi ? Visibility.Visible : Visibility.Collapsed;
         ProfileSeparator.Visibility = multi ? Visibility.Visible : Visibility.Collapsed;
         if (multi && active is not null)
-            ProfileItem.Header = $"Profile: {Profiles.DisplayLabel(active)}";
+            ProfileItem.Header = Strings.Format("ui.profile_prefix", Profiles.DisplayLabel(active));
         _tray.SetText(multi && active is not null ? $"MuseDesktop — {Profiles.DisplayLabel(active)}" : "MuseDesktop");
         // S4 #37: the tray icon carries the active profile's tint.
         _tray.SetProfileColor(active?.DisplayColor);
@@ -2775,11 +2799,11 @@ public partial class MainWindow : Window
             var env = Browser.CoreWebView2.Environment;
 
             var openItem = env.CreateContextMenuItem(
-                "Open link in browser", null, CoreWebView2ContextMenuItemKind.Command);
+                Strings.Get("main.open_link_browser"), null, CoreWebView2ContextMenuItemKind.Command);
             openItem.CustomItemSelected += (_, _) => OpenExternal(linkUri);
 
             var copyItem = env.CreateContextMenuItem(
-                "Copy link address", null, CoreWebView2ContextMenuItemKind.Command);
+                Strings.Get("main.copy_link"), null, CoreWebView2ContextMenuItemKind.Command);
             copyItem.CustomItemSelected += (_, _) =>
             {
                 try { System.Windows.Clipboard.SetText(linkUri); }
@@ -2834,7 +2858,7 @@ public partial class MainWindow : Window
         if (choice == ClearDataChoice.Cache || !_webReady)
             return;
         Browser.CoreWebView2.Navigate(UrlPolicy.HomeUrl);
-        SetStatus("Browsing data cleared — sign in to Muse to continue");
+        SetStatus(Strings.Get("status.browsing_data_cleared_sign_in_to_muse"));
     }
 
     /// <summary>
@@ -2850,7 +2874,7 @@ public partial class MainWindow : Window
         var deferral = e.GetDeferral();
         try
         {
-            var host = HostOf(e.RequestUri) ?? "(unknown host)";
+            var host = HostOf(e.RequestUri) ?? Strings.Get("main.unknown_host");
             if (_certDecisions.TryGetValue(host, out var remembered))
             {
                 e.Action = remembered
@@ -2863,18 +2887,15 @@ public partial class MainWindow : Window
             try
             {
                 var cert = e.ServerCertificate;
-                details = $"\n\nCertificate: {cert.Subject}\nIssued by: {cert.Issuer}\n" +
-                          $"Valid: {cert.ValidFrom:yyyy-MM-dd} to {cert.ValidTo:yyyy-MM-dd}";
+                details = Strings.Format("msg.cert_details", cert.Subject, cert.Issuer, cert.ValidFrom, cert.ValidTo);
             }
             catch { /* the explainer + error name still carry the dialog */ }
             var invoker = FocusReturn.Capture();
             var answer = System.Windows.MessageBox.Show(this,
-                $"A certificate problem was found for {host}.\n\n" +
-                $"{ConnectionInfo.CertificateErrorExplainer}\n\n" +
-                $"{ConnectionInfo.DescribeCertificateError(e.ErrorStatus.ToString())}{details}\n\n" +
-                "Go back (recommended), or continue anyway? Continuing applies to this site " +
-                "for the rest of this session only — restarting MuseDesktop forgets it.",
-                "Certificate warning", MessageBoxButton.YesNo, MessageBoxImage.Warning,
+                Strings.Format("msg.cert_problem_body", host,
+                    ConnectionInfo.CertificateErrorExplainer,
+                    ConnectionInfo.DescribeCertificateError(e.ErrorStatus.ToString()) + details),
+                Strings.Get("msg.certificate_warning"), MessageBoxButton.YesNo, MessageBoxImage.Warning,
                 MessageBoxResult.No);
             FocusReturn.Restore(invoker);
             var proceed = answer == MessageBoxResult.Yes;
@@ -2903,16 +2924,15 @@ public partial class MainWindow : Window
         var url = _webReady ? Browser.Source?.ToString() : null;
         var lines = ConnectionInfo.SecurityLine(url);
         var version = _privacyGateway.RuntimeVersion;
-        lines += $"\n\nWebView2 runtime: {version ?? "(unknown)"}";
+        lines += Strings.Format("msg.webview2_runtime_line", version ?? Strings.Get("msg.unknown"));
         var continuedHosts = _certDecisions.Where(kv => kv.Value).Select(kv => kv.Key).ToList();
         if (continuedHosts.Count > 0)
         {
-            lines += $"\n\nThis session, you chose to continue past certificate warnings for: " +
-                     $"{string.Join(", ", continuedHosts)}. Restarting MuseDesktop forgets those choices.";
+            lines += Strings.Format("msg.cert_continued_hosts", string.Join(", ", continuedHosts));
         }
         var canForget = continuedHosts.Count > 0 && _webReady;
         var invoker = FocusReturn.Capture();
-        var answer = System.Windows.MessageBox.Show(this, lines, "Connection security",
+        var answer = System.Windows.MessageBox.Show(this, lines, Strings.Get("msg.connection_security"),
             canForget ? MessageBoxButton.YesNo : MessageBoxButton.OK,
             MessageBoxImage.Information);
         FocusReturn.Restore(invoker);
@@ -2923,7 +2943,7 @@ public partial class MainWindow : Window
                 await Browser.CoreWebView2.ClearServerCertificateErrorActionsAsync();
                 _certDecisions.Clear();
                 _log.Info("Session certificate-error choices forgotten from the connection dialog");
-                SetStatus("Certificate choices forgotten — you'll be asked again");
+                SetStatus(Strings.Get("status.certificate_choices_forgotten_you_ll_be"));
             }
             catch (Exception ex)
             {
@@ -3166,21 +3186,21 @@ public partial class MainWindow : Window
         ShowFromTray();
         if (!_webReady)
         {
-            SetStatus("Muse isn't ready yet — Quick dictate will work once the page has loaded");
+            SetStatus(Strings.Get("status.muse_isn_t_ready_yet_quick_dictate_will"));
             return;
         }
         try { Browser.Focus(); }
         catch (Exception ex) { _log.Warn($"Quick dictate focus failed: {ex.Message}"); }
         if (_micGrantedThisSession)
         {
-            SetStatus(QuickDictateText.ReadyNote);
+            SetStatus(Strings.Get("dictate.ready_note"));
             return;
         }
         // Not granted yet this session — but Muse's saved choice (the
         // S7 permission record) may already say Allow, in which case
         // nothing needs granting. Check before sending the user off to
         // grant anything; the provisional line shows meanwhile.
-        SetStatus(QuickDictateText.MicGrantNeededNote);
+        SetStatus(Strings.Get("dictate.grant_needed_note"));
         _ = RefreshQuickDictateNoteAsync();
     }
 
@@ -3193,7 +3213,7 @@ public partial class MainWindow : Window
                 r.Kind.Equals("Microphone", StringComparison.OrdinalIgnoreCase)
                 && r.Host.Equals("muse.ai", StringComparison.OrdinalIgnoreCase));
             if (saved?.State == "Allow")
-                SetStatus(QuickDictateText.ReadyNote);
+                SetStatus(Strings.Get("dictate.ready_note"));
         }
         catch (Exception ex) { _log.Warn($"Quick dictate permission check failed: {ex.Message}"); }
     }
@@ -3238,7 +3258,7 @@ public partial class MainWindow : Window
         if (e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop))
         {
             e.Handled = true;
-            SetStatus("Files attach on the Muse page — drop them onto the conversation, not the toolbar");
+            SetStatus(Strings.Get("status.files_attach_on_the_muse_page_drop_them"));
         }
     }
 
@@ -3249,9 +3269,9 @@ public partial class MainWindow : Window
         _dropHintOn = on;
         RefreshWebFocusRing();
         if (on)
-            SetStatus("Drop on the Muse page to attach the file to your conversation");
+            SetStatus(Strings.Get("status.drop_on_the_muse_page_to_attach_the"));
         else if (_webReady && !_downloads.IsTransferring)
-            SetStatus("Ready");
+            SetStatus(Strings.Get("status.ready"));
     }
 
     // ───────────────────────── update check (v0.2.0) ─────────────────────────
@@ -3305,7 +3325,7 @@ public partial class MainWindow : Window
         try
         {
             if (manual)
-                SetStatus("Checking for updates…");
+                SetStatus(Strings.Get("status.checking_for_updates"));
             _settings.LastUpdateCheckUtc = DateTimeOffset.UtcNow;
             var version = typeof(App).Assembly.GetName().Version ?? new Version(0, 0, 0);
             var outcome = await UpdateService.CheckAsync(version, _settings.UpdateChannel, _log);
@@ -3315,23 +3335,24 @@ public partial class MainWindow : Window
                     _updateTag = outcome.Tag;
                     _updateUrl = outcome.Url;
                     _updateRelease = outcome.Release;
-                    UpdateItem.Header = $"⬆ Update available: {outcome.Tag}";
-                    UpdateItem.ToolTip = "Download and install the update inside MuseDesktop";
-                    SetStatus($"MuseDesktop {outcome.Tag} is available — see the ⋯ menu");
+                    UpdateItem.Header = Strings.Format("ui.update_available", outcome.Tag);
+                    UpdateItem.ToolTip = Strings.Get("ui.download_and_install_the_update_inside");
+                    SetStatus(Strings.Format("announce.update.available", outcome.Tag));
                     // S6 #54: screen readers hear the update notice too.
-                    Announcer.Polite(AnnouncementText.UpdateAvailable(outcome.Tag ?? "new version"));
+                    Announcer.Kind(AnnouncementKind.Updates,
+                        Strings.Format("announce.update.available", outcome.Tag ?? Strings.Get("announce.new_version")));
                     break;
                 case UpdateOutcomeKind.UpToDate:
-                    if (manual) SetStatus($"You're up to date (v{version.ToString(3)})");
+                    if (manual) SetStatus(Strings.Format("status.youre_up_to_date", version.ToString(3)));
                     break;
                 case UpdateOutcomeKind.Unreachable:
-                    if (manual) SetStatus("Couldn't check for updates — GitHub didn't answer");
+                    if (manual) SetStatus(Strings.Get("status.couldn_t_check_for_updates_github_didn"));
                     break;
                 case UpdateOutcomeKind.BadData:
-                    if (manual) SetStatus("Couldn't read the update information");
+                    if (manual) SetStatus(Strings.Get("status.couldn_t_read_the_update_information"));
                     break;
                 default:
-                    if (manual) SetStatus("Couldn't check for updates — are you offline?");
+                    if (manual) SetStatus(Strings.Get("status.couldn_t_check_for_updates_are_you"));
                     break;
             }
             // Persist the check stamp (and anything the update window
@@ -3424,10 +3445,10 @@ public partial class MainWindow : Window
         if (!_webReady || Browser.CoreWebView2 is null) return;
         var find = Browser.CoreWebView2.Find;
         if (string.IsNullOrEmpty(FindTextBox.Text)) { FindCountText.Text = ""; return; }
-        if (find.MatchCount == 0) { FindCountText.Text = "No results"; return; }
+        if (find.MatchCount == 0) { FindCountText.Text = Strings.Get("ui.no_results"); return; }
         FindCountText.Text = find.ActiveMatchIndex >= 0
-            ? $"{find.ActiveMatchIndex + 1} of {find.MatchCount}"
-            : $"{find.MatchCount} found";
+            ? Strings.Format("main.find_of", find.ActiveMatchIndex + 1, find.MatchCount)
+            : Strings.Format("main.find_found", find.MatchCount);
     }
 
     private void OnFindTextChanged(object sender, TextChangedEventArgs e) => _ = StartFindAsync();
@@ -3467,7 +3488,7 @@ public partial class MainWindow : Window
     {
         if (!_webReady) return;
         try { Browser.CoreWebView2.ShowPrintUI(); }
-        catch (Exception ex) { _log.Warn($"Print failed: {ex.Message}"); SetStatus("Printing isn't available right now"); }
+        catch (Exception ex) { _log.Warn($"Print failed: {ex.Message}"); SetStatus(Strings.Get("status.printing_isn_t_available_right_now")); }
     }
 
     private async void OnSaveAsPdf(object sender, RoutedEventArgs e)
@@ -3475,9 +3496,9 @@ public partial class MainWindow : Window
         if (!_webReady) return;
         var dialog = new Microsoft.Win32.SaveFileDialog
         {
-            Filter = "PDF file (*.pdf)|*.pdf",
+            Filter = Strings.Get("dlg.filter_pdf"),
             FileName = "muse-page.pdf",
-            Title = "Save page as PDF",
+            Title = Strings.Get("ui.save_page_as_pdf"),
         };
         // S6 #56: even a common dialog returns focus to the invoker.
         var invoker = FocusReturn.Capture();
@@ -3488,13 +3509,13 @@ public partial class MainWindow : Window
         {
             var printSettings = Browser.CoreWebView2.Environment.CreatePrintSettings();
             var ok = await Browser.CoreWebView2.PrintToPdfAsync(dialog.FileName, printSettings);
-            SetStatus(ok ? $"Saved PDF to {Path.GetFileName(dialog.FileName)}" : "Saving the PDF failed");
+            SetStatus(ok ? Strings.Format("status.saved_pdf_to", Path.GetFileName(dialog.FileName)) : Strings.Get("status.saving_the_pdf_failed"));
             if (!ok) _log.Warn("PrintToPdfAsync reported failure");
         }
         catch (Exception ex)
         {
             _log.Warn($"Save as PDF failed: {ex.Message}");
-            SetStatus("Saving the PDF failed");
+            SetStatus(Strings.Get("status.saving_the_pdf_failed"));
         }
     }
 
@@ -3503,8 +3524,8 @@ public partial class MainWindow : Window
     {
         var src = Browser.Source?.ToString();
         if (string.IsNullOrEmpty(src)) return;
-        try { System.Windows.Clipboard.SetText(src); SetStatus("Page address copied"); }
-        catch { SetStatus("Couldn't copy the page address"); }
+        try { System.Windows.Clipboard.SetText(src); SetStatus(Strings.Get("status.page_address_copied")); }
+        catch { SetStatus(Strings.Get("status.couldn_t_copy_the_page_address")); }
     }
 
     // #7 Open in new window — a secondary window on the SAME environment.
@@ -3515,7 +3536,7 @@ public partial class MainWindow : Window
         if (string.IsNullOrEmpty(src)
             || UrlPolicy.ClassifyNavigation(src) != LinkDisposition.InApp)
         {
-            SetStatus("There's no in-app page to open in a new window");
+            SetStatus(Strings.Get("status.there_s_no_in_app_page_to_open_in_a_new"));
             return;
         }
         try
@@ -3527,7 +3548,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             _log.Warn($"Open in new window failed: {ex.Message}");
-            SetStatus("Couldn't open a second window");
+            SetStatus(Strings.Get("status.couldn_t_open_a_second_window"));
         }
     }
 
@@ -3571,7 +3592,7 @@ public partial class MainWindow : Window
         _settings.AlwaysOnTop = on;
         PinItem.IsChecked = on;
         Topmost = on;
-        SetStatus(on ? "Window will stay on top" : "Window no longer stays on top");
+        SetStatus(on ? Strings.Get("status.window_will_stay_on_top") : Strings.Get("status.window_no_longer_stays_on_top"));
         SaveSettings();
     }
 
@@ -3598,7 +3619,9 @@ public partial class MainWindow : Window
                 WindowState = WindowState.Maximized;
             if (_settings.FocusTimerAutoStart)
                 StartFocusTimer();
-            SetStatus("Focus mode — press F8 or Esc to exit");
+            SetStatus(Strings.Get("status.focus_mode_press_f8_or_esc_to_exit"));
+            Announcer.Kind(AnnouncementKind.Focus,
+                Strings.Get("status.focus_mode_press_f8_or_esc_to_exit"));
         }
         else
         {
@@ -3623,7 +3646,7 @@ public partial class MainWindow : Window
         if (!_focusMode)
             SetFocusMode(true);
         _focusTimer.Start(DateTimeOffset.Now, _settings.FocusTimerMinutes);
-        SetStatus($"{_focusTimer.StatusLine(DateTimeOffset.Now)} — focus timer started");
+        SetStatus(Strings.Format("status.timer_started", TimerLines.Focus(_focusTimer, DateTimeOffset.Now)));
     }
 
     /// <summary>The session timer toggle (R5 #142): start a fresh Pomodoro session for the active profile, or stop the running one (banking its elapsed work minutes).</summary>
@@ -3636,7 +3659,7 @@ public partial class MainWindow : Window
             DrainTimerMinutes();
             _sessionTimer = null;
             _tray.SetTimerText(null);
-            SetStatus("Session timer stopped");
+            SetStatus(Strings.Get("status.session_timer_stopped"));
             return;
         }
         _sessionTimer = new SessionTimer(new SessionTimerConfig(
@@ -3644,7 +3667,7 @@ public partial class MainWindow : Window
             _settings.SessionLongBreakMinutes, _settings.SessionCyclesBeforeLongBreak));
         _sessionMinutesDrained = 0;
         _sessionTimer.Start(now);
-        SetStatus($"Session timer — {_sessionTimer.StatusLine(now)}");
+        SetStatus(Strings.Format("status.session_timer_prefix", TimerLines.Session(_sessionTimer, now)));
     }
 
     /// <summary>
@@ -3671,24 +3694,32 @@ public partial class MainWindow : Window
             // user takes the break (⋯ menu), dismisses it by starting
             // something else, or leaves focus mode. Nothing blocks.
             if (_settings.FocusBreakReminders)
-                _tray.ShowReminder("Focus block done",
-                    $"Nice work — {_settings.FocusTimerMinutes} minutes focused. Take a break?");
-            SetStatus($"Focus block done — ⋯ menu → Take a break ({_settings.FocusBreakMinutes} min) whenever you're ready");
+                _tray.ShowReminder(Strings.Get("ui.focus_block_done"),
+                    Strings.Format("tray.focus_done_body", _settings.FocusTimerMinutes));
+            SetStatus(Strings.Format("status.focus_block_done_take_break", _settings.FocusBreakMinutes));
+            Announcer.Kind(AnnouncementKind.Timers,
+                Strings.Format("status.focus_block_done_take_break", _settings.FocusBreakMinutes));
         }
         if (focus.BreakJustCompleted)
-            SetStatus("Break over — start a focus block whenever you're ready");
+        {
+            SetStatus(Strings.Get("status.break_over_start_a_focus_block_whenever"));
+            Announcer.Kind(AnnouncementKind.Timers,
+                Strings.Get("status.break_over_start_a_focus_block_whenever"));
+        }
 
         if (_sessionTimer is { IsRunning: true } session)
         {
             var tick = session.Tick(now);
             if (tick.PhaseChanged)
             {
-                var line = session.StatusLine(now);
-                SetStatus($"Session timer — {line}");
-                _tray.ShowReminder("Session timer",
+                var line = TimerLines.Session(session, now);
+                SetStatus(Strings.Format("status.session_timer_prefix", line));
+                Announcer.Kind(AnnouncementKind.Timers,
+                    Strings.Format("status.session_timer_prefix", line));
+                _tray.ShowReminder(Strings.Get("ui.session_timer"),
                     tick.EnteredPhase == SessionPhase.Work
-                        ? "Break over — back to work."
-                        : "Work block done — take your break.");
+                        ? Strings.Get("tray.session_back_to_work")
+                        : Strings.Get("tray.session_take_break"));
             }
         }
 
@@ -3706,9 +3737,9 @@ public partial class MainWindow : Window
     private void UpdateTimerTrayText(DateTimeOffset now)
     {
         var text = _sessionTimer is { IsRunning: true } session
-            ? session.StatusLine(now)
+            ? TimerLines.Session(session, now)
             : _focusTimer.State != FocusTimerState.Idle
-                ? _focusTimer.StatusLine(now)
+                ? TimerLines.Focus(_focusTimer, now)
                 : "";
         if (text == _lastTimerTrayText)
             return;
@@ -3768,9 +3799,9 @@ public partial class MainWindow : Window
     {
         var now = DateTimeOffset.Now;
         if (_focusTimer.StartBreak(now, _settings.FocusBreakMinutes))
-            SetStatus(_focusTimer.StatusLine(now));
+            SetStatus(TimerLines.Focus(_focusTimer, now));
         else
-            SetStatus("No break is waiting — one is offered when a focus block ends");
+            SetStatus(Strings.Get("status.no_break_is_waiting_one_is_offered_when"));
     }
 
     /// <summary>Save the current page to the active profile's reading list (R5 #143). Only Muse pages save — Core's AppRoute gate decides, and the status line says so when it refuses.</summary>
@@ -3783,16 +3814,16 @@ public partial class MainWindow : Window
             var entry = lists.Add(_settings.ActiveProfileId, _pageTitle, url, DateTimeOffset.UtcNow);
             if (entry is null)
             {
-                SetStatus("The reading list only holds Muse pages — this page can't be saved to it");
+                SetStatus(Strings.Get("status.the_reading_list_only_holds_muse_pages"));
                 return;
             }
             ReadingListStore.Save(AppPaths.ReadingListPath, lists);
-            SetStatus($"Saved to the reading list — {entry.Title}");
+            SetStatus(Strings.Format("status.saved_to_reading_list", entry.Title));
         }
         catch (Exception ex)
         {
             _log.Warn($"Reading list save failed: {ex.Message}");
-            SetStatus("Couldn't save to the reading list — see the log");
+            SetStatus(Strings.Get("status.couldn_t_save_to_the_reading_list_see"));
         }
     }
 
@@ -3904,14 +3935,14 @@ public partial class MainWindow : Window
     {
         if (AppRoute.FromUrl(Browser.Source?.ToString()) is null)
         {
-            SetStatus("Bookmarks only work on Muse pages");
+            SetStatus(Strings.Get("status.bookmarks_only_work_on_muse_pages"));
             return;
         }
         while (true)
         {
-            var prompt = new TextPromptWindow("Bookmark this message",
-                "Give this bookmark a nickname — you'll pick it out by this name later. A nickname is required.",
-                "", okText: "Save bookmark") { Owner = this };
+            var prompt = new TextPromptWindow(Strings.Get("main.bookmark_title"),
+                Strings.Get("main.bookmark_body"),
+                "", okText: Strings.Get("main.bookmark_ok")) { Owner = this };
             ShellTextScaling.Apply(prompt, _settings.ShellFontScale);
             if (FocusReturn.ShowDialog(prompt) != true)
                 return;
@@ -3919,8 +3950,8 @@ public partial class MainWindow : Window
             {
                 var invoker = FocusReturn.Capture();
                 System.Windows.MessageBox.Show(this,
-                    "A bookmark needs a nickname — type a name, or Cancel to skip saving.",
-                    "Nickname required", MessageBoxButton.OK, MessageBoxImage.Information);
+                    Strings.Get("msg.nickname_required_body"),
+                    Strings.Get("msg.nickname_required"), MessageBoxButton.OK, MessageBoxImage.Information);
                 FocusReturn.Restore(invoker);
                 continue;
             }
@@ -3931,16 +3962,16 @@ public partial class MainWindow : Window
                     Browser.Source?.ToString(), snippet, DateTimeOffset.UtcNow);
                 if (saved is null)
                 {
-                    SetStatus("That message couldn't be bookmarked");
+                    SetStatus(Strings.Get("status.that_message_couldn_t_be_bookmarked"));
                     return;
                 }
                 MessageBookmarkStore.Save(AppPaths.BookmarksPath, all);
-                SetStatus($"Bookmarked as “{saved.Nickname}” — revisit it from Bookmarks, at the window's left edge");
+                SetStatus(Strings.Format("status.bookmarked_as", saved.Nickname));
             }
             catch (Exception ex)
             {
                 _log.Warn($"Bookmark save failed: {ex.Message}");
-                SetStatus("Couldn't save the bookmark — see the log");
+                SetStatus(Strings.Get("status.couldn_t_save_the_bookmark_see_the_log"));
             }
             return;
         }
@@ -3987,7 +4018,7 @@ public partial class MainWindow : Window
     {
         if (!_webReady)
         {
-            SetStatus("The page isn't ready yet — try the bookmark again in a moment");
+            SetStatus(Strings.Get("status.the_page_isn_t_ready_yet_try_the"));
             return;
         }
         if (!IsVisible)
@@ -4000,7 +4031,7 @@ public partial class MainWindow : Window
         }
         _pendingBookmarkSnippet = bookmark.Snippet;
         Browser.CoreWebView2.Navigate(AppRoute.ToUrl(bookmark.Route));
-        SetStatus($"Opening “{bookmark.Nickname}”…");
+        SetStatus(Strings.Format("status.opening_bookmark", bookmark.Nickname));
     }
 
     /// <summary>Run the find for a landed bookmark jump (R5B #202) and report honestly: found + highlighted, or landed in the conversation without a match — the message may have been edited since it was marked.</summary>
@@ -4018,8 +4049,8 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) { _log.Warn($"Bookmark find failed: {ex.Message}"); }
         SetStatus(found
-            ? "Found your bookmarked message — it's highlighted"
-            : "Couldn't find that message — it may have been edited since you bookmarked it");
+            ? Strings.Get("status.found_bookmarked_message")
+            : Strings.Get("status.couldnt_find_bookmarked_message"));
     }
 
     /// <summary>A draft changed in the page (R5B #204): file it under the current conversation for the active profile. Empty text clears the draft — that IS the sent/cleared signal from the composer's side.</summary>
@@ -4072,16 +4103,16 @@ public partial class MainWindow : Window
     {
         if (!_webReady)
         {
-            SetStatus("The page isn't ready yet");
+            SetStatus(Strings.Get("status.the_page_isn_t_ready_yet"));
             return;
         }
         if (pdf)
         {
             var pdfDialog = new Microsoft.Win32.SaveFileDialog
             {
-                Filter = "PDF file (*.pdf)|*.pdf",
+                Filter = Strings.Get("dlg.filter_pdf"),
                 FileName = ConversationExport.SuggestFileName(_pageTitle, DateTimeOffset.Now, ".pdf"),
-                Title = "Export conversation as PDF",
+                Title = Strings.Get("ui.export_conversation_as_pdf"),
             };
             var pdfInvoker = FocusReturn.Capture();
             var pdfChosen = pdfDialog.ShowDialog(this) == true;
@@ -4092,14 +4123,14 @@ public partial class MainWindow : Window
                 var printSettings = Browser.CoreWebView2.Environment.CreatePrintSettings();
                 var ok = await Browser.CoreWebView2.PrintToPdfAsync(pdfDialog.FileName, printSettings);
                 SetStatus(ok
-                    ? $"Exported the conversation to {Path.GetFileName(pdfDialog.FileName)}"
-                    : "Exporting the PDF failed");
+                    ? Strings.Format("status.exported_conversation_to", Path.GetFileName(pdfDialog.FileName))
+                    : Strings.Get("status.exporting_the_pdf_failed"));
                 if (!ok) _log.Warn("Conversation PDF export: PrintToPdfAsync reported failure");
             }
             catch (Exception ex)
             {
                 _log.Warn($"Conversation PDF export failed: {ex.Message}");
-                SetStatus("Exporting the PDF failed");
+                SetStatus(Strings.Get("status.exporting_the_pdf_failed"));
             }
             return;
         }
@@ -4115,14 +4146,14 @@ public partial class MainWindow : Window
         var messages = ConversationExport.TryParseExtraction(extractionJson);
         if (messages is null || messages.Count == 0)
         {
-            SetStatus("Couldn't read this conversation from the page — nothing was exported");
+            SetStatus(Strings.Get("status.couldn_t_read_this_conversation_from"));
             return;
         }
         var dialog = new Microsoft.Win32.SaveFileDialog
         {
-            Filter = "Markdown file (*.md)|*.md",
+            Filter = Strings.Get("dlg.filter_md"),
             FileName = ConversationExport.SuggestFileName(_pageTitle, DateTimeOffset.Now, ".md"),
-            Title = "Export conversation as Markdown",
+            Title = Strings.Get("ui.export_conversation_as_markdown"),
         };
         var invoker = FocusReturn.Capture();
         var chosen = dialog.ShowDialog(this) == true;
@@ -4132,12 +4163,12 @@ public partial class MainWindow : Window
         {
             File.WriteAllText(dialog.FileName,
                 ConversationExport.RenderMarkdown(_pageTitle, DateTimeOffset.Now, messages));
-            SetStatus($"Exported {messages.Count} messages to {Path.GetFileName(dialog.FileName)}");
+            SetStatus(Strings.Format("status.exported_messages_to", messages.Count, Path.GetFileName(dialog.FileName)));
         }
         catch (Exception ex)
         {
             _log.Warn($"Conversation export failed: {ex.Message}");
-            SetStatus("Exporting the conversation failed");
+            SetStatus(Strings.Get("status.exporting_the_conversation_failed"));
         }
     }
 
@@ -4146,7 +4177,7 @@ public partial class MainWindow : Window
     {
         if (!_webReady)
         {
-            SetStatus("The page isn't ready yet");
+            SetStatus(Strings.Get("status.the_page_isn_t_ready_yet"));
             return;
         }
         if (!IsVisible)
@@ -4159,8 +4190,8 @@ public partial class MainWindow : Window
         }
         catch (Exception ex) { _log.Warn($"Snippet insert failed: {ex.Message}"); }
         SetStatus(inserted
-            ? $"Inserted snippet “{snippet.Name}” — it's in the message box, unsent"
-            : "Couldn't find the message box on this page — the snippet wasn't inserted");
+            ? Strings.Format("status.inserted_snippet", snippet.Name)
+            : Strings.Get("status.couldnt_find_message_box"));
     }
 
     /// <summary>The ⋯ menu's snippet submenu (R5B #206): one item per snippet in the active profile's library, rebuilt wherever the store may have changed (startup, Settings OK).</summary>
@@ -4174,7 +4205,7 @@ public partial class MainWindow : Window
         {
             SnippetsItem.Items.Add(new MenuItem
             {
-                Header = "No snippets yet — add them in Settings → Account profiles",
+                Header = Strings.Get("ui.no_snippets_yet_add_them_in_settings"),
                 IsEnabled = false,
             });
             return;
@@ -4209,7 +4240,7 @@ public partial class MainWindow : Window
             if (notes.Add(_settings.ActiveProfileId, dialog.Text, DateTimeOffset.UtcNow) is not null)
             {
                 ProfileNotesStore.Save(AppPaths.NotesPath, notes);
-                SetStatus("Note saved");
+                SetStatus(Strings.Get("status.note_saved"));
             }
         }
         catch (Exception ex) { _log.Warn($"Quick note save failed: {ex.Message}"); }
@@ -4319,7 +4350,7 @@ public partial class MainWindow : Window
         var entries = back ? _history.BackEntries() : _history.ForwardEntries();
         if (entries.Count == 0)
         {
-            SetStatus(back ? "No earlier pages in this session" : "No forward pages in this session");
+            SetStatus(back ? Strings.Get("status.no_earlier_pages") : Strings.Get("status.no_forward_pages"));
             return;
         }
         var menu = new ContextMenu { PlacementTarget = target, IsOpen = true };
@@ -4346,11 +4377,11 @@ public partial class MainWindow : Window
         if (!_webReady || string.IsNullOrEmpty(url)
             || UrlPolicy.ClassifyNavigation(url) != LinkDisposition.InApp)
         {
-            SetStatus("No closed page to restore");
+            SetStatus(Strings.Get("status.no_closed_page_to_restore"));
             return;
         }
         Browser.CoreWebView2.Navigate(url);
-        SetStatus("Restored the last closed page");
+        SetStatus(Strings.Get("status.restored_the_last_closed_page"));
     }
 
     private void OnDownloads(object sender, RoutedEventArgs e)
@@ -4392,8 +4423,8 @@ public partial class MainWindow : Window
     private void OnAbout(object sender, RoutedEventArgs e)
     {
         string webViewVersion;
-        try { webViewVersion = CoreWebView2Environment.GetAvailableBrowserVersionString() ?? "not found"; }
-        catch { webViewVersion = "couldn't be read"; }
+        try { webViewVersion = CoreWebView2Environment.GetAvailableBrowserVersionString() ?? Strings.Get("main.not_found"); }
+        catch { webViewVersion = Strings.Get("main.couldnt_read"); }
         var facts = new AboutFacts(
             Version: $"{typeof(App).Assembly.GetName().Version}",
             ChannelLabel: UpdateChannelText.Label(_settings.UpdateChannel),
@@ -4583,7 +4614,7 @@ public partial class MainWindow : Window
                 title = title[..^suffix.Length];
             list.Add(new WindowDescriptor(
                 id,
-                string.IsNullOrWhiteSpace(title) ? "Muse — second window" : title,
+                string.IsNullOrWhiteSpace(title) ? Strings.Get("muse_second_window") : title,
                 active?.Name, active?.DisplayColor,
                 IsMain: false, SupportsFocusMode: false, IsActive: window.IsActive,
                 ProfileGlyphKey: active?.AvatarGlyph));
@@ -4715,7 +4746,7 @@ public partial class MainWindow : Window
                 if (AppLock.IsLockActive(_settings))
                     LockNow();
                 else
-                    SetStatus("No app lock is set — add one in Settings → Privacy & security");
+                    SetStatus(Strings.Get("status.no_app_lock_is_set_add_one_in_settings"));
                 break;
             case "action.quick-dictate": QuickDictate(); break;
             // R5 #141–#150: focus & productivity — the same handlers
@@ -4859,7 +4890,7 @@ public partial class MainWindow : Window
         var areas = MonitorRects.AllWorkAreasInDip();
         if (areas.Count < 2)
         {
-            SetStatus("There's only one monitor");
+            SetStatus(Strings.Get("status.there_s_only_one_monitor"));
             return;
         }
         var rect = WindowRectDip(window);
@@ -4985,7 +5016,7 @@ public partial class MainWindow : Window
         }
         if (_settings.Workspaces.Count >= Workspaces.MaxWorkspaces)
         {
-            SetStatus($"You already have {Workspaces.MaxWorkspaces} workspaces — delete one in Settings first");
+            SetStatus(Strings.Format("status.too_many_workspaces", Workspaces.MaxWorkspaces));
             return;
         }
         var ws = Workspaces.Capture(Workspaces.NextDefaultName(_settings), CurrentWorkspaceWindows());
@@ -4996,7 +5027,7 @@ public partial class MainWindow : Window
         ApplyWorkspaceAccent();
         RebuildWorkspacesMenu();
         _log.Info($"Workspace saved: '{ws.Name}' ({ws.Windows.Count} window(s), routes only)");
-        SetStatus($"Saved workspace '{ws.Name}' — rename it in Settings → Workspaces & sessions");
+        SetStatus(Strings.Format("status.saved_workspace", ws.Name));
     }
 
     private void OnSaveWorkspace(object sender, RoutedEventArgs e) => SaveCurrentWorkspace();
@@ -5011,7 +5042,7 @@ public partial class MainWindow : Window
         }
         if (Workspaces.Find(_settings, id) is not { } ws)
         {
-            SetStatus("That workspace no longer exists");
+            SetStatus(Strings.Get("status.that_workspace_no_longer_exists"));
             return;
         }
         ApplyWorkspace(ws, activate: true);
@@ -5058,7 +5089,7 @@ public partial class MainWindow : Window
     {
         if (!_webReady)
         {
-            SetStatus("Muse is still starting — try again in a moment");
+            SetStatus(Strings.Get("status.muse_is_still_starting_try_again_in_a"));
             return ArrangementOutcome.Aborted;
         }
         var plan = WorkspaceApplyPlanner.Plan(
@@ -5068,14 +5099,13 @@ public partial class MainWindow : Window
             var target = _settings.Profiles.FirstOrDefault(p => p.Id == plan.RequiredProfileId);
             if (asWorkspace is null || target is null)
             {
-                SetStatus($"'{displayName}' belongs to another profile — switch profiles first, then apply it");
+                SetStatus(Strings.Format("status.workspace_belongs_to_another_profile", displayName));
                 return ArrangementOutcome.Aborted;
             }
             var invoker = FocusReturn.Capture();
             var confirm = System.Windows.MessageBox.Show(this,
-                $"'{displayName}' belongs to profile \"{target.Name}\".\n\n" +
-                "MuseDesktop restarts with that profile's sign-in, then applies the workspace.",
-                "Apply workspace", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                Strings.Format("msg.workspace_other_profile_body", displayName, target.Name),
+                Strings.Get("msg.apply_workspace"), MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (confirm != MessageBoxResult.Yes)
             {
                 FocusReturn.Restore(invoker);
@@ -5092,13 +5122,12 @@ public partial class MainWindow : Window
         {
             var invoker = FocusReturn.Capture();
             var confirm = System.Windows.MessageBox.Show(this,
-                "A download is in progress, and applying this will close a window.\n\n" +
-                "The download itself keeps going (downloads belong to the app, not the window) — apply anyway?",
-                "Apply workspace", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                Strings.Get("msg.workspace_download_in_progress_body"),
+                Strings.Get("msg.apply_workspace"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
             if (confirm != MessageBoxResult.Yes)
             {
                 FocusReturn.Restore(invoker);
-                SetStatus("Workspace not applied");
+                SetStatus(Strings.Get("status.workspace_not_applied"));
                 return ArrangementOutcome.Aborted;
             }
         }
@@ -5107,8 +5136,8 @@ public partial class MainWindow : Window
             _log.Info($"Apply '{displayName}': skipped {plan.SkippedOtherProfileCount} window(s) naming other profiles");
         _log.Info($"Applied arrangement '{displayName}': opened {plan.ToOpen.Count}, closed {plan.ToCloseWindowIds.Count}, kept {plan.KeptWindowIds.Count}");
         SetStatus(plan.IsNoOp
-            ? $"'{displayName}' is already how things are"
-            : $"'{displayName}' applied");
+            ? Strings.Format("status.workspace_already_applied", displayName)
+            : Strings.Format("status.workspace_applied", displayName));
         return ArrangementOutcome.Applied;
     }
 
@@ -5171,7 +5200,7 @@ public partial class MainWindow : Window
         WorkspacesItem.Items.Clear();
         if (_settings.Workspaces.Count == 0)
         {
-            WorkspacesItem.Items.Add(new MenuItem { Header = "No workspaces saved yet", IsEnabled = false });
+            WorkspacesItem.Items.Add(new MenuItem { Header = Strings.Get("ui.no_workspaces_saved_yet"), IsEnabled = false });
         }
         foreach (var ws in _settings.Workspaces)
         {
@@ -5185,7 +5214,7 @@ public partial class MainWindow : Window
             WorkspacesItem.Items.Add(item);
         }
         WorkspacesItem.Items.Add(new System.Windows.Controls.Separator());
-        var manage = new MenuItem { Header = "Manage workspaces…" };
+        var manage = new MenuItem { Header = Strings.Get("ui.manage_workspaces") };
         manage.Click += (_, _) => OpenSettings(SettingsSearch.WorkspacesId);
         WorkspacesItem.Items.Add(manage);
     }
@@ -5211,11 +5240,11 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             _log.Warn($"Session snapshot save failed: {ex.Message}");
-            SetStatus("Couldn't save the session snapshot");
+            SetStatus(Strings.Get("status.couldn_t_save_the_session_snapshot"));
             return;
         }
         _log.Info($"Session snapshot taken ({snapshot.Windows.Count} window(s), routes only)");
-        SetStatus($"Session snapshot saved — {snapshot.Windows.Count} window(s)");
+        SetStatus(Strings.Format("status.session_snapshot_saved", snapshot.Windows.Count));
     }
 
     /// <summary>Restore the session snapshot (#114) through the same planner as a workspace apply, download guard included.</summary>
@@ -5229,16 +5258,16 @@ public partial class MainWindow : Window
         var snapshot = SessionSnapshotStore.Load(AppPaths.SessionSnapshotPath);
         if (snapshot is null)
         {
-            SetStatus("No session snapshot yet — take one from the ⋯ menu");
+            SetStatus(Strings.Get("status.no_session_snapshot_yet_take_one_from"));
             return;
         }
         var clean = snapshot.Sanitized(_settings.Profiles.Select(p => p.Id).ToList());
         if (clean.Windows.Count == 0)
         {
-            SetStatus("That snapshot's windows belong to profiles that no longer exist");
+            SetStatus(Strings.Get("status.that_snapshot_s_windows_belong_to"));
             return;
         }
-        if (TryApplyArrangement(clean.Windows, "Session snapshot", asWorkspace: null)
+        if (TryApplyArrangement(clean.Windows, Strings.Get("main.session_snapshot"), asWorkspace: null)
                 == ArrangementOutcome.Applied)
         {
             SaveSettings();
@@ -5315,9 +5344,8 @@ public partial class MainWindow : Window
             case CrashRestoreDecision.OfferRestore:
                 var count = journal!.Windows.Count;
                 var answer = System.Windows.MessageBox.Show(this,
-                    "MuseDesktop didn't shut down cleanly last time.\n\n" +
-                    $"Restore the {count} window(s) you had open? Only their Muse sections come back — never the full page addresses.",
-                    "Restore previous windows", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                    Strings.Format("msg.crash_restore_body", count),
+                    Strings.Get("msg.restore_previous_windows"), MessageBoxButton.YesNo, MessageBoxImage.Question);
                 if (answer == MessageBoxResult.Yes)
                     restored = TryRestoreJournalWindows(journal);
                 else
@@ -5377,7 +5405,7 @@ public partial class MainWindow : Window
             }
             else
             {
-                SetStatus("That file's folder no longer exists");
+                SetStatus(Strings.Get("status.that_file_s_folder_no_longer_exists"));
             }
         }
         catch (Exception ex) { _log.Warn($"Palette reveal download failed: {ex.Message}"); }
@@ -5417,7 +5445,7 @@ public partial class MainWindow : Window
         {
             if (!File.Exists(AppPaths.LogPath))
             {
-                SetStatus("There's no log file yet");
+                SetStatus(Strings.Get("status.there_s_no_log_file_yet"));
                 return;
             }
             Process.Start(new ProcessStartInfo(AppPaths.LogPath) { UseShellExecute = true });
@@ -5471,11 +5499,8 @@ public partial class MainWindow : Window
     private void ReinstallPreviousVersion(string installerPath, string version)
     {
         var answer = System.Windows.MessageBox.Show(this,
-            $"Reinstall MuseDesktop {version}?\n\n" +
-            "The installer for the previous version will run and replace this version in place. " +
-            "Your sign-in, profiles, and settings are kept (the same as any in-place install). " +
-            "MuseDesktop will close while it installs.",
-            "Reinstall previous version", MessageBoxButton.OKCancel, MessageBoxImage.Question);
+            Strings.Format("msg.reinstall_body", version),
+            Strings.Get("msg.reinstall_previous_version"), MessageBoxButton.OKCancel, MessageBoxImage.Question);
         if (answer != MessageBoxResult.OK)
             return;
         try
@@ -5487,9 +5512,8 @@ public partial class MainWindow : Window
         {
             _log.Warn($"Rollback installer launch failed: {ex.Message}");
             System.Windows.MessageBox.Show(this,
-                "The previous version's installer couldn't be started. It is kept in the updates folder:\n" +
-                installerPath,
-                "Reinstall previous version", MessageBoxButton.OK, MessageBoxImage.Warning);
+                Strings.Format("msg.reinstall_failed_body", installerPath),
+                Strings.Get("msg.reinstall_previous_version"), MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
         ExitApp();
@@ -5530,10 +5554,17 @@ public partial class MainWindow : Window
             AppLockOn = AppLock.IsLockActive(_settings),
             DataSizes = new (string, long?)[]
             {
-                ("Active profile data", ProfileDataInfo.MeasureFolderBytes(_profileDir)),
-                ("Settings & app data", ProfileDataInfo.MeasureFolderBytes(AppPaths.RootDir)),
+                (Strings.Get("main.diag_active_profile"), ProfileDataInfo.MeasureFolderBytes(_profileDir)),
+                (Strings.Get("main.diag_settings_data"), ProfileDataInfo.MeasureFolderBytes(AppPaths.RootDir)),
             },
             RecentErrors = LogReading.RecentErrors(logText, 5),
+            // R7 #164/#169: the language coverage report and the
+            // announcement history, composed by Core from the merged
+            // catalog and the recorded history.
+            ActiveLanguageLine = $"{Strings.Current.Language} ({Strings.ActiveLanguageName})",
+            LanguageCoverageLines = LocalizationCoverage.ReportLines(Strings.MergedTables()),
+            RecentAnnouncements = _announcementHistory.Recent(10)
+                .Select(AnnouncementHistory.DescribeLine).ToList(),
         };
     }
 
@@ -5558,8 +5589,8 @@ public partial class MainWindow : Window
         // content never enters a bundle, by construction.
         var screenshotAvailable = IsVisible && !_isLocked && ActualWidth > 0 && ActualHeight > 0;
         var unavailableReason = _isLocked
-            ? "No screenshot while the app is locked — unlock first if you want one."
-            : "The MuseDesktop window isn't visible right now, so there's nothing to capture.";
+            ? Strings.Get("main.shot_locked")
+            : Strings.Get("main.shot_invisible");
         var preview = new SupportBundlePreviewWindow(
             screenshotAvailable,
             screenshotAvailable ? null : unavailableReason,
@@ -5572,9 +5603,9 @@ public partial class MainWindow : Window
 
         var save = new Microsoft.Win32.SaveFileDialog
         {
-            Title = "Save support bundle",
+            Title = Strings.Get("ui.save_support_bundle"),
             FileName = SupportBundle.DefaultFileName(DateTimeOffset.Now),
-            Filter = "Zip archive (*.zip)|*.zip",
+            Filter = Strings.Get("dlg.filter_zip"),
             InitialDirectory = AppPaths.DownloadsHint,
         };
         if (save.ShowDialog(owner) != true)
@@ -5608,15 +5639,15 @@ public partial class MainWindow : Window
             }
             var fileCount = SupportBundle.Contents(includeScreenshot).Count;
             _log.Info($"Support bundle exported: {Path.GetFileName(save.FileName)} ({fileCount} files, screenshot {(includeScreenshot ? "included" : "not included")})");
-            SetStatus("Support bundle saved");
-            Announcer.Polite("Support bundle saved.");
+            SetStatus(Strings.Get("status.support_bundle_saved"));
+            Announcer.Polite(Strings.Get("ui.support_bundle_saved"));
         }
         catch (Exception ex)
         {
             _log.Error($"Support bundle export failed: {ex.Message}");
             System.Windows.MessageBox.Show(owner,
-                "The support bundle couldn't be written. The log has the details; the Diagnostics report's Copy button is the fallback.",
-                "Export support bundle", MessageBoxButton.OK, MessageBoxImage.Warning);
+                Strings.Get("msg.bundle_write_failed_body"),
+                Strings.Get("msg.export_support_bundle"), MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
 

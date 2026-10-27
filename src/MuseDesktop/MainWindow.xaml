@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        xmlns:local="clr-namespace:MuseDesktop"
         Title="Muse"
         Width="1280" Height="860"
         MinWidth="720" MinHeight="480"
@@ -37,128 +38,128 @@
                      ⋯ menu button stays fixed, last in the right strip. -->
                 <StackPanel x:Name="LeftStrip" DockPanel.Dock="Left" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button x:Name="BackButton" Style="{StaticResource BarButton}" Content="&#x2190;"
-                            ToolTip="Back (Alt+Left). Right-click for history." Click="OnBack" AutomationProperties.Name="Back"
+                            ToolTip="{local:Loc back_alt_left_right_click_for_history}" Click="OnBack" AutomationProperties.Name="{local:Loc back}"
                             PreviewMouseRightButtonUp="OnBackHistoryMenu"
-                            PreviewMouseLeftButtonDown="OnNavButtonPress" PreviewMouseLeftButtonUp="OnNavButtonRelease"/>
+                            PreviewMouseLeftButtonDown="OnNavButtonPress" PreviewMouseLeftButtonUp="OnNavButtonRelease" KeyboardNavigation.TabIndex="1"/>
                     <Button x:Name="ForwardButton" Style="{StaticResource BarButton}" Content="&#x2192;"
-                            ToolTip="Forward (Alt+Right). Right-click for history." Click="OnForward" AutomationProperties.Name="Forward"
+                            ToolTip="{local:Loc forward_alt_right_right_click_for_history}" Click="OnForward" AutomationProperties.Name="{local:Loc forward}"
                             PreviewMouseRightButtonUp="OnForwardHistoryMenu"
-                            PreviewMouseLeftButtonDown="OnNavButtonPress" PreviewMouseLeftButtonUp="OnNavButtonRelease"/>
+                            PreviewMouseLeftButtonDown="OnNavButtonPress" PreviewMouseLeftButtonUp="OnNavButtonRelease" KeyboardNavigation.TabIndex="2"/>
                     <Button x:Name="ReloadButton" Style="{StaticResource BarButton}" Content="&#x27F3;"
-                            ToolTip="Reload (Ctrl+R / F5)" Click="OnReload" AutomationProperties.Name="Reload"/>
+                            ToolTip="{local:Loc reload_ctrl_r_f5}" Click="OnReload" AutomationProperties.Name="{local:Loc reload}" KeyboardNavigation.TabIndex="3"/>
                     <Button x:Name="HomeButton" Style="{StaticResource BarButton}" Content="&#x2302;"
-                            ToolTip="Muse home" Click="OnHome" AutomationProperties.Name="Home"/>
+                            ToolTip="{local:Loc muse_home}" Click="OnHome" AutomationProperties.Name="{local:Loc home}" KeyboardNavigation.TabIndex="4"/>
                 </StackPanel>
 
                 <StackPanel x:Name="RightStrip" DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button x:Name="ZoomOutButton" Style="{StaticResource BarButton}" Content="&#x2212;" Width="28"
-                            ToolTip="Zoom out (Ctrl+-)" Click="OnZoomOut" AutomationProperties.Name="Zoom out"/>
+                            ToolTip="{local:Loc zoom_out_ctrl}" Click="OnZoomOut" AutomationProperties.Name="{local:Loc zoom_out}" KeyboardNavigation.TabIndex="5"/>
                     <TextBlock x:Name="ZoomLabel" Text="100%" Width="42" TextAlignment="Center"
                                VerticalAlignment="Center" Foreground="{StaticResource MutedBrush}" FontSize="12"
-                               ToolTip="Current zoom. Ctrl+0 resets."/>
+                               ToolTip="{local:Loc current_zoom_ctrl_0_resets}"/>
                     <Button x:Name="ZoomInButton" Style="{StaticResource BarButton}" Content="+" Width="28"
-                            ToolTip="Zoom in (Ctrl++)" Click="OnZoomIn" AutomationProperties.Name="Zoom in"/>
+                            ToolTip="{local:Loc zoom_in_ctrl}" Click="OnZoomIn" AutomationProperties.Name="{local:Loc zoom_in}" KeyboardNavigation.TabIndex="6"/>
                     <Button x:Name="PinButton" Style="{StaticResource BarButton}" Content="&#x1F4CC;" Width="28"
-                            ToolTip="Keep this window on top" Click="OnTogglePin"
-                            AutomationProperties.Name="Always on top"/>
+                            ToolTip="{local:Loc keep_this_window_on_top}" Click="OnTogglePin"
+                            AutomationProperties.Name="{local:Loc always_on_top}" KeyboardNavigation.TabIndex="7"/>
                     <Button x:Name="BrowserButton" Style="{StaticResource BarButton}" Content="&#x2197;"
-                            ToolTip="Open this page in your default browser" Click="OnOpenInBrowser"
-                            AutomationProperties.Name="Open in browser"/>
+                            ToolTip="{local:Loc open_this_page_in_your_default_browser}" Click="OnOpenInBrowser"
+                            AutomationProperties.Name="{local:Loc open_in_browser}" KeyboardNavigation.TabIndex="8"/>
                     <Button x:Name="MenuButton" Style="{StaticResource BarButton}" Content="&#x22EF;"
-                            ToolTip="More options" Click="OnMenu" AutomationProperties.Name="More options">
+                            ToolTip="{local:Loc more_options}" Click="OnMenu" AutomationProperties.Name="{local:Loc more_options}" KeyboardNavigation.TabIndex="9">
                         <Button.ContextMenu>
                             <ContextMenu x:Name="MoreMenu">
-                                <MenuItem x:Name="ProfileItem" Header="Profile: Default" IsEnabled="False" Visibility="Collapsed"/>
+                                <MenuItem x:Name="ProfileItem" Header="{local:Loc profile_default}" IsEnabled="False" Visibility="Collapsed" KeyboardNavigation.TabIndex="10"/>
                                 <Separator x:Name="ProfileSeparator" Visibility="Collapsed"/>
-                                <MenuItem x:Name="SwitchProfileItem" Header="Switch profile"
-                                          ToolTip="Restart MuseDesktop signed in with another profile"/>
-                                <MenuItem Header="Settings…" Click="OnSettings" InputGestureText="Ctrl+,"
-                                          ToolTip="Startup, downloads, updates, memory, and data options"/>
-                                <MenuItem x:Name="UpdateItem" Header="Check for updates" Click="OnCheckForUpdates"
-                                          ToolTip="See whether a newer MuseDesktop is available"/>
-                                <MenuItem Header="Downloads…" Click="OnDownloads"
-                                          ToolTip="Files Muse has downloaded for you, newest first"/>
-                                <MenuItem Header="Command palette…" Click="OnCommandPalette" InputGestureText="Ctrl+K"
-                                          ToolTip="Every action, profile, setting, download, and window — searchable from the keyboard"/>
-                                <MenuItem Header="Switch window…" Click="OnSwitchWindow"
-                                          ToolTip="Jump to another open MuseDesktop window, most recently used first"/>
-                                <MenuItem x:Name="WorkspacesItem" Header="Workspaces"
-                                          ToolTip="Apply a saved workspace — a named set of windows (profile, placement, and Muse section)"/>
-                                <MenuItem Header="Save current arrangement as workspace" Click="OnSaveWorkspace"
-                                          ToolTip="Save the open windows as a workspace you can re-apply any time"/>
-                                <MenuItem Header="Take session snapshot" Click="OnTakeSessionSnapshot"
-                                          ToolTip="Remember the open windows once (sections only, never full page addresses)"/>
-                                <MenuItem Header="Restore session snapshot" Click="OnRestoreSessionSnapshot"
-                                          ToolTip="Bring back the windows from the last session snapshot"/>
+                                <MenuItem x:Name="SwitchProfileItem" Header="{local:Loc switch_profile}"
+                                          ToolTip="{local:Loc restart_musedesktop_signed_in_with_another}" KeyboardNavigation.TabIndex="11"/>
+                                <MenuItem Header="{local:Loc settings}" Click="OnSettings" InputGestureText="Ctrl+,"
+                                          ToolTip="{local:Loc startup_downloads_updates_memory_and_data}" KeyboardNavigation.TabIndex="12"/>
+                                <MenuItem x:Name="UpdateItem" Header="{local:Loc check_for_updates}" Click="OnCheckForUpdates"
+                                          ToolTip="{local:Loc see_whether_a_newer_musedesktop_is_available}" KeyboardNavigation.TabIndex="13"/>
+                                <MenuItem Header="{local:Loc downloads_2}" Click="OnDownloads"
+                                          ToolTip="{local:Loc files_muse_has_downloaded_for_you_newest}" KeyboardNavigation.TabIndex="14"/>
+                                <MenuItem Header="{local:Loc command_palette}" Click="OnCommandPalette" InputGestureText="Ctrl+K"
+                                          ToolTip="{local:Loc every_action_profile_setting_download_and}" KeyboardNavigation.TabIndex="15"/>
+                                <MenuItem Header="{local:Loc switch_window}" Click="OnSwitchWindow"
+                                          ToolTip="{local:Loc jump_to_another_open_musedesktop_window}" KeyboardNavigation.TabIndex="16"/>
+                                <MenuItem x:Name="WorkspacesItem" Header="{local:Loc workspaces}"
+                                          ToolTip="{local:Loc apply_a_saved_workspace_a_named_set_of}" KeyboardNavigation.TabIndex="17"/>
+                                <MenuItem Header="{local:Loc save_current_arrangement_as_workspace}" Click="OnSaveWorkspace"
+                                          ToolTip="{local:Loc save_the_open_windows_as_a_workspace_you}" KeyboardNavigation.TabIndex="18"/>
+                                <MenuItem Header="{local:Loc take_session_snapshot}" Click="OnTakeSessionSnapshot"
+                                          ToolTip="{local:Loc remember_the_open_windows_once_sections}" KeyboardNavigation.TabIndex="19"/>
+                                <MenuItem Header="{local:Loc restore_session_snapshot}" Click="OnRestoreSessionSnapshot"
+                                          ToolTip="{local:Loc bring_back_the_windows_from_the_last}" KeyboardNavigation.TabIndex="20"/>
                                 <Separator/>
-                                <MenuItem Header="Quick note…" Click="OnQuickNote"
-                                          ToolTip="Jot a note for the profile you're using — saved on this PC only"/>
-                                <MenuItem Header="Open notes" Click="OnNotes"
-                                          ToolTip="This profile's quick notes"/>
-                                <MenuItem Header="Save page to reading list" Click="OnSaveToReadingList"
-                                          ToolTip="Keep this Muse page for later (title + in-app path only)"/>
-                                <MenuItem Header="Reading list…" Click="OnReadingList"
-                                          ToolTip="Pages you saved for later, for this profile"/>
-                                <MenuItem Header="Bookmarks…" Click="OnBookmarks"
-                                          ToolTip="Messages you bookmarked in conversations (this profile) — revisited from here, inside the app only"/>
-                                <MenuItem x:Name="SnippetsItem" Header="Insert snippet"
-                                          ToolTip="Put one of your saved prompts into the message box (manage them in Settings → Account profiles)"/>
+                                <MenuItem Header="{local:Loc quick_note}" Click="OnQuickNote"
+                                          ToolTip="{local:Loc jot_a_note_for_the_profile_you_re_using}" KeyboardNavigation.TabIndex="21"/>
+                                <MenuItem Header="{local:Loc open_notes}" Click="OnNotes"
+                                          ToolTip="{local:Loc this_profile_s_quick_notes}" KeyboardNavigation.TabIndex="22"/>
+                                <MenuItem Header="{local:Loc save_page_to_reading_list}" Click="OnSaveToReadingList"
+                                          ToolTip="{local:Loc keep_this_muse_page_for_later_title_in_app}" KeyboardNavigation.TabIndex="23"/>
+                                <MenuItem Header="{local:Loc reading_list}" Click="OnReadingList"
+                                          ToolTip="{local:Loc pages_you_saved_for_later_for_this_profile}" KeyboardNavigation.TabIndex="24"/>
+                                <MenuItem Header="{local:Loc bookmarks_2}" Click="OnBookmarks"
+                                          ToolTip="{local:Loc messages_you_bookmarked_in_conversations}" KeyboardNavigation.TabIndex="25"/>
+                                <MenuItem x:Name="SnippetsItem" Header="{local:Loc insert_snippet}"
+                                          ToolTip="{local:Loc put_one_of_your_saved_prompts_into_the}" KeyboardNavigation.TabIndex="26"/>
                                 <Separator/>
-                                <MenuItem Header="Start focus timer" Click="OnStartFocusTimer"
-                                          ToolTip="A timed focus block (length in Settings → Focus &amp; productivity); focus mode comes on with it"/>
-                                <MenuItem Header="Take a break" Click="OnTakeBreak"
-                                          ToolTip="Start the suggested break — offered when a focus block ends"/>
-                                <MenuItem Header="Start/stop session timer" Click="OnSessionTimer"
-                                          ToolTip="Pomodoro-style work/break cycles; the countdown lives in the status bar and the tray tooltip"/>
-                                <MenuItem Header="Weekly digest…" Click="OnWeeklyDigest"
-                                          ToolTip="A plain summary of this week, counted on this PC — generated only when you ask"/>
-                                <MenuItem Header="Stats dashboard…" Click="OnStatsDashboard"
-                                          ToolTip="This week's counts per profile (launches, downloads, focus time), as simple charts"/>
+                                <MenuItem Header="{local:Loc start_focus_timer}" Click="OnStartFocusTimer"
+                                          ToolTip="{local:Loc a_timed_focus_block_length_in_settings}" KeyboardNavigation.TabIndex="27"/>
+                                <MenuItem Header="{local:Loc take_a_break}" Click="OnTakeBreak"
+                                          ToolTip="{local:Loc start_the_suggested_break_offered_when_a}" KeyboardNavigation.TabIndex="28"/>
+                                <MenuItem Header="{local:Loc start_stop_session_timer}" Click="OnSessionTimer"
+                                          ToolTip="{local:Loc pomodoro_style_work_break_cycles_the}" KeyboardNavigation.TabIndex="29"/>
+                                <MenuItem Header="{local:Loc weekly_digest}" Click="OnWeeklyDigest"
+                                          ToolTip="{local:Loc a_plain_summary_of_this_week_counted_on}" KeyboardNavigation.TabIndex="30"/>
+                                <MenuItem Header="{local:Loc stats_dashboard}" Click="OnStatsDashboard"
+                                          ToolTip="{local:Loc this_week_s_counts_per_profile_launches}" KeyboardNavigation.TabIndex="31"/>
                                 <Separator/>
-                                <MenuItem Header="Find in page…" Click="OnFind" InputGestureText="Ctrl+F"/>
-                                <MenuItem Header="Keyboard shortcuts…" Click="OnShortcuts" InputGestureText="Ctrl+/"
-                                          ToolTip="Every keyboard shortcut in one searchable list; three of them can be changed in Settings"/>
-                                <MenuItem Header="Print…" Click="OnPrint" InputGestureText="Ctrl+P"/>
-                                <MenuItem Header="Save as PDF…" Click="OnSaveAsPdf"/>
-                                <MenuItem Header="Export conversation as Markdown…" Click="OnExportConversationMarkdown"
-                                          ToolTip="Save this conversation as a tidy Markdown file — messages in order, code blocks intact"/>
-                                <MenuItem Header="Export conversation as PDF…" Click="OnExportConversationPdf"
-                                          ToolTip="Print this conversation page to a PDF, as it appears on screen"/>
-                                <MenuItem Header="Copy page address" Click="OnCopyPageAddress"/>
-                                <MenuItem Header="Open in browser" Click="OnOpenInBrowser"/>
-                                <MenuItem Header="Open in new window" Click="OnOpenInNewWindow"
-                                          ToolTip="Open the current page in a second window on the same profile"/>
+                                <MenuItem Header="{local:Loc find_in_page}" Click="OnFind" InputGestureText="Ctrl+F" KeyboardNavigation.TabIndex="32"/>
+                                <MenuItem Header="{local:Loc keyboard_shortcuts}" Click="OnShortcuts" InputGestureText="Ctrl+/"
+                                          ToolTip="{local:Loc every_keyboard_shortcut_in_one_searchable}" KeyboardNavigation.TabIndex="33"/>
+                                <MenuItem Header="{local:Loc print}" Click="OnPrint" InputGestureText="Ctrl+P" KeyboardNavigation.TabIndex="34"/>
+                                <MenuItem Header="{local:Loc save_as_pdf}" Click="OnSaveAsPdf" KeyboardNavigation.TabIndex="35"/>
+                                <MenuItem Header="{local:Loc export_conversation_as_markdown}" Click="OnExportConversationMarkdown"
+                                          ToolTip="{local:Loc save_this_conversation_as_a_tidy_markdown}" KeyboardNavigation.TabIndex="36"/>
+                                <MenuItem Header="{local:Loc export_conversation_as_pdf}" Click="OnExportConversationPdf"
+                                          ToolTip="{local:Loc print_this_conversation_page_to_a_pdf_as_it}" KeyboardNavigation.TabIndex="37"/>
+                                <MenuItem Header="{local:Loc copy_page_address}" Click="OnCopyPageAddress" KeyboardNavigation.TabIndex="38"/>
+                                <MenuItem Header="{local:Loc open_in_browser}" Click="OnOpenInBrowser" KeyboardNavigation.TabIndex="39"/>
+                                <MenuItem Header="{local:Loc open_in_new_window}" Click="OnOpenInNewWindow"
+                                          ToolTip="{local:Loc open_the_current_page_in_a_second_window_on}" KeyboardNavigation.TabIndex="40"/>
                                 <Separator/>
-                                <MenuItem x:Name="PinItem" Header="Always on top" IsCheckable="True" Click="OnTogglePin"
-                                          ToolTip="Keep MuseDesktop above other windows"/>
-                                <MenuItem x:Name="FocusItem" Header="Focus mode" IsCheckable="True" Click="OnToggleFocusMode"
-                                          InputGestureText="F8" ToolTip="Hide the toolbar and status bar (F8 or Esc to exit)"/>
-                                <MenuItem Header="Mini mode" Click="OnToggleMiniMode"
-                                          ToolTip="Shrink to a small always-on-top strip — profile color, the page's icon and title, and download pause/resume. The page itself keeps living in the main window"/>
-                                <MenuItem Header="Window opacity" StaysOpenOnClick="True"
-                                          ToolTip="How see-through this window is. It cannot go below 60%, it turns off while Windows High Contrast is on, and the window goes fully solid whenever the app locks">
+                                <MenuItem x:Name="PinItem" Header="{local:Loc always_on_top}" IsCheckable="True" Click="OnTogglePin"
+                                          ToolTip="{local:Loc keep_musedesktop_above_other_windows}" KeyboardNavigation.TabIndex="41"/>
+                                <MenuItem x:Name="FocusItem" Header="{local:Loc focus_mode}" IsCheckable="True" Click="OnToggleFocusMode"
+                                          InputGestureText="F8" ToolTip="{local:Loc hide_the_toolbar_and_status_bar_f8_or_esc}" KeyboardNavigation.TabIndex="42"/>
+                                <MenuItem Header="{local:Loc mini_mode}" Click="OnToggleMiniMode"
+                                          ToolTip="{local:Loc shrink_to_a_small_always_on_top_strip}" KeyboardNavigation.TabIndex="43"/>
+                                <MenuItem Header="{local:Loc window_opacity}" StaysOpenOnClick="True"
+                                          ToolTip="{local:Loc how_see_through_this_window_is_it_cannot_go}" KeyboardNavigation.TabIndex="44">
                                     <StackPanel Orientation="Horizontal" Margin="4,2">
                                         <Slider x:Name="OpacitySlider" Width="110" Minimum="60" Maximum="100" Value="100"
-                                                ValueChanged="OnOpacityChanged" ToolTip="Window opacity" AutomationProperties.Name="Window opacity"/>
+                                                ValueChanged="OnOpacityChanged" ToolTip="{local:Loc window_opacity}" AutomationProperties.Name="{local:Loc window_opacity}" KeyboardNavigation.TabIndex="45"/>
                                         <TextBlock x:Name="OpacityLabel" Text="100%" Width="38" Margin="8,0,0,0" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </MenuItem>
-                                <MenuItem Header="Restore last closed page" Click="OnRestoreClosedPage" InputGestureText="Ctrl+Shift+T"/>
+                                <MenuItem Header="{local:Loc restore_last_closed_page}" Click="OnRestoreClosedPage" InputGestureText="Ctrl+Shift+T" KeyboardNavigation.TabIndex="46"/>
                                 <Separator/>
-                                <MenuItem Header="Connection security…" Click="OnConnectionSecurity"
-                                          ToolTip="The current site's connection: address, encryption, and the WebView2 runtime version"/>
-                                <MenuItem x:Name="LockNowItem" Header="Lock now" Click="OnLockNow" Visibility="Collapsed"
-                                          ToolTip="Lock MuseDesktop with your app password until you unlock it"/>
-                                <MenuItem Header="View log…" Click="OnViewLog"
-                                          ToolTip="Read the diagnostic log in the app, with its redaction check"/>
-                                <MenuItem Header="Open log folder" Click="OnOpenLogFolder"/>
-                                <MenuItem Header="Diagnostics…" Click="OnDiagnostics"
-                                          ToolTip="Versions, runtime health, proxy, memory, startup timings, data sizes, and recent errors — with a Copy button and the support-bundle export"/>
-                                <MenuItem Header="Help &amp; troubleshooting…" Click="OnHelp"
-                                          ToolTip="Offline pages for the common problems: sign-in loops, microphone, silent notifications, missing runtime, failing downloads, a forgotten app password"/>
-                                <MenuItem Header="Export support bundle…" Click="OnExportSupportBundle"
-                                          ToolTip="One .zip with the diagnostics report, the redacted log tail, sanitized settings, and download history — previewed first, uploaded nowhere"/>
-                                <MenuItem Header="About MuseDesktop" Click="OnAbout"/>
+                                <MenuItem Header="{local:Loc connection_security}" Click="OnConnectionSecurity"
+                                          ToolTip="{local:Loc the_current_site_s_connection_address}" KeyboardNavigation.TabIndex="47"/>
+                                <MenuItem x:Name="LockNowItem" Header="{local:Loc lock_now}" Click="OnLockNow" Visibility="Collapsed"
+                                          ToolTip="{local:Loc lock_musedesktop_with_your_app_password}" KeyboardNavigation.TabIndex="48"/>
+                                <MenuItem Header="{local:Loc view_log}" Click="OnViewLog"
+                                          ToolTip="{local:Loc read_the_diagnostic_log_in_the_app_with_its}" KeyboardNavigation.TabIndex="49"/>
+                                <MenuItem Header="{local:Loc open_log_folder}" Click="OnOpenLogFolder" KeyboardNavigation.TabIndex="50"/>
+                                <MenuItem Header="{local:Loc diagnostics_2}" Click="OnDiagnostics"
+                                          ToolTip="{local:Loc versions_runtime_health_proxy_memory}" KeyboardNavigation.TabIndex="51"/>
+                                <MenuItem Header="{local:Loc help_troubleshooting_2}" Click="OnHelp"
+                                          ToolTip="{local:Loc offline_pages_for_the_common_problems_sign}" KeyboardNavigation.TabIndex="52"/>
+                                <MenuItem Header="{local:Loc export_support_bundle}" Click="OnExportSupportBundle"
+                                          ToolTip="{local:Loc one_zip_with_the_diagnostics_report_the}" KeyboardNavigation.TabIndex="53"/>
+                                <MenuItem Header="{local:Loc about_musedesktop}" Click="OnAbout" KeyboardNavigation.TabIndex="54"/>
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>
@@ -185,15 +186,15 @@
                          Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}"
                          BorderBrush="{StaticResource HairlineBrush}"
                          KeyDown="OnFindTextKeyDown" TextChanged="OnFindTextChanged"
-                         AutomationProperties.Name="Find in page"/>
+                         AutomationProperties.Name="{local:Loc find_in_page_2}" KeyboardNavigation.TabIndex="55"/>
                 <TextBlock x:Name="FindCountText" Text="" Margin="8,0" VerticalAlignment="Center"
                            Foreground="{StaticResource MutedBrush}" FontSize="12"/>
                 <Button Style="{StaticResource BarButton}" Content="&#x2191;" Width="28"
-                        ToolTip="Previous match (Shift+Enter)" Click="OnFindPrevious" AutomationProperties.Name="Previous match"/>
+                        ToolTip="{local:Loc previous_match_shift_enter}" Click="OnFindPrevious" AutomationProperties.Name="{local:Loc previous_match}" KeyboardNavigation.TabIndex="56"/>
                 <Button Style="{StaticResource BarButton}" Content="&#x2193;" Width="28"
-                        ToolTip="Next match (Enter)" Click="OnFindNext" AutomationProperties.Name="Next match"/>
+                        ToolTip="{local:Loc next_match_enter}" Click="OnFindNext" AutomationProperties.Name="{local:Loc next_match}" KeyboardNavigation.TabIndex="57"/>
                 <Button Style="{StaticResource BarButton}" Content="&#x2715;" Width="28"
-                        ToolTip="Close find (Esc)" Click="OnFindClose" AutomationProperties.Name="Close find"/>
+                        ToolTip="{local:Loc close_find_esc}" Click="OnFindClose" AutomationProperties.Name="{local:Loc close_find}" KeyboardNavigation.TabIndex="58"/>
             </StackPanel>
         </Border>
 
@@ -206,8 +207,8 @@
             <StackPanel Orientation="Vertical" Margin="0,6,0,0">
                 <Button x:Name="BookmarksButton" Style="{StaticResource BarButton}" Content="&#x1F516;"
                         Width="34" Height="34" Margin="5,0" Click="OnBookmarks"
-                        ToolTip="Bookmarks — messages you marked in conversations (this profile)"
-                        AutomationProperties.Name="Bookmarks"/>
+                        ToolTip="{local:Loc bookmarks_messages_you_marked_in}"
+                        AutomationProperties.Name="{local:Loc bookmarks}" KeyboardNavigation.TabIndex="59"/>
             </StackPanel>
         </Border>
 
@@ -221,7 +222,7 @@
                  while focus is on the shell chrome. -->
             <Border x:Name="WebFocusRing" BorderThickness="2" BorderBrush="Transparent">
                 <wv2:WebView2 x:Name="Browser" DefaultBackgroundColor="#0B0B0D"
-                              AutomationProperties.Name="Muse web content"/>
+                              AutomationProperties.Name="{local:Loc muse_web_content}"/>
             </Border>
             <!-- Hidden retry view (S2 #15): same environment/profile, used only to
                  re-issue a download that failed in this session. Never shown. -->
@@ -234,26 +235,26 @@
                     HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,18"
                     Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource AccentBrush}"
                     BorderThickness="1" CornerRadius="4" Padding="12,9"
-                    AutomationProperties.Name="Page not responding notice">
+                    AutomationProperties.Name="{local:Loc page_not_responding_notice}">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" MaxWidth="420"
                                TextWrapping="Wrap"
-                               Text="The page hasn't answered MuseDesktop's last two checks — it may be busy or hung. Nothing has been reloaded; reload only when it won't interrupt you."/>
-                    <Button Content="Reload the page" Margin="12,0,0,0" Padding="10,4" Click="OnWatchdogReload"
-                            ToolTip="Reload now — chat drafts and scroll position can be lost"/>
-                    <Button Content="Wait" Margin="8,0,0,0" Padding="10,4" Click="OnWatchdogWait"
-                            ToolTip="Leave the page exactly as it is; don't check again for 2 minutes"/>
+                               Text="{local:Loc the_page_hasn_t_answered_musedesktop_s_last}"/>
+                    <Button Content="{local:Loc reload_the_page}" Margin="12,0,0,0" Padding="10,4" Click="OnWatchdogReload"
+                            ToolTip="{local:Loc reload_now_chat_drafts_and_scroll_position}" KeyboardNavigation.TabIndex="60"/>
+                    <Button Content="{local:Loc wait}" Margin="8,0,0,0" Padding="10,4" Click="OnWatchdogWait"
+                            ToolTip="{local:Loc leave_the_page_exactly_as_it_is_don_t_check}" KeyboardNavigation.TabIndex="61"/>
                 </StackPanel>
             </Border>
             <Border x:Name="Overlay" Background="{StaticResource BgBrush}" Visibility="Visible">
                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="520">
-                    <TextBlock x:Name="OverlayTitle" Text="Connecting to Muse…" FontSize="20"
+                    <TextBlock x:Name="OverlayTitle" Text="{local:Loc connecting_to_muse}" FontSize="20"
                                FontWeight="SemiBold" TextAlignment="Center" TextWrapping="Wrap"/>
                     <TextBlock x:Name="OverlayBody" Text="" FontSize="13" Margin="0,10,0,0"
                                Foreground="{StaticResource MutedBrush}" TextAlignment="Center" TextWrapping="Wrap"/>
-                    <Button x:Name="OverlayButton" Content="Retry" Width="110" Height="32" Margin="0,18,0,0"
+                    <Button x:Name="OverlayButton" Content="{local:Loc retry}" Width="110" Height="32" Margin="0,18,0,0"
                             Visibility="Collapsed" Click="OnReload" HorizontalAlignment="Center"
-                            Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0"/>
+                            Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0" KeyboardNavigation.TabIndex="62"/>
                 </StackPanel>
             </Border>
         </Grid>
@@ -263,9 +264,9 @@
                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,1,0,0">
             <DockPanel LastChildFill="True" Margin="8,0">
                 <Button x:Name="CancelDownloadButton" DockPanel.Dock="Right" Content="&#x2715;" Width="22" Height="18"
-                        Visibility="Collapsed" ToolTip="Cancel the most recent download (Downloads… manages each one)" Click="OnCancelDownload"
+                        Visibility="Collapsed" ToolTip="{local:Loc cancel_the_most_recent_download_downloads}" Click="OnCancelDownload"
                         Background="Transparent" Foreground="{StaticResource MutedBrush}" BorderThickness="0"
-                        AutomationProperties.Name="Cancel download"/>
+                        AutomationProperties.Name="{local:Loc cancel_download}" KeyboardNavigation.TabIndex="63"/>
                 <!-- Live regions (S6 #54): zero-width, invisible, not
                      hit-testable — present in the UIA tree only, so
                      screen readers speak download/update events. -->
@@ -275,7 +276,7 @@
                            IsHitTestVisible="False" AutomationProperties.LiveSetting="Assertive"/>
                 <TextBlock x:Name="StatusRight" DockPanel.Dock="Right" FontSize="11"
                            Foreground="{StaticResource FaintBrush}" VerticalAlignment="Center"/>
-                <TextBlock x:Name="StatusText" Text="Starting…" FontSize="11"
+                <TextBlock x:Name="StatusText" Text="{local:Loc starting}" FontSize="11"
                            Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"
                            TextTrimming="CharacterEllipsis" MouseLeftButtonUp="OnStatusTextClick"
                            ToolTip=""/>

@@ -182,7 +182,7 @@ public sealed class DownloadTracker
             else
             {
                 _log.Warn($"Download cannot resume: {entry.Model.FileName}");
-                _setStatus($"This download can't be resumed: {entry.Model.FileName}", null);
+                _setStatus(Strings.Format("status.cant_resume", entry.Model.FileName), null);
             }
         }
         catch (Exception ex) { _log.Warn($"Resume download failed: {ex.Message}"); }
@@ -224,7 +224,7 @@ public sealed class DownloadTracker
         catch (Exception ex)
         {
             _log.Warn($"Open downloaded file failed: {ex.Message}");
-            _setStatus($"Couldn't open {Path.GetFileName(path)} — it's in your downloads folder", null);
+            _setStatus(Strings.Format("status.couldnt_open_in_downloads", Path.GetFileName(path)), null);
         }
     }
 
@@ -289,7 +289,7 @@ public sealed class DownloadTracker
                 _onFinished(record);
                 _onCompletedNotify?.Invoke(name);
                 if (_entries.Count > 0) RefreshStatus();
-                else _setStatus($"Download complete: {name} — click to open", null);
+                else _setStatus(Strings.Format("status.download_complete_click", name), null);
                 Completed?.Invoke();
                 Changed?.Invoke();
                 return;
@@ -306,7 +306,7 @@ public sealed class DownloadTracker
                     model.SpeedBytesPerSecond = 0;
                     _log.Info($"Download paused: {name}");
                     if (_entries.Count == 1)
-                        _setStatus($"Download paused: {name}", null);
+                        _setStatus(Strings.Format("status.download_paused_name", name), null);
                     else
                         RefreshStatus();
                     Changed?.Invoke();
@@ -318,7 +318,7 @@ public sealed class DownloadTracker
                     model.State = DownloadActivityState.Cancelled;
                     Finalize(entry);
                     if (_entries.Count > 0) RefreshStatus();
-                    else _setStatus($"Download cancelled: {name}", null);
+                    else _setStatus(Strings.Format("status.download_cancelled_name", name), null);
                     Changed?.Invoke();
                     return;
                 }
@@ -353,7 +353,7 @@ public sealed class DownloadTracker
                     });
                 }
                 if (_entries.Count > 0) RefreshStatus();
-                else _setStatus($"Download interrupted: {name} ({reason})", null);
+                else _setStatus(Strings.Format("announce.download.failed_reason", name, reason), null);
                 Failed?.Invoke();
                 Changed?.Invoke();
                 return;
@@ -399,10 +399,10 @@ public sealed class DownloadTracker
             var model = entry.Model;
             if (model.State == DownloadActivityState.Paused)
             {
-                _setStatus($"Download paused: {model.FileName}", null);
+                _setStatus(Strings.Format("status.download_paused_name", model.FileName), null);
                 return;
             }
-            var (text, right) = DownloadText.ProgressStatus(
+            var (text, right) = DownloadLines.ProgressStatus(
                 model.FileName,
                 entry.Op.BytesReceived,
                 entry.Op.TotalBytesToReceive is { } total ? (long)total : null,
@@ -412,7 +412,7 @@ public sealed class DownloadTracker
             _setStatus(text, right);
             return;
         }
-        var aggregate = DownloadText.AggregateStatus(_set, DateTimeOffset.Now);
+        var aggregate = DownloadLines.AggregateStatus(_set, DateTimeOffset.Now);
         _setStatus(aggregate.Text, aggregate.Right);
     }
 }

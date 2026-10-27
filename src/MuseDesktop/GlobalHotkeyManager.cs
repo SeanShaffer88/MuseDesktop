@@ -69,7 +69,7 @@ public sealed class GlobalHotkeyManager : IDisposable
         _resolver = resolver ?? (settings => GlobalHotkey.Resolve(
             settings.GlobalHotkeyEnabled, settings.GlobalHotkeyGesture, settings.ShortcutOverrides));
         _activeText = activeText ?? (gesture =>
-            $"Active: {gesture.DisplayText()} shows or hides MuseDesktop from any app.");
+            Strings.Format("hotkey.active_show_hide", gesture.DisplayText()));
         _featureName = featureName;
     }
 
@@ -99,18 +99,18 @@ public sealed class GlobalHotkeyManager : IDisposable
         switch (resolution.Kind)
         {
             case HotkeyResolutionKind.Disabled:
-                StatusText = $"The {_featureName} is off.";
+                StatusText = Strings.Format("hotkey.off", _featureName);
                 return;
             case HotkeyResolutionKind.BlockedByConflict:
-                StatusText = $"{resolution.Gesture.DisplayText()} clashes with {resolution.ConflictOwner} " +
-                             $"inside MuseDesktop, so the {_featureName} isn't registered. Pick a different combination.";
+                StatusText = Strings.Format("hotkey.clash",
+                    resolution.Gesture.DisplayText(), resolution.ConflictOwner, _featureName);
                 _log.Warn($"Global hotkey not registered: {resolution.Gesture.DisplayText()} " +
                           $"is already used by {resolution.ConflictOwner} inside the app");
                 return;
         }
         if (!HotkeyNative.TryVirtualKey(resolution.Gesture.Key, out var vk))
         {
-            StatusText = $"{resolution.Gesture.DisplayText()} can't be registered as a global hotkey.";
+            StatusText = Strings.Format("hotkey.cant_register", resolution.Gesture.DisplayText());
             _log.Warn($"Global hotkey not registered: no virtual key for '{resolution.Gesture.Key}'");
             return;
         }
@@ -125,15 +125,14 @@ public sealed class GlobalHotkeyManager : IDisposable
             else
             {
                 var error = Marshal.GetLastWin32Error();
-                StatusText = $"Couldn't register {resolution.Gesture.DisplayText()} — another app may already use it. " +
-                             "Pick a different combination; the tray icon still brings MuseDesktop back meanwhile.";
+                StatusText = Strings.Format("hotkey.register_failed_other_app", resolution.Gesture.DisplayText());
                 _log.Warn($"Global hotkey {resolution.Gesture.DisplayText()} could not be registered " +
                           $"(Win32 error {error}) — another app may own that combination");
             }
         }
         catch (Exception ex)
         {
-            StatusText = $"The {_featureName} couldn't be registered — see the log.";
+            StatusText = Strings.Format("hotkey.register_failed_log", _featureName);
             _log.Warn($"Global hotkey registration failed: {ex.Message}");
         }
     }
