@@ -37,6 +37,7 @@ Try this:
 2. Check Windows Settings → Notifications: MuseDesktop (for its balloons) and your browser-style notifications from muse.ai must be allowed, and Focus Assist / Do Not Disturb schedules can hold everything until later.
 3. The button below opens Settings → Tray & notifications: check quiet hours isn't covering the whole day by accident, and that "Tell me when a download finishes while the window is hidden" is on if it's download alerts you're missing.
 4. Remember the app can't manufacture Muse alerts: if a task finishes without muse.ai sending a notification, there's nothing for Windows to show.
+5. Approval cards specifically: when Muse shows an approval card (a permission prompt) while the MuseDesktop window isn't the one you're looking at, the app beeps once and flashes its taskbar button — Settings → Tray & notifications → "Beep when an approval needs my attention" (on by default). It only notices the card; the approving click is always yours. If the beep stops working after a Muse page update, the card's buttons may have changed shape — that's a known limit, not your settings.
 
 ## The WebView2 Runtime is missing or too old
 

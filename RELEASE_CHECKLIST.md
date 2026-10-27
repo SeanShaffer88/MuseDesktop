@@ -276,6 +276,15 @@ Updates are the one feature that needs a *newer release* to fully exist. This se
 - [ ] **R7 #170 Text spacing:** Settings → Text spacing = Wide, OK — the shell's own windows gain visibly airier line spacing (multi-line labels, Settings notes, Help chrome) at every shell text size; = Standard restores the original spacing exactly; the Muse page's text does NOT change (its reading controls are the page's own, #205); combine Wide with shell text size 150% and Compact density — nothing overlaps or clips
 - [ ] **R7 regressions:** shell text size, theme/accent, High Contrast, and the S6 focus visuals behave as before in both languages; the tray menu shows the picked language but keeps the Windows font size; --help on the command line prints the usage text in the picked language and --version still answers; the log holds no full URLs and no new startup warnings; About reads version 1.8.0
 
+## v1.8.3 — R7C (approval beep) on-machine items
+
+- [ ] **R7C beep in the background:** with Settings → Tray & notifications → "Beep when an approval needs my attention" ON (the default), start something in Muse that triggers an approval card, then switch to another app (MuseDesktop not active) before the card appears — when the card appears: exactly ONE beep and the taskbar button flashes; the card is still waiting, unanswered (the app never answers it)
+- [ ] **R7C no beep while watching:** trigger an approval card while the MuseDesktop window is active and you're looking at it — NO beep; leave the card unanswered, switch away for a minute — still no beep for that same card
+- [ ] **R7C re-arm:** answer the first card, trigger a second one while in the background — it beeps again; trigger two cards in quick succession (seconds apart) — at most one beep inside the cooldown
+- [ ] **R7C toggle off:** turn the beep setting OFF, OK — trigger a card in the background: no beep, no flash; turn it back ON — the next background card beeps. Window hidden in the tray (not just unfocused): a card appearing beeps (no taskbar button exists to flash — the sound is the alert)
+- [ ] **R7C no false alarms:** ordinary chatting, long answers, and messages that merely discuss "allow" and "deny" produce no beeps; a genuine in-page Allow/Deny dialog beeping is correct behavior, not a false alarm — note any beep that fires with no approval-like prompt on screen and report what was on the page
+- [ ] **R7C regressions:** Settings opens fine and the new checkbox sits in Tray & notifications between the flash checkbox and quiet hours; About reads version 1.8.3; Spanish shell shows the checkbox as "Emitir un pitido cuando una aprobación necesite mi atención"; the log contains nothing about the card's contents
+
 ## v1.8.2 — R7B (token-usage ring) on-machine items
 
 - [ ] **R7B placement:** the token ring sits in the toolbar's upper right, immediately LEFT of the − zoom button, with the 🔖 Bookmarks button immediately left of the ring; the LEFT RAIL IS GONE and the conversation uses the full window width; focus mode (F8) hides the whole toolbar including the cluster; compact density and shell text sizes don't clip or overlap the ring
