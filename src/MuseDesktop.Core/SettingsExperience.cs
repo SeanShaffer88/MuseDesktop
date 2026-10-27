@@ -32,6 +32,7 @@ public static class SettingsSearch
     public const string AppearanceId = "appearance";
     public const string ZoomId = "zoom";
     public const string AccessibilityId = "accessibility";
+    public const string LanguageId = "language";
     public const string DownloadsId = "downloads";
     public const string DataId = "data";
     public const string FocusId = "focus";
@@ -53,6 +54,12 @@ public static class SettingsSearch
             "zoom default percent bigger smaller text size page extended range low vision 500"),
         new SettingsSectionInfo(AccessibilityId, "Keyboard & accessibility",
             "keyboard shortcuts keys remap rebind change hotkey global show hide anywhere dictate reduce motion animation effects announcements screen reader narrator focus dialog extended zoom range low vision accessibility"),
+        // R7 (v1.8.0): language & announcements sit between
+        // accessibility and downloads in the layout; its words
+        // (language, español, announcements, spacing) are its own, so
+        // the older sections keep their established matches.
+        new SettingsSectionInfo(LanguageId, "Language & announcements",
+            "language español spanish english translation translate pack import export locale region system default announcements announce spoken narrator screen reader mute quiet types downloads updates timers focus text spacing line height low vision rtl right-to-left"),
         new SettingsSectionInfo(DownloadsId, "Downloads",
             "downloads folder save ask where collision already exists rename history keep cap notify finished balloon sort rules subfolder file type organize archive dated bandwidth limit speed quiet hours schedule hold large duplicate already downloaded warn again hash sha-256 verify note retry automatic attempts quota soft cap storage batch links paste list"),
         new SettingsSectionInfo(DataId, "Data",
@@ -170,6 +177,15 @@ public static class SettingsReset
         target.ShortcutOverrides = fresh.ShortcutOverrides;
         target.ReduceMotion = fresh.ReduceMotion;
         target.ExtendedZoomRange = fresh.ExtendedZoomRange;
+        // R7 fields (v1.8.0): the language returns to "follow Windows",
+        // every announcement type speaks again, and text spacing
+        // returns to Standard. Imported language PACKS are files in
+        // the packs folder, not preferences — a reset leaves them
+        // installed (deleting a user's translation files is not a
+        // preference reset's business).
+        target.UiLanguage = fresh.UiLanguage;
+        target.AnnouncementKindEnabled = fresh.AnnouncementKindEnabled;
+        target.ShellTextSpacingScale = fresh.ShellTextSpacingScale;
         // S7 fields (v0.11.0): password autosave / general autofill
         // return to the WebView2 defaults (both on).
         target.PasswordAutosaveEnabled = fresh.PasswordAutosaveEnabled;

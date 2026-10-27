@@ -12,8 +12,8 @@ public sealed class BookmarkRow
         Bookmark = bookmark;
         Title = bookmark.Nickname;
         Detail = string.IsNullOrWhiteSpace(bookmark.ConversationTitle)
-            ? $"In a conversation · saved {bookmark.AddedUtc.LocalDateTime:yyyy-MM-dd}"
-            : $"{bookmark.ConversationTitle} · saved {bookmark.AddedUtc.LocalDateTime:yyyy-MM-dd}";
+            ? Strings.Format("bookmark.detail_in_conversation", bookmark.AddedUtc.LocalDateTime)
+            : Strings.Format("bookmark.detail_named", bookmark.ConversationTitle, bookmark.AddedUtc.LocalDateTime);
     }
 
     public MessageBookmark Bookmark { get; }
@@ -61,7 +61,7 @@ public partial class BookmarksWindow : Window
         var empty = BookmarkList.Items.Count == 0;
         JumpButton.IsEnabled = RenameButton.IsEnabled = DeleteButton.IsEnabled = !empty;
         if (empty)
-            StatusText.Text = "No bookmarks yet — hover a message in a conversation and click its bookmark button.";
+            StatusText.Text = Strings.Get("ui.no_bookmarks_yet_hover_a_message_in_a");
     }
 
     private BookmarkRow? Selected => BookmarkList.SelectedItem as BookmarkRow;
@@ -87,14 +87,14 @@ public partial class BookmarksWindow : Window
         // refused here with the reason, keeping the old name.
         while (true)
         {
-            var prompt = new TextPromptWindow("Rename bookmark",
-                "The bookmark's nickname — it can't be empty.",
-                row.Bookmark.Nickname, okText: "Rename") { Owner = this };
+            var prompt = new TextPromptWindow(Strings.Get("bookmark.rename_title"),
+                Strings.Get("bookmark.rename_body"),
+                row.Bookmark.Nickname, okText: Strings.Get("prompt.rename_ok")) { Owner = this };
             if (FocusReturn.ShowDialog(prompt) != true)
                 return;
             if (MessageBookmarks.CleanNickname(prompt.Text) is null)
             {
-                StatusText.Text = "A bookmark needs a nickname — the old name was kept.";
+                StatusText.Text = Strings.Get("ui.a_bookmark_needs_a_nickname_the_old");
                 continue;
             }
             if (_rename(row.Bookmark.Id, prompt.Text))

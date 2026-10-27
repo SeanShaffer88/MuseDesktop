@@ -33,7 +33,7 @@ public partial class UpdateWindow : Window
         _exitApp = exitApp;
         InitializeComponent();
         SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(this);
-        HeadlineText.Text = $"MuseDesktop {_release.Tag} is available";
+        HeadlineText.Text = Strings.Format("ui.update_headline", _release.Tag);
         if (_settings.UpdateSnoozedUntilUtc is { } until && DateTimeOffset.UtcNow < until)
             SnoozeNoteText.Text = UpdateSchedule.DescribeSnooze(until);
         Closing += (_, _) => _downloadCts?.Cancel();
@@ -47,7 +47,7 @@ public partial class UpdateWindow : Window
         CancelDownloadButton.Visibility = Visibility.Visible;
         DownloadProgress.Visibility = Visibility.Visible;
         DownloadProgress.IsIndeterminate = true;
-        StatusText.Text = "Downloading update…";
+        StatusText.Text = Strings.Get("ui.downloading_update");
         _downloadCts = new CancellationTokenSource();
         var progress = new Progress<string>(text =>
         {
@@ -73,14 +73,12 @@ public partial class UpdateWindow : Window
         {
             case UpdateDownloadOutcome.Verified:
                 _verifiedInstallerPath = result.InstallerPath;
-                StatusText.Text = "Downloaded and verified — the installer's fingerprint matches the " +
-                                  "fingerprint published with the release. Choose Install when you're ready: " +
-                                  "MuseDesktop will close and the installer will update it in place " +
-                                  "(your sign-in and settings carry over).";
+                StatusText.Text = Strings.Get("ui.downloaded_and_verified_the_installer_s") +
+                                  Strings.Get("update.verified_tail");
                 InstallButton.Visibility = Visibility.Visible;
                 break;
             default:
-                StatusText.Text = result.Message ?? "The update couldn't be downloaded.";
+                StatusText.Text = result.Message ?? Strings.Get("update.download_failed_fallback");
                 DownloadButton.Visibility = Visibility.Visible;
                 SnoozeDayButton.Visibility = Visibility.Visible;
                 SnoozeWeekButton.Visibility = Visibility.Visible;
@@ -107,8 +105,8 @@ public partial class UpdateWindow : Window
         catch (Exception ex)
         {
             _log.Warn($"Launching the update installer failed: {ex.Message}");
-            StatusText.Text = "The installer couldn't be started. The verified installer is kept in the " +
-                              $"updates folder ({AppPaths.UpdatesDir}) — you can run it from there.";
+            StatusText.Text = Strings.Get("ui.the_installer_couldn_t_be_started_the") +
+                              Strings.Format("update.installer_kept_tail", AppPaths.UpdatesDir);
             return;
         }
         Close();

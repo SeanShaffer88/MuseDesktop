@@ -1,10 +1,10 @@
 <Window x:Class="MuseDesktop.HelpWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Help &amp; troubleshooting"
+        Title="{local:Loc help_troubleshooting}"
         Width="780" Height="540" MinWidth="560" MinHeight="380"
         WindowStartupLocation="CenterOwner"
-        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}" xmlns:local="clr-namespace:MuseDesktop">
     <Window.Resources>
         <Style x:Key="Note" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11"/>
@@ -16,22 +16,20 @@
 
     <DockPanel Margin="14,12,14,12">
         <StackPanel DockPanel.Dock="Top">
-            <TextBlock Text="What's going wrong?" Margin="0,0,0,4"/>
+            <TextBlock Text="{local:Loc what_s_going_wrong}" Margin="0,0,0,4"/>
             <TextBox x:Name="SearchText" TextChanged="OnSearchChanged"
-                     ToolTip="Describe the problem in a word or two — microphone, sign in, downloads…"
-                     AutomationProperties.Name="Search help"/>
+                     ToolTip="{local:Loc describe_the_problem_in_a_word_or_two}"
+                     AutomationProperties.Name="{local:Loc search_help}" KeyboardNavigation.TabIndex="1"/>
             <TextBlock x:Name="SummaryText" Style="{StaticResource Note}"
-                       Text="These pages live inside the app — no internet needed to read them."/>
+                       Text="{local:Loc these_pages_live_inside_the_app_no_internet}"/>
         </StackPanel>
 
         <StackPanel DockPanel.Dock="Bottom" Margin="0,10,0,0">
-            <TextBlock Style="{StaticResource Note}">
-                Still stuck? <Hyperlink NavigateUri="https://github.com/SeanShaffer88/MuseDesktop/issues" RequestNavigate="OnReportLink">Report a problem on GitHub</Hyperlink> — opens in your browser (needs the internet). A support bundle (⋯ → Diagnostics → Export support bundle…) gives whoever helps you the facts without your private data.
-            </TextBlock>
+            <TextBlock Style="{StaticResource Note}" TextWrapping="Wrap"><Run Text="{local:Loc still_stuck}"/><Hyperlink NavigateUri="https://github.com/SeanShaffer88/MuseDesktop/issues" RequestNavigate="OnReportLink" AutomationProperties.Name="{local:Loc report_a_problem_on_github}" KeyboardNavigation.TabIndex="2"><Run Text="{local:Loc report_a_problem_on_github}"/></Hyperlink><Run Text="{local:Loc opens_in_your_browser_needs_the_internet_a}"/></TextBlock>
             <DockPanel Margin="0,8,0,0" LastChildFill="False">
                 <Button x:Name="ActionButton" DockPanel.Dock="Left" Height="30" MinWidth="220" Click="OnAction" Visibility="Collapsed"
-                        ToolTip="Open the in-app place this page points at"/>
-                <Button Content="Close" DockPanel.Dock="Right" Width="86" Height="30" IsCancel="True"/>
+                        ToolTip="{local:Loc open_the_in_app_place_this_page_points_at}" KeyboardNavigation.TabIndex="3"/>
+                <Button Content="{local:Loc close}" DockPanel.Dock="Right" Width="86" Height="30" IsCancel="True" KeyboardNavigation.TabIndex="4"/>
             </DockPanel>
         </StackPanel>
 
@@ -46,14 +44,14 @@
                      BorderBrush="{StaticResource HairlineBrush}"
                      DisplayMemberPath="Title"
                      SelectionChanged="OnPageSelected"
-                     AutomationProperties.Name="Help topics"/>
+                     AutomationProperties.Name="{local:Loc help_topics}" KeyboardNavigation.TabIndex="5"/>
             <TextBox x:Name="BodyText" Grid.Column="2" IsReadOnly="True"
                      FontSize="12.5"
                      Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
                      BorderBrush="{StaticResource HairlineBrush}"
                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
                      TextWrapping="Wrap"
-                     AutomationProperties.Name="Help page text"/>
+                     AutomationProperties.Name="{local:Loc help_page_text}" KeyboardNavigation.TabIndex="6"/>
         </Grid>
     </DockPanel>
 </Window>

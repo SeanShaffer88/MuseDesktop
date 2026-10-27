@@ -306,6 +306,33 @@ public sealed class AppSettings
     /// <summary>Extended zoom range (S6 #57): 25%–500% instead of 50%–200%, for low-vision users. Off by default.</summary>
     public bool ExtendedZoomRange { get; set; }
 
+    // Language & announcements (v1.8.0, R7 #161–#170).
+    /// <summary>
+    /// The shell language (R7 #162): a language code from the catalog
+    /// ("es-ES") or an imported pack, or null for "follow Windows"
+    /// (the default — the system culture resolves against the
+    /// available languages at launch). A code naming nothing available
+    /// resolves to English at launch and is left as stored; Sanitized
+    /// only drops values that aren't plausible codes at all.
+    /// </summary>
+    public string? UiLanguage { get; set; }
+
+    /// <summary>
+    /// The announcement center's per-type switches (R7 #169): kind id
+    /// → enabled, holding only the OFF exceptions (see
+    /// <see cref="AnnouncementSwitches"/>). Empty = every type speaks,
+    /// the S6 behavior.
+    /// </summary>
+    public Dictionary<string, bool> AnnouncementKindEnabled { get; set; } = new();
+
+    /// <summary>
+    /// Shell text spacing (R7 #170): the line-spacing scale for the
+    /// app's own windows — 1.0 (Standard), 1.25 (Relaxed), or 1.5
+    /// (Wide). Sanitized by <see cref="ShellTextSpacing"/> to the
+    /// nearest offered value.
+    /// </summary>
+    public double ShellTextSpacingScale { get; set; } = 1.0;
+
     // Privacy & security (v0.11.0, S7).
     /// <summary>
     /// Let Muse (and its sign-in pages) save passwords in WebView2 and
@@ -478,6 +505,14 @@ public sealed class AppSettings
         ShortcutOverrides ??= new Dictionary<string, string>();
         if (!Enum.IsDefined(ReduceMotion))
             ReduceMotion = ReduceMotionSetting.FollowSystem;
+        // R7: the language must be a plausible code (a hand-edited
+        // sentence is not a language — it reads as "follow Windows");
+        // the announcement switches keep only known OFF entries; the
+        // text-spacing scale clamps to the nearest offered step.
+        if (UiLanguage is not null && !LanguageCatalog.IsPlausibleCode(UiLanguage))
+            UiLanguage = null;
+        AnnouncementKindEnabled = AnnouncementSwitches.Sanitize(AnnouncementKindEnabled);
+        ShellTextSpacingScale = ShellTextSpacing.Sanitize(ShellTextSpacingScale);
         // After the profile list is final: pending deletions must never
         // name a live profile (S3 #28).
         global::MuseDesktop.Core.Profiles.SanitizePendingDeletions(this);

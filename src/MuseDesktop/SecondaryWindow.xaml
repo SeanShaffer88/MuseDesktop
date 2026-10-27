@@ -2,10 +2,10 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
-        Title="Muse — second window"
+        Title="{local:Loc muse_second_window}"
         Width="1100" Height="760"
         MinWidth="640" MinHeight="420"
-        Background="#0B0B0D" Foreground="#F2F2F3">
+        Background="#0B0B0D" Foreground="#F2F2F3" xmlns:local="clr-namespace:MuseDesktop">
     <wv2:WebView2 x:Name="Browser" DefaultBackgroundColor="#0B0B0D"
-                  AutomationProperties.Name="Muse web content"/>
+                  AutomationProperties.Name="{local:Loc muse_web_content}"/>
 </Window>

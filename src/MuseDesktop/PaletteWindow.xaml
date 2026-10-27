@@ -1,11 +1,11 @@
 <Window x:Class="MuseDesktop.PaletteWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Command palette"
+        Title="{local:Loc command_palette_2}"
         Width="580" Height="440" MinWidth="420" MinHeight="300"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False"
-        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}" xmlns:local="clr-namespace:MuseDesktop">
     <Window.Resources>
         <Style x:Key="Note" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11"/>
@@ -23,17 +23,17 @@
 
     <DockPanel Margin="14,12,14,12">
         <StackPanel DockPanel.Dock="Top">
-            <TextBlock Text="Type a command, a profile, a setting, a download, a window…"/>
+            <TextBlock Text="{local:Loc type_a_command_a_profile_a_setting_a}"/>
             <TextBox x:Name="SearchText" Margin="0,6,0,0" Height="26" VerticalContentAlignment="Center"
                      Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
                      BorderBrush="{StaticResource HairlineBrush}"
                      TextChanged="OnSearchChanged" PreviewKeyDown="OnSearchKeyDown"
-                     ToolTip="Search commands — a few letters are enough"
-                     AutomationProperties.Name="Search commands"/>
+                     ToolTip="{local:Loc search_commands_a_few_letters_are_enough}"
+                     AutomationProperties.Name="{local:Loc search_commands}" KeyboardNavigation.TabIndex="1"/>
         </StackPanel>
 
         <TextBlock x:Name="SummaryText" DockPanel.Dock="Bottom" Style="{StaticResource Note}"
-                   AutomationProperties.Name="Result summary"/>
+                   AutomationProperties.Name="{local:Loc result_summary}"/>
 
         <ListBox x:Name="ResultList" Margin="0,10,0,0"
                  Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
@@ -41,7 +41,7 @@
                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                  MouseDoubleClick="OnDoubleClick" PreviewKeyDown="OnListKeyDown"
                  SelectionChanged="OnSelectionChanged"
-                 AutomationProperties.Name="Command results">
+                 AutomationProperties.Name="{local:Loc command_results}" KeyboardNavigation.TabIndex="2">
             <ListBox.GroupStyle>
                 <GroupStyle>
                     <GroupStyle.HeaderTemplate>

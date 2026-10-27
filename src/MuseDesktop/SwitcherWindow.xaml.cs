@@ -51,15 +51,15 @@ public sealed class SwitcherRow
     public IReadOnlyList<string> GroupMemberIds { get; } = Array.Empty<string>();
 
     public string Title => IsGroupHeader
-        ? $"Group: {GroupName} ({GroupMemberIds.Count})"
-        : string.IsNullOrWhiteSpace(Window!.Title) ? "Muse window" : Window.Title;
+        ? Strings.Format("switcher.group_title", GroupName, GroupMemberIds.Count)
+        : string.IsNullOrWhiteSpace(Window!.Title) ? Strings.Get("switcher.muse_window") : Window.Title;
     // R3 #121: the profile's avatar glyph rides the descriptor and
     // leads the profile name here, like every other switcher surface.
     public string ProfileLabel => IsGroupHeader
-        ? "Window group — Enter raises all its windows"
+        ? Strings.Get("switcher.group_hint")
         : Window!.ProfileName is null
-            ? (Window.IsMain ? "Main window" : "Second window")
-            : $"{(Window.IsMain ? "Main window" : "Second window")} · profile {(WorkspaceGlyphs.SymbolFor(Window.ProfileGlyphKey) is { } symbol ? symbol + " " : "")}{Window.ProfileName}";
+            ? (Window.IsMain ? Strings.Get("switcher.main_window") : Strings.Get("switcher.second_window"))
+            : $"{(Window.IsMain ? Strings.Get("switcher.main_window") : Strings.Get("switcher.second_window"))} · profile {(WorkspaceGlyphs.SymbolFor(Window.ProfileGlyphKey) is { } symbol ? symbol + " " : "")}{Window.ProfileName}";
     public Brush? DotBrush { get; }
     public Visibility DotVisibility => DotBrush is null ? Visibility.Collapsed : Visibility.Visible;
     public FontWeight TitleWeight => IsGroupHeader ? FontWeights.SemiBold : FontWeights.Normal;
@@ -204,19 +204,19 @@ public partial class SwitcherWindow : Window
 
         if (row.IsGroupHeader)
         {
-            var raise = new MenuItem { Header = "Raise all windows" };
+            var raise = new MenuItem { Header = Strings.Get("ui.raise_all_windows") };
             raise.Click += (_, _) => ChooseSelected();
             menu.Items.Add(raise);
-            var rename = new MenuItem { Header = "Rename group…" };
+            var rename = new MenuItem { Header = Strings.Get("ui.rename_group") };
             rename.Click += (_, _) =>
             {
-                var prompt = new TextPromptWindow("Rename group", "Group name:", row.GroupName ?? "")
+                var prompt = new TextPromptWindow(Strings.Get("switcher.rename_group"), Strings.Get("switcher.group_name"), row.GroupName ?? "")
                     { Owner = this };
                 if (prompt.ShowDialog() == true && _groups.Rename(row.GroupId!, prompt.Text))
                     RebuildRows();
             };
             menu.Items.Add(rename);
-            var delete = new MenuItem { Header = "Delete group" };
+            var delete = new MenuItem { Header = Strings.Get("ui.delete_group") };
             delete.Click += (_, _) =>
             {
                 _groups.Delete(row.GroupId!);
@@ -229,7 +229,7 @@ public partial class SwitcherWindow : Window
             var windowId = row.Window!.Id;
             if (_onTilePreset is not null)
             {
-                var tile = new MenuItem { Header = "Tile window" };
+                var tile = new MenuItem { Header = Strings.Get("ui.tile_window") };
                 foreach (var preset in WindowTilingPresets.All)
                 {
                     var captured = preset;
@@ -244,11 +244,11 @@ public partial class SwitcherWindow : Window
                 menu.Items.Add(tile);
                 menu.Items.Add(new Separator());
             }
-            var create = new MenuItem { Header = "New group with this window…" };
+            var create = new MenuItem { Header = Strings.Get("ui.new_group_with_this_window") };
             create.Click += (_, _) =>
             {
-                var prompt = new TextPromptWindow("New window group",
-                        "Name the group (it lasts until the app exits):")
+                var prompt = new TextPromptWindow(Strings.Get("switcher.new_group"),
+                        Strings.Get("switcher.new_group_body"))
                     { Owner = this };
                 if (prompt.ShowDialog() == true)
                 {
@@ -261,7 +261,7 @@ public partial class SwitcherWindow : Window
             var others = _groups.Groups.Where(g => g.Id != current?.Id).ToList();
             if (others.Count > 0)
             {
-                var add = new MenuItem { Header = "Add to group" };
+                var add = new MenuItem { Header = Strings.Get("ui.add_to_group") };
                 foreach (var group in others)
                 {
                     var captured = group;
@@ -277,7 +277,7 @@ public partial class SwitcherWindow : Window
             }
             if (current is not null)
             {
-                var remove = new MenuItem { Header = $"Remove from group \"{current.Name}\"" };
+                var remove = new MenuItem { Header = Strings.Format("ui.remove_from_group", current.Name) };
                 remove.Click += (_, _) =>
                 {
                     _groups.Unassign(windowId);

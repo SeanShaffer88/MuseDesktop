@@ -2,70 +2,88 @@
 
 The release notes MuseDesktop shows on the first launch of a new version (S9 #82). This file is generated from CHANGELOG.md's current-version section at release time (see RELEASE_CHECKLIST.md) — do not edit it by hand; a test pins it to the changelog so the two can't drift.
 
-## [1.7.0] — Unreleased
+## [1.8.0] — Unreleased
 
-Round 2 Slice R6 (items 151–160): appearance round 2. The shell
-gets its Windows 11 face — backdrop materials, a title bar that can
-wear the active profile's color, denser chrome, a mini mode, tray
-icon styles, a see-through slider, any accent color you can name,
-light/dark on your own schedule, and theme bundles inside the
-settings export. As always, only MuseDesktop's own windows are
-restyled; the Muse page is never touched, and Windows High
-Contrast outranks every choice below.
+Round 2 Slice R7 (items 161–170): accessibility & language
+round 2. The whole shell — every menu, dialog, Settings page,
+and the tray — now speaks through one string catalog, ships in
+English and Spanish, and can learn more languages from pack
+files. Announcements get per-type switches and a quiet visual
+history, every window gets a deliberate keyboard tab order, and
+the shell's own text gains line-spacing choices for low-vision
+readers. As always, only MuseDesktop's own windows are
+translated or restyled; the Muse page is never touched.
 
 ### Added
 
-- **#151 Backdrop materials.** On Windows 11 the window can sit on
-  Mica (a soft tint of your wallpaper) or Acrylic (a stronger
-  frosted blur): Settings → Appearance → Window backdrop. Automatic
-  means Mica. On Windows 10, with Windows transparency effects off,
-  or in High Contrast, the window simply stays solid — no fake
-  substitute.
-- **#152 Per-profile title bar tint.** The title bar takes the
-  active profile's color, so the profile in use is visible at a
-  glance. On by default; the switch is in Settings → Appearance.
-  High Contrast turns it off.
-- **#153 Compact density.** A Compact choice alongside Comfortable
-  packs the toolbar and status bar tighter (Settings →
-  Appearance → Chrome density). It works with shell text size,
-  not instead of it — one sets the spacing, the other the words.
-- **#154 Mini mode.** ⋯ menu (or Ctrl+K) → **Mini mode** shrinks
-  MuseDesktop to a small always-on-top strip: the profile color,
-  the page's icon and title, and the live downloads with **Pause
-  all** / **Resume all**. The page itself keeps living in the main
-  window, which comes back with **Expand**. Shell chrome only —
-  there is no second web view in the strip.
-- **#155 Tray icon styles.** The tray icon can be painted Color,
-  Monochrome, or tinted with the active profile's color, and its
-  attention overlay can be a numbered badge, a plain dot, or off
-  entirely: Settings → Appearance → Tray icon / Count overlay.
-- **#156 Window opacity.** A slider in the ⋯ menu makes this
-  window see-through, from 100% down to 60%. It is per-window and
-  lasts for the session only; it turns off in High Contrast, and
-  the window goes fully solid whenever the app locks.
-- **#157 No white flash.** Every web view the app creates — the
-  main window, a second window, the recovery views — now starts on
-  the theme's own background color, chosen in one place, so
-  nothing flashes white (or black) against the shell before the
-  page paints. Under High Contrast it follows the system window
-  color instead.
-- **#158 Custom accent picker.** In Settings → Appearance, tick
-  **Custom accent color** and type any color as six hex digits.
-  The color is adjusted until it passes the same measured
-  readability (contrast) check as the five presets — on both the
-  dark and the light shell — so a custom accent can never be an
-  unreadable one.
-- **#159 Theme scheduling.** A fourth theme choice, **Follow
-  schedule**: light from one time of day, dark from another (the
-  times sit right under the theme choice in Settings; the dark
-  time may be the earlier one, for night owls). The shell checks
-  the clock every minute and switches quietly.
-- **#160 Theme bundles.** The appearance face — theme mode,
-  accent (preset or custom), and backdrop — travels inside the
-  ordinary settings export/import, so one export carries the whole
-  look to another PC. The schedule times ride the same export, so
-  a Follow schedule look is never stranded without its times.
+- **#161 Localization framework.** Every string the shell shows
+  — menus, dialogs, Settings, the tray, status lines — lives in
+  a string catalog instead of being written into the windows.
+  A test fails the build if a hard-coded user-facing string
+  turns up in the shell, so the catalog can't quietly fall
+  behind the windows it feeds.
+- **#162 Language picker.** Settings → Language &
+  announcements → Shell language: **System default** (follows
+  the Windows display language), English, Español, plus any
+  language an imported pack adds. No reinstall and no separate
+  download. Windows opened after a change use the new language
+  right away; windows already open switch at the next launch.
+- **#163 Spanish shell language.** A full Spanish translation
+  of every shell string, held to the same completeness
+  standard as English: the coverage guard below counts it at
+  100%, placeholders and all.
+- **#164 Translation coverage guard.** If a language lacks a
+  string, the shell falls back to English for that string —
+  and counts it. Diagnostics shows a per-language coverage
+  report, so a partial translation is always visible, never a
+  silent gap.
+- **#165 Language packs as files.** Anyone can translate the
+  shell: export a template holding every string, translate it,
+  and import the finished file in the same Settings section.
+  The app validates a pack before using it — every string
+  present, no unknown strings, placeholders intact — and
+  refuses a bad pack with the reason in plain words. Packs
+  live in the `language-packs` folder in the data folder.
+- **#166 Right-to-left readiness.** The catalog and the shell
+  layout know each language's reading direction, and windows
+  follow it. No right-to-left language ships yet; the machinery
+  is proven in tests with a synthetic Arabic pack, so adding
+  one later is translation only.
+- **#167 Accessibility audit, extended.** The automated
+  audit that checks every control has an accessible name now
+  covers every window added since round 1 — the command
+  palette, workspaces, profiles extras, the downloads extras,
+  bookmarks and the left rail, the mini window, and the R5/R6
+  surfaces — and runs as tests on every build.
+- **#168 Logical tab order everywhere.** Every window has a
+  deliberate keyboard focus order that follows the order a
+  person reads the screen, pinned by the same audit so a new
+  control can't silently land in the wrong place.
+- **#169 Announcement center.** The spoken announcements
+  (a download finishing, an update waiting, a timer ending,
+  focus mode turning on) get per-type switches in Settings →
+  Language & announcements — turn off the kinds you don't
+  want spoken and keep the rest. Diagnostics keeps a quiet
+  visual history of the last 100 announcements, including the
+  ones a switched-off type didn't speak, so nothing the app
+  said is ever lost.
+- **#170 Shell text spacing.** Line spacing for the app's own
+  windows — Standard, Relaxed, or Wide — in Settings →
+  Language & announcements, for low-vision readers. (WPF has
+  no letter-spacing setting, so the control is line spacing
+  only; see Known limitations.)
 
-Core test suite grows by 65 cases (916 → 981); everything above is
+Core test suite grows by 94 cases (981 → 1075); everything above is
 **Unverified** on a real machine until the on-machine pass (see
 RELEASE_CHECKLIST).
+
+### Fixed
+
+- **Settings would not open (crash, found in the v1.7.0 field
+  pass).** The profile picker in Settings carries a custom item
+  template (color dot + name), and an older line of code also set
+  its DisplayMemberPath — Windows' UI framework refuses the
+  combination and throws, closing the window before it appears.
+  The redundant line is gone (the template already shows the
+  name), and a new test fails the build if any templated control
+  ever gets a DisplayMemberPath again.

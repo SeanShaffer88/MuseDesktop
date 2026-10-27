@@ -36,24 +36,24 @@ public static class JumpListBuilder
 
             list.JumpItems.Add(new JumpTask
             {
-                Title = "Open Muse",
-                Description = "Open MuseDesktop at your start page",
+                Title = Strings.Get("ui.open_muse"),
+                Description = Strings.Get("ui.jump_open_desc"),
                 ApplicationPath = exe,
                 Arguments = "",
                 IconResourcePath = exe,
             });
             list.JumpItems.Add(new JumpTask
             {
-                Title = "Settings",
-                Description = "Open MuseDesktop and its Settings window",
+                Title = Strings.Get("ui.settings"),
+                Description = Strings.Get("ui.jump_settings_desc"),
                 ApplicationPath = exe,
                 Arguments = "--settings",
                 IconResourcePath = exe,
             });
             list.JumpItems.Add(new JumpTask
             {
-                Title = "Quick dictate",
-                Description = "Open MuseDesktop with the Muse page focused, ready for voice input",
+                Title = Strings.Get("ui.quick_dictate"),
+                Description = Strings.Get("ui.jump_dictate_desc"),
                 ApplicationPath = exe,
                 Arguments = "--dictate",
                 IconResourcePath = exe,
@@ -70,13 +70,13 @@ public static class JumpListBuilder
                 list.JumpItems.Add(new JumpTask
                 {
                     Title = profile.Id == settings.ActiveProfileId
-                        ? $"{profile.Name} (current)"
+                        ? Strings.Format("ui.profile_current_suffix", profile.Name)
                         : profile.Name,
-                    Description = $"Open MuseDesktop with the {profile.Name} profile",
+                    Description = Strings.Format("ui.jump_profile_desc", profile.Name),
                     ApplicationPath = exe,
                     Arguments = $"--profile {profile.Id}",
                     IconResourcePath = exe,
-                    CustomCategory = "Profiles",
+                    CustomCategory = Strings.Get("jump.profiles"),
                 });
             }
 

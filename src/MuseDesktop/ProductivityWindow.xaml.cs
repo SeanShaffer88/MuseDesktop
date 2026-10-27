@@ -38,7 +38,7 @@ public partial class ProductivityWindow : Window
         var report = _statsSource();
         StatsPanel.Children.Add(new TextBlock
         {
-            Text = $"Week of {report.WeekStartUtc.LocalDateTime:MMMM d, yyyy} — counted on this PC only.",
+            Text = Strings.Format("prod.week_of", report.WeekStartUtc.LocalDateTime),
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 0, 0, 10),
         });
@@ -46,7 +46,7 @@ public partial class ProductivityWindow : Window
         {
             StatsPanel.Children.Add(new TextBlock
             {
-                Text = "No profiles yet — nothing to count.",
+                Text = Strings.Get("ui.no_profiles_yet_nothing_to_count"),
                 TextWrapping = TextWrapping.Wrap,
             });
             return;
@@ -62,15 +62,13 @@ public partial class ProductivityWindow : Window
                 FontSize = 13,
                 Margin = new Thickness(0, 8, 0, 4),
             });
-            AddBar("Launches", row.Launches.ToString(), row.LaunchFraction, accent, track);
-            AddBar("Downloads", row.Downloads.ToString(), row.DownloadFraction, accent, track);
-            AddBar("Focus time", TimerText.FormatMinutes(row.FocusMinutes), row.FocusFraction, accent, track);
+            AddBar(Strings.Get("prod.launches"), row.Launches.ToString(), row.LaunchFraction, accent, track);
+            AddBar(Strings.Get("prod.downloads"), row.Downloads.ToString(), row.DownloadFraction, accent, track);
+            AddBar(Strings.Get("prod.focus_time"), TimerText.FormatMinutes(row.FocusMinutes), row.FocusFraction, accent, track);
         }
         StatsPanel.Children.Add(new TextBlock
         {
-            Text = $"Totals: {report.TotalLaunches} launches · {report.TotalDownloads} downloads · " +
-                   $"{TimerText.FormatMinutes(report.TotalFocusMinutes)} focused. " +
-                   "Clearing deletes the tally file — the counts are all it holds.",
+            Text = Strings.Format("prod.totals", report.TotalLaunches, report.TotalDownloads, TimerText.FormatMinutes(report.TotalFocusMinutes)),
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 12, 0, 0),
         });
@@ -120,9 +118,8 @@ public partial class ProductivityWindow : Window
     private void OnClearStats(object sender, RoutedEventArgs e)
     {
         var answer = System.Windows.MessageBox.Show(this,
-            "Delete the weekly stats tallies? The counts are gone for good; " +
-            "your settings, notes, and reading list are not touched.",
-            "Clear stats data", MessageBoxButton.OKCancel, MessageBoxImage.Question);
+            Strings.Get("msg.clear_stats_body"),
+            Strings.Get("msg.clear_stats_data"), MessageBoxButton.OKCancel, MessageBoxImage.Question);
         if (answer != MessageBoxResult.OK)
             return;
         _clearStats();

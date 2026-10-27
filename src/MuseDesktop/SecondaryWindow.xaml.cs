@@ -91,7 +91,7 @@ public partial class SecondaryWindow : Window
             core.DocumentTitleChanged += (_, _) =>
             {
                 var t = core.DocumentTitle;
-                Title = string.IsNullOrWhiteSpace(t) ? "Muse — second window" : $"{t} — MuseDesktop";
+                Title = string.IsNullOrWhiteSpace(t) ? Strings.Get("muse_second_window") : $"{t} — MuseDesktop";
             };
             core.Navigate(_initialUrl);
             _log.Info($"Secondary window opened: {UrlPolicy.RedactForLog(_initialUrl)}");

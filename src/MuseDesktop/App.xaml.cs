@@ -34,6 +34,14 @@ public partial class App : System.Windows.Application
         // fatal.
         var options = CommandLine.Parse(e.Args);
 
+        // R7 #161: even the pre-instance answers below speak the
+        // user's language — a read-only settings peek purely to pick
+        // the catalog language (the real load happens further down,
+        // unchanged; Load's corrupt-file preservation is timestamped
+        // and best-effort, so the peek is safe).
+        try { Strings.Initialize(SettingsStore.Load(AppPaths.SettingsPath)); }
+        catch { /* English is the fallback — language never breaks startup */ }
+
         // S11 #100: --help / --version are information, not actions —
         // answered by THIS process, before single-instance, so asking
         // never wakes (or waits behind the lock of) a running instance.
@@ -41,8 +49,7 @@ public partial class App : System.Windows.Application
         {
             var version = typeof(App).Assembly.GetName().Version;
             System.Windows.MessageBox.Show(
-                $"MuseDesktop {version?.ToString(3) ?? "?"}\n\n" +
-                "A native Windows desktop client for Muse (muse.ai).",
+                Strings.Format("app.version.body", version?.ToString(3) ?? "?"),
                 "MuseDesktop", MessageBoxButton.OK, MessageBoxImage.Information);
             Shutdown();
             return;
@@ -51,8 +58,8 @@ public partial class App : System.Windows.Application
         {
             var version = typeof(App).Assembly.GetName().Version;
             System.Windows.MessageBox.Show(
-                CommandLineUsage.Text(version?.ToString(3) ?? "?"),
-                "MuseDesktop — command line", MessageBoxButton.OK, MessageBoxImage.Information);
+                Strings.Format("app.usage.text", version?.ToString(3) ?? "?"),
+                Strings.Get("app.help.caption"), MessageBoxButton.OK, MessageBoxImage.Information);
             Shutdown();
             return;
         }
@@ -119,6 +126,20 @@ public partial class App : System.Windows.Application
         if (settingsFileExisted && Settings.SchemaVersion < 2 && !Settings.FirstRunCompleted)
             Settings.FirstRunCompleted = true;
         Settings.SchemaVersion = Math.Max(Settings.SchemaVersion, 2);
+        // Shell language (R7 #161/#162/#166): resolve the catalog
+        // language from the real settings (the peek above may have
+        // run on defaults), and give every window the language's
+        // reading direction as it loads — one class handler, so
+        // right-to-left readiness covers windows added later too.
+        Strings.Initialize(Settings);
+        EventManager.RegisterClassHandler(typeof(Window), FrameworkElement.LoadedEvent,
+            new RoutedEventHandler((sender, _) =>
+            {
+                if (sender is Window window)
+                    window.FlowDirection = Strings.Current.IsRightToLeft
+                        ? System.Windows.FlowDirection.RightToLeft
+                        : System.Windows.FlowDirection.LeftToRight;
+            }));
         // Shell theme (v0.9.0, S5 #43): apply before any window exists,
         // and keep following Windows while the app runs when the mode
         // says so.
@@ -299,8 +320,7 @@ public partial class App : System.Windows.Application
             Log.Error($"Unhandled: {args.Exception}");
             args.Handled = true;
             System.Windows.MessageBox.Show(
-                "MuseDesktop hit an unexpected error but kept your session safe.\n\n" +
-                $"Details were written to the log:\n{AppPaths.LogPath}",
+                Strings.Format("app.unhandled_error", AppPaths.LogPath),
                 "MuseDesktop", MessageBoxButton.OK, MessageBoxImage.Warning);
         };
 
@@ -318,8 +338,7 @@ public partial class App : System.Windows.Application
         {
             Log.Error($"Main window creation failed: {ex}");
             System.Windows.MessageBox.Show(
-                "MuseDesktop could not create its main window.\n\n" +
-                $"The full error was written to the log:\n{AppPaths.LogPath}",
+                Strings.Format("app.main_window_failed", AppPaths.LogPath),
                 "MuseDesktop", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
             return;

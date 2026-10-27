@@ -16,7 +16,7 @@ public partial class WhatsNewWindow : Window
     {
         InitializeComponent();
         SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(this);
-        HeadlineText.Text = $"What's new in MuseDesktop {version}";
+        HeadlineText.Text = Strings.Format("ui.whats_new_headline", version);
         BodyText.Text = bodyMarkdown;
     }
 

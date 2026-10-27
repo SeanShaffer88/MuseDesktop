@@ -68,17 +68,17 @@ public partial class DiagnosticsWindow : Window
         var last = _lastErrorProvider?.Invoke();
         if (last is null)
         {
-            CopyNote.Text = "No errors in the current log — nothing to copy.";
+            CopyNote.Text = Strings.Get("ui.no_errors_in_the_current_log_nothing_to");
             return;
         }
         try
         {
             System.Windows.Clipboard.SetText(last);
-            CopyNote.Text = "Copied the most recent error (redacted).";
+            CopyNote.Text = Strings.Get("ui.copied_the_most_recent_error_redacted");
         }
         catch
         {
-            CopyNote.Text = "Couldn't copy — the clipboard is busy.";
+            CopyNote.Text = Strings.Get("ui.couldn_t_copy_the_clipboard_is_busy");
         }
     }
 
@@ -90,7 +90,7 @@ public partial class DiagnosticsWindow : Window
         }
         catch (Exception ex)
         {
-            ReportText.Text = $"Diagnostics couldn't be collected ({ex.Message}). The log has the details.";
+            ReportText.Text = Strings.Format("ui.diagnostics_couldnt_be_collected", ex.Message);
         }
     }
 
@@ -101,11 +101,11 @@ public partial class DiagnosticsWindow : Window
         try
         {
             System.Windows.Clipboard.SetText(ReportText.Text);
-            CopyNote.Text = "Copied.";
+            CopyNote.Text = Strings.Get("ui.copied");
         }
         catch
         {
-            CopyNote.Text = "Couldn't copy — the clipboard is busy.";
+            CopyNote.Text = Strings.Get("ui.couldn_t_copy_the_clipboard_is_busy");
         }
     }
 }

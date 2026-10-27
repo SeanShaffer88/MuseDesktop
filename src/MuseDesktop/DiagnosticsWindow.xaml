@@ -1,10 +1,10 @@
 <Window x:Class="MuseDesktop.DiagnosticsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Diagnostics"
+        Title="{local:Loc diagnostics}"
         Width="680" Height="520" MinWidth="480" MinHeight="360"
         WindowStartupLocation="CenterOwner"
-        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}" xmlns:local="clr-namespace:MuseDesktop">
     <Window.Resources>
         <Style x:Key="Note" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11"/>
@@ -16,26 +16,26 @@
 
     <DockPanel Margin="14,12,14,12">
         <TextBlock DockPanel.Dock="Top" Style="{StaticResource Note}" Margin="0,0,0,0"
-                   Text="What's happening under the hood: the WebView2 runtime's health, the proxy Windows is using, current memory, and how fast the last launches started. Everything here is read from this PC, on demand — nothing is sent anywhere."/>
+                   Text="{local:Loc what_s_happening_under_the_hood_the}"/>
 
         <StackPanel DockPanel.Dock="Bottom">
             <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                <Button x:Name="ExportBundleButton" Content="Export support bundle…" Width="170" Height="30" Click="OnExportBundle" Visibility="Collapsed"
-                        ToolTip="Save one .zip with this report, the redacted log tail, sanitized settings, and download history — after a preview of exactly what's in it. Nothing is uploaded"/>
-                <Button x:Name="OpenLogButton" Content="Open today's log" Width="130" Height="30" Margin="8,0,0,0" Click="OnOpenLog" Visibility="Collapsed"
-                        ToolTip="Open the log file itself in your default text editor"/>
-                <Button x:Name="CopyLastErrorButton" Content="Copy last error" Width="120" Height="30" Margin="8,0,0,0" Click="OnCopyLastError" Visibility="Collapsed"
-                        ToolTip="Copy just the most recent ERROR line from the log (redacted)"/>
+                <Button x:Name="ExportBundleButton" Content="{local:Loc export_support_bundle}" Width="170" Height="30" Click="OnExportBundle" Visibility="Collapsed"
+                        ToolTip="{local:Loc save_one_zip_with_this_report_the_redacted}" KeyboardNavigation.TabIndex="1"/>
+                <Button x:Name="OpenLogButton" Content="{local:Loc open_today_s_log}" Width="130" Height="30" Margin="8,0,0,0" Click="OnOpenLog" Visibility="Collapsed"
+                        ToolTip="{local:Loc open_the_log_file_itself_in_your_default}" KeyboardNavigation.TabIndex="2"/>
+                <Button x:Name="CopyLastErrorButton" Content="{local:Loc copy_last_error}" Width="120" Height="30" Margin="8,0,0,0" Click="OnCopyLastError" Visibility="Collapsed"
+                        ToolTip="{local:Loc copy_just_the_most_recent_error_line_from}" KeyboardNavigation.TabIndex="3"/>
             </StackPanel>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
                 <TextBlock x:Name="CopyNote" Style="{StaticResource Note}" Margin="0,4,10,0"/>
                 <Button x:Name="RollbackButton" Width="230" Height="30" Click="OnRollback" Visibility="Collapsed"
-                        ToolTip="Run the previous version's installer, kept by the in-app updater, and replace this version in place"/>
-                <Button Content="Copy report" Width="110" Height="30" Margin="8,0,0,0" Click="OnCopy"
-                        ToolTip="Copy this report to the clipboard (it contains file paths on this PC, no page content)"/>
-                <Button Content="Refresh" Width="86" Height="30" Margin="8,0,0,0" Click="OnRefresh"
-                        ToolTip="Collect the figures again"/>
-                <Button Content="Close" Width="86" Height="30" Margin="8,0,0,0" IsCancel="True"/>
+                        ToolTip="{local:Loc run_the_previous_version_s_installer_kept}" KeyboardNavigation.TabIndex="4"/>
+                <Button Content="{local:Loc copy_report}" Width="110" Height="30" Margin="8,0,0,0" Click="OnCopy"
+                        ToolTip="{local:Loc copy_this_report_to_the_clipboard_it}" KeyboardNavigation.TabIndex="5"/>
+                <Button Content="{local:Loc refresh}" Width="86" Height="30" Margin="8,0,0,0" Click="OnRefresh"
+                        ToolTip="{local:Loc collect_the_figures_again}" KeyboardNavigation.TabIndex="6"/>
+                <Button Content="{local:Loc close}" Width="86" Height="30" Margin="8,0,0,0" IsCancel="True" KeyboardNavigation.TabIndex="7"/>
             </StackPanel>
         </StackPanel>
 
@@ -45,6 +45,6 @@
                  BorderBrush="{StaticResource HairlineBrush}"
                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
                  TextWrapping="NoWrap"
-                 AutomationProperties.Name="Diagnostics report"/>
+                 AutomationProperties.Name="{local:Loc diagnostics_report}" KeyboardNavigation.TabIndex="8"/>
     </DockPanel>
 </Window>

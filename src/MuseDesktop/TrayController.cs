@@ -185,7 +185,7 @@ public sealed class TrayController : IDisposable
                 Icon = _baseIcon,
             };
             var menu = new Forms.ContextMenuStrip();
-            _openItem = new Forms.ToolStripMenuItem("Open Muse");
+            _openItem = new Forms.ToolStripMenuItem(Strings.Get("tray.open_claude"));
             _openItem.Click += (_, _) => _dispatcher.Invoke(_showWindow);
             menu.Items.Add(_openItem);
             // Quick dictate (S11 #97): one click to a window whose
@@ -195,41 +195,41 @@ public sealed class TrayController : IDisposable
             // braces — a voice session is content).
             if (_quickDictate is not null)
             {
-                _dictateItem = new Forms.ToolStripMenuItem("Quick dictate");
+                _dictateItem = new Forms.ToolStripMenuItem(Strings.Get("tray.quick_dictate"));
                 _dictateItem.Click += (_, _) => _dispatcher.Invoke(_quickDictate);
                 menu.Items.Add(_dictateItem);
             }
-            _newWindowItem = new Forms.ToolStripMenuItem("New window");
+            _newWindowItem = new Forms.ToolStripMenuItem(Strings.Get("tray.new_window"));
             _newWindowItem.Click += (_, _) => _dispatcher.Invoke(_openNewWindow);
             menu.Items.Add(_newWindowItem);
-            _reloadItem = new Forms.ToolStripMenuItem("Reload");
+            _reloadItem = new Forms.ToolStripMenuItem(Strings.Get("tray.reload"));
             _reloadItem.Click += (_, _) => _dispatcher.Invoke(_reload);
             menu.Items.Add(_reloadItem);
             menu.Items.Add(new Forms.ToolStripSeparator());
             // Downloads (S4 #32): the window action plus the newest
             // completed files, rebuilt on every open.
-            _downloadsItem = new Forms.ToolStripMenuItem("Downloads");
+            _downloadsItem = new Forms.ToolStripMenuItem(Strings.Get("tray.downloads"));
             menu.Items.Add(_downloadsItem);
-            _settingsItem = new Forms.ToolStripMenuItem("Settings…");
+            _settingsItem = new Forms.ToolStripMenuItem(Strings.Get("tray.settings"));
             _settingsItem.Click += (_, _) => _dispatcher.Invoke(_openSettings);
             menu.Items.Add(_settingsItem);
             // App lock (S7 #64): visible only while a lock is set and
             // the app isn't already locked (refreshed on every open).
             if (_lockNow is not null)
             {
-                _lockItem = new Forms.ToolStripMenuItem("Lock now");
+                _lockItem = new Forms.ToolStripMenuItem(Strings.Get("tray.lock_now"));
                 _lockItem.Click += (_, _) => _dispatcher.Invoke(_lockNow);
                 menu.Items.Add(_lockItem);
             }
             // Switch profile (S3 #25): rebuilt on every open so it always
             // reflects the current list/active profile.
-            _switchItem = new Forms.ToolStripMenuItem("Switch profile");
+            _switchItem = new Forms.ToolStripMenuItem(Strings.Get("tray.switch_profile"));
             menu.Items.Add(_switchItem);
             // Workspaces (R2 #115): same rebuild-on-open pattern; the
             // item exists only when the window wired the delegates.
             if (_workspaces is not null && _applyWorkspace is not null)
             {
-                _workspacesItem = new Forms.ToolStripMenuItem("Workspaces");
+                _workspacesItem = new Forms.ToolStripMenuItem(Strings.Get("tray.workspaces"));
                 menu.Items.Add(_workspacesItem);
             }
             // Suspend status (S4 #32): informational, refreshed on open.
@@ -244,7 +244,7 @@ public sealed class TrayController : IDisposable
                 RefreshStatusItem();
             };
             menu.Items.Add(new Forms.ToolStripSeparator());
-            menu.Items.Add("Exit", null, (_, _) => _dispatcher.Invoke(_exitApp));
+            menu.Items.Add(Strings.Get("tray.exit"), null, (_, _) => _dispatcher.Invoke(_exitApp));
             _icon.ContextMenuStrip = menu;
             _icon.MouseClick += (_, e) =>
             {
@@ -358,11 +358,11 @@ public sealed class TrayController : IDisposable
                 // File names are content — behind the lock they don't
                 // appear even in a disabled submenu's items.
                 _downloadsItem.DropDownItems.Add(
-                    new Forms.ToolStripMenuItem("Locked") { Enabled = false });
+                    new Forms.ToolStripMenuItem(Strings.Get("tray.locked")) { Enabled = false });
                 return;
             }
 
-            _downloadsItem.DropDownItems.Add("Open Downloads window…", null,
+            _downloadsItem.DropDownItems.Add(Strings.Get("tray.open_downloads_window"), null,
                 (_, _) => _dispatcher.Invoke(_openDownloads));
 
             var recent = _recentDownloads()
@@ -371,7 +371,7 @@ public sealed class TrayController : IDisposable
                 .ToList();
             if (recent.Count == 0)
             {
-                _downloadsItem.DropDownItems.Add(new Forms.ToolStripMenuItem("No downloads yet") { Enabled = false });
+                _downloadsItem.DropDownItems.Add(new Forms.ToolStripMenuItem(Strings.Get("tray.no_downloads_yet")) { Enabled = false });
                 return;
             }
             _downloadsItem.DropDownItems.Add(new Forms.ToolStripSeparator());
@@ -488,7 +488,7 @@ public sealed class TrayController : IDisposable
             if (workspaces.Count == 0)
             {
                 _workspacesItem.DropDownItems.Add(
-                    new Forms.ToolStripMenuItem("No workspaces saved yet") { Enabled = false });
+                    new Forms.ToolStripMenuItem(Strings.Get("tray.no_workspaces_saved_yet")) { Enabled = false });
                 return;
             }
             foreach (var ws in workspaces)
@@ -515,10 +515,37 @@ public sealed class TrayController : IDisposable
         if (_statusItem is null)
             return;
         _statusItem.Text = _locked
-            ? "Locked — open Muse to unlock"
-            : TrayStatusText.SuspendLine(
-                _hidden, _suspended, _suspendEnabled(), _suspendTimeout());
+            ? Strings.Get("tray.status_locked")
+            : SuspendLineLocalized();
     }
+
+    /// <summary>
+    /// The suspend status line in the active language (R7 #161): the
+    /// localized twin of Core's TrayStatusText.SuspendLine — same
+    /// branches, same inputs; R7Tests pin the catalog templates
+    /// against the Core composer's output.
+    /// </summary>
+    private string SuspendLineLocalized()
+    {
+        if (_suspended)
+            return Strings.Get("tray.webview_suspended");
+        if (!_suspendEnabled())
+            return Strings.Get("tray.webview_suspend_off");
+        var timeout = _suspendTimeout();
+        if (timeout == SuspendTimeout.Never)
+            return Strings.Get("tray.webview_stays_awake");
+        return _hidden
+            ? Strings.Format("tray.webview_suspends_after", SuspendLabelLocalized(timeout))
+            : Strings.Get("tray.webview_awake");
+    }
+
+    private static string SuspendLabelLocalized(SuspendTimeout timeout) => timeout switch
+    {
+        SuspendTimeout.OneMinute => Strings.Get("tray.suspend.1min"),
+        SuspendTimeout.FiveMinutes => Strings.Get("tray.suspend.5min"),
+        SuspendTimeout.FifteenMinutes => Strings.Get("tray.suspend.15min"),
+        _ => Strings.Get("tray.suspend.never"),
+    };
 
     private static System.Drawing.Bitmap ColorSwatch(string hex)
     {
@@ -559,7 +586,7 @@ public sealed class TrayController : IDisposable
             if (_icon is null) return;
             if (!NotificationAllowed("Download-complete balloon"))
                 return;
-            _icon.BalloonTipTitle = "Download complete";
+            _icon.BalloonTipTitle = Strings.Get("ui.download_complete");
             _icon.BalloonTipText = fileName;
             _icon.ShowBalloonTip(4000);
         }
@@ -584,8 +611,8 @@ public sealed class TrayController : IDisposable
         {
             if (_icon is null)
                 return (suppression, false);
-            _icon.BalloonTipTitle = "MuseDesktop test notification";
-            _icon.BalloonTipText = "This is the test notification you asked for in Settings — MuseDesktop's notifications work.";
+            _icon.BalloonTipTitle = Strings.Get("ui.musedesktop_test_notification");
+            _icon.BalloonTipText = Strings.Get("ui.this_is_the_test_notification_you_asked");
             _icon.ShowBalloonTip(4000);
             _log.Info(suppression == NotificationSuppression.None
                 ? "Test notification shown (asked for in Settings)"
@@ -644,7 +671,7 @@ public sealed class TrayController : IDisposable
         if (_icon is null)
             return;
         var text = _locked
-            ? "MuseDesktop — locked"
+            ? Strings.Get("tray.tooltip_locked")
             : _baseText + TrayIconPlanner.TooltipSuffix(_attention)
               + (string.IsNullOrEmpty(_timerText) ? "" : $" · {_timerText}");
         // NotifyIcon text is capped at 127 characters; a long timer
@@ -731,10 +758,10 @@ public sealed class TrayController : IDisposable
             && NotificationAllowed("First-hide balloon"))
         {
             _balloonShown = true;
-            _icon.BalloonTipTitle = "MuseDesktop is still running";
+            _icon.BalloonTipTitle = Strings.Get("ui.musedesktop_is_still_running");
             _icon.BalloonTipText = _singleClickRestore()
-                ? "Muse keeps working in the cloud. Click the tray icon to come back."
-                : "Muse keeps working in the cloud. Double-click the tray icon to come back.";
+                ? Strings.Get("tray.balloon_hidden_single")
+                : Strings.Get("tray.balloon_hidden_double");
             _icon.ShowBalloonTip(4000);
         }
     }

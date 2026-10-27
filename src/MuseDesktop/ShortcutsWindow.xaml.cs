@@ -30,13 +30,13 @@ public partial class ShortcutsWindow : Window
             if (action.Remappable && effective.TryGetValue(action.Id, out var gesture))
             {
                 _allRows.Add(new Row(
-                    action.Name,
+                    Strings.Get("shortcut." + action.Id),
                     gesture.DisplayText(),
-                    "Can be changed in Settings"));
+                    Strings.Get("ui.can_be_changed_in_settings")));
             }
             else
             {
-                _allRows.Add(new Row(action.Name, action.DisplayGestures, "Fixed"));
+                _allRows.Add(new Row(Strings.Get("shortcut." + action.Id), action.DisplayGestures, Strings.Get("ui.fixed")));
             }
         }
         ApplyFilter();
@@ -52,10 +52,10 @@ public partial class ShortcutsWindow : Window
                       .ToList();
         ShortcutList.ItemsSource = rows;
         SummaryText.Text = string.IsNullOrEmpty(query)
-            ? "Every shortcut MuseDesktop itself binds. (Keys pressed inside the Muse page — like Enter to send — are Muse's own.) Three of these can be changed, in Settings → Keyboard & accessibility."
+            ? Strings.Get("ui.shortcuts_summary_all")
             : rows.Count == 0
-                ? "No shortcut matches that search."
-                : $"{rows.Count} of {_allRows.Count} shortcuts match.";
+                ? Strings.Get("ui.shortcuts_no_match")
+                : Strings.Format("ui.shortcuts_some_match", rows.Count, _allRows.Count);
     }
 
     private void OnSearchChanged(object sender, System.Windows.Controls.TextChangedEventArgs e) =>

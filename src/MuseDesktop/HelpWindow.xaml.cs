@@ -43,10 +43,10 @@ public partial class HelpWindow : Window
         var pages = HelpCatalog.Search(query);
         PageList.ItemsSource = pages;
         SummaryText.Text = string.IsNullOrWhiteSpace(query)
-            ? "These pages live inside the app — no internet needed to read them."
+            ? Strings.Get("these_pages_live_inside_the_app_no_internet")
             : pages.Count == 0
-                ? "No page matches that — try a shorter word (microphone, sign in, download)."
-                : $"{pages.Count} matching page(s).";
+                ? Strings.Get("help.no_match")
+                : Strings.Format("help.matching_pages", pages.Count);
         if (pages.Count > 0)
             PageList.SelectedIndex = 0;
         else
@@ -65,8 +65,7 @@ public partial class HelpWindow : Window
         if (_current is null)
             return;
         var body = HelpCatalog.ExtractBody(_markdown, _current)
-                   ?? "This page's text is missing from the help file that shipped with the app — " +
-                      "the steps in the catalog couldn't be shown. Reinstalling MuseDesktop restores it.";
+                   ?? Strings.Get("help.body_missing");
         // R1 #109: the commands page's list is GENERATED from the
         // palette registry at the moment it's shown — the registry is
         // the single source, so the page can never drift from what

@@ -1,10 +1,10 @@
 <Window x:Class="MuseDesktop.SetupWizardWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Welcome to MuseDesktop"
+        Title="{local:Loc welcome_to_musedesktop}"
         Width="470" SizeToContent="Height" MaxHeight="720"
         ResizeMode="NoResize" WindowStartupLocation="CenterOwner"
-        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}" xmlns:local="clr-namespace:MuseDesktop">
     <Window.Resources>
         <Style x:Key="Note" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11"/>
@@ -19,27 +19,27 @@
     </Window.Resources>
 
     <StackPanel Margin="18,14,18,16">
-        <TextBlock Text="Welcome to MuseDesktop" FontSize="17" FontWeight="SemiBold"/>
+        <TextBlock Text="{local:Loc welcome_to_musedesktop}" FontSize="17" FontWeight="SemiBold"/>
         <TextBlock Style="{StaticResource Note}" FontSize="12" Margin="0,6,0,4"
-                   Text="Muse now has its own window on your PC. Four quick choices set it up the way you like — every one of them can be changed later in Settings (⋯ menu → Settings…, or Ctrl+,)."/>
-        <CheckBox x:Name="CloseToTrayCheck" Content="Close window to tray (instead of quitting)"
-                  ToolTip="The X button hides the window to the system tray; Exit lives on the tray menu"/>
-        <CheckBox x:Name="StartWithWindowsCheck" Content="Start with Windows"
-                  ToolTip="Launch MuseDesktop when you sign in — it waits in the tray until you open it"/>
+                   Text="{local:Loc muse_now_has_its_own_window_on_your_pc_four}"/>
+        <CheckBox x:Name="CloseToTrayCheck" Content="{local:Loc close_window_to_tray_instead_of_quitting}"
+                  ToolTip="{local:Loc the_x_button_hides_the_window_to_the_system}" KeyboardNavigation.TabIndex="1"/>
+        <CheckBox x:Name="StartWithWindowsCheck" Content="{local:Loc start_with_windows}"
+                  ToolTip="{local:Loc launch_musedesktop_when_you_sign_in_it}" KeyboardNavigation.TabIndex="2"/>
         <TextBlock Style="{StaticResource Note}" Margin="0,12,0,2"
-                   Text="Where downloads are saved (empty = your Windows Downloads folder):"/>
+                   Text="{local:Loc where_downloads_are_saved_empty_your}"/>
         <DockPanel LastChildFill="True">
-            <Button DockPanel.Dock="Right" Content="Browse…" Width="76" Margin="8,0,0,0"
-                    Click="OnBrowseDownloadsFolder"/>
+            <Button DockPanel.Dock="Right" Content="{local:Loc browse}" Width="76" Margin="8,0,0,0"
+                    Click="OnBrowseDownloadsFolder" KeyboardNavigation.TabIndex="3"/>
             <TextBox x:Name="DownloadsFolderText" IsReadOnly="True"
-                     ToolTip="Where files Muse makes for you are saved"/>
+                     ToolTip="{local:Loc where_files_muse_makes_for_you_are_saved}" KeyboardNavigation.TabIndex="4"/>
         </DockPanel>
-        <CheckBox x:Name="CheckUpdatesCheck" Content="Check for updates when the app starts"
-                  ToolTip="One silent request to GitHub Releases per launch; failures are ignored"/>
+        <CheckBox x:Name="CheckUpdatesCheck" Content="{local:Loc check_for_updates_when_the_app_starts}"
+                  ToolTip="{local:Loc one_silent_request_to_github_releases_per}" KeyboardNavigation.TabIndex="5"/>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
-            <Button Content="Save setup" Width="96" Height="30" IsDefault="True" Click="OnSave"
-                    Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0"/>
-            <Button Content="Skip" Width="86" Height="30" Margin="8,0,0,0" IsCancel="True" Click="OnSkip"/>
+            <Button Content="{local:Loc save_setup}" Width="96" Height="30" IsDefault="True" Click="OnSave"
+                    Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0" KeyboardNavigation.TabIndex="6"/>
+            <Button Content="{local:Loc skip}" Width="86" Height="30" Margin="8,0,0,0" IsCancel="True" Click="OnSkip" KeyboardNavigation.TabIndex="7"/>
         </StackPanel>
     </StackPanel>
 </Window>
