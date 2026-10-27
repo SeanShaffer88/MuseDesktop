@@ -933,6 +933,8 @@
  "token.source_page": "Source: reported by the Muse page itself.",
  "token.usage": "Token usage",
  "token.used_of_limit": "{0} of {1} tokens ({2}%)",
+ "approval.beep_label": "Beep when an approval needs my attention",
+ "approval.beep_tooltip": "When Muse shows an approval card — a permission prompt waiting for your click — while this window isn't active, play a beep and flash the taskbar button. MuseDesktop only notices the card; it never answers it.",
  "toolbar_buttons_tick_to_show_select_then": "Toolbar buttons — tick to show, select then move with ↑ / ↓ (the ⋯ menu is always there, last):",
  "tray.downloads": "Downloads",
  "tray.focus_done_body": "Nice work — {0} minutes focused. Take a break?",

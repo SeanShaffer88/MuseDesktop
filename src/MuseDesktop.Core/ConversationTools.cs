@@ -123,13 +123,15 @@ public static class PageStyleCss
 
 // ─────────────────────── the page bridge protocol ───────────────────────
 
-/// <summary>What the injected page script can tell the shell (R5B). Deliberately tiny: a bookmark request (a message's text, nothing else), composer draft text, "the draft was sent", and the ready handshake that asks the shell to push the current page style + any saved draft for this route.</summary>
+/// <summary>What the injected page script can tell the shell (R5B). Deliberately tiny: a bookmark request (a message's text, nothing else), composer draft text, "the draft was sent", the ready handshake that asks the shell to push the current page style + any saved draft for this route, and (R7C) the two approval-card transitions — a card appeared / the card went away, carrying no card content at all.</summary>
 public enum PageBridgeKind
 {
     Ready,
     Bookmark,
     Draft,
     DraftSent,
+    ApprovalAppeared,
+    ApprovalGone,
 }
 
 /// <summary>One parsed page-bridge message (R5B). <see cref="Text"/> is the message snippet (bookmark) or the composer text (draft) — capped at parse time, and never logged by anyone.</summary>
@@ -181,6 +183,10 @@ public static class PageBridge
                     return new PageBridgeMessage(PageBridgeKind.Draft, text);
                 case "md-draft-sent":
                     return new PageBridgeMessage(PageBridgeKind.DraftSent, "");
+                case "md-approval-appeared":
+                    return new PageBridgeMessage(PageBridgeKind.ApprovalAppeared, "");
+                case "md-approval-gone":
+                    return new PageBridgeMessage(PageBridgeKind.ApprovalGone, "");
                 default:
                     return null;
             }

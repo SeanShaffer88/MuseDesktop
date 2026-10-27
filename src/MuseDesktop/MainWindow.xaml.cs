@@ -54,6 +54,9 @@ public partial class MainWindow : Window
     private TokenUsage? _tokenUsage;
     private DispatcherTimer? _tokenTimer;
     private bool _tokenRefreshBusy;
+    // R7C: the approval-beep policy (Core) — fed by the bridge
+    // watcher's appeared/gone reports; it decides, the shell sounds.
+    private readonly ApprovalAttentionPolicy _approvalAttention = new();
     private bool _isFullScreen;
     private WindowState _preFullScreenState;
     private WindowStyle _preFullScreenStyle;
@@ -2375,6 +2378,7 @@ public partial class MainWindow : Window
         _settings.TraySuspendTimeout = clone.TraySuspendTimeout;
         _settings.TraySingleClickRestore = clone.TraySingleClickRestore;
         _settings.FlashTaskbarOnAttention = clone.FlashTaskbarOnAttention;
+        _settings.ApprovalBeepEnabled = clone.ApprovalBeepEnabled;
         _settings.QuietHoursEnabled = clone.QuietHoursEnabled;
         _settings.QuietHoursStartMinutes = clone.QuietHoursStartMinutes;
         _settings.QuietHoursEndMinutes = clone.QuietHoursEndMinutes;
@@ -3914,7 +3918,34 @@ public partial class MainWindow : Window
                 // the ring after the reply has had time to land.
                 _ = RefreshTokenUsageDelayedAsync(4000);
                 break;
+            case PageBridgeKind.ApprovalAppeared:
+                OnApprovalCardAppeared();
+                break;
+            case PageBridgeKind.ApprovalGone:
+                _approvalAttention.ObserveGone();
+                break;
         }
+    }
+
+    /// <summary>
+    /// An approval card appeared on the page (R7C): Core's policy
+    /// judges the appearance — setting on, window not the active
+    /// one, once per card, global cooldown — and only a "beep"
+    /// verdict makes a sound and flashes the taskbar button (the
+    /// S4 flash helper; it stops on activation like any flash).
+    /// A window hidden in the tray counts as not-looking: the
+    /// flash then no-ops (a tray-hidden window has no taskbar
+    /// button) and the sound carries the alert. NOTHING here can
+    /// answer the card — noticing it is all this feature does.
+    /// </summary>
+    private void OnApprovalCardAppeared()
+    {
+        var userLooking = IsActive && WindowState != WindowState.Minimized;
+        if (!_approvalAttention.ObserveAppeared(_settings.ApprovalBeepEnabled, userLooking, DateTimeOffset.UtcNow))
+            return;
+        try { System.Media.SystemSounds.Exclamation.Play(); }
+        catch (Exception ex) { _log.Warn($"Approval beep failed: {ex.Message}"); }
+        FlashTaskbarButton();
     }
 
     /// <summary>Feed the page everything the profile asks for (R5B #201/#205 style, then the route's saved draft for #204) — called on the bridge's ready handshake, when the document the handshake came from is the one on screen.</summary>
