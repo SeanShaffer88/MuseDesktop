@@ -111,17 +111,13 @@ public class S1Tests
     // ── #12 window title ──
 
     [Fact]
-    public void WindowTitle_SingleProfile()
+    public void WindowTitle_IsTheAppNameAndNothingElse()
     {
-        Assert.Equal("My chat — MuseDesktop", WindowTitle.Compose("My chat", "Default", false));
-        Assert.Equal("Muse — MuseDesktop", WindowTitle.Compose("", "Default", false));
-        Assert.Equal("Muse — MuseDesktop", WindowTitle.Compose(null, null, false));
-    }
-
-    [Fact]
-    public void WindowTitle_MultipleProfilesIncludesProfileName()
-    {
-        Assert.Equal("My chat — Work — MuseDesktop", WindowTitle.Compose("My chat", "Work", true));
+        // SEAN, 2026-10-27: the titlebar says "MuseDesktop" and
+        // nothing else — supersedes the S1 #12 composed title
+        // (page title + profile name). Guarded in the shell by
+        // MainWindowTitle_IsNeverComposed (R7Tests).
+        Assert.Equal("MuseDesktop", WindowTitle.Text);
     }
 
     // ── #5 always-on-top ──
