@@ -91,6 +91,12 @@ public static class AppPaths
     /// <summary>The pending launch intent (v1.0.0, S11 #99/#100): a second launch writes the action it asked for here, then fires the wake event; the running instance takes it on waking. Transient by design — deleted on take.</summary>
     public static string PendingIntentPath => Path.Combine(RootDir, "pending-intent.json");
 
+    /// <summary>Imported language packs (R7 #165): one validated pack-<c>.json per language, written by Settings import.</summary>
+    public static string LanguagePacksDir => Path.Combine(RootDir, "language-packs");
+
+    /// <summary>The announcement history (R7 #169): the bounded record Diagnostics reads.</summary>
+    public static string AnnouncementHistoryPath => Path.Combine(RootDir, "announcements.json");
+
     public static string LogDir => Path.Combine(RootDir, "logs");
     public static string LogPath => Path.Combine(LogDir, "musedesktop.log");
 

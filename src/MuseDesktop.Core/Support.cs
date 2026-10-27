@@ -319,6 +319,14 @@ public static class HelpCatalog
             "Backdrop, title bar tint, custom accent, theme schedule & mini mode",
             "backdrop mica acrylic frosted window background titlebar tint title bar profile color mini mode small window always on top favicon tray icon style monochrome profile-colored count badge dot opacity see-through custom accent color picker any color contrast theme schedule light dark time of day density compact spacing white flash",
             HelpAction.OpenSettings, "Open Settings — appearance & toolbar", SettingsSearch.AppearanceId),
+        // R7 (#161–#170): the language & accessibility round-2 page,
+        // also listed last — it answers "how do languages / packs /
+        // announcement switches / text spacing work", which no older
+        // page owned.
+        new HelpPage("language-announcements",
+            "Languages, language packs, announcements & text spacing",
+            "language español spanish english translation translate pack import export coverage missing strings announcements announce spoken mute narrator screen reader history text spacing line height low vision right-to-left rtl tab order",
+            HelpAction.OpenSettings, "Open Settings — language & announcements", SettingsSearch.LanguageId),
     };
 
     public static HelpPage? ById(string? id) =>

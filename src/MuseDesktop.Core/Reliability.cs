@@ -765,6 +765,17 @@ public sealed class DiagnosticsData
 
     /// <summary>The most recent ERROR log lines, already redacted (see LogReading). Null = not collected.</summary>
     public IReadOnlyList<string>? RecentErrors { get; init; }
+
+    // R7 #164/#169: the language + announcements facts. Optional like
+    // the S10 fields; the shell collects both.
+    /// <summary>Per-language translation coverage lines (see LocalizationCoverage.ReportLines), starting with the active language's own line. Null = not collected.</summary>
+    public IReadOnlyList<string>? LanguageCoverageLines { get; init; }
+
+    /// <summary>The active shell language's display line ("es-ES (Spanish (Spain))"). Null = not collected.</summary>
+    public string? ActiveLanguageLine { get; init; }
+
+    /// <summary>Recent announcement history lines (see AnnouncementHistory.DescribeLine), newest first. Null = not collected.</summary>
+    public IReadOnlyList<string>? RecentAnnouncements { get; init; }
 }
 
 public static class DiagnosticsReport
@@ -828,6 +839,27 @@ public static class DiagnosticsReport
             else
                 foreach (var error in errors)
                     lines.Add("  " + error);
+        }
+        // R7 #164: language coverage, when collected.
+        if (data.LanguageCoverageLines is { } coverage)
+        {
+            lines.Add("");
+            lines.Add("Language");
+            if (!string.IsNullOrWhiteSpace(data.ActiveLanguageLine))
+                lines.Add($"  Active: {data.ActiveLanguageLine}");
+            foreach (var line in coverage)
+                lines.Add("  " + line);
+        }
+        // R7 #169: the recent announcements, when collected.
+        if (data.RecentAnnouncements is { } announcements)
+        {
+            lines.Add("");
+            lines.Add("Recent announcements (newest first)");
+            if (announcements.Count == 0)
+                lines.Add("  None yet this install.");
+            else
+                foreach (var line in announcements)
+                    lines.Add("  " + line);
         }
         lines.Add("");
         lines.Add("Startup (this PC, most recent first)");
