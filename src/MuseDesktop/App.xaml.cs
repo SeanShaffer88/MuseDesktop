@@ -115,6 +115,20 @@ public partial class App : System.Windows.Application
             return;
         }
 
+        // R7D: --exit-for-update with NO running instance (the
+        // installer raced a quit, or a stray script): this process IS
+        // the first instance, and there is nothing to close — exit
+        // quietly rather than start the app the installer is about
+        // to replace. The mutex above was created by this process and
+        // is released in OnExit, so the installer's wait for the
+        // mutex to disappear completes at once.
+        if (options.ExitForUpdate)
+        {
+            Log.Info("--exit-for-update: no running instance to close — exiting");
+            Shutdown();
+            return;
+        }
+
         var settingsFileExisted = File.Exists(AppPaths.SettingsPath);
         Settings = SettingsStore.Load(AppPaths.SettingsPath);
         // Upgrade vs first run (S5 #50): a settings file written by a
@@ -454,6 +468,11 @@ public partial class App : System.Windows.Application
     /// </summary>
     private LaunchIntent SecondLaunchIntent(CommandLineOptions options)
     {
+        // R7D: an exit-for-update launch carries exactly one ask —
+        // it outranks any link or flag that rode along (the installer
+        // passes the flag alone; anything else beside it is noise).
+        if (options.ExitForUpdate)
+            return new LaunchIntent(LaunchIntentKind.ExitForUpdate);
         if (options.ProtocolUri is not null)
         {
             var saved = SettingsStore.Load(AppPaths.SettingsPath);
