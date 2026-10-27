@@ -2,59 +2,70 @@
 
 The release notes MuseDesktop shows on the first launch of a new version (S9 #82). This file is generated from CHANGELOG.md's current-version section at release time (see RELEASE_CHECKLIST.md) — do not edit it by hand; a test pins it to the changelog so the two can't drift.
 
-## [1.6.0] — Unreleased
+## [1.7.0] — Unreleased
 
-Round 2 Slice R5B (the follow-on six, items 201–206): conversation
-tools. This slice deliberately reaches one step further than every
-slice before it — with SEAN's explicit approval, the app now adds
-small, user-chosen touches to the Muse page it hosts: styling the
-conversation view, watching the message box for drafts, and reading
-the conversation back for export. Everything is local: nothing is
-sent anywhere, nothing about your chats is logged, and every touch
-degrades quietly (the feature simply doesn't happen) if the page's
-shape changes under it. See KNOWN_LIMITATIONS for the honest list.
+Round 2 Slice R6 (items 151–160): appearance round 2. The shell
+gets its Windows 11 face — backdrop materials, a title bar that can
+wear the active profile's color, denser chrome, a mini mode, tray
+icon styles, a see-through slider, any accent color you can name,
+light/dark on your own schedule, and theme bundles inside the
+settings export. As always, only MuseDesktop's own windows are
+restyled; the Muse page is never touched, and Windows High
+Contrast outranks every choice below.
 
 ### Added
 
-- **#201 Conversation scrollbars.** The conversation view's
-  scrollbar is always visible, wide, and easy to grab — no more
-  hunting for the thin one that only appears while scrolling.
-  Per profile, on by default; turn it off in Settings → Account
-  profiles.
-- **#202 Message bookmarks.** Every message gets a small bookmark
-  button on hover. A bookmark is a placeholder for that one
-  message, kept in this app only — and **saving one requires a
-  nickname**: you'll always be asked to name it first, and the save
-  can't complete without a name. The new **Bookmarks** button on the
-  window's left edge opens the list (nickname, conversation, date);
-  clicking a bookmark returns to that conversation and finds +
-  highlights the message — or tells you plainly when it can't be
-  found (it may have been edited). Rename and delete live in the
-  list, and bookmarks are in Ctrl+K too. Stored per profile in
-  `bookmarks.json`, as conversation paths only.
-- **#203 Export a conversation.** ⋯ menu (and Ctrl+K): **Export
-  conversation as Markdown…** reads the open conversation's
-  messages and writes a tidy Markdown file — title, date, You /
-  Muse headings, code kept as code. **…as PDF…** prints the
-  conversation page to a PDF file, as it appears.
-- **#204 Drafts autosave.** What you've typed in a conversation's
-  message box is kept per conversation and put back when you
-  return — after switching away, reloading, or restarting the app.
-  Sending the message clears its draft. On by default; the switch
-  is in Settings → Account profiles. Drafts live in `drafts.json`
-  on this PC only and are never logged.
-- **#205 Reading comfort.** Per profile, in Settings → Account
-  profiles: chat text size (50–200%), reading-column width, and
-  line spacing — applied to the conversation view when you press
-  OK, separately from page zoom.
-- **#206 Prompt snippet library.** Save prompts you reuse (name +
-  text) per profile in Settings, then insert one into the message
-  box from Ctrl+K or the ⋯ menu's **Insert snippet** list. Inserting
-  never sends — the text lands in the box for you to edit. Stored
-  in `snippets.json`.
+- **#151 Backdrop materials.** On Windows 11 the window can sit on
+  Mica (a soft tint of your wallpaper) or Acrylic (a stronger
+  frosted blur): Settings → Appearance → Window backdrop. Automatic
+  means Mica. On Windows 10, with Windows transparency effects off,
+  or in High Contrast, the window simply stays solid — no fake
+  substitute.
+- **#152 Per-profile title bar tint.** The title bar takes the
+  active profile's color, so the profile in use is visible at a
+  glance. On by default; the switch is in Settings → Appearance.
+  High Contrast turns it off.
+- **#153 Compact density.** A Compact choice alongside Comfortable
+  packs the toolbar and status bar tighter (Settings →
+  Appearance → Chrome density). It works with shell text size,
+  not instead of it — one sets the spacing, the other the words.
+- **#154 Mini mode.** ⋯ menu (or Ctrl+K) → **Mini mode** shrinks
+  MuseDesktop to a small always-on-top strip: the profile color,
+  the page's icon and title, and the live downloads with **Pause
+  all** / **Resume all**. The page itself keeps living in the main
+  window, which comes back with **Expand**. Shell chrome only —
+  there is no second web view in the strip.
+- **#155 Tray icon styles.** The tray icon can be painted Color,
+  Monochrome, or tinted with the active profile's color, and its
+  attention overlay can be a numbered badge, a plain dot, or off
+  entirely: Settings → Appearance → Tray icon / Count overlay.
+- **#156 Window opacity.** A slider in the ⋯ menu makes this
+  window see-through, from 100% down to 60%. It is per-window and
+  lasts for the session only; it turns off in High Contrast, and
+  the window goes fully solid whenever the app locks.
+- **#157 No white flash.** Every web view the app creates — the
+  main window, a second window, the recovery views — now starts on
+  the theme's own background color, chosen in one place, so
+  nothing flashes white (or black) against the shell before the
+  page paints. Under High Contrast it follows the system window
+  color instead.
+- **#158 Custom accent picker.** In Settings → Appearance, tick
+  **Custom accent color** and type any color as six hex digits.
+  The color is adjusted until it passes the same measured
+  readability (contrast) check as the five presets — on both the
+  dark and the light shell — so a custom accent can never be an
+  unreadable one.
+- **#159 Theme scheduling.** A fourth theme choice, **Follow
+  schedule**: light from one time of day, dark from another (the
+  times sit right under the theme choice in Settings; the dark
+  time may be the earlier one, for night owls). The shell checks
+  the clock every minute and switches quietly.
+- **#160 Theme bundles.** The appearance face — theme mode,
+  accent (preset or custom), and backdrop — travels inside the
+  ordinary settings export/import, so one export carries the whole
+  look to another PC. The schedule times ride the same export, so
+  a Follow schedule look is never stranded without its times.
 
-Bookmarks, drafts, and snippets are deliberately separate from
-settings: they never ride a settings export or a profile bundle.
-Core test suite grows by 21 cases (895 → 916); everything above is
-**Unverified** on a real machine until SEAN's on-machine pass (see
+Core test suite grows by 65 cases (916 → 981); everything above is
+**Unverified** on a real machine until the on-machine pass (see
 RELEASE_CHECKLIST).
