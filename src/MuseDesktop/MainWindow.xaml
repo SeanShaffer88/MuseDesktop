@@ -133,6 +133,16 @@
                                           ToolTip="Keep MuseDesktop above other windows"/>
                                 <MenuItem x:Name="FocusItem" Header="Focus mode" IsCheckable="True" Click="OnToggleFocusMode"
                                           InputGestureText="F8" ToolTip="Hide the toolbar and status bar (F8 or Esc to exit)"/>
+                                <MenuItem Header="Mini mode" Click="OnToggleMiniMode"
+                                          ToolTip="Shrink to a small always-on-top strip — profile color, the page's icon and title, and download pause/resume. The page itself keeps living in the main window"/>
+                                <MenuItem Header="Window opacity" StaysOpenOnClick="True"
+                                          ToolTip="How see-through this window is. It cannot go below 60%, it turns off while Windows High Contrast is on, and the window goes fully solid whenever the app locks">
+                                    <StackPanel Orientation="Horizontal" Margin="4,2">
+                                        <Slider x:Name="OpacitySlider" Width="110" Minimum="60" Maximum="100" Value="100"
+                                                ValueChanged="OnOpacityChanged" ToolTip="Window opacity" AutomationProperties.Name="Window opacity"/>
+                                        <TextBlock x:Name="OpacityLabel" Text="100%" Width="38" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </MenuItem>
                                 <MenuItem Header="Restore last closed page" Click="OnRestoreClosedPage" InputGestureText="Ctrl+Shift+T"/>
                                 <Separator/>
                                 <MenuItem Header="Connection security…" Click="OnConnectionSecurity"

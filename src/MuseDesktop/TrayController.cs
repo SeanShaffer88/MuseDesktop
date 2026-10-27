@@ -65,6 +65,11 @@ public sealed class TrayController : IDisposable
     // when supplied, the switch submenu gathers grouped profiles
     // under their group headings.
     private readonly Func<IReadOnlyList<ProfileGroup>>? _profileGroups;
+    // Tray icon styles (R6 #155): optional like the groups delegates —
+    // when supplied, the icon composition reads the user's style
+    // choices live; absent means the long-standing Color + badge face.
+    private readonly Func<TrayIconStyle>? _trayIconStyle;
+    private readonly Func<TrayOverlayStyle>? _trayOverlayStyle;
 
     private Forms.NotifyIcon? _icon;
     private Forms.ToolStripMenuItem? _openItem;
@@ -125,7 +130,9 @@ public sealed class TrayController : IDisposable
         Func<IReadOnlyList<Workspace>>? workspaces = null,
         Func<string?>? activeWorkspaceId = null,
         Action<string>? applyWorkspace = null,
-        Func<IReadOnlyList<ProfileGroup>>? profileGroups = null)
+        Func<IReadOnlyList<ProfileGroup>>? profileGroups = null,
+        Func<TrayIconStyle>? trayIconStyle = null,
+        Func<TrayOverlayStyle>? trayOverlayStyle = null)
     {
         _log = log;
         _dispatcher = dispatcher;
@@ -158,6 +165,8 @@ public sealed class TrayController : IDisposable
         _activeWorkspaceId = activeWorkspaceId;
         _applyWorkspace = applyWorkspace;
         _profileGroups = profileGroups;
+        _trayIconStyle = trayIconStyle;
+        _trayOverlayStyle = trayOverlayStyle;
     }
 
     public bool IsSuspended => _suspended;
@@ -599,6 +608,9 @@ public sealed class TrayController : IDisposable
         ApplyText();
     }
 
+    /// <summary>Repaint the icon after appearance settings changed (R6 #155) — the style delegates are read live at compose time, so a repaint is all a style change needs.</summary>
+    public void RefreshAppearance() => RefreshIcon();
+
     /// <summary>The active profile's accent color (S4 #37): repaint the tray icon with its dot. Null key = no dot.</summary>
     public void SetProfileColor(string? colorKey)
     {
@@ -683,15 +695,21 @@ public sealed class TrayController : IDisposable
             return;
         try
         {
-            var plan = TrayIconPlanner.Plan(_profileColorHex is not null, _attention);
-            if (!plan.ShowProfileDot && !plan.ShowBadge)
+            // R6 #155: the composition generalizes the S4 plan — the
+            // default delegates reproduce it exactly (Color style,
+            // numbered badge, the profile dot in its own color).
+            var composition = TrayIconPlanner.Compose(
+                _trayIconStyle?.Invoke() ?? TrayIconStyle.Color,
+                _trayOverlayStyle?.Invoke() ?? TrayOverlayStyle.NumberBadge,
+                _profileColorHex, _attention);
+            if (composition.IsPlainIcon)
             {
                 _icon.Icon = _baseIcon;
                 _composedIcon?.Dispose();
                 _composedIcon = null;
                 return;
             }
-            var composed = TrayIconRenderer.Compose(_baseIcon, plan, _profileColorHex);
+            var composed = TrayIconRenderer.Compose(_baseIcon, composition, _profileColorHex);
             var old = _composedIcon;
             _icon.Icon = composed;
             _composedIcon = composed;

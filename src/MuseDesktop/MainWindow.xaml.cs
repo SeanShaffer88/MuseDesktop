@@ -35,6 +35,15 @@ public partial class MainWindow : Window
     private bool _suppressNavClick;
     private DispatcherTimer? _navPressTimer;
     private string _pageTitle = "";
+    // R6 #154/#156: the mini window's state (open strip + a flag so
+    // its Closed handler can tell "user closed the strip" from "the
+    // app closed it"), the page favicon's PNG bytes mirrored for the
+    // strip, and this window's session-only opacity (never persisted;
+    // Core's policy decides what may actually render).
+    private MiniWindow? _miniWindow;
+    private bool _miniMode;
+    private byte[]? _faviconPng;
+    private double _windowOpacity = 1.0;
     private bool _webInitFailed;
     // R5B #202: the snippet a bookmark jump is hunting, set when the
     // jump navigates and consumed by the next completed navigation.
@@ -203,6 +212,9 @@ public partial class MainWindow : Window
         Browser.DefaultBackgroundColor = ThemeManager.BrowserBackground;
         ApplyToolbarLayout();
         ShellTextScaling.Apply(this, _settings.ShellFontScale);
+        // R6 #153: chrome density rides with the text scale (Core's
+        // DensityMetrics owns the numbers).
+        ApplyDensity();
         ThemeManager.Changed += OnThemeChanged;
 
         // S7: the privacy gateway Settings talks to (clear data,
@@ -283,7 +295,9 @@ public partial class MainWindow : Window
             workspaces: () => _settings.Workspaces,
             activeWorkspaceId: () => _settings.ActiveWorkspaceId,
             applyWorkspace: id => ApplyWorkspaceById(id),
-            profileGroups: () => _settings.ProfileGroups);
+            profileGroups: () => _settings.ProfileGroups,
+            trayIconStyle: () => _settings.TrayIconStyle,
+            trayOverlayStyle: () => _settings.TrayCountOverlay);
 
         // S6 #54: live regions for assistive-tech announcements, and
         // the download events that feed them (the wording is Core's).
@@ -436,6 +450,192 @@ public partial class MainWindow : Window
         }
         ApplyDarkTitleBar();
         Browser.DefaultBackgroundColor = ThemeManager.BrowserBackground;
+        // R6: a theme (re-)application is also when the backdrop is
+        // re-decided, the chrome adapts to it, density re-lands, and
+        // the window opacity re-checks its safety rules.
+        ThemeManager.ApplyBackdrop(this);
+        ApplyChromeBackdrop();
+        ApplyDensity();
+        ApplyWindowOpacity();
+    }
+
+    // ───────────────────── appearance round 2 (R6) ─────────────────────
+
+    /// <summary>
+    /// R6 #153: apply Core's density measurements to the chrome —
+    /// the toolbar/status row heights and their inner insets. The
+    /// root grid's rows are fixed by the XAML layout: 0 = toolbar,
+    /// 3 = status bar.
+    /// </summary>
+    private void ApplyDensity()
+    {
+        var metrics = DensityMetrics.For(_settings.Density);
+        if (Content is System.Windows.Controls.Grid root && root.RowDefinitions.Count == 4)
+        {
+            root.RowDefinitions[0].Height = new GridLength(metrics.ToolbarHeight);
+            root.RowDefinitions[3].Height = new GridLength(metrics.StatusBarHeight);
+        }
+        if (Toolbar.Child is System.Windows.Controls.DockPanel toolbarPanel)
+            toolbarPanel.Margin = new Thickness(metrics.ToolbarInset, 0, metrics.ToolbarInset, 0);
+        if (StatusBar.Child is System.Windows.Controls.DockPanel statusPanel)
+            statusPanel.Margin = new Thickness(metrics.StatusInset, 0, metrics.StatusInset, 0);
+    }
+
+    /// <summary>
+    /// R6 #151: adapt the chrome to the effective backdrop. With a
+    /// material, the window background goes transparent so Mica /
+    /// Acrylic shows through; Mica wants fully clear chrome, Acrylic
+    /// (busier, blurrier) keeps a translucent surface tint so text
+    /// stays calm. Without a material, the shared theme brushes come
+    /// straight back.
+    /// </summary>
+    private void ApplyChromeBackdrop()
+    {
+        var material = ThemeManager.CurrentBackdrop;
+        if (material == BackdropMaterial.None)
+        {
+            Background = (System.Windows.Media.Brush)FindResource("BgBrush");
+            Toolbar.Background = (System.Windows.Media.Brush)FindResource("SurfaceBrush");
+            StatusBar.Background = (System.Windows.Media.Brush)FindResource("SurfaceBrush");
+            LeftRail.Background = (System.Windows.Media.Brush)FindResource("SurfaceBrush");
+            return;
+        }
+        Background = System.Windows.Media.Brushes.Transparent;
+        var baseColor = (System.Windows.Media.Color)System.Windows.Media.ColorConverter
+            .ConvertFromString(ThemeManager.CurrentPalette.Surface);
+        var alpha = material == BackdropMaterial.Acrylic ? (byte)165 : (byte)0;
+        var chrome = new System.Windows.Media.SolidColorBrush(
+            System.Windows.Media.Color.FromArgb(alpha, baseColor.R, baseColor.G, baseColor.B));
+        Toolbar.Background = chrome;
+        StatusBar.Background = chrome;
+        LeftRail.Background = chrome;
+    }
+
+    /// <summary>
+    /// R6 #156: render this window at the opacity Core's policy
+    /// allows right now (the slider's wish, vetoed by High Contrast
+    /// and by the app lock), and keep the menu slider honest about
+    /// when it can do anything.
+    /// </summary>
+    private void ApplyWindowOpacity()
+    {
+        Opacity = WindowOpacityPolicy.Effective(_windowOpacity, ThemeManager.HighContrastActive, _isLocked);
+        if (OpacitySlider is not null)
+            OpacitySlider.IsEnabled = !ThemeManager.HighContrastActive;
+    }
+
+    private void OnOpacityChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        _windowOpacity = e.NewValue / 100.0;
+        if (OpacityLabel is not null)
+            OpacityLabel.Text = $"{(int)Math.Round(e.NewValue)}%";
+        ApplyWindowOpacity();
+    }
+
+    /// <summary>
+    /// R6 #159: the per-minute schedule tick also minds the theme
+    /// schedule — when FollowSchedule is on and the resolved light /
+    /// dark has flipped since the last application, re-apply. Silent
+    /// by design (no prompt, unlike the profile schedule below), so
+    /// it runs before that method's guards.
+    /// </summary>
+    private void EvaluateThemeSchedule()
+    {
+        if (_settings.Theme != Core.ThemeMode.FollowSchedule)
+            return;
+        var light = ThemeScheduleMath.IsLightNow(_settings, DateTimeOffset.Now);
+        if (light == ThemeManager.IsLight)
+            return;
+        _log.Info($"Theme schedule: the shell is now {(light ? "light" : "dark")}.");
+        ThemeManager.Apply(_settings);
+    }
+
+    // ───────────────────────── mini mode (R6 #154) ─────────────────────────
+
+    private void OnToggleMiniMode(object sender, RoutedEventArgs e) => ToggleMiniMode();
+
+    /// <summary>
+    /// R6 #154: shrink to the mini strip (or back). The strip is
+    /// shell chrome only — no second web view; the page keeps living
+    /// in this window, which hides while the strip is up. Entering
+    /// mini mode while locked would leak the page title and icon
+    /// past the lock, so the lock wins and nothing happens.
+    /// </summary>
+    public void ToggleMiniMode()
+    {
+        if (_isLocked)
+            return;
+        if (_miniMode)
+        {
+            ExitMiniMode(showMain: true);
+            return;
+        }
+        _miniMode = true;
+        var active = _settings.Profiles.FirstOrDefault(p => p.Id == _settings.ActiveProfileId);
+        var mini = new MiniWindow(
+            () => string.IsNullOrWhiteSpace(_pageTitle) ? "Muse" : _pageTitle,
+            () => _faviconPng,
+            () => ProfileColors.HexFor(active?.DisplayColor),
+            () => MiniDownloadSummary.FromDownloads(_downloads.Snapshot()),
+            PauseAllDownloads,
+            ResumeAllDownloads,
+            () => ExitMiniMode(showMain: true));
+        _miniWindow = mini;
+        mini.Closed += (_, _) =>
+        {
+            _miniWindow = null;
+            if (!_miniMode)
+                return;
+            // The strip was closed directly (not via Expand): mini
+            // mode ends and the main window comes back — unless the
+            // app locked meanwhile (EngageLock closes the strip as
+            // one of "every other window"; the lock must win).
+            _miniMode = false;
+            try
+            {
+                if (!_isLocked)
+                {
+                    Show();
+                    Activate();
+                }
+            }
+            catch { /* shutting down — nothing to restore */ }
+        };
+        mini.Show();
+        Hide();
+    }
+
+    private void ExitMiniMode(bool showMain)
+    {
+        _miniMode = false;
+        var mini = _miniWindow;
+        _miniWindow = null;
+        mini?.Close();
+        if (showMain)
+        {
+            Show();
+            Activate();
+        }
+    }
+
+    /// <summary>R6 #154: pause everything currently transferring (the tracker's per-download pause, applied to the live set).</summary>
+    private void PauseAllDownloads()
+    {
+        foreach (var download in _downloads.Snapshot())
+        {
+            if (download.State == DownloadActivityState.InProgress)
+                _downloads.Pause(download.Id);
+        }
+    }
+
+    /// <summary>R6 #154: resume everything paused that the browser says can resume (requests for the rest are answered NotResumable by the tracker and change nothing).</summary>
+    private void ResumeAllDownloads()
+    {
+        foreach (var download in _downloads.Snapshot())
+        {
+            if (download.State == DownloadActivityState.Paused)
+                _downloads.Resume(download.Id);
+        }
     }
 
     /// <summary>
@@ -513,6 +713,10 @@ public partial class MainWindow : Window
             PresentLockWindow();
             return;
         }
+        // R6 #154: showing the main window ends mini mode — the
+        // strip's whole job was to stand in for it.
+        if (_miniMode)
+            ExitMiniMode(showMain: false);
         // R3 #122: a profile PIN deferred from a hidden launch gates
         // the first real show — after the global lock above, so the
         // global credential is always asked first.
@@ -886,6 +1090,8 @@ public partial class MainWindow : Window
         core.DownloadStarting += OnDownloadStarting;
         core.ContextMenuRequested += OnContextMenuRequested;
         core.DocumentTitleChanged += OnTitleChanged;
+        // R6 #154: the mini strip mirrors the page's favicon.
+        core.FaviconChanged += OnFaviconChanged;
         core.SourceChanged += OnSourceChanged;
         core.HistoryChanged += (_, _) => UpdateNavButtons();
         try
@@ -1662,6 +1868,36 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
+    /// R6 #154: cache the page favicon as PNG bytes for the mini
+    /// strip. Best-effort — a page without one (or a fetch failure)
+    /// just leaves the strip's placeholder glyph. Never logged: the
+    /// favicon URI is a full page URL.
+    /// </summary>
+    private async void OnFaviconChanged(object? sender, object e)
+    {
+        try
+        {
+            var core = Browser.CoreWebView2;
+            if (core is null)
+                return;
+            await using var stream = await core.GetFaviconAsync(
+                Microsoft.Web.WebView2.Core.CoreWebView2FaviconImageFormat.Png);
+            if (stream is null)
+            {
+                _faviconPng = null;
+                return;
+            }
+            using var memory = new MemoryStream();
+            await stream.CopyToAsync(memory);
+            _faviconPng = memory.ToArray();
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Favicon fetch for the mini strip failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
     /// Attention (S4 #31/#39): the title's leading "(N)" count is the
     /// only signal trusted. It paints the tray badge + taskbar overlay,
     /// and — on the rising edge only, while the user isn't looking at
@@ -2194,6 +2430,7 @@ public partial class MainWindow : Window
         Autostart.Sync(_settings.StartWithWindows);
         // S5 #43/#44/#45/#46 take effect immediately on OK.
         ThemeManager.Apply(_settings);
+        _tray.RefreshAppearance();
         ApplyToolbarLayout();
         ShellTextScaling.Apply(this, _settings.ShellFontScale);
         if (_webReady)
@@ -2359,6 +2596,10 @@ public partial class MainWindow : Window
     /// </summary>
     private void EvaluateSchedule()
     {
+        // R6 #159: the theme schedule flips silently, so it is
+        // evaluated before the profile schedule's guards (a dialog
+        // being open must not hold the shell's light/dark hostage).
+        EvaluateThemeSchedule();
         if (_isLocked || _safeMode || _schedulePromptOpen || _pendingProfileLockRecord is not null)
             return;
         if (System.Windows.Application.Current.Windows.OfType<Window>()
@@ -2731,6 +2972,10 @@ public partial class MainWindow : Window
             return;
         _isLocked = true;
         _log.Info("App locked");
+        // R6 #156: a locked window is never see-through — the policy
+        // forces full opacity from the moment the lock engages (the
+        // mini strip, if up, is closed below with every other window).
+        ApplyWindowOpacity();
         foreach (var other in System.Windows.Application.Current.Windows.OfType<Window>().ToList())
         {
             if (other == this || other is LockWindow)
@@ -2786,6 +3031,8 @@ public partial class MainWindow : Window
     {
         _isLocked = false;
         _tray.SetLocked(false);
+        // R6 #156: the window's chosen opacity may render again.
+        ApplyWindowOpacity();
         _log.Info("App unlocked");
         if (_initDeferred)
         {
@@ -4449,6 +4696,7 @@ public partial class MainWindow : Window
             case "action.open-in-browser": OnOpenInBrowser(this, new RoutedEventArgs()); break;
             case "action.new-window": OnOpenInNewWindow(this, new RoutedEventArgs()); break;
             case "action.focus-mode": SetFocusMode(!_focusMode); break;
+            case "action.mini-mode": ToggleMiniMode(); break;
             case "action.fullscreen": SetFullScreen(!_isFullScreen); break;
             case "action.always-on-top": SetAlwaysOnTop(!_settings.AlwaysOnTop); break;
             case "action.zoom-in": OnZoomIn(this, new RoutedEventArgs()); break;

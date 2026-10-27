@@ -370,7 +370,7 @@
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="Shell theme:" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="ThemeCombo" Width="170"
-                                  ToolTip="Dark is the family black/red identity; Light is a light shell; Follow Windows matches your Windows app theme. Muse's page itself is never restyled"/>
+                                  ToolTip="Dark is the family black/red identity; Light is a light shell; Follow Windows matches your Windows app theme; Follow schedule switches light/dark at the times below. Muse's page itself is never restyled"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,6,0,0">
                         <TextBlock Text="Accent color:" VerticalAlignment="Center" Margin="0,0,8,0"/>
@@ -384,6 +384,46 @@
                     </StackPanel>
                     <TextBlock Style="{StaticResource Note}"
                                Text="Theme, accent, and text size restyle MuseDesktop's own windows only — never the Muse page."/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,10,0,0">
+                        <TextBlock Text="Light from:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBox x:Name="ThemeLightFromText" Width="56"
+                                 ToolTip="When the light shell starts, 24-hour time (for example 07:00). Only used when the shell theme is Follow schedule"/>
+                        <TextBlock Text="Dark from:" VerticalAlignment="Center" Margin="14,0,8,0"/>
+                        <TextBox x:Name="ThemeDarkFromText" Width="56"
+                                 ToolTip="When the dark shell starts, 24-hour time (for example 19:00). It may be earlier than Light from — the light time then wraps past midnight"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
+                        <CheckBox x:Name="CustomAccentCheck" Content="Custom accent color:" VerticalAlignment="Center"
+                                  ToolTip="Use your own accent color instead of the preset above. It is adjusted until it passes the same readability (contrast) check as the presets"/>
+                        <TextBox x:Name="CustomAccentText" Width="76" Margin="8,0,0,0"
+                                 ToolTip="The color as six hex digits, like E50914 (the family red)"/>
+                        <Border x:Name="CustomAccentSwatch" Width="22" Height="22" Margin="8,0,0,0"
+                                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1"
+                                ToolTip="Preview of the custom accent color"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
+                        <TextBlock Text="Window backdrop:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="BackdropCombo" Width="170"
+                                  ToolTip="The material behind the window's own bars on Windows 11: Mica (a soft tint of your wallpaper) or Acrylic (a stronger frosted blur). On Windows 10, with transparency effects off, or in High Contrast, the window simply stays solid"/>
+                    </StackPanel>
+                    <CheckBox x:Name="TitleBarTintCheck" Margin="0,8,0,0"
+                              Content="Tint the title bar with the active profile's color"
+                              ToolTip="Colors the window's title bar with the color of the profile you're using, so the profile is visible at a glance. High Contrast turns it off"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
+                        <TextBlock Text="Chrome density:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="DensityCombo" Width="170"
+                                  ToolTip="Compact packs the toolbar and status bar tighter. It works alongside shell text size — one sets the spacing, the other the words"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
+                        <TextBlock Text="Tray icon:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="TrayStyleCombo" Width="150"
+                                  ToolTip="How the tray icon is painted: the normal color icon, monochrome (gray), or tinted with the active profile's color"/>
+                        <TextBlock Text="Count overlay:" VerticalAlignment="Center" Margin="14,0,8,0"/>
+                        <ComboBox x:Name="TrayOverlayCombo" Width="130"
+                                  ToolTip="How the tray icon shows that Muse wants attention: a numbered badge, a plain dot, or nothing (the tooltip still tells you)"/>
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="Backdrop, tint, density, and the tray face apply when you choose OK. Window opacity lives in the main window's ⋯ menu; mini mode too."/>
                     <TextBlock Style="{StaticResource Note}" Margin="0,10,0,2"
                                Text="Toolbar buttons — tick to show, select then move with ↑ / ↓ (the ⋯ menu is always there, last):"/>
                     <ListBox x:Name="ToolbarList" Height="148"

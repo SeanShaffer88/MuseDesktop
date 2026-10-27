@@ -28,12 +28,23 @@ public static class ThemeManager
     /// <summary>Whether Windows High Contrast is currently on (S6 #51) — re-read at every Apply.</summary>
     public static bool HighContrastActive { get; private set; }
 
+    /// <summary>The effective backdrop material (R6 #151) — Core's decision (BackdropPolicy over the probed capabilities), restated here so window owners can adapt their chrome after every Apply.</summary>
+    public static BackdropMaterial CurrentBackdrop { get; private set; } = BackdropMaterial.None;
+
+    /// <summary>The active profile's title-bar tint hex (R6 #152), or null for the default caption. Resolved from the settings' active profile at every Apply.</summary>
+    public static string? CurrentTitleBarTintHex { get; private set; }
+
     public static void Apply(AppSettings settings)
     {
-        IsLight = ThemeResolution.IsLight(settings.Theme, SystemPrefersLight());
+        // R6 #159: the schedule input speaks only for FollowSchedule;
+        // Core's ThemeResolution keeps the older modes untouched.
+        IsLight = ThemeResolution.IsLight(settings.Theme, SystemPrefersLight(),
+            ThemeScheduleMath.IsLightNow(settings, DateTimeOffset.Now));
         CurrentPalette = ShellPalettes.For(IsLight);
         HighContrastActive = SystemParameters.HighContrast;
-        var (darkAccent, lightAccent) = AccentPalette.For(settings.AccentColor);
+        // R6 #158: a valid custom accent replaces the preset pair —
+        // its derived variants carry the same contrast guarantee.
+        var (darkAccent, lightAccent) = AccentResolver.Resolve(settings.AccentColor, settings.CustomAccent);
         var p = CurrentPalette;
         SetBrushColor("BgBrush", p.Bg);
         SetBrushColor("SurfaceBrush", p.Surface);
@@ -51,7 +62,37 @@ public static class ThemeManager
         SetBrushColor("AccentTextBrush", "#FFFFFF");
         if (HighContrastActive)
             ApplyHighContrastOverrides();
+        // R6 #151/#152: the backdrop and tint decisions are Core's;
+        // the shell only stores them for the per-window DWM calls.
+        var activeProfile = settings.Profiles.FirstOrDefault(p => p.Id == settings.ActiveProfileId);
+        CurrentTitleBarTintHex = TitleBarTint.Resolve(
+            settings.TitleBarProfileTint, activeProfile?.DisplayColor, HighContrastActive);
+        CurrentBackdrop = BackdropPolicy.Resolve(
+            settings.Backdrop, ProbeBackdropCapabilities(), HighContrastActive);
         Changed?.Invoke(null, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// What this PC offers a backdrop (R6 #151): the system-backdrop
+    /// attribute exists on Windows 11 (build 22000+), and the user's
+    /// transparency-effects switch (Personalize → EnableTransparency)
+    /// gates it — off, missing, or unreadable all decide through
+    /// Core's policy (an unreadable switch reads as ON, the Windows
+    /// default; Core still vetoes on High Contrast).
+    /// </summary>
+    private static BackdropCapabilities ProbeBackdropCapabilities()
+    {
+        var supported = Environment.OSVersion.Version.Build >= 22000;
+        var transparency = true;
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(
+                @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+            if (key?.GetValue("EnableTransparency") is int value)
+                transparency = value != 0;
+        }
+        catch { /* the Windows default is transparency on */ }
+        return new BackdropCapabilities(supported, transparency);
     }
 
     /// <summary>
@@ -118,12 +159,13 @@ public static class ThemeManager
         }
     }
 
-    /// <summary>The web view's pre-load background in the current palette — a black flash on a light shell would read as a glitch. Under High Contrast it is the system window color.</summary>
-    public static System.Drawing.Color BrowserBackground => HighContrastActive
-        ? System.Drawing.SystemColors.Window
-        : System.Drawing.ColorTranslator.FromHtml(CurrentPalette.Bg);
+    /// <summary>The web view's pre-load background (R6 #157): Core's WebViewBackgroundPolicy names the palette hex — a white or black flash in the wrong theme would read as a glitch — and under High Contrast it defers to the system window color (the null case).</summary>
+    public static System.Drawing.Color BrowserBackground =>
+        WebViewBackgroundPolicy.ResolveHex(CurrentPalette, HighContrastActive) is { } hex
+            ? System.Drawing.ColorTranslator.FromHtml(hex)
+            : System.Drawing.SystemColors.Window;
 
-    /// <summary>Sync one window's title bar with the shell theme via the immersive-dark-mode attribute.</summary>
+    /// <summary>Sync one window's title bar with the shell theme via the immersive-dark-mode attribute, plus the profile caption tint (R6 #152).</summary>
     public static void ApplyTitleBar(Window window)
     {
         try
@@ -132,10 +174,70 @@ public static class ThemeManager
             var value = IsLight ? 0 : 1;
             // DWMWA_USE_IMMERSIVE_DARK_MODE = 20 (Windows 10 2004+ / Windows 11).
             _ = DwmSetWindowAttribute(hwnd, 20, ref value, sizeof(int));
+            // DWMWA_CAPTION_COLOR = 35 (Windows 11): the resolved
+            // profile tint as a COLORREF (0x00BBGGRR), or COLOR_DEFAULT
+            // (0xFFFFFFFF) to hand the caption back to Windows. Older
+            // Windows ignores the unknown attribute — the tint simply
+            // doesn't show there, like the backdrop.
+            var caption = CurrentTitleBarTintHex is { } tint
+                ? unchecked((int)ToColorRef(tint))
+                : unchecked((int)0xFFFFFFFF);
+            _ = DwmSetWindowAttribute(hwnd, 35, ref caption, sizeof(int));
         }
         catch { /* cosmetic only */ }
     }
 
+    /// <summary>A "#RRGGBB" hex as a DWM COLORREF (red in the low byte).</summary>
+    private static uint ToColorRef(string hex)
+    {
+        var (r, g, b) = HexColor.ParseRgb(hex);
+        return (uint)(r | (g << 8) | (b << 16));
+    }
+
+    /// <summary>
+    /// Apply (or clear) the window's backdrop material (R6 #151):
+    /// DWMWA_SYSTEMBACKDROP_TYPE = 38 with the frame extended into
+    /// the client area so the material has somewhere to show. The
+    /// material itself is Core's <see cref="CurrentBackdrop"/> —
+    /// None here means the attribute is explicitly cleared, so a
+    /// Settings change takes a material OFF a live window too.
+    /// </summary>
+    public static void ApplyBackdrop(Window window)
+    {
+        try
+        {
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(window).Handle;
+            if (hwnd == IntPtr.Zero)
+                return;
+            // DWMSBT: 1 = none, 2 = main window (Mica), 3 = transient (Acrylic).
+            var backdropType = CurrentBackdrop switch
+            {
+                BackdropMaterial.Mica => 2,
+                BackdropMaterial.Acrylic => 3,
+                _ => 1,
+            };
+            if (CurrentBackdrop != BackdropMaterial.None)
+            {
+                var margins = new Margins { Left = -1, Right = -1, Top = -1, Bottom = -1 };
+                _ = DwmExtendFrameIntoClientArea(hwnd, ref margins);
+            }
+            _ = DwmSetWindowAttribute(hwnd, 38, ref backdropType, sizeof(int));
+        }
+        catch { /* cosmetic only — a plain window is the fallback */ }
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Margins
+    {
+        public int Left;
+        public int Right;
+        public int Top;
+        public int Bottom;
+    }
+
     [DllImport("dwmapi.dll", PreserveSig = true)]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
+
+    [DllImport("dwmapi.dll", PreserveSig = true)]
+    private static extern int DwmExtendFrameIntoClientArea(IntPtr hwnd, ref Margins margins);
 }

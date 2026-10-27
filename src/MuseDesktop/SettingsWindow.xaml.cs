@@ -109,6 +109,23 @@ public partial class SettingsWindow : Window
         ThemeCombo.Items.Add("Dark");
         ThemeCombo.Items.Add("Light");
         ThemeCombo.Items.Add("Follow Windows");
+        // R6 #159: appended last — the older indices are the stored
+        // ThemeMode values and must never shift.
+        ThemeCombo.Items.Add("Follow schedule");
+        // R6 appearance round 2: the enum-ordered choice lists.
+        BackdropCombo.Items.Add("Automatic (Mica)");
+        BackdropCombo.Items.Add("None (solid)");
+        BackdropCombo.Items.Add("Mica");
+        BackdropCombo.Items.Add("Acrylic");
+        DensityCombo.Items.Add("Comfortable");
+        DensityCombo.Items.Add("Compact");
+        TrayStyleCombo.Items.Add("Color");
+        TrayStyleCombo.Items.Add("Monochrome");
+        TrayStyleCombo.Items.Add("Profile-colored");
+        TrayOverlayCombo.Items.Add("Number badge");
+        TrayOverlayCombo.Items.Add("Dot");
+        TrayOverlayCombo.Items.Add("None");
+        CustomAccentText.TextChanged += (_, _) => RefreshCustomAccentSwatch();
         foreach (var (key, _, _) in AccentPalette.Palette)
         {
             _accentKeys.Add(key);
@@ -341,6 +358,17 @@ public partial class SettingsWindow : Window
         var accentIndex = _accentKeys.IndexOf(_working.AccentColor);
         AccentCombo.SelectedIndex = accentIndex >= 0 ? accentIndex : 0;
         TextScaleCombo.SelectedItem = ShellTextScale.FormatPercent(_working.ShellFontScale);
+        // R6: appearance round 2 controls.
+        ThemeLightFromText.Text = Core.ThemeScheduleMath.FormatMinutes(_working.ThemeLightStartMinutes);
+        ThemeDarkFromText.Text = Core.ThemeScheduleMath.FormatMinutes(_working.ThemeDarkStartMinutes);
+        CustomAccentCheck.IsChecked = _working.CustomAccent is not null;
+        CustomAccentText.Text = _working.CustomAccent?.TrimStart('#') ?? "";
+        RefreshCustomAccentSwatch();
+        BackdropCombo.SelectedIndex = (int)_working.Backdrop;
+        TitleBarTintCheck.IsChecked = _working.TitleBarProfileTint;
+        DensityCombo.SelectedIndex = (int)_working.Density;
+        TrayStyleCombo.SelectedIndex = (int)_working.TrayIconStyle;
+        TrayOverlayCombo.SelectedIndex = (int)_working.TrayCountOverlay;
         RebuildToolbarEditor();
         PortableNote.Text = AppPaths.IsPortable
             ? $"Portable mode is ON: settings, download history, and logs live in {AppPaths.RootDir} — a data folder beside the app. Sign-in data still lives in your user profile (see README, “Where things live”)."
@@ -500,8 +528,27 @@ public partial class SettingsWindow : Window
         };
         // S5 appearance (the toolbar layout itself is write-through —
         // see the toolbar editor handlers).
-        if (ThemeCombo.SelectedIndex >= 0 && ThemeCombo.SelectedIndex <= (int)Core.ThemeMode.FollowSystem)
+        if (ThemeCombo.SelectedIndex >= 0 && ThemeCombo.SelectedIndex <= (int)Core.ThemeMode.FollowSchedule)
             _working.Theme = (Core.ThemeMode)ThemeCombo.SelectedIndex;
+        // R6 appearance round 2. Times that don't parse keep the
+        // working values (the fields re-populate with the kept times
+        // next open) — a typo must not silently reset the schedule.
+        if (Core.ThemeScheduleMath.TryParseTime(ThemeLightFromText.Text, out var lightFrom))
+            _working.ThemeLightStartMinutes = lightFrom;
+        if (Core.ThemeScheduleMath.TryParseTime(ThemeDarkFromText.Text, out var darkFrom))
+            _working.ThemeDarkStartMinutes = darkFrom;
+        _working.CustomAccent = CustomAccentCheck.IsChecked == true
+            ? Core.CustomAccent.TryNormalize(CustomAccentText.Text)
+            : null;
+        if (BackdropCombo.SelectedIndex >= 0)
+            _working.Backdrop = (Core.BackdropPreference)BackdropCombo.SelectedIndex;
+        _working.TitleBarProfileTint = TitleBarTintCheck.IsChecked == true;
+        if (DensityCombo.SelectedIndex >= 0)
+            _working.Density = (Core.ShellDensity)DensityCombo.SelectedIndex;
+        if (TrayStyleCombo.SelectedIndex >= 0)
+            _working.TrayIconStyle = (Core.TrayIconStyle)TrayStyleCombo.SelectedIndex;
+        if (TrayOverlayCombo.SelectedIndex >= 0)
+            _working.TrayCountOverlay = (Core.TrayOverlayStyle)TrayOverlayCombo.SelectedIndex;
         if (AccentCombo.SelectedIndex >= 0 && AccentCombo.SelectedIndex < _accentKeys.Count)
             _working.AccentColor = _accentKeys[AccentCombo.SelectedIndex];
         if (TextScaleCombo.SelectedItem is string scaleText &&
@@ -2617,6 +2664,22 @@ public partial class SettingsWindow : Window
 
     // ── #45 toolbar editor: write-through into the working settings ──
 
+    /// <summary>
+    /// R6 #158: the custom-accent swatch previews the color in the
+    /// text box as the user types (the box + checkbox are wired in
+    /// the constructor). An unreadable-as-a-color entry shows the
+    /// transparent swatch — the collect path treats it as "no custom
+    /// accent" the same way.
+    /// </summary>
+    private void RefreshCustomAccentSwatch()
+    {
+        var hex = Core.CustomAccent.TryNormalize(CustomAccentText.Text);
+        CustomAccentSwatch.Background = hex is not null
+            ? new System.Windows.Media.SolidColorBrush(
+                (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(hex))
+            : System.Windows.Media.Brushes.Transparent;
+    }
+
     private void RebuildToolbarEditor()
     {
         ToolbarList.Items.Clear();
@@ -2996,6 +3059,17 @@ public partial class SettingsWindow : Window
         // S5 fields (appearance, Settings-window memory, first-run flag).
         target.Theme = source.Theme;
         target.AccentColor = source.AccentColor;
+        // R6 fields: mode + accent + backdrop are the theme bundle
+        // (#160) — they travel inside the settings export/import with
+        // the rest of the round-2 face.
+        target.CustomAccent = source.CustomAccent;
+        target.Backdrop = source.Backdrop;
+        target.TitleBarProfileTint = source.TitleBarProfileTint;
+        target.Density = source.Density;
+        target.TrayIconStyle = source.TrayIconStyle;
+        target.TrayCountOverlay = source.TrayCountOverlay;
+        target.ThemeLightStartMinutes = source.ThemeLightStartMinutes;
+        target.ThemeDarkStartMinutes = source.ThemeDarkStartMinutes;
         target.ShellFontScale = source.ShellFontScale;
         target.ToolbarOrder = source.ToolbarOrder;
         target.ToolbarHidden = source.ToolbarHidden;

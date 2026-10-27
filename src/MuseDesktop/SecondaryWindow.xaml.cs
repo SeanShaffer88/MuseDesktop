@@ -67,7 +67,14 @@ public partial class SecondaryWindow : Window
         Foreground = new System.Windows.Media.SolidColorBrush(
             (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(palette.Text));
         Browser.DefaultBackgroundColor = ThemeManager.BrowserBackground;
-        SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(this);
+        SourceInitialized += (_, _) =>
+        {
+            ThemeManager.ApplyTitleBar(this);
+            // R6 #151: the second window wears the same backdrop.
+            ThemeManager.ApplyBackdrop(this);
+            if (ThemeManager.CurrentBackdrop != BackdropMaterial.None)
+                Background = System.Windows.Media.Brushes.Transparent;
+        };
         Loaded += OnLoaded;
     }
 
