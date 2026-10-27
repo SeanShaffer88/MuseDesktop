@@ -2,6 +2,21 @@
 
 The release notes MuseDesktop shows on the first launch of a new version (S9 #82). This file is generated from CHANGELOG.md's current-version section at release time (see RELEASE_CHECKLIST.md) — do not edit it by hand; a test pins it to the changelog so the two can't drift.
 
+## [1.8.1] — Unreleased
+
+Hotfix for the Settings crash found in the v1.7.0 field pass.
+
+### Fixed
+
+- **Settings opens again — for real this time.** The fix itself
+  was in v1.8.0's source, but the v1.8.0 installers were built
+  from the tree just before the fix landed, so the crash shipped
+  anyway. v1.8.1's installers are built from the fixed tree and
+  verified against it. (The bug: the profile dropdown carried
+  both a custom item template and a DisplayMemberPath, a
+  combination the Windows UI framework refuses; a guard test
+  now fails the build if it ever recurs.)
+
 ## [1.8.0] — Unreleased
 
 Round 2 Slice R7 (items 161–170): accessibility & language
