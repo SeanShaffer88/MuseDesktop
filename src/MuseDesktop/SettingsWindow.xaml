@@ -2,7 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:MuseDesktop"
-        Title="MuseDesktop Settings"
+        Title="{local:Loc musedesktop_settings}"
         Width="480" Height="660" MinWidth="440" MinHeight="420" MaxHeight="1000"
         ResizeMode="CanResize" WindowStartupLocation="CenterOwner"
         Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
@@ -37,9 +37,9 @@
     <DockPanel>
         <!-- Settings search (S5 #41): section-level filter + highlight. -->
         <StackPanel DockPanel.Dock="Top" Margin="18,12,18,0">
-            <TextBlock Text="Search settings:" Margin="0,0,0,4"/>
+            <TextBlock Text="{local:Loc search_settings}" Margin="0,0,0,4"/>
             <TextBox x:Name="SettingsSearchText" TextChanged="OnSearchTextChanged"
-                     ToolTip="Type to jump to a setting — matching sections stay visible and are highlighted; the rest hide while you search"/>
+                     ToolTip="{local:Loc type_to_jump_to_a_setting_matching_sections}" KeyboardNavigation.TabIndex="1"/>
             <TextBlock x:Name="SearchSummary" Style="{StaticResource Note}"/>
         </StackPanel>
 
@@ -47,40 +47,40 @@
                       ScrollChanged="OnSettingsScrolled">
             <StackPanel x:Name="SectionsPanel" Margin="18,6,18,16">
                 <StackPanel x:Name="SectionBehavior">
-                    <TextBlock x:Name="HeaderBehavior" Text="Behavior" Style="{StaticResource SectionHeader}"/>
-                    <CheckBox x:Name="StartWithWindowsCheck" Content="Start with Windows"
-                              ToolTip="Launch MuseDesktop when you sign in to Windows (the usual per-user Run entry)"/>
-                    <CheckBox x:Name="StartMinimizedCheck" Content="When starting with Windows, open in the tray (not on screen)"
-                              ToolTip="Only affects the sign-in launch: on = MuseDesktop waits in the tray; off = the window opens like a normal launch. Double-clicking the app always opens the window"/>
-                    <CheckBox x:Name="CloseToTrayCheck" Content="Close window to tray (instead of quitting)"
-                              ToolTip="The X button hides the window; Exit lives on the tray menu"/>
-                    <CheckBox x:Name="SuspendInTrayCheck" Content="Save memory while hidden in the tray"
-                              ToolTip="After the time below, the web view is suspended until you come back. Suspend never happens during a download, and stays out of the way after the microphone has been used (a voice session may be live)"/>
+                    <TextBlock x:Name="HeaderBehavior" Text="{local:Loc behavior}" Style="{StaticResource SectionHeader}"/>
+                    <CheckBox x:Name="StartWithWindowsCheck" Content="{local:Loc start_with_windows}"
+                              ToolTip="{local:Loc launch_musedesktop_when_you_sign_in_to}" KeyboardNavigation.TabIndex="2"/>
+                    <CheckBox x:Name="StartMinimizedCheck" Content="{local:Loc when_starting_with_windows_open_in_the_tray}"
+                              ToolTip="{local:Loc only_affects_the_sign_in_launch_on}" KeyboardNavigation.TabIndex="3"/>
+                    <CheckBox x:Name="CloseToTrayCheck" Content="{local:Loc close_window_to_tray_instead_of_quitting}"
+                              ToolTip="{local:Loc the_x_button_hides_the_window_exit_lives_on}" KeyboardNavigation.TabIndex="4"/>
+                    <CheckBox x:Name="SuspendInTrayCheck" Content="{local:Loc save_memory_while_hidden_in_the_tray}"
+                              ToolTip="{local:Loc after_the_time_below_the_web_view_is}" KeyboardNavigation.TabIndex="5"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
-                        <TextBlock Text="Suspend after hidden for:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc suspend_after_hidden_for}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="SuspendTimeoutCombo" Width="130"
-                                  ToolTip="How long the window may sit hidden in the tray before the web view suspends"/>
+                                  ToolTip="{local:Loc how_long_the_window_may_sit_hidden_in_the}" KeyboardNavigation.TabIndex="6"/>
                     </StackPanel>
-                    <CheckBox x:Name="CheckUpdatesCheck" Content="Check for updates when the app starts"
-                              ToolTip="One silent request to GitHub Releases per launch; failures are ignored"/>
+                    <CheckBox x:Name="CheckUpdatesCheck" Content="{local:Loc check_for_updates_when_the_app_starts}"
+                              ToolTip="{local:Loc one_silent_request_to_github_releases_per}" KeyboardNavigation.TabIndex="7"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
-                        <TextBlock Text="Check automatically:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc check_automatically}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="UpdateFrequencyCombo" Width="210"
-                                  ToolTip="How often the automatic check runs. The ⋯ menu's Check for updates always works, whatever this says"/>
+                                  ToolTip="{local:Loc how_often_the_automatic_check_runs_the_menu}" KeyboardNavigation.TabIndex="8"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
-                        <TextBlock Text="Release channel:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc release_channel}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="UpdateChannelCombo" Width="210"
-                                  ToolTip="Stable releases only, or also pre-releases (test builds). Stable users are never offered a pre-release"/>
+                                  ToolTip="{local:Loc stable_releases_only_or_also_pre_releases}" KeyboardNavigation.TabIndex="9"/>
                     </StackPanel>
                     <TextBlock Style="{StaticResource Note}"
-                               Text="Pre-releases are unfinished test builds: they can contain bugs and half-finished features. Only choose the pre-release channel if you want to help test. Switching back to Stable offers you the next stable release — it never downgrades you on its own."/>
-                    <CheckBox x:Name="ShowWhatsNewCheck" Content="Show “What's New” the first time a new version runs"
-                              ToolTip="After an update, the new version's release notes open once. The window itself also has a “don't show again” box"/>
+                               Text="{local:Loc pre_releases_are_unfinished_test_builds}"/>
+                    <CheckBox x:Name="ShowWhatsNewCheck" Content="{local:Loc show_what_s_new_the_first_time_a_new}"
+                              ToolTip="{local:Loc after_an_update_the_new_version_s_release}" KeyboardNavigation.TabIndex="10"/>
                     <TextBlock x:Name="UpdateSnoozeNote" Style="{StaticResource Note}"/>
-                    <Button x:Name="StopSnoozeButton" Content="Stop snoozing update reminders" Width="210" HorizontalAlignment="Left"
+                    <Button x:Name="StopSnoozeButton" Content="{local:Loc stop_snoozing_update_reminders}" Width="210" HorizontalAlignment="Left"
                             Margin="0,4,0,0" Click="OnStopUpdateSnooze" Visibility="Collapsed"
-                            ToolTip="Cancel the snooze set from the update window (Remind me tomorrow / next week)"/>
+                            ToolTip="{local:Loc cancel_the_snooze_set_from_the_update}" KeyboardNavigation.TabIndex="11"/>
                     <!-- S11 #99: musedesktop:// links. The installer
                          registers the scheme; this toggle keeps the
                          registration in line with it (and is how
@@ -89,41 +89,41 @@
                          when another app owns the scheme, which is
                          never overwritten. -->
                     <TextBlock Style="{StaticResource Note}" Margin="0,14,0,2"
-                               Text="Links — links that start with musedesktop:// can open MuseDesktop at a fixed set of places (the window, Home, Settings, Downloads, Help, or a profile). A link can never carry a web address or open anything else, and while the app is locked, links wait until you unlock."/>
-                    <CheckBox x:Name="ProtocolLinksCheck" Content="Let musedesktop:// links open MuseDesktop" Margin="0,2,0,0"
-                              ToolTip="Register MuseDesktop as the handler for musedesktop:// links for your Windows user account"/>
+                               Text="{local:Loc links_links_that_start_with_musedesktop_can}"/>
+                    <CheckBox x:Name="ProtocolLinksCheck" Content="{local:Loc let_musedesktop_links_open_musedesktop}" Margin="0,2,0,0"
+                              ToolTip="{local:Loc register_musedesktop_as_the_handler_for}" KeyboardNavigation.TabIndex="12"/>
                     <TextBlock x:Name="ProtocolStatus" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
-                    <Button Content="Run the setup wizard again…" Width="210" HorizontalAlignment="Left"
+                    <Button Content="{local:Loc run_the_setup_wizard_again}" Width="210" HorizontalAlignment="Left"
                             Margin="0,10,0,0" Click="OnRunSetupWizard"
-                            ToolTip="Re-run the one-screen first-run setup (close-to-tray, start with Windows, downloads folder, update checks)"/>
+                            ToolTip="{local:Loc re_run_the_one_screen_first_run_setup_close}" KeyboardNavigation.TabIndex="13"/>
                     <TextBlock Style="{StaticResource Note}"
-                               Text="Changes apply when you choose OK. Start-with-Windows writes the usual per-user Run entry; nothing here phones home beyond the update check you control."/>
+                               Text="{local:Loc changes_apply_when_you_choose_ok_start_with}"/>
                 </StackPanel>
 
                 <StackPanel x:Name="SectionTray">
-                    <TextBlock x:Name="HeaderTray" Text="Tray &amp; notifications" Style="{StaticResource SectionHeader}"/>
-                    <CheckBox x:Name="TraySingleClickCheck" Content="Single-click the tray icon to reopen (instead of double-click)"
-                              ToolTip="On: one click on the tray icon brings the window back. Off: double-click, as always"/>
-                    <CheckBox x:Name="FlashOnAttentionCheck" Content="Flash the taskbar button when Muse needs attention while I'm away"
-                              ToolTip="When Muse's title shows an unread count (like (2) Muse) and you're not looking at the window, the taskbar button flashes a few times — it never steals focus. Off by default"/>
-                    <CheckBox x:Name="QuietHoursCheck" Content="Quiet hours: keep MuseDesktop's balloons and flashes silent"
-                              ToolTip="During quiet hours MuseDesktop shows no tray balloons and no taskbar flash (the suppression is written to the log, never silent). Your Windows Do Not Disturb setting is always respected too"/>
+                    <TextBlock x:Name="HeaderTray" Text="{local:Loc tray_notifications}" Style="{StaticResource SectionHeader}"/>
+                    <CheckBox x:Name="TraySingleClickCheck" Content="{local:Loc single_click_the_tray_icon_to_reopen}"
+                              ToolTip="{local:Loc on_one_click_on_the_tray_icon_brings_the}" KeyboardNavigation.TabIndex="14"/>
+                    <CheckBox x:Name="FlashOnAttentionCheck" Content="{local:Loc flash_the_taskbar_button_when_muse_needs}"
+                              ToolTip="{local:Loc when_muse_s_title_shows_an_unread_count}" KeyboardNavigation.TabIndex="15"/>
+                    <CheckBox x:Name="QuietHoursCheck" Content="{local:Loc quiet_hours_keep_musedesktop_s_balloons_and}"
+                              ToolTip="{local:Loc during_quiet_hours_musedesktop_shows_no}" KeyboardNavigation.TabIndex="16"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
-                        <TextBlock Text="Quiet from:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc quiet_from}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="QuietStartCombo" Width="90"
-                                  ToolTip="Quiet hours begin (on the hour)"/>
-                        <TextBlock Text="to:" VerticalAlignment="Center" Margin="12,0,8,0"/>
+                                  ToolTip="{local:Loc quiet_hours_begin_on_the_hour}" KeyboardNavigation.TabIndex="17"/>
+                        <TextBlock Text="{local:Loc to}" VerticalAlignment="Center" Margin="12,0,8,0"/>
                         <ComboBox x:Name="QuietEndCombo" Width="90"
-                                  ToolTip="Quiet hours end (on the hour) — earlier than the start is fine; the window wraps midnight"/>
+                                  ToolTip="{local:Loc quiet_hours_end_on_the_hour_earlier_than}" KeyboardNavigation.TabIndex="18"/>
                     </StackPanel>
                     <TextBlock Style="{StaticResource Note}"
-                               Text="Muse's own in-page notifications are governed by Windows and Muse, not by these settings. The tray icon also shows your active profile's accent color as a small dot, and an unread-count badge when Muse's title provides one."/>
+                               Text="{local:Loc muse_s_own_in_page_notifications_are}"/>
                 </StackPanel>
 
                 <StackPanel x:Name="SectionProfiles">
-                    <TextBlock x:Name="HeaderProfiles" Text="Account profiles" Style="{StaticResource SectionHeader}"/>
+                    <TextBlock x:Name="HeaderProfiles" Text="{local:Loc account_profiles}" Style="{StaticResource SectionHeader}"/>
                     <ComboBox x:Name="ProfileCombo" SelectionChanged="OnProfileSelectionChanged"
-                              ToolTip="Sign-in profiles — each keeps its own Muse session">
+                              ToolTip="{local:Loc sign_in_profiles_each_keeps_its_own_muse}" KeyboardNavigation.TabIndex="19">
                         <ComboBox.ItemTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal">
@@ -135,111 +135,111 @@
                         </ComboBox.ItemTemplate>
                     </ComboBox>
                     <TextBlock Style="{StaticResource Note}" Margin="0,8,0,2"
-                               Text="Name (rename the selected profile):"/>
+                               Text="{local:Loc name_rename_the_selected_profile}"/>
                     <TextBox x:Name="ProfileNameText" LostFocus="OnProfileNameLostFocus"
-                             ToolTip="The selected profile's name, shown in menus and the tray"/>
+                             ToolTip="{local:Loc the_selected_profile_s_name_shown_in_menus}" KeyboardNavigation.TabIndex="20"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
-                        <TextBlock Text="Accent color:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc accent_color}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="ProfileColorCombo" Width="140" SelectionChanged="OnProfileColorChanged"
-                                  ToolTip="A small color dot next to this profile's name in menus, the tray, and here"/>
+                                  ToolTip="{local:Loc a_small_color_dot_next_to_this_profile_s}" KeyboardNavigation.TabIndex="21"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
-                        <TextBlock Text="Avatar icon:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc avatar_icon}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="ProfileGlyphCombo" Width="140" SelectionChanged="OnProfileGlyphChanged"
-                                  ToolTip="A small symbol shown before this profile's name in the switcher, menus, and the tray — and stamped onto its desktop-shortcut icon"/>
+                                  ToolTip="{local:Loc a_small_symbol_shown_before_this_profile_s}" KeyboardNavigation.TabIndex="22"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
-                        <TextBlock Text="Group:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc group}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="ProfileGroupCombo" Width="140" SelectionChanged="OnProfileGroupChanged"
-                                  ToolTip="Groups gather profiles under one heading in the switcher and menus — handy when you have many profiles"/>
-                        <Button x:Name="DeleteGroupButton" Content="Delete group" Width="96" Margin="8,0,0,0" Click="OnDeleteProfileGroup"
-                                ToolTip="Deletes the selected group; its profiles stay, just ungrouped"/>
+                                  ToolTip="{local:Loc groups_gather_profiles_under_one_heading_in}" KeyboardNavigation.TabIndex="23"/>
+                        <Button x:Name="DeleteGroupButton" Content="{local:Loc delete_group}" Width="96" Margin="8,0,0,0" Click="OnDeleteProfileGroup"
+                                ToolTip="{local:Loc deletes_the_selected_group_its_profiles}" KeyboardNavigation.TabIndex="24"/>
                     </StackPanel>
                     <DockPanel LastChildFill="True" Margin="0,6,0,0">
-                        <Button x:Name="AddGroupButton" DockPanel.Dock="Right" Content="Add group" Width="84" Margin="8,0,0,0"
-                                Click="OnAddProfileGroup"/>
-                        <TextBox x:Name="NewGroupText" ToolTip="Name for a new profile group, e.g. Clients"/>
+                        <Button x:Name="AddGroupButton" DockPanel.Dock="Right" Content="{local:Loc add_group}" Width="84" Margin="8,0,0,0"
+                                Click="OnAddProfileGroup" KeyboardNavigation.TabIndex="25"/>
+                        <TextBox x:Name="NewGroupText" ToolTip="{local:Loc name_for_a_new_profile_group_e_g_clients}" KeyboardNavigation.TabIndex="26"/>
                     </DockPanel>
                     <TextBlock Style="{StaticResource Note}" Margin="0,10,0,0"
-                               Text="When this profile starts:"/>
+                               Text="{local:Loc when_this_profile_starts}"/>
                     <RadioButton x:Name="ProfileStartLastRadio" GroupName="ProfileStartPage"
-                                 Content="Reopen the page it was last on" Checked="OnProfileStartModeChanged"
-                                 ToolTip="The profile picks up where it left off (the long-standing behavior)"/>
+                                 Content="{local:Loc reopen_the_page_it_was_last_on}" Checked="OnProfileStartModeChanged"
+                                 ToolTip="{local:Loc the_profile_picks_up_where_it_left_off_the}" KeyboardNavigation.TabIndex="27"/>
                     <RadioButton x:Name="ProfileStartHomeRadio" GroupName="ProfileStartPage"
-                                 Content="Start at the Muse home page" Checked="OnProfileStartModeChanged"
-                                 ToolTip="This profile always opens at Muse's home page"/>
+                                 Content="{local:Loc start_at_the_muse_home_page}" Checked="OnProfileStartModeChanged"
+                                 ToolTip="{local:Loc this_profile_always_opens_at_muse_s_home}" KeyboardNavigation.TabIndex="28"/>
                     <RadioButton x:Name="ProfileStartCustomRadio" GroupName="ProfileStartPage"
-                                 Content="Start at a specific Muse page:" Checked="OnProfileStartModeChanged"
-                                 ToolTip="This profile opens at the muse.ai page below — validated before use; an address MuseDesktop can't open falls back to the home page"/>
+                                 Content="{local:Loc start_at_a_specific_muse_page}" Checked="OnProfileStartModeChanged"
+                                 ToolTip="{local:Loc this_profile_opens_at_the_muse_ai_page}" KeyboardNavigation.TabIndex="29"/>
                     <TextBox x:Name="ProfileCustomUrlText" Margin="18,4,0,0" LostFocus="OnProfileCustomUrlLostFocus"
-                             ToolTip="A muse.ai page address, e.g. https://muse.ai/chat/… — only Muse pages are accepted"/>
+                             ToolTip="{local:Loc a_muse_ai_page_address_e_g_https_muse_ai}" KeyboardNavigation.TabIndex="30"/>
                     <TextBlock x:Name="ProfileCustomUrlNote" Style="{StaticResource Note}" Margin="18,2,0,0"/>
-                    <CheckBox x:Name="ProfileZoomCheck" Content="Use a custom zoom for this profile"
+                    <CheckBox x:Name="ProfileZoomCheck" Content="{local:Loc use_a_custom_zoom_for_this_profile}"
                               Checked="OnProfileZoomChanged" Unchecked="OnProfileZoomChanged"
-                              ToolTip="On: this profile zooms independently. Off: it uses the shared default zoom below. Zooming in the app updates the custom zoom while it's on"/>
+                              ToolTip="{local:Loc on_this_profile_zooms_independently_off_it}" KeyboardNavigation.TabIndex="31"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
-                        <TextBlock Text="Profile zoom:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc profile_zoom}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="ProfileZoomCombo" Width="90" SelectionChanged="OnProfileZoomComboChanged"
-                                  ToolTip="This profile's own zoom (used while the custom-zoom box above is ticked)"/>
+                                  ToolTip="{local:Loc this_profile_s_own_zoom_used_while_the}" KeyboardNavigation.TabIndex="32"/>
                     </StackPanel>
                     <TextBlock x:Name="ProfileDataText" Style="{StaticResource Note}" Margin="0,8,0,0"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
-                        <TextBlock Text="Data size cap:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc data_size_cap}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="ProfileDataCapCombo" Width="150" SelectionChanged="OnProfileDataCapChanged"
-                                  ToolTip="Optional cap on this profile's data folder. When the folder passes the cap, only disposable caches are emptied (oldest first) — cookies and sign-ins are never touched"/>
+                                  ToolTip="{local:Loc optional_cap_on_this_profile_s_data_folder}" KeyboardNavigation.TabIndex="33"/>
                     </StackPanel>
                     <TextBlock x:Name="ProfileCapNote" Style="{StaticResource Note}"/>
                     <TextBlock Style="{StaticResource Note}" Margin="0,8,0,2"
-                               Text="Downloads folder for this profile (optional — overrides the shared folder below):"/>
+                               Text="{local:Loc downloads_folder_for_this_profile_optional}"/>
                     <DockPanel LastChildFill="True">
-                        <Button x:Name="ClearProfileFolderButton" DockPanel.Dock="Right" Content="Clear" Width="56" Margin="8,0,0,0"
+                        <Button x:Name="ClearProfileFolderButton" DockPanel.Dock="Right" Content="{local:Loc clear}" Width="56" Margin="8,0,0,0"
                                 Click="OnClearProfileDownloadsFolder"
-                                ToolTip="Remove this profile's downloads-folder override"/>
-                        <Button x:Name="BrowseProfileFolderButton" DockPanel.Dock="Right" Content="Browse…" Width="76" Margin="8,0,0,0"
-                                Click="OnBrowseProfileDownloadsFolder"/>
+                                ToolTip="{local:Loc remove_this_profile_s_downloads_folder}" KeyboardNavigation.TabIndex="34"/>
+                        <Button x:Name="BrowseProfileFolderButton" DockPanel.Dock="Right" Content="{local:Loc browse}" Width="76" Margin="8,0,0,0"
+                                Click="OnBrowseProfileDownloadsFolder" KeyboardNavigation.TabIndex="35"/>
                         <TextBox x:Name="ProfileDownloadsFolderText" IsReadOnly="True"
-                                 ToolTip="This profile's downloads land here; empty uses the shared Downloads folder"/>
+                                 ToolTip="{local:Loc this_profile_s_downloads_land_here_empty}" KeyboardNavigation.TabIndex="36"/>
                     </DockPanel>
-                    <CheckBox x:Name="ProfileArchivedCheck" Content="Archive this profile (hide it from switchers; its data stays on this PC)"
+                    <CheckBox x:Name="ProfileArchivedCheck" Content="{local:Loc archive_this_profile_hide_it_from_switchers}"
                               Margin="0,10,0,0" Checked="OnProfileArchivedChanged" Unchecked="OnProfileArchivedChanged"
-                              ToolTip="Archived profiles disappear from the switcher, menus, and shortcut keys, but nothing is deleted and a desktop shortcut for the profile still opens it. Untick to restore. The profile you're using can't be archived"/>
+                              ToolTip="{local:Loc archived_profiles_disappear_from_the}" KeyboardNavigation.TabIndex="37"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,10,0,0">
-                        <TextBlock Text="Profile PIN:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc profile_pin}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBlock x:Name="ProfilePinStatus" VerticalAlignment="Center"/>
-                        <Button x:Name="SetProfilePinButton" Content="Set PIN…" Width="84" Margin="8,0,0,0" Click="OnSetProfilePin"
-                                ToolTip="Ask for a PIN whenever MuseDesktop launches with this profile. The app password (if set) is still asked first. A PIN is a privacy screen, not encryption"/>
-                        <Button x:Name="RemoveProfilePinButton" Content="Remove PIN" Width="96" Margin="8,0,0,0" Click="OnRemoveProfilePin"
-                                ToolTip="Remove this profile's PIN (asks for the current PIN first)"/>
+                        <Button x:Name="SetProfilePinButton" Content="{local:Loc set_pin}" Width="84" Margin="8,0,0,0" Click="OnSetProfilePin"
+                                ToolTip="{local:Loc ask_for_a_pin_whenever_musedesktop_launches}" KeyboardNavigation.TabIndex="38"/>
+                        <Button x:Name="RemoveProfilePinButton" Content="{local:Loc remove_pin}" Width="96" Margin="8,0,0,0" Click="OnRemoveProfilePin"
+                                ToolTip="{local:Loc remove_this_profile_s_pin_asks_for_the}" KeyboardNavigation.TabIndex="39"/>
                     </StackPanel>
-                    <CheckBox x:Name="ProfileScheduleCheck" Content="Switch to this profile on a schedule:"
+                    <CheckBox x:Name="ProfileScheduleCheck" Content="{local:Loc switch_to_this_profile_on_a_schedule}"
                               Margin="0,10,0,0" Checked="OnProfileScheduleChanged" Unchecked="OnProfileScheduleChanged"
-                              ToolTip="During the hours below, MuseDesktop offers to switch to this profile (or switches on its own, if you tick the box further down). Switching by hand always wins"/>
+                              ToolTip="{local:Loc during_the_hours_below_musedesktop_offers}" KeyboardNavigation.TabIndex="40"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="18,4,0,0">
-                        <TextBlock Text="From" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBlock Text="{local:Loc from}" VerticalAlignment="Center" Margin="0,0,6,0"/>
                         <TextBox x:Name="ProfileScheduleStartText" Width="56" LostFocus="OnProfileScheduleChanged"
-                                 ToolTip="Start time, 24-hour clock — e.g. 09:00"/>
-                        <TextBlock Text="to" VerticalAlignment="Center" Margin="8,0,6,0"/>
+                                 ToolTip="{local:Loc start_time_24_hour_clock_e_g_09_00}" KeyboardNavigation.TabIndex="41"/>
+                        <TextBlock Text="{local:Loc to_2}" VerticalAlignment="Center" Margin="8,0,6,0"/>
                         <TextBox x:Name="ProfileScheduleEndText" Width="56" LostFocus="OnProfileScheduleChanged"
-                                 ToolTip="End time, 24-hour clock — e.g. 17:00. An end earlier than the start runs past midnight"/>
+                                 ToolTip="{local:Loc end_time_24_hour_clock_e_g_17_00_an_end}" KeyboardNavigation.TabIndex="42"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="18,4,0,0">
-                        <CheckBox x:Name="SchedMon" Content="Mon" Margin="0,0,8,0" Checked="OnProfileScheduleChanged" Unchecked="OnProfileScheduleChanged"/>
-                        <CheckBox x:Name="SchedTue" Content="Tue" Margin="0,0,8,0" Checked="OnProfileScheduleChanged" Unchecked="OnProfileScheduleChanged"/>
-                        <CheckBox x:Name="SchedWed" Content="Wed" Margin="0,0,8,0" Checked="OnProfileScheduleChanged" Unchecked="OnProfileScheduleChanged"/>
-                        <CheckBox x:Name="SchedThu" Content="Thu" Margin="0,0,8,0" Checked="OnProfileScheduleChanged" Unchecked="OnProfileScheduleChanged"/>
-                        <CheckBox x:Name="SchedFri" Content="Fri" Margin="0,0,8,0" Checked="OnProfileScheduleChanged" Unchecked="OnProfileScheduleChanged"/>
-                        <CheckBox x:Name="SchedSat" Content="Sat" Margin="0,0,8,0" Checked="OnProfileScheduleChanged" Unchecked="OnProfileScheduleChanged"/>
-                        <CheckBox x:Name="SchedSun" Content="Sun" Checked="OnProfileScheduleChanged" Unchecked="OnProfileScheduleChanged"/>
+                        <CheckBox x:Name="SchedMon" Content="{local:Loc mon}" Margin="0,0,8,0" Checked="OnProfileScheduleChanged" Unchecked="OnProfileScheduleChanged" KeyboardNavigation.TabIndex="43"/>
+                        <CheckBox x:Name="SchedTue" Content="{local:Loc tue}" Margin="0,0,8,0" Checked="OnProfileScheduleChanged" Unchecked="OnProfileScheduleChanged" KeyboardNavigation.TabIndex="44"/>
+                        <CheckBox x:Name="SchedWed" Content="{local:Loc wed}" Margin="0,0,8,0" Checked="OnProfileScheduleChanged" Unchecked="OnProfileScheduleChanged" KeyboardNavigation.TabIndex="45"/>
+                        <CheckBox x:Name="SchedThu" Content="{local:Loc thu}" Margin="0,0,8,0" Checked="OnProfileScheduleChanged" Unchecked="OnProfileScheduleChanged" KeyboardNavigation.TabIndex="46"/>
+                        <CheckBox x:Name="SchedFri" Content="{local:Loc fri}" Margin="0,0,8,0" Checked="OnProfileScheduleChanged" Unchecked="OnProfileScheduleChanged" KeyboardNavigation.TabIndex="47"/>
+                        <CheckBox x:Name="SchedSat" Content="{local:Loc sat}" Margin="0,0,8,0" Checked="OnProfileScheduleChanged" Unchecked="OnProfileScheduleChanged" KeyboardNavigation.TabIndex="48"/>
+                        <CheckBox x:Name="SchedSun" Content="{local:Loc sun}" Checked="OnProfileScheduleChanged" Unchecked="OnProfileScheduleChanged" KeyboardNavigation.TabIndex="49"/>
                     </StackPanel>
                     <TextBlock x:Name="ProfileScheduleText" Style="{StaticResource Note}" Margin="18,2,0,0"/>
-                    <CheckBox x:Name="ScheduleAutoCheck" Content="Switch automatically when a schedule starts (don't ask first)"
+                    <CheckBox x:Name="ScheduleAutoCheck" Content="{local:Loc switch_automatically_when_a_schedule_starts}"
                               Margin="18,4,0,0" Checked="OnScheduleAutoChanged" Unchecked="OnScheduleAutoChanged"
-                              ToolTip="Off (the default): when a scheduled time arrives, MuseDesktop asks before switching. On: it switches right away. Either way, a profile you picked by hand is left alone until its time is up"/>
+                              ToolTip="{local:Loc off_the_default_when_a_scheduled_time}" KeyboardNavigation.TabIndex="50"/>
                     <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                        <Button x:Name="RefreshProfileHealthButton" Content="Profile health…" Width="110" Click="OnRefreshProfileHealth"
-                                ToolTip="Counts only: this profile's data size, disposable cache, cookie count, and last backup. Nothing about which sites or pages"/>
-                        <Button x:Name="ClearProfileUsageButton" Content="Clear usage counts" Width="140" Margin="8,0,0,0" Click="OnClearProfileUsage"
-                                ToolTip="Deletes the launch counts for every profile. They are stored only on this PC and never sent anywhere"/>
+                        <Button x:Name="RefreshProfileHealthButton" Content="{local:Loc profile_health}" Width="110" Click="OnRefreshProfileHealth"
+                                ToolTip="{local:Loc counts_only_this_profile_s_data_size}" KeyboardNavigation.TabIndex="51"/>
+                        <Button x:Name="ClearProfileUsageButton" Content="{local:Loc clear_usage_counts}" Width="140" Margin="8,0,0,0" Click="OnClearProfileUsage"
+                                ToolTip="{local:Loc deletes_the_launch_counts_for_every_profile}" KeyboardNavigation.TabIndex="52"/>
                     </StackPanel>
                     <TextBlock x:Name="ProfileHealthText" Style="{StaticResource Note}"/>
                     <TextBlock x:Name="ProfileUsageText" Style="{StaticResource Note}" Margin="0,4,0,0"/>
@@ -251,234 +251,234 @@
                          about the page is changed, and they apply
                          when you press OK. -->
                     <TextBlock Style="{StaticResource Note}" Margin="0,12,0,2"
-                               Text="Conversation view — for the selected profile:"/>
-                    <CheckBox x:Name="ProfileScrollbarsCheck" Content="Always show the conversation scrollbar (wider, easier to grab)"
+                               Text="{local:Loc conversation_view_for_the_selected_profile}"/>
+                    <CheckBox x:Name="ProfileScrollbarsCheck" Content="{local:Loc always_show_the_conversation_scrollbar}"
                               Checked="OnProfileViewChanged" Unchecked="OnProfileViewChanged"
-                              ToolTip="Muse's own scrollbar hides until you scroll and is hard to grab. On (the default): MuseDesktop keeps a wide, always-visible one in the conversation view"/>
+                              ToolTip="{local:Loc muse_s_own_scrollbar_hides_until_you_scroll}" KeyboardNavigation.TabIndex="53"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,6,0,0">
-                        <TextBlock Text="Chat text size:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc chat_text_size}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="ChatTextScaleCombo" Width="90" SelectionChanged="OnProfileViewChanged"
-                                  ToolTip="Scales the conversation's text (separate from page zoom — this is the words' size only)"/>
-                        <TextBlock Text="Reading column:" VerticalAlignment="Center" Margin="14,0,8,0"/>
+                                  ToolTip="{local:Loc scales_the_conversation_s_text_separate}" KeyboardNavigation.TabIndex="54"/>
+                        <TextBlock Text="{local:Loc reading_column}" VerticalAlignment="Center" Margin="14,0,8,0"/>
                         <ComboBox x:Name="ReadingColumnCombo" Width="128" SelectionChanged="OnProfileViewChanged"
-                                  ToolTip="How wide the conversation column may grow on a wide window; 'Page default' leaves Muse's own width alone"/>
+                                  ToolTip="{local:Loc how_wide_the_conversation_column_may_grow}" KeyboardNavigation.TabIndex="55"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,6,0,0">
-                        <TextBlock Text="Line spacing:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc line_spacing}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="LineSpacingCombo" Width="128" SelectionChanged="OnProfileViewChanged"
-                                  ToolTip="Space between lines in messages; 'Page default' leaves Muse's own spacing alone"/>
+                                  ToolTip="{local:Loc space_between_lines_in_messages_page}" KeyboardNavigation.TabIndex="56"/>
                     </StackPanel>
-                    <CheckBox x:Name="DraftsAutosaveCheck" Content="Keep unsent message drafts (per conversation; restored when you return, cleared when sent)"
+                    <CheckBox x:Name="DraftsAutosaveCheck" Content="{local:Loc keep_unsent_message_drafts_per_conversation}"
                               Margin="0,8,0,0" Checked="OnDraftsAutosaveChanged" Unchecked="OnDraftsAutosaveChanged"
-                              ToolTip="What you type in a conversation's message box is kept on this PC and put back when you return to that conversation. Applies to every profile; stored in drafts.json, never sent anywhere"/>
+                              ToolTip="{local:Loc what_you_type_in_a_conversation_s_message}" KeyboardNavigation.TabIndex="57"/>
                     <TextBlock Style="{StaticResource Note}" Margin="0,10,0,2"
-                               Text="Prompt snippets — for the selected profile. Insert one into the message box from Ctrl+K or the ⋯ menu's Insert snippet list:"/>
+                               Text="{local:Loc prompt_snippets_for_the_selected_profile}"/>
                     <ListBox x:Name="SnippetList" Height="84" SelectionChanged="OnSnippetSelectionChanged"
                              Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
                              BorderBrush="{StaticResource HairlineBrush}"
-                             ToolTip="This profile's saved prompts, in name order"/>
+                             ToolTip="{local:Loc this_profile_s_saved_prompts_in_name_order}" KeyboardNavigation.TabIndex="58"/>
                     <TextBox x:Name="SnippetNameText" Margin="0,6,0,0"
-                             ToolTip="The snippet's name — the list and the palette pick it by this"/>
+                             ToolTip="{local:Loc the_snippet_s_name_the_list_and_the_palette}" KeyboardNavigation.TabIndex="59"/>
                     <TextBox x:Name="SnippetBodyText" Margin="0,6,0,0" Height="54" AcceptsReturn="True"
                              TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
-                             ToolTip="The prompt text itself — inserted into the message box exactly as written, for you to edit before sending"/>
+                             ToolTip="{local:Loc the_prompt_text_itself_inserted_into_the}" KeyboardNavigation.TabIndex="60"/>
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                        <Button x:Name="SaveSnippetButton" Content="Save snippet" Width="104" Click="OnSaveSnippet"
-                                ToolTip="Adds the snippet, or updates the selected one with the name and text above"/>
-                        <Button x:Name="NewSnippetButton" Content="New" Width="64" Margin="8,0,0,0" Click="OnNewSnippet"
-                                ToolTip="Clear the editor to write a fresh snippet"/>
-                        <Button x:Name="DeleteSnippetButton" Content="Delete" Width="76" Margin="8,0,0,0" Click="OnDeleteSnippet"
-                                ToolTip="Delete the selected snippet (takes effect immediately, like the other live actions)"/>
+                        <Button x:Name="SaveSnippetButton" Content="{local:Loc save_snippet}" Width="104" Click="OnSaveSnippet"
+                                ToolTip="{local:Loc adds_the_snippet_or_updates_the_selected}" KeyboardNavigation.TabIndex="61"/>
+                        <Button x:Name="NewSnippetButton" Content="{local:Loc new}" Width="64" Margin="8,0,0,0" Click="OnNewSnippet"
+                                ToolTip="{local:Loc clear_the_editor_to_write_a_fresh_snippet}" KeyboardNavigation.TabIndex="62"/>
+                        <Button x:Name="DeleteSnippetButton" Content="{local:Loc delete}" Width="76" Margin="8,0,0,0" Click="OnDeleteSnippet"
+                                ToolTip="{local:Loc delete_the_selected_snippet_takes_effect}" KeyboardNavigation.TabIndex="63"/>
                     </StackPanel>
                     <TextBlock x:Name="SnippetStatus" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
                     <TextBlock Style="{StaticResource Note}"
-                               Text="Bookmarks, drafts, and snippets are stored on this PC only, in their own files beside settings.json — they never ride a settings export or a profile bundle."/>
+                               Text="{local:Loc bookmarks_drafts_and_snippets_are_stored_on}"/>
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                        <Button x:Name="SwitchProfileButton" Content="Switch to this profile" Width="150" Click="OnSwitchProfile"
-                                ToolTip="Restarts MuseDesktop signed in with the selected profile"/>
-                        <Button x:Name="RemoveProfileButton" Content="Remove" Width="76" Margin="8,0,0,0" Click="OnRemoveProfile"
-                                ToolTip="Removes the profile; its local sign-in data is deleted when you choose OK"/>
-                        <Button x:Name="CreateShortcutButton" Content="Create desktop shortcut" Width="164" Margin="8,0,0,0" Click="OnCreateProfileShortcut"
-                                ToolTip="Puts a shortcut on the Desktop that opens MuseDesktop with this profile"/>
+                        <Button x:Name="SwitchProfileButton" Content="{local:Loc switch_to_this_profile}" Width="150" Click="OnSwitchProfile"
+                                ToolTip="{local:Loc restarts_musedesktop_signed_in_with_the}" KeyboardNavigation.TabIndex="64"/>
+                        <Button x:Name="RemoveProfileButton" Content="{local:Loc remove}" Width="76" Margin="8,0,0,0" Click="OnRemoveProfile"
+                                ToolTip="{local:Loc removes_the_profile_its_local_sign_in_data}" KeyboardNavigation.TabIndex="65"/>
+                        <Button x:Name="CreateShortcutButton" Content="{local:Loc create_desktop_shortcut}" Width="164" Margin="8,0,0,0" Click="OnCreateProfileShortcut"
+                                ToolTip="{local:Loc puts_a_shortcut_on_the_desktop_that_opens}" KeyboardNavigation.TabIndex="66"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                        <Button x:Name="CloneProfileButton" Content="Clone profile" Width="110" Click="OnCloneProfile"
-                                ToolTip="A new profile with this one's settings and appearance. Sign-in data is never copied — the clone starts signed out"/>
-                        <Button x:Name="ExportProfileButton" Content="Export profile…" Width="116" Margin="8,0,0,0" Click="OnExportProfile"
-                                ToolTip="Save this profile's settings and appearance as a small bundle file you can import on another PC"/>
-                        <Button x:Name="ImportProfileButton" Content="Import profile…" Width="116" Margin="8,0,0,0" Click="OnImportProfile"
-                                ToolTip="Add a profile from a bundle file. Importing always creates a new profile — it never overwrites one"/>
+                        <Button x:Name="CloneProfileButton" Content="{local:Loc clone_profile}" Width="110" Click="OnCloneProfile"
+                                ToolTip="{local:Loc a_new_profile_with_this_one_s_settings_and}" KeyboardNavigation.TabIndex="67"/>
+                        <Button x:Name="ExportProfileButton" Content="{local:Loc export_profile}" Width="116" Margin="8,0,0,0" Click="OnExportProfile"
+                                ToolTip="{local:Loc save_this_profile_s_settings_and_appearance}" KeyboardNavigation.TabIndex="68"/>
+                        <Button x:Name="ImportProfileButton" Content="{local:Loc import_profile}" Width="116" Margin="8,0,0,0" Click="OnImportProfile"
+                                ToolTip="{local:Loc add_a_profile_from_a_bundle_file_importing}" KeyboardNavigation.TabIndex="69"/>
                     </StackPanel>
                     <TextBlock Style="{StaticResource Note}"
-                               Text="Cloning and bundles carry settings and appearance only — never sign-in data, cookies, the profile PIN, its schedule, or usage counts."/>
+                               Text="{local:Loc cloning_and_bundles_carry_settings_and}"/>
                     <TextBlock x:Name="ProfileNote" Style="{StaticResource Note}"/>
                     <TextBlock Style="{StaticResource Note}" Margin="0,8,0,2"
-                               Text="New profile — optionally copy settings (start page, downloads folder, zoom, color) from an existing one. Sign-ins are never copied:"/>
+                               Text="{local:Loc new_profile_optionally_copy_settings_start}"/>
                     <ComboBox x:Name="CopyFromCombo" SelectionChanged="OnCopyFromChanged"
-                              ToolTip="Copy the new profile's settings from this profile; its sign-in is never copied"/>
+                              ToolTip="{local:Loc copy_the_new_profile_s_settings_from_this}" KeyboardNavigation.TabIndex="70"/>
                     <DockPanel LastChildFill="True" Margin="0,6,0,0">
-                        <Button x:Name="AddProfileButton" DockPanel.Dock="Right" Content="Add" Width="76" Margin="8,0,0,0"
-                                Click="OnAddProfile"/>
-                        <TextBox x:Name="NewProfileNameText" ToolTip="Name for a new profile, e.g. Work"/>
+                        <Button x:Name="AddProfileButton" DockPanel.Dock="Right" Content="{local:Loc add}" Width="76" Margin="8,0,0,0"
+                                Click="OnAddProfile" KeyboardNavigation.TabIndex="71"/>
+                        <TextBox x:Name="NewProfileNameText" ToolTip="{local:Loc name_for_a_new_profile_e_g_work}" KeyboardNavigation.TabIndex="72"/>
                     </DockPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
-                        <TextBlock Text="Or start from a template:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc or_start_from_a_template}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="ProfileTemplateCombo" Width="180"
-                                  ToolTip="Starter looks: Work (blue flag, home page), Personal (purple heart), Reading (orange moon, 125% zoom)"/>
-                        <Button x:Name="AddFromTemplateButton" Content="Add from template" Width="140" Margin="8,0,0,0" Click="OnAddFromTemplate"
-                                ToolTip="Creates a profile with the template's name, color, icon, and start page — change anything about it afterwards"/>
+                                  ToolTip="{local:Loc starter_looks_work_blue_flag_home_page}" KeyboardNavigation.TabIndex="73"/>
+                        <Button x:Name="AddFromTemplateButton" Content="{local:Loc add_from_template}" Width="140" Margin="8,0,0,0" Click="OnAddFromTemplate"
+                                ToolTip="{local:Loc creates_a_profile_with_the_template_s_name}" KeyboardNavigation.TabIndex="74"/>
                     </StackPanel>
                     <TextBlock Style="{StaticResource Note}"
-                               Text="Each profile is a separate Muse sign-in (its own cookies and data on this PC). Switching restarts the app immediately, discarding other unsaved changes in this window. You can't remove the profile you're currently using."/>
+                               Text="{local:Loc each_profile_is_a_separate_muse_sign_in_its}"/>
                 </StackPanel>
 
                 <StackPanel x:Name="SectionWorkspaces">
-                    <TextBlock x:Name="HeaderWorkspaces" Text="Workspaces &amp; sessions" Style="{StaticResource SectionHeader}"/>
+                    <TextBlock x:Name="HeaderWorkspaces" Text="{local:Loc workspaces_sessions}" Style="{StaticResource SectionHeader}"/>
                     <ComboBox x:Name="WorkspaceCombo" SelectionChanged="OnWorkspaceSelectionChanged"
-                              ToolTip="Your saved workspaces — named sets of windows you can re-apply from the ⋯ menu, the tray, or Ctrl+K"/>
+                              ToolTip="{local:Loc your_saved_workspaces_named_sets_of_windows}" KeyboardNavigation.TabIndex="75"/>
                     <TextBox x:Name="WorkspaceNameText" LostFocus="OnWorkspaceNameLostFocus" Margin="0,6,0,0"
-                             ToolTip="The workspace's name, as shown in menus"/>
+                             ToolTip="{local:Loc the_workspace_s_name_as_shown_in_menus}" KeyboardNavigation.TabIndex="76"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
-                        <TextBlock Text="Icon:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc icon}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="WorkspaceGlyphCombo" Width="140" SelectionChanged="OnWorkspaceGlyphChanged"
-                                  ToolTip="A symbol shown next to the workspace's name in the tray menu and the command palette"/>
-                        <TextBlock Text="Accent override:" VerticalAlignment="Center" Margin="16,0,8,0"/>
+                                  ToolTip="{local:Loc a_symbol_shown_next_to_the_workspace_s_name}" KeyboardNavigation.TabIndex="77"/>
+                        <TextBlock Text="{local:Loc accent_override}" VerticalAlignment="Center" Margin="16,0,8,0"/>
                         <ComboBox x:Name="WorkspaceAccentCombo" Width="140" SelectionChanged="OnWorkspaceAccentChanged"
-                                  ToolTip="While this workspace is applied, MuseDesktop's accent uses this color instead of the Appearance accent. The saved Appearance accent itself is never changed"/>
+                                  ToolTip="{local:Loc while_this_workspace_is_applied_musedesktop}" KeyboardNavigation.TabIndex="78"/>
                     </StackPanel>
-                    <CheckBox x:Name="WorkspaceStartupCheck" Content="Open this workspace when MuseDesktop starts" Margin="0,10,0,0"
+                    <CheckBox x:Name="WorkspaceStartupCheck" Content="{local:Loc open_this_workspace_when_musedesktop_starts}" Margin="0,10,0,0"
                               Click="OnWorkspaceStartupChanged"
-                              ToolTip="At launch, this workspace's windows open instead of the single default window"/>
+                              ToolTip="{local:Loc at_launch_this_workspace_s_windows_open}" KeyboardNavigation.TabIndex="79"/>
                     <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                        <Button x:Name="WorkspaceApplyButton" Content="Apply now" Width="92" Click="OnApplyWorkspace"
-                                ToolTip="Apply this workspace right away (Settings closes, like a profile switch)"/>
-                        <Button x:Name="WorkspaceDuplicateButton" Content="Duplicate" Width="84" Margin="8,0,0,0" Click="OnDuplicateWorkspace"
-                                ToolTip="Copy this workspace — its windows, icon, and accent — under a new name"/>
-                        <Button x:Name="WorkspaceDeleteButton" Content="Delete" Width="76" Margin="8,0,0,0" Click="OnDeleteWorkspace"
-                                ToolTip="Deletes the saved layout when you choose OK. No window closes and no data is touched — only the saved layout goes away"/>
+                        <Button x:Name="WorkspaceApplyButton" Content="{local:Loc apply_now}" Width="92" Click="OnApplyWorkspace"
+                                ToolTip="{local:Loc apply_this_workspace_right_away_settings}" KeyboardNavigation.TabIndex="80"/>
+                        <Button x:Name="WorkspaceDuplicateButton" Content="{local:Loc duplicate}" Width="84" Margin="8,0,0,0" Click="OnDuplicateWorkspace"
+                                ToolTip="{local:Loc copy_this_workspace_its_windows_icon_and}" KeyboardNavigation.TabIndex="81"/>
+                        <Button x:Name="WorkspaceDeleteButton" Content="{local:Loc delete}" Width="76" Margin="8,0,0,0" Click="OnDeleteWorkspace"
+                                ToolTip="{local:Loc deletes_the_saved_layout_when_you_choose_ok}" KeyboardNavigation.TabIndex="82"/>
                     </StackPanel>
                     <TextBlock x:Name="WorkspaceNote" Style="{StaticResource Note}" Margin="0,8,0,0"/>
                     <CheckBox x:Name="AutoSaveSessionCheck" Margin="0,12,0,0"
-                              Content="Pick up where I left off — reopen the windows I had open"
-                              ToolTip="When MuseDesktop starts, the windows from the last session come back. Off by default."/>
+                              Content="{local:Loc pick_up_where_i_left_off_reopen_the_windows}"
+                              ToolTip="{local:Loc when_musedesktop_starts_the_windows_from}" KeyboardNavigation.TabIndex="83"/>
                     <TextBlock Style="{StaticResource Note}"
-                               Text="A workspace remembers which profile each window belongs to, where it sits, and which Muse section it shows (chat, projects, …) — never the full page address, and never a query string. After a crash, MuseDesktop offers your previous windows once, whether or not the box above is ticked."/>
+                               Text="{local:Loc a_workspace_remembers_which_profile_each}"/>
                 </StackPanel>
 
                 <StackPanel x:Name="SectionAppearance">
-                    <TextBlock x:Name="HeaderAppearance" Text="Appearance &amp; toolbar" Style="{StaticResource SectionHeader}"/>
+                    <TextBlock x:Name="HeaderAppearance" Text="{local:Loc appearance_toolbar}" Style="{StaticResource SectionHeader}"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="Shell theme:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc shell_theme}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="ThemeCombo" Width="170"
-                                  ToolTip="Dark is the family black/red identity; Light is a light shell; Follow Windows matches your Windows app theme; Follow schedule switches light/dark at the times below. Muse's page itself is never restyled"/>
+                                  ToolTip="{local:Loc dark_is_the_family_black_red_identity_light}" KeyboardNavigation.TabIndex="84"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,6,0,0">
-                        <TextBlock Text="Accent color:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc accent_color}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="AccentCombo" Width="170"
-                                  ToolTip="Colors MuseDesktop's own highlights (section titles, buttons). Each accent is checked for readable contrast on both shell themes. This is separate from profile colors"/>
+                                  ToolTip="{local:Loc colors_musedesktop_s_own_highlights_section}" KeyboardNavigation.TabIndex="85"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,6,0,0">
-                        <TextBlock Text="Shell text size:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc shell_text_size}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="TextScaleCombo" Width="170"
-                                  ToolTip="Scales MuseDesktop's own text (toolbar, menus, Settings) — separate from page zoom. The tray menu is drawn by Windows and keeps its system size"/>
+                                  ToolTip="{local:Loc scales_musedesktop_s_own_text_toolbar_menus}" KeyboardNavigation.TabIndex="86"/>
                     </StackPanel>
                     <TextBlock Style="{StaticResource Note}"
-                               Text="Theme, accent, and text size restyle MuseDesktop's own windows only — never the Muse page."/>
+                               Text="{local:Loc theme_accent_and_text_size_restyle}"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,10,0,0">
-                        <TextBlock Text="Light from:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc light_from}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBox x:Name="ThemeLightFromText" Width="56"
-                                 ToolTip="When the light shell starts, 24-hour time (for example 07:00). Only used when the shell theme is Follow schedule"/>
-                        <TextBlock Text="Dark from:" VerticalAlignment="Center" Margin="14,0,8,0"/>
+                                 ToolTip="{local:Loc when_the_light_shell_starts_24_hour_time}" KeyboardNavigation.TabIndex="87"/>
+                        <TextBlock Text="{local:Loc dark_from}" VerticalAlignment="Center" Margin="14,0,8,0"/>
                         <TextBox x:Name="ThemeDarkFromText" Width="56"
-                                 ToolTip="When the dark shell starts, 24-hour time (for example 19:00). It may be earlier than Light from — the light time then wraps past midnight"/>
+                                 ToolTip="{local:Loc when_the_dark_shell_starts_24_hour_time_for}" KeyboardNavigation.TabIndex="88"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
-                        <CheckBox x:Name="CustomAccentCheck" Content="Custom accent color:" VerticalAlignment="Center"
-                                  ToolTip="Use your own accent color instead of the preset above. It is adjusted until it passes the same readability (contrast) check as the presets"/>
+                        <CheckBox x:Name="CustomAccentCheck" Content="{local:Loc custom_accent_color}" VerticalAlignment="Center"
+                                  ToolTip="{local:Loc use_your_own_accent_color_instead_of_the}" KeyboardNavigation.TabIndex="89"/>
                         <TextBox x:Name="CustomAccentText" Width="76" Margin="8,0,0,0"
-                                 ToolTip="The color as six hex digits, like E50914 (the family red)"/>
+                                 ToolTip="{local:Loc the_color_as_six_hex_digits_like_e50914_the}" KeyboardNavigation.TabIndex="90"/>
                         <Border x:Name="CustomAccentSwatch" Width="22" Height="22" Margin="8,0,0,0"
                                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1"
-                                ToolTip="Preview of the custom accent color"/>
+                                ToolTip="{local:Loc preview_of_the_custom_accent_color}"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
-                        <TextBlock Text="Window backdrop:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc window_backdrop}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="BackdropCombo" Width="170"
-                                  ToolTip="The material behind the window's own bars on Windows 11: Mica (a soft tint of your wallpaper) or Acrylic (a stronger frosted blur). On Windows 10, with transparency effects off, or in High Contrast, the window simply stays solid"/>
+                                  ToolTip="{local:Loc the_material_behind_the_window_s_own_bars}" KeyboardNavigation.TabIndex="91"/>
                     </StackPanel>
                     <CheckBox x:Name="TitleBarTintCheck" Margin="0,8,0,0"
-                              Content="Tint the title bar with the active profile's color"
-                              ToolTip="Colors the window's title bar with the color of the profile you're using, so the profile is visible at a glance. High Contrast turns it off"/>
+                              Content="{local:Loc tint_the_title_bar_with_the_active_profile}"
+                              ToolTip="{local:Loc colors_the_window_s_title_bar_with_the}" KeyboardNavigation.TabIndex="92"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
-                        <TextBlock Text="Chrome density:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc chrome_density}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="DensityCombo" Width="170"
-                                  ToolTip="Compact packs the toolbar and status bar tighter. It works alongside shell text size — one sets the spacing, the other the words"/>
+                                  ToolTip="{local:Loc compact_packs_the_toolbar_and_status_bar}" KeyboardNavigation.TabIndex="93"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
-                        <TextBlock Text="Tray icon:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc tray_icon}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="TrayStyleCombo" Width="150"
-                                  ToolTip="How the tray icon is painted: the normal color icon, monochrome (gray), or tinted with the active profile's color"/>
-                        <TextBlock Text="Count overlay:" VerticalAlignment="Center" Margin="14,0,8,0"/>
+                                  ToolTip="{local:Loc how_the_tray_icon_is_painted_the_normal}" KeyboardNavigation.TabIndex="94"/>
+                        <TextBlock Text="{local:Loc count_overlay}" VerticalAlignment="Center" Margin="14,0,8,0"/>
                         <ComboBox x:Name="TrayOverlayCombo" Width="130"
-                                  ToolTip="How the tray icon shows that Muse wants attention: a numbered badge, a plain dot, or nothing (the tooltip still tells you)"/>
+                                  ToolTip="{local:Loc how_the_tray_icon_shows_that_muse_wants}" KeyboardNavigation.TabIndex="95"/>
                     </StackPanel>
                     <TextBlock Style="{StaticResource Note}"
-                               Text="Backdrop, tint, density, and the tray face apply when you choose OK. Window opacity lives in the main window's ⋯ menu; mini mode too."/>
+                               Text="{local:Loc backdrop_tint_density_and_the_tray_face}"/>
                     <TextBlock Style="{StaticResource Note}" Margin="0,10,0,2"
-                               Text="Toolbar buttons — tick to show, select then move with ↑ / ↓ (the ⋯ menu is always there, last):"/>
+                               Text="{local:Loc toolbar_buttons_tick_to_show_select_then}"/>
                     <ListBox x:Name="ToolbarList" Height="148"
                              Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
                              BorderBrush="{StaticResource HairlineBrush}"
-                             ToolTip="The main window's toolbar buttons, in order, grouped as they appear (Back…Home on the left, zoom…browser on the right)"/>
+                             ToolTip="{local:Loc the_main_window_s_toolbar_buttons_in_order}" KeyboardNavigation.TabIndex="96"/>
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                        <Button Content="↑ Move up" Width="92" Click="OnToolbarMoveUp"/>
-                        <Button Content="↓ Move down" Width="98" Margin="8,0,0,0" Click="OnToolbarMoveDown"/>
-                        <Button Content="Reset layout" Width="104" Margin="8,0,0,0" Click="OnToolbarReset"
-                                ToolTip="Back to the standard toolbar: every button shown, in the original order"/>
+                        <Button Content="{local:Loc move_up}" Width="92" Click="OnToolbarMoveUp" KeyboardNavigation.TabIndex="97"/>
+                        <Button Content="{local:Loc move_down}" Width="98" Margin="8,0,0,0" Click="OnToolbarMoveDown" KeyboardNavigation.TabIndex="98"/>
+                        <Button Content="{local:Loc reset_layout}" Width="104" Margin="8,0,0,0" Click="OnToolbarReset"
+                                ToolTip="{local:Loc back_to_the_standard_toolbar_every_button}" KeyboardNavigation.TabIndex="99"/>
                     </StackPanel>
                     <TextBlock Style="{StaticResource Note}"
-                               Text="Back always stays — the toolbar must always offer navigation."/>
+                               Text="{local:Loc back_always_stays_the_toolbar_must_always}"/>
                 </StackPanel>
 
                 <StackPanel x:Name="SectionZoom">
-                    <TextBlock x:Name="HeaderZoom" Text="Zoom" Style="{StaticResource SectionHeader}"/>
+                    <TextBlock x:Name="HeaderZoom" Text="{local:Loc zoom}" Style="{StaticResource SectionHeader}"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="Default zoom:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc default_zoom}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="ZoomCombo" Width="90"
-                                  ToolTip="The shared default zoom — applies at OK and is where the toolbar zoom starts next launch"/>
+                                  ToolTip="{local:Loc the_shared_default_zoom_applies_at_ok_and}" KeyboardNavigation.TabIndex="100"/>
                     </StackPanel>
                     <TextBlock Style="{StaticResource Note}"
-                               Text="Applies immediately at OK and is where the toolbar zoom starts next launch."/>
-                    <CheckBox x:Name="ExtendedZoomCheck" Content="Extended zoom range (25%–500%)"
+                               Text="{local:Loc applies_immediately_at_ok_and_is_where_the}"/>
+                    <CheckBox x:Name="ExtendedZoomCheck" Content="{local:Loc extended_zoom_range_25_500}"
                               Checked="OnExtendedZoomChanged" Unchecked="OnExtendedZoomChanged"
-                              ToolTip="Widens the zoom range and its steps for low-vision use: 25% to 500% instead of the standard 50% to 200%"/>
+                              ToolTip="{local:Loc widens_the_zoom_range_and_its_steps_for_low}" KeyboardNavigation.TabIndex="101"/>
                     <TextBlock Style="{StaticResource Note}"
-                               Text="Zoom steps get finer near 100% either way; the extended range adds the extremes."/>
+                               Text="{local:Loc zoom_steps_get_finer_near_100_either_way}"/>
                 </StackPanel>
 
                 <!-- Keyboard & accessibility (v0.10.0, S6) -->
                 <StackPanel x:Name="SectionAccessibility">
-                    <TextBlock x:Name="HeaderAccessibility" Text="Keyboard &amp; accessibility" Style="{StaticResource SectionHeader}"/>
+                    <TextBlock x:Name="HeaderAccessibility" Text="{local:Loc keyboard_accessibility}" Style="{StaticResource SectionHeader}"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="Reduce motion:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc reduce_motion}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="ReduceMotionCombo" Width="190"
-                                  ToolTip="Follow Windows reads the Windows animation-effects setting; On keeps the shell's effects off regardless">
-                            <ComboBoxItem Content="Follow Windows"/>
-                            <ComboBoxItem Content="On (reduce motion)"/>
-                            <ComboBoxItem Content="Off (full motion)"/>
+                                  ToolTip="{local:Loc follow_windows_reads_the_windows_animation}" KeyboardNavigation.TabIndex="102">
+                            <ComboBoxItem Content="{local:Loc follow_windows}"/>
+                            <ComboBoxItem Content="{local:Loc on_reduce_motion}"/>
+                            <ComboBoxItem Content="{local:Loc off_full_motion}"/>
                         </ComboBox>
                     </StackPanel>
                     <TextBlock Style="{StaticResource Note}"
-                               Text="MuseDesktop's shell has almost no animation of its own; this setting quiets the one effect it does have — the taskbar attention flash. Animation inside the Muse page follows Windows' own setting."/>
+                               Text="{local:Loc musedesktop_s_shell_has_almost_no_animation}"/>
                     <TextBlock Style="{StaticResource Note}" Margin="0,10,0,2"
-                               Text="Changeable shortcuts — click a key button, then press the new combination (it must include Ctrl or Alt). Reset puts one key back to its default:"/>
+                               Text="{local:Loc changeable_shortcuts_click_a_key_button}"/>
                     <StackPanel x:Name="ShortcutRows"/>
                     <TextBlock x:Name="ShortcutStatus" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
                     <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                        <Button Content="All shortcuts…" Width="130" Click="OnOpenShortcutsList"
-                                ToolTip="Open the searchable list of every shortcut (Ctrl+/)"/>
-                        <Button Content="Reset all keys" Width="120" Margin="8,0,0,0" Click="OnResetAllShortcuts"
-                                ToolTip="Put every changed shortcut back to its default"/>
+                        <Button Content="{local:Loc all_shortcuts}" Width="130" Click="OnOpenShortcutsList"
+                                ToolTip="{local:Loc open_the_searchable_list_of_every_shortcut}" KeyboardNavigation.TabIndex="103"/>
+                        <Button Content="{local:Loc reset_all_keys}" Width="120" Margin="8,0,0,0" Click="OnResetAllShortcuts"
+                                ToolTip="{local:Loc put_every_changed_shortcut_back_to_its}" KeyboardNavigation.TabIndex="104"/>
                     </StackPanel>
                     <!-- S11 #96: the global show/hide hotkey. It lives
                          OUTSIDE the in-app shortcut list above on
@@ -487,316 +487,358 @@
                          GlobalHotkey checks the two systems against
                          each other so they can never share a key. -->
                     <TextBlock Style="{StaticResource Note}" Margin="0,14,0,2"
-                               Text="Global hotkey — registered with Windows, so it works while any app has focus. Click the key button, then press the new combination (it must include Ctrl or Alt):"/>
-                    <CheckBox x:Name="GlobalHotkeyCheck" Content="Show or hide MuseDesktop with a global hotkey" Margin="0,2,0,0"
-                              ToolTip="Press the combination anywhere to bring MuseDesktop forward; press it again to hide it to the tray"/>
+                               Text="{local:Loc global_hotkey_registered_with_windows_so_it}"/>
+                    <CheckBox x:Name="GlobalHotkeyCheck" Content="{local:Loc show_or_hide_musedesktop_with_a_global}" Margin="0,2,0,0"
+                              ToolTip="{local:Loc press_the_combination_anywhere_to_bring}" KeyboardNavigation.TabIndex="105"/>
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                         <Button x:Name="GlobalHotkeyButton" MinWidth="170" Click="OnCaptureGlobalHotkey"
-                                ToolTip="The current global hotkey combination — click, then press a new one"/>
-                        <Button Content="Reset" Width="80" Margin="8,0,0,0" Click="OnResetGlobalHotkey"
-                                ToolTip="Put the global hotkey back to the default, Ctrl+Alt+M"/>
+                                ToolTip="{local:Loc the_current_global_hotkey_combination_click}" KeyboardNavigation.TabIndex="106"/>
+                        <Button Content="{local:Loc reset}" Width="80" Margin="8,0,0,0" Click="OnResetGlobalHotkey"
+                                ToolTip="{local:Loc put_the_global_hotkey_back_to_the_default}" KeyboardNavigation.TabIndex="107"/>
                     </StackPanel>
                     <TextBlock x:Name="GlobalHotkeyStatus" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
                     <TextBlock Style="{StaticResource Note}"
-                               Text="The default is Ctrl+Alt+M. If another app already uses the combination, registration fails and the status line above says so — pick a different one. While the app is locked, the hotkey only ever shows the lock screen."/>
+                               Text="{local:Loc the_default_is_ctrl_alt_m_if_another_app}"/>
+                </StackPanel>
+
+                <!-- Language & announcements (v1.8.0, R7 #161–#170) -->
+                <StackPanel x:Name="SectionLanguage">
+                    <TextBlock x:Name="HeaderLanguage" Text="{local:Loc language_announcements}" Style="{StaticResource SectionHeader}"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="{local:Loc app_language}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="LanguageCombo" Width="260"
+                                  ToolTip="{local:Loc the_app_s_own_windows_menus_dialogs_settings}" KeyboardNavigation.TabIndex="108"/>
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="{local:Loc system_default_follows_the_windows_display_language}"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                        <Button x:Name="ExportPackButton" Content="{local:Loc export_a_blank_language_pack}" Width="216" Click="OnExportLanguagePack"
+                                ToolTip="{local:Loc save_a_template_with_every_string_in_english}" KeyboardNavigation.TabIndex="109"/>
+                        <Button x:Name="ImportPackButton" Content="{local:Loc import_a_language_pack}" Width="196" Margin="8,0,0,0" Click="OnImportLanguagePack"
+                                ToolTip="{local:Loc bring_in_a_finished_pack_file_it_is_checked}" KeyboardNavigation.TabIndex="110"/>
+                    </StackPanel>
+                    <TextBlock x:Name="LanguagePackStatus" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
+                    <TextBlock Style="{StaticResource Note}" Margin="0,12,0,2"
+                               Text="{local:Loc spoken_announcements}"/>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="{local:Loc choose_which_kinds_of_events_are_spoken}"/>
+                    <CheckBox x:Name="AnnouncementDownloadsCheck" Content="{local:Loc settings.announce.downloads}" Margin="0,4,0,0"
+                              KeyboardNavigation.TabIndex="111"/>
+                    <CheckBox x:Name="AnnouncementUpdatesCheck" Content="{local:Loc settings.announce.updates}" Margin="0,2,0,0"
+                              KeyboardNavigation.TabIndex="112"/>
+                    <CheckBox x:Name="AnnouncementTimersCheck" Content="{local:Loc settings.announce.timers}" Margin="0,2,0,0"
+                              KeyboardNavigation.TabIndex="113"/>
+                    <CheckBox x:Name="AnnouncementFocusCheck" Content="{local:Loc settings.announce.focus}" Margin="0,2,0,0"
+                              KeyboardNavigation.TabIndex="114"/>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,12,0,0">
+                        <TextBlock Text="{local:Loc text_spacing}" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ComboBox x:Name="TextSpacingCombo" Width="230"
+                                  ToolTip="{local:Loc how_much_air_between_lines_of_text_in}" KeyboardNavigation.TabIndex="115">
+                            <ComboBoxItem Content="{local:Loc settings.text_spacing.standard}"/>
+                            <ComboBoxItem Content="{local:Loc settings.text_spacing.relaxed}"/>
+                            <ComboBoxItem Content="{local:Loc settings.text_spacing.wide}"/>
+                        </ComboBox>
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource Note}"
+                               Text="{local:Loc wider_spacing_helps_low_vision_reading_it}"/>
                 </StackPanel>
 
                 <StackPanel x:Name="SectionDownloads">
-                    <TextBlock x:Name="HeaderDownloads" Text="Downloads" Style="{StaticResource SectionHeader}"/>
+                    <TextBlock x:Name="HeaderDownloads" Text="{local:Loc downloads}" Style="{StaticResource SectionHeader}"/>
                     <DockPanel LastChildFill="True">
-                        <Button x:Name="BrowseFolderButton" DockPanel.Dock="Right" Content="Browse…" Width="76" Margin="8,0,0,0"
-                                Click="OnBrowseDownloadsFolder"/>
+                        <Button x:Name="BrowseFolderButton" DockPanel.Dock="Right" Content="{local:Loc browse}" Width="76" Margin="8,0,0,0"
+                                Click="OnBrowseDownloadsFolder" KeyboardNavigation.TabIndex="132"/>
                         <TextBox x:Name="DownloadsFolderText" IsReadOnly="True"
-                                 ToolTip="Where downloads are saved"/>
+                                 ToolTip="{local:Loc where_downloads_are_saved}" KeyboardNavigation.TabIndex="133"/>
                     </DockPanel>
                     <TextBlock Style="{StaticResource Note}"
-                               Text="Empty means your Windows Downloads folder. Changing it does not move files already downloaded."/>
-                    <CheckBox x:Name="AskWhereToSaveCheck" Content="Ask where to save each download"
-                              ToolTip="Shows a Save-As dialog for every file"/>
-                    <CheckBox x:Name="NotifyDownloadCompleteCheck" Content="Tell me when a download finishes while the window is hidden"
-                              ToolTip="Shows a tray balloon naming the file. Off by default; never makes a sound"/>
+                               Text="{local:Loc empty_means_your_windows_downloads_folder}"/>
+                    <CheckBox x:Name="AskWhereToSaveCheck" Content="{local:Loc ask_where_to_save_each_download}"
+                              ToolTip="{local:Loc shows_a_save_as_dialog_for_every_file}" KeyboardNavigation.TabIndex="134"/>
+                    <CheckBox x:Name="NotifyDownloadCompleteCheck" Content="{local:Loc tell_me_when_a_download_finishes_while_the}"
+                              ToolTip="{local:Loc shows_a_tray_balloon_naming_the_file_off_by}" KeyboardNavigation.TabIndex="135"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
-                        <TextBlock Text="If the file already exists:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc if_the_file_already_exists}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="CollisionPolicyCombo" Width="210"
-                                  ToolTip="Save under a new name automatically, or ask where to save that file"/>
+                                  ToolTip="{local:Loc save_under_a_new_name_automatically_or_ask}" KeyboardNavigation.TabIndex="136"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
-                        <TextBlock Text="Keep download history:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc keep_download_history}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="HistoryCapCombo" Width="120"
-                                  ToolTip="How many finished downloads the Downloads window remembers"/>
+                                  ToolTip="{local:Loc how_many_finished_downloads_the_downloads}" KeyboardNavigation.TabIndex="137"/>
                     </StackPanel>
                     <TextBlock Style="{StaticResource Note}"
-                               Text="History keeps names, sizes, dates, and paths only — never the addresses files came from. Failed downloads are listed too."/>
+                               Text="{local:Loc history_keeps_names_sizes_dates_and_paths}"/>
 
-                    <TextBlock Text="Sorting, scheduling &amp; more (v1.4.0):" Margin="0,14,0,4" FontWeight="SemiBold"/>
-                    <CheckBox x:Name="AutoSortDownloadsCheck" Content="Sort each finished download into a subfolder automatically"
-                              ToolTip="Uses your rules below first, then the built-in file-type folders. The Downloads window's Sort does the same on demand, with a preview and Undo"/>
-                    <CheckBox x:Name="SortCategoriesCheck" Content="Use the built-in file-type folders (Images, Documents, Archives, Audio, Video, Programs, Other)"
-                              ToolTip="Applies when no custom rule matches a file"/>
+                    <TextBlock Text="{local:Loc sorting_scheduling_more_v1_4_0}" Margin="0,14,0,4" FontWeight="SemiBold"/>
+                    <CheckBox x:Name="AutoSortDownloadsCheck" Content="{local:Loc sort_each_finished_download_into_a}"
+                              ToolTip="{local:Loc uses_your_rules_below_first_then_the_built}" KeyboardNavigation.TabIndex="138"/>
+                    <CheckBox x:Name="SortCategoriesCheck" Content="{local:Loc use_the_built_in_file_type_folders_images}"
+                              ToolTip="{local:Loc applies_when_no_custom_rule_matches_a_file}" KeyboardNavigation.TabIndex="139"/>
                     <TextBlock Style="{StaticResource Note}"
-                               Text="Custom sort rules — one per line: extensions or a *pattern*, then =, then the subfolder. Example: pdf, docx = Documents  ·  *invoice* = Finance"/>
+                               Text="{local:Loc custom_sort_rules_one_per_line_extensions}"/>
                     <TextBox x:Name="SortRulesText" Height="58" AcceptsReturn="True" TextWrapping="Wrap"
                              VerticalScrollBarVisibility="Auto"
-                             ToolTip="Custom download sort rules, tried in order before the file-type folders"
-                             AutomationProperties.Name="Custom sort rules"/>
+                             ToolTip="{local:Loc custom_download_sort_rules_tried_in_order}"
+                             AutomationProperties.Name="{local:Loc custom_sort_rules}" KeyboardNavigation.TabIndex="140"/>
                     <TextBlock x:Name="SortRulesNote" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
-                        <TextBlock Text="Bandwidth limit (KB/s, 0 = no limit):" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc bandwidth_limit_kb_s_0_no_limit}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBox x:Name="BandwidthLimitText" Width="80"
-                                 ToolTip="A cap on all downloads together. WebView2 can't slow a single transfer, so MuseDesktop pauses the newest download while the total is over the limit and resumes it when there's room"/>
+                                 ToolTip="{local:Loc a_cap_on_all_downloads_together_webview2}" KeyboardNavigation.TabIndex="141"/>
                     </StackPanel>
-                    <CheckBox x:Name="DownloadQuietCheck" Content="Hold large downloads during quiet hours"
-                              ToolTip="Files known to be large wait until the window ends, then start by themselves. Small files — and files whose size isn't known yet — still download"/>
+                    <CheckBox x:Name="DownloadQuietCheck" Content="{local:Loc hold_large_downloads_during_quiet_hours}"
+                              ToolTip="{local:Loc files_known_to_be_large_wait_until_the}" KeyboardNavigation.TabIndex="142"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
-                        <TextBlock Text="From:" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                        <TextBlock Text="{local:Loc from_2}" VerticalAlignment="Center" Margin="0,0,6,0"/>
                         <TextBox x:Name="DownloadQuietStartText" Width="56"
-                                 ToolTip="Quiet-hours start, 24-hour clock (e.g. 09:00)"/>
-                        <TextBlock Text="To:" VerticalAlignment="Center" Margin="10,0,6,0"/>
+                                 ToolTip="{local:Loc quiet_hours_start_24_hour_clock_e_g_09_00}" KeyboardNavigation.TabIndex="143"/>
+                        <TextBlock Text="{local:Loc to_3}" VerticalAlignment="Center" Margin="10,0,6,0"/>
                         <TextBox x:Name="DownloadQuietEndText" Width="56"
-                                 ToolTip="Quiet-hours end, 24-hour clock (e.g. 17:00). A window can run past midnight"/>
-                        <TextBlock Text="Large means (MB):" VerticalAlignment="Center" Margin="10,0,6,0"/>
+                                 ToolTip="{local:Loc quiet_hours_end_24_hour_clock_e_g_17_00_a}" KeyboardNavigation.TabIndex="144"/>
+                        <TextBlock Text="{local:Loc large_means_mb}" VerticalAlignment="Center" Margin="10,0,6,0"/>
                         <TextBox x:Name="DownloadQuietLargeText" Width="64"
-                                 ToolTip="Files at least this big wait out the quiet hours; 0 holds every download"/>
+                                 ToolTip="{local:Loc files_at_least_this_big_wait_out_the_quiet}" KeyboardNavigation.TabIndex="145"/>
                     </StackPanel>
-                    <CheckBox x:Name="DuplicateGuardCheck" Content="Warn when a download looks like one already downloaded"
-                              ToolTip="Same file name (and size, when known) as a finished download whose file is still on disk. Keeping both saves the new one under a fresh name"/>
-                    <CheckBox x:Name="AutoRetryCheck" Content="Retry failed downloads automatically"
-                              ToolTip="Network and server failures only, with a growing wait between tries. Disk, permission, and cancelled downloads never retry"/>
+                    <CheckBox x:Name="DuplicateGuardCheck" Content="{local:Loc warn_when_a_download_looks_like_one_already}"
+                              ToolTip="{local:Loc same_file_name_and_size_when_known_as_a}" KeyboardNavigation.TabIndex="146"/>
+                    <CheckBox x:Name="AutoRetryCheck" Content="{local:Loc retry_failed_downloads_automatically}"
+                              ToolTip="{local:Loc network_and_server_failures_only_with_a}" KeyboardNavigation.TabIndex="147"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
-                        <TextBlock Text="Automatic retries per download:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc automatic_retries_per_download}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <ComboBox x:Name="RetryAttemptsCombo" Width="70"
-                                  ToolTip="How many times a failed download retries itself (1 to 5)"/>
+                                  ToolTip="{local:Loc how_many_times_a_failed_download_retries}" KeyboardNavigation.TabIndex="148"/>
                     </StackPanel>
                     <DockPanel LastChildFill="True" Margin="0,10,0,0">
-                        <Button DockPanel.Dock="Right" Content="Browse…" Width="76" Margin="8,0,0,0"
-                                Click="OnBrowseArchiveFolder"/>
+                        <Button DockPanel.Dock="Right" Content="{local:Loc browse}" Width="76" Margin="8,0,0,0"
+                                Click="OnBrowseArchiveFolder" KeyboardNavigation.TabIndex="149"/>
                         <TextBox x:Name="ArchiveFolderText" IsReadOnly="True"
-                                 ToolTip="Where archived downloads go; empty uses an Archive folder inside the downloads folder"/>
+                                 ToolTip="{local:Loc where_archived_downloads_go_empty_uses_an}" KeyboardNavigation.TabIndex="150"/>
                     </DockPanel>
                     <TextBlock Style="{StaticResource Note}"
-                               Text="Archive folder — the Downloads window's Archive button moves finished downloads into dated subfolders here."/>
+                               Text="{local:Loc archive_folder_the_downloads_window_s}"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
-                        <TextBlock Text="When sorting, archive downloads older than (days, 0 = only when I ask):" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc when_sorting_archive_downloads_older_than}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBox x:Name="ArchiveDaysText" Width="64"
-                                 ToolTip="Finished downloads older than this go to the archive when Sort runs, instead of a type subfolder"/>
+                                 ToolTip="{local:Loc finished_downloads_older_than_this_go_to}" KeyboardNavigation.TabIndex="151"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,8,0,0">
-                        <TextBlock Text="Download quota for the profile you're using (MB, 0 = no cap):" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc download_quota_for_the_profile_you_re_using}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBox x:Name="ProfileQuotaText" Width="80"
-                                 ToolTip="A soft cap on this profile's downloads folder: a heads-up at 80% and again at the cap. It never blocks a download and never deletes anything"/>
+                                 ToolTip="{local:Loc a_soft_cap_on_this_profile_s_downloads}" KeyboardNavigation.TabIndex="152"/>
                     </StackPanel>
                     <TextBlock Style="{StaticResource Note}"
-                               Text="The quota belongs to the profile you're using now — switch profiles to set theirs. It only ever warns."/>
+                               Text="{local:Loc the_quota_belongs_to_the_profile_you_re}"/>
                 </StackPanel>
 
                 <StackPanel x:Name="SectionData">
-                    <TextBlock x:Name="HeaderData" Text="Data" Style="{StaticResource SectionHeader}"/>
+                    <TextBlock x:Name="HeaderData" Text="{local:Loc data}" Style="{StaticResource SectionHeader}"/>
                     <TextBlock Style="{StaticResource Note}" Margin="0,0,0,0"
-                               Text="Clearing browsing data (cookies, cache, site data) moved to Privacy &amp; security below, where you can choose exactly what to clear and for which profiles."/>
+                               Text="{local:Loc clearing_browsing_data_cookies_cache_site}"/>
                     <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                        <Button Content="Open data folder" Width="130" Click="OnOpenDataFolder"
-                                ToolTip="Open the folder with settings, logs, and download history in File Explorer"/>
-                        <Button Content="Backup guide…" Width="130" Margin="8,0,0,0" Click="OnBackupGuide"
-                                ToolTip="Exactly what to copy to back up your sign-ins, and what an export does and doesn't cover"/>
+                        <Button Content="{local:Loc open_data_folder}" Width="130" Click="OnOpenDataFolder"
+                                ToolTip="{local:Loc open_the_folder_with_settings_logs_and}" KeyboardNavigation.TabIndex="153"/>
+                        <Button Content="{local:Loc backup_guide}" Width="130" Margin="8,0,0,0" Click="OnBackupGuide"
+                                ToolTip="{local:Loc exactly_what_to_copy_to_back_up_your_sign}" KeyboardNavigation.TabIndex="154"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                        <Button Content="Export settings…" Width="130" Click="OnExportSettings"
-                                ToolTip="Save these settings to a file you can keep or move to another PC"/>
-                        <Button Content="Import settings…" Width="130" Margin="8,0,0,0" Click="OnImportSettings"
-                                ToolTip="Replace these settings with ones from an exported file"/>
+                        <Button Content="{local:Loc export_settings}" Width="130" Click="OnExportSettings"
+                                ToolTip="{local:Loc save_these_settings_to_a_file_you_can_keep}" KeyboardNavigation.TabIndex="155"/>
+                        <Button Content="{local:Loc import_settings}" Width="130" Margin="8,0,0,0" Click="OnImportSettings"
+                                ToolTip="{local:Loc replace_these_settings_with_ones_from_an}" KeyboardNavigation.TabIndex="156"/>
                     </StackPanel>
                     <TextBlock x:Name="ImportNote" Style="{StaticResource Note}"
-                               Text="Export saves the settings shown here (including profiles and per-profile start pages) as a small JSON file. Sign-ins themselves are not exported — those stay in each profile's own data."/>
-                    <Button Content="Reset all settings to defaults…" Width="230" HorizontalAlignment="Left"
+                               Text="{local:Loc export_saves_the_settings_shown_here}"/>
+                    <Button Content="{local:Loc reset_all_settings_to_defaults}" Width="230" HorizontalAlignment="Left"
                             Margin="0,12,0,0" Click="OnResetSettings"
-                            ToolTip="Restores every preference to its default. Your current settings are exported to a backup file first; profiles, sign-ins, and downloads are not touched"/>
+                            ToolTip="{local:Loc restores_every_preference_to_its_default}" KeyboardNavigation.TabIndex="157"/>
                     <TextBlock x:Name="ResetNote" Style="{StaticResource Note}"
-                               Text="Reset restores preferences only — profiles, sign-ins, last pages, and downloaded files stay exactly as they are. A backup of your current settings is saved first, so Import can undo it."/>
-                    <Button Content="Reset MuseDesktop…" Width="230" HorizontalAlignment="Left"
+                               Text="{local:Loc reset_restores_preferences_only_profiles}"/>
+                    <Button Content="{local:Loc reset_musedesktop_2}" Width="230" HorizontalAlignment="Left"
                             Margin="0,12,0,0" Click="OnOpenResetWizard"
-                            ToolTip="The guided reset: backup first, then choose — reset settings, clear site data for all profiles, or both — each step explained"/>
+                            ToolTip="{local:Loc the_guided_reset_backup_first_then_choose}" KeyboardNavigation.TabIndex="158"/>
                     <TextBlock Style="{StaticResource Note}"
-                               Text="Won't start, or won't sign in? The guided reset walks through the fix step by step — a backup of your current settings is written before anything changes."/>
-                    <TextBlock Text="Automatic backups:" Margin="0,12,0,4" FontWeight="SemiBold"/>
+                               Text="{local:Loc won_t_start_or_won_t_sign_in_the_guided}"/>
+                    <TextBlock Text="{local:Loc automatic_backups}" Margin="0,12,0,4" FontWeight="SemiBold"/>
                     <TextBlock Style="{StaticResource Note}" Margin="0,0,0,0"
-                               Text="MuseDesktop keeps the five most recent backups of your settings and your downloads history — at most one new automatic backup per day, plus whenever you choose Back up now. Restoring settings goes through the same checks as Import."/>
-                    <Button Content="Back up now" Width="130" HorizontalAlignment="Left" Margin="0,6,0,0"
+                               Text="{local:Loc musedesktop_keeps_the_five_most_recent}"/>
+                    <Button Content="{local:Loc back_up_now}" Width="130" HorizontalAlignment="Left" Margin="0,6,0,0"
                             Click="OnBackupNow"
-                            ToolTip="Write a fresh backup of settings and downloads history right now"/>
+                            ToolTip="{local:Loc write_a_fresh_backup_of_settings_and}" KeyboardNavigation.TabIndex="159"/>
                     <StackPanel x:Name="BackupRows" Margin="0,6,0,0"/>
                     <TextBlock x:Name="BackupNote" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
                     <TextBlock x:Name="PortableNote" Style="{StaticResource Note}" Margin="0,10,0,0"/>
                 </StackPanel>
 
                 <StackPanel x:Name="SectionFocus">
-                    <TextBlock x:Name="HeaderFocus" Text="Focus &amp; productivity" Style="{StaticResource SectionHeader}"/>
+                    <TextBlock x:Name="HeaderFocus" Text="{local:Loc focus_productivity}" Style="{StaticResource SectionHeader}"/>
 
                     <!-- R5 #141: focus timer. -->
-                    <CheckBox x:Name="FocusTimerAutoStartCheck" Content="Start the focus timer when focus mode turns on"
-                              ToolTip="Focus mode (F8) always hides the app chrome and fills the screen; with this on, a focus block also counts down in the status bar"/>
+                    <CheckBox x:Name="FocusTimerAutoStartCheck" Content="{local:Loc start_the_focus_timer_when_focus_mode_turns}"
+                              ToolTip="{local:Loc focus_mode_f8_always_hides_the_app_chrome}" KeyboardNavigation.TabIndex="160"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
-                        <TextBlock Text="Focus block length (minutes):" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc focus_block_length_minutes}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBox x:Name="FocusTimerMinutesText" Width="60"
-                                 AutomationProperties.Name="Focus block length in minutes"
-                                 ToolTip="1–240 minutes"/>
+                                 AutomationProperties.Name="{local:Loc focus_block_length_in_minutes}"
+                                 ToolTip="{local:Loc 1_240_minutes}" KeyboardNavigation.TabIndex="161"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
-                        <TextBlock Text="Suggested break length (minutes):" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc suggested_break_length_minutes}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBox x:Name="FocusBreakMinutesText" Width="60"
-                                 AutomationProperties.Name="Suggested break length in minutes"
-                                 ToolTip="1–120 minutes"/>
+                                 AutomationProperties.Name="{local:Loc suggested_break_length_in_minutes}"
+                                 ToolTip="{local:Loc 1_120_minutes}" KeyboardNavigation.TabIndex="162"/>
                     </StackPanel>
-                    <CheckBox x:Name="FocusBreakRemindersCheck" Content="Remind me to take a break when a focus block ends" Margin="0,4,0,0"
-                              ToolTip="A gentle tray reminder — never a dialog, and quiet hours hold it back like every other MuseDesktop balloon"/>
+                    <CheckBox x:Name="FocusBreakRemindersCheck" Content="{local:Loc remind_me_to_take_a_break_when_a_focus}" Margin="0,4,0,0"
+                              ToolTip="{local:Loc a_gentle_tray_reminder_never_a_dialog_and}" KeyboardNavigation.TabIndex="163"/>
 
                     <!-- R5 #142: session timer. -->
                     <TextBlock Style="{StaticResource Note}" Margin="0,14,0,2"
-                               Text="Session timer — repeating work / break cycles (Pomodoro-style) from the ⋯ menu or Ctrl+K. Its countdown shows in the status bar and the tray tooltip."/>
+                               Text="{local:Loc session_timer_repeating_work_break_cycles}"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
-                        <TextBlock Text="Work (minutes):" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc work_minutes}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBox x:Name="SessionWorkMinutesText" Width="60"
-                                 AutomationProperties.Name="Session timer work minutes"
-                                 ToolTip="1–240 minutes"/>
-                        <TextBlock Text="Short break:" VerticalAlignment="Center" Margin="14,0,8,0"/>
+                                 AutomationProperties.Name="{local:Loc session_timer_work_minutes}"
+                                 ToolTip="{local:Loc 1_240_minutes}" KeyboardNavigation.TabIndex="164"/>
+                        <TextBlock Text="{local:Loc short_break}" VerticalAlignment="Center" Margin="14,0,8,0"/>
                         <TextBox x:Name="SessionBreakMinutesText" Width="60"
-                                 AutomationProperties.Name="Session timer short break minutes"
-                                 ToolTip="1–120 minutes"/>
+                                 AutomationProperties.Name="{local:Loc session_timer_short_break_minutes}"
+                                 ToolTip="{local:Loc 1_120_minutes}" KeyboardNavigation.TabIndex="165"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
-                        <TextBlock Text="Long break (minutes):" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <TextBlock Text="{local:Loc long_break_minutes}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                         <TextBox x:Name="SessionLongBreakMinutesText" Width="60"
-                                 AutomationProperties.Name="Session timer long break minutes"
-                                 ToolTip="1–240 minutes"/>
-                        <TextBlock Text="Work blocks before it:" VerticalAlignment="Center" Margin="14,0,8,0"/>
+                                 AutomationProperties.Name="{local:Loc session_timer_long_break_minutes}"
+                                 ToolTip="{local:Loc 1_240_minutes}" KeyboardNavigation.TabIndex="166"/>
+                        <TextBlock Text="{local:Loc work_blocks_before_it}" VerticalAlignment="Center" Margin="14,0,8,0"/>
                         <TextBox x:Name="SessionCyclesText" Width="60"
-                                 AutomationProperties.Name="Work blocks before a long break"
-                                 ToolTip="1–12 work blocks"/>
+                                 AutomationProperties.Name="{local:Loc work_blocks_before_a_long_break}"
+                                 ToolTip="{local:Loc 1_12_work_blocks}" KeyboardNavigation.TabIndex="167"/>
                     </StackPanel>
 
                     <!-- R5 #148: quick-note global hotkey (the S11 capture pattern). -->
                     <TextBlock Style="{StaticResource Note}" Margin="0,14,0,2"
-                               Text="Quick note — jot a note for the profile you're using (⋯ menu → Quick note…, or Ctrl+K). The optional global hotkey opens the capture from any app; it can never be the same combination as the show/hide hotkey or an in-app shortcut."/>
-                    <CheckBox x:Name="QuickNoteHotkeyCheck" Content="Enable the quick-note global hotkey"
-                              ToolTip="Registers the combination below with Windows while MuseDesktop runs"/>
+                               Text="{local:Loc quick_note_jot_a_note_for_the_profile_you}"/>
+                    <CheckBox x:Name="QuickNoteHotkeyCheck" Content="{local:Loc enable_the_quick_note_global_hotkey}"
+                              ToolTip="{local:Loc registers_the_combination_below_with}" KeyboardNavigation.TabIndex="168"/>
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,4,0,0">
-                        <Button x:Name="QuickNoteHotkeyButton" Content="Ctrl+Alt+N" Width="170" Click="OnCaptureQuickNoteHotkey"
-                                ToolTip="Click, then press the key combination you want"/>
-                        <Button Content="Reset" Width="70" Margin="8,0,0,0" Click="OnResetQuickNoteHotkey"
-                                ToolTip="Back to Ctrl+Alt+N"/>
+                        <Button x:Name="QuickNoteHotkeyButton" Content="{local:Loc ctrl_alt_n}" Width="170" Click="OnCaptureQuickNoteHotkey"
+                                ToolTip="{local:Loc click_then_press_the_key_combination_you}" KeyboardNavigation.TabIndex="169"/>
+                        <Button Content="{local:Loc reset}" Width="70" Margin="8,0,0,0" Click="OnResetQuickNoteHotkey"
+                                ToolTip="{local:Loc back_to_ctrl_alt_n}" KeyboardNavigation.TabIndex="170"/>
                     </StackPanel>
                     <TextBlock x:Name="QuickNoteHotkeyStatus" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
 
                     <!-- R5 #147: scheduled commands. -->
                     <TextBlock Style="{StaticResource Note}" Margin="0,14,0,2"
-                               Text="Scheduled commands — run a command-palette action at startup, daily at a time, or once. They run only while MuseDesktop is running; nothing is registered with Windows Task Scheduler."/>
+                               Text="{local:Loc scheduled_commands_run_a_command_palette}"/>
                     <ListBox x:Name="SchedulesList" Height="110" Margin="0,4,0,0"
                              Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
                              BorderBrush="{StaticResource HairlineBrush}"
-                             AutomationProperties.Name="Scheduled commands"/>
+                             AutomationProperties.Name="{local:Loc scheduled_commands}" KeyboardNavigation.TabIndex="171"/>
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                        <Button Content="Add…" Width="80" Click="OnAddSchedule"
-                                ToolTip="Schedule a command"/>
-                        <Button Content="Edit…" Width="80" Margin="8,0,0,0" Click="OnEditSchedule"
-                                ToolTip="Edit the selected schedule"/>
-                        <Button Content="Remove" Width="80" Margin="8,0,0,0" Click="OnRemoveSchedule"
-                                ToolTip="Remove the selected schedule"/>
+                        <Button Content="{local:Loc add_2}" Width="80" Click="OnAddSchedule"
+                                ToolTip="{local:Loc schedule_a_command}" KeyboardNavigation.TabIndex="172"/>
+                        <Button Content="{local:Loc edit}" Width="80" Margin="8,0,0,0" Click="OnEditSchedule"
+                                ToolTip="{local:Loc edit_the_selected_schedule}" KeyboardNavigation.TabIndex="173"/>
+                        <Button Content="{local:Loc remove}" Width="80" Margin="8,0,0,0" Click="OnRemoveSchedule"
+                                ToolTip="{local:Loc remove_the_selected_schedule}" KeyboardNavigation.TabIndex="174"/>
                     </StackPanel>
 
                     <!-- R5 #146/#150: the reports. -->
                     <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
-                        <Button Content="Weekly digest…" Width="130" Click="OnOpenWeeklyDigest"
-                                ToolTip="A plain summary of this week, counted on this PC"/>
-                        <Button Content="Stats dashboard…" Width="140" Margin="8,0,0,0" Click="OnOpenStatsDashboard"
-                                ToolTip="This week's counts per profile, as simple charts"/>
+                        <Button Content="{local:Loc weekly_digest}" Width="130" Click="OnOpenWeeklyDigest"
+                                ToolTip="{local:Loc a_plain_summary_of_this_week_counted_on_2}" KeyboardNavigation.TabIndex="175"/>
+                        <Button Content="{local:Loc stats_dashboard}" Width="140" Margin="8,0,0,0" Click="OnOpenStatsDashboard"
+                                ToolTip="{local:Loc this_week_s_counts_per_profile_as_simple}" KeyboardNavigation.TabIndex="176"/>
                     </StackPanel>
                     <TextBlock Style="{StaticResource Note}"
-                               Text="Everything in this section is local: timers count minutes on this PC, notes and tallies live in small files beside your settings, and nothing is sent anywhere."/>
+                               Text="{local:Loc everything_in_this_section_is_local_timers}"/>
                 </StackPanel>
 
                 <StackPanel x:Name="SectionPrivacy">
-                    <TextBlock x:Name="HeaderPrivacy" Text="Privacy &amp; security" Style="{StaticResource SectionHeader}"/>
+                    <TextBlock x:Name="HeaderPrivacy" Text="{local:Loc privacy_security}" Style="{StaticResource SectionHeader}"/>
 
-                    <CheckBox x:Name="PasswordAutosaveCheck" Content="Let Muse save passwords in the web view"
-                              ToolTip="WebView2's own password save, on by default. Turning this off stops NEW passwords being saved; ones already saved still fill until you clear site data"/>
-                    <CheckBox x:Name="GeneralAutofillCheck" Content="Let the web view remember and refill form entries"
-                              ToolTip="WebView2's general autofill for ordinary form fields, on by default"/>
+                    <CheckBox x:Name="PasswordAutosaveCheck" Content="{local:Loc let_muse_save_passwords_in_the_web_view}"
+                              ToolTip="{local:Loc webview2_s_own_password_save_on_by_default}" KeyboardNavigation.TabIndex="177"/>
+                    <CheckBox x:Name="GeneralAutofillCheck" Content="{local:Loc let_the_web_view_remember_and_refill_form}"
+                              ToolTip="{local:Loc webview2_s_general_autofill_for_ordinary}" KeyboardNavigation.TabIndex="178"/>
                     <TextBlock Style="{StaticResource Note}"
-                               Text="These are the web engine's features, shared by every window in the profile. They apply to the profile MuseDesktop is currently running and take effect as soon as you choose OK."/>
+                               Text="{local:Loc these_are_the_web_engine_s_features_shared}"/>
 
-                    <TextBlock Text="Clear browsing data:" Margin="0,12,0,4" FontWeight="SemiBold"/>
+                    <TextBlock Text="{local:Loc clear_browsing_data}" Margin="0,12,0,4" FontWeight="SemiBold"/>
                     <StackPanel Orientation="Horizontal">
                         <ComboBox x:Name="ClearChoiceCombo" Width="140" SelectionChanged="OnClearChoiceChanged"
-                                  ToolTip="What to clear: cookies only, cache only, or all site data"/>
+                                  ToolTip="{local:Loc what_to_clear_cookies_only_cache_only_or}" KeyboardNavigation.TabIndex="179"/>
                         <ComboBox x:Name="ClearScopeCombo" Width="150" Margin="8,0,0,0" SelectionChanged="OnClearChoiceChanged"
-                                  ToolTip="Clear just the profile you're using, or every profile on this PC"/>
-                        <Button x:Name="ClearNowButton" Content="Clear…" Width="76" Margin="8,0,0,0" Click="OnClearDataGranular"
-                                ToolTip="Clear the chosen data now (you'll be asked to confirm, with exactly what it does)"/>
+                                  ToolTip="{local:Loc clear_just_the_profile_you_re_using_or}" KeyboardNavigation.TabIndex="180"/>
+                        <Button x:Name="ClearNowButton" Content="{local:Loc clear_2}" Width="76" Margin="8,0,0,0" Click="OnClearDataGranular"
+                                ToolTip="{local:Loc clear_the_chosen_data_now_you_ll_be_asked}" KeyboardNavigation.TabIndex="181"/>
                     </StackPanel>
                     <TextBlock x:Name="ClearPlanNote" Style="{StaticResource Note}"/>
                     <TextBlock x:Name="ClearResultNote" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
 
-                    <TextBlock Text="Permissions (profile MuseDesktop is currently running):" Margin="0,12,0,4" FontWeight="SemiBold"/>
+                    <TextBlock Text="{local:Loc permissions_profile_musedesktop_is}" Margin="0,12,0,4" FontWeight="SemiBold"/>
                     <TextBlock x:Name="PermissionsNote" Style="{StaticResource Note}" Margin="0,0,0,0"
-                               Text="Reading the saved permission choices…"/>
+                               Text="{local:Loc reading_the_saved_permission_choices}"/>
                     <StackPanel x:Name="PermissionRows" Margin="0,4,0,0"/>
-                    <Button Content="Refresh permissions" Width="150" HorizontalAlignment="Left" Margin="0,6,0,0"
+                    <Button Content="{local:Loc refresh_permissions}" Width="150" HorizontalAlignment="Left" Margin="0,6,0,0"
                             Click="OnRefreshPermissions"
-                            ToolTip="Read the running profile's saved permission choices again"/>
+                            ToolTip="{local:Loc read_the_running_profile_s_saved_permission}" KeyboardNavigation.TabIndex="182"/>
                     <TextBlock x:Name="PermissionDenialsText" Style="{StaticResource Note}"/>
 
-                    <TextBlock Text="Microphone &amp; notification tests:" Margin="0,12,0,4" FontWeight="SemiBold"/>
+                    <TextBlock Text="{local:Loc microphone_notification_tests}" Margin="0,12,0,4" FontWeight="SemiBold"/>
                     <StackPanel Orientation="Horizontal">
-                        <Button Content="Test microphone…" Width="140" Click="OnTestMicrophone"
-                                ToolTip="Ask for the microphone the way a page does, then listen for a few seconds — the result says whether permission was granted AND whether sound actually arrived"/>
-                        <Button Content="Send test notification" Width="160" Margin="8,0,0,0" Click="OnTestNotification"
-                                ToolTip="Show a test tray notification now. A test you ask for is sent even during quiet hours — the result line says if automatic notifications are being held back"/>
+                        <Button Content="{local:Loc test_microphone_2}" Width="140" Click="OnTestMicrophone"
+                                ToolTip="{local:Loc ask_for_the_microphone_the_way_a_page_does}" KeyboardNavigation.TabIndex="183"/>
+                        <Button Content="{local:Loc send_test_notification}" Width="160" Margin="8,0,0,0" Click="OnTestNotification"
+                                ToolTip="{local:Loc show_a_test_tray_notification_now_a_test}" KeyboardNavigation.TabIndex="184"/>
                     </StackPanel>
                     <TextBlock x:Name="SelfTestResultText" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
                     <TextBlock Style="{StaticResource Note}"
-                               Text="The microphone test runs in this profile and checks the whole path Muse's voice input uses — Windows' microphone permission included. The notification test fires MuseDesktop's own tray balloon; Muse's in-page alerts are Muse's side of the fence."/>
+                               Text="{local:Loc the_microphone_test_runs_in_this_profile}"/>
 
-                    <TextBlock Text="Site data per profile:" Margin="0,12,0,4" FontWeight="SemiBold"/>
+                    <TextBlock Text="{local:Loc site_data_per_profile}" Margin="0,12,0,4" FontWeight="SemiBold"/>
                     <StackPanel x:Name="SiteDataRows"/>
-                    <Button Content="Refresh site data" Width="150" HorizontalAlignment="Left" Margin="0,6,0,0"
+                    <Button Content="{local:Loc refresh_site_data}" Width="150" HorizontalAlignment="Left" Margin="0,6,0,0"
                             Click="OnRefreshSiteData"
-                            ToolTip="Measure each profile's data folder and count its cookies again"/>
+                            ToolTip="{local:Loc measure_each_profile_s_data_folder_and}" KeyboardNavigation.TabIndex="185"/>
                     <TextBlock Style="{StaticResource Note}"
-                               Text="Cookie counts only — cookie values are never shown anywhere in MuseDesktop."/>
+                               Text="{local:Loc cookie_counts_only_cookie_values_are_never}"/>
 
-                    <TextBlock Text="App lock:" Margin="0,12,0,4" FontWeight="SemiBold"/>
+                    <TextBlock Text="{local:Loc app_lock}" Margin="0,12,0,4" FontWeight="SemiBold"/>
                     <TextBlock x:Name="AppLockStatusText" Style="{StaticResource Note}" Margin="0,0,0,0"/>
-                    <CheckBox x:Name="AppLockEnabledCheck" Content="Require my app password or PIN"
+                    <CheckBox x:Name="AppLockEnabledCheck" Content="{local:Loc require_my_app_password_or_pin}"
                               Margin="0,6,0,0"
-                              ToolTip="Ask for the app password at startup and whenever the app is locked. Setting the check asks you to create the password if you haven't yet"
-                              Checked="OnAppLockEnabledChanged" Unchecked="OnAppLockEnabledChanged"/>
-                    <CheckBox x:Name="AppLockTrayHideCheck" Content="Also lock when the window hides to the tray"
-                              ToolTip="On by default. Startup locking and Lock now apply either way"/>
+                              ToolTip="{local:Loc ask_for_the_app_password_at_startup_and}"
+                              Checked="OnAppLockEnabledChanged" Unchecked="OnAppLockEnabledChanged" KeyboardNavigation.TabIndex="186"/>
+                    <CheckBox x:Name="AppLockTrayHideCheck" Content="{local:Loc also_lock_when_the_window_hides_to_the_tray}"
+                              ToolTip="{local:Loc on_by_default_startup_locking_and_lock_now}" KeyboardNavigation.TabIndex="187"/>
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                        <Button x:Name="SetLockPasswordButton" Content="Set or change password…" Width="170" Click="OnSetLockPassword"
-                                ToolTip="Set a new app password or PIN (4–64 characters; 6 or more is better)"/>
-                        <Button x:Name="RemoveLockPasswordButton" Content="Remove password…" Width="140" Margin="8,0,0,0" Click="OnRemoveLockPassword"
-                                ToolTip="Remove the app password and turn the lock off"/>
+                        <Button x:Name="SetLockPasswordButton" Content="{local:Loc set_or_change_password}" Width="170" Click="OnSetLockPassword"
+                                ToolTip="{local:Loc set_a_new_app_password_or_pin_4_64}" KeyboardNavigation.TabIndex="188"/>
+                        <Button x:Name="RemoveLockPasswordButton" Content="{local:Loc remove_password}" Width="140" Margin="8,0,0,0" Click="OnRemoveLockPassword"
+                                ToolTip="{local:Loc remove_the_app_password_and_turn_the_lock}" KeyboardNavigation.TabIndex="189"/>
                     </StackPanel>
                     <TextBlock x:Name="AppLockNote" Style="{StaticResource Note}" Foreground="{StaticResource AccentBrush}"/>
                     <TextBlock Style="{StaticResource Note}"
-                               Text="The lock stops casual access to the open app on this PC. It does NOT encrypt your Muse sign-ins on disk. Only a salted one-way hash of the password is stored — the password itself never is. If you forget it: quit MuseDesktop, open the data folder (Data section above) and delete settings.json, then start the app — the lock is gone and settings return to defaults; your default profile stays signed in, because sign-ins live in the separate profile folders, not in settings.json."/>
+                               Text="{local:Loc the_lock_stops_casual_access_to_the_open}"/>
 
-                    <TextBlock Text="Privacy report:" Margin="0,12,0,4" FontWeight="SemiBold"/>
+                    <TextBlock Text="{local:Loc privacy_report}" Margin="0,12,0,4" FontWeight="SemiBold"/>
                     <TextBlock x:Name="PrivacyReportText" Style="{StaticResource Note}" Margin="0,0,0,0"/>
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                        <Button Content="Reset counters" Width="120" Click="OnResetPrivacyStats"
-                                ToolTip="Start the privacy report's counts over from today"/>
-                        <Button Content="View log…" Width="120" Margin="8,0,0,0" Click="OnViewLog"
-                                ToolTip="Read the diagnostic log in the app, with its redaction check and a copy-redacted button"/>
+                        <Button Content="{local:Loc reset_counters}" Width="120" Click="OnResetPrivacyStats"
+                                ToolTip="{local:Loc start_the_privacy_report_s_counts_over_from}" KeyboardNavigation.TabIndex="190"/>
+                        <Button Content="{local:Loc view_log}" Width="120" Margin="8,0,0,0" Click="OnViewLog"
+                                ToolTip="{local:Loc read_the_diagnostic_log_in_the_app_with_its_2}" KeyboardNavigation.TabIndex="191"/>
                     </StackPanel>
                     <TextBlock Style="{StaticResource Note}"
-                               Text="The report counts only — what kind of thing was blocked, how many times, and which site. No page addresses, no content, and nothing leaves this PC."/>
+                               Text="{local:Loc the_report_counts_only_what_kind_of_thing}"/>
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
-                    <Button Content="OK" Width="86" Height="30" IsDefault="True" Click="OnOk"
-                            Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0"/>
-                    <Button Content="Cancel" Width="86" Height="30" Margin="8,0,0,0" IsCancel="True"/>
+                    <Button Content="{local:Loc ok}" Width="86" Height="30" IsDefault="True" Click="OnOk"
+                            Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0" KeyboardNavigation.TabIndex="192"/>
+                    <Button Content="{local:Loc cancel}" Width="86" Height="30" Margin="8,0,0,0" IsCancel="True" KeyboardNavigation.TabIndex="193"/>
                 </StackPanel>
             </StackPanel>
         </ScrollViewer>

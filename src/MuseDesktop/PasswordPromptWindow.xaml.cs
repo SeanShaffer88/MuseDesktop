@@ -36,22 +36,22 @@ public partial class PasswordPromptWindow : Window
     {
         if (string.IsNullOrEmpty(PasswordEntry.Password))
         {
-            StatusText.Text = "Type a password first.";
+            StatusText.Text = Strings.Get("ui.type_a_password_first");
             return;
         }
         if (PasswordEntry.Password.Length < _minLength)
         {
-            StatusText.Text = $"Use at least {_minLength} characters.";
+            StatusText.Text = Strings.Format("ui.use_at_least_characters", _minLength);
             return;
         }
         if (_maxLength > 0 && PasswordEntry.Password.Length > _maxLength)
         {
-            StatusText.Text = $"Use at most {_maxLength} characters.";
+            StatusText.Text = Strings.Format("ui.use_at_most_characters", _maxLength);
             return;
         }
         if (_confirm && ConfirmEntry.Password != PasswordEntry.Password)
         {
-            StatusText.Text = "The two passwords don't match. Type them again.";
+            StatusText.Text = Strings.Get("ui.the_two_passwords_don_t_match_type_them");
             ConfirmEntry.Clear();
             return;
         }

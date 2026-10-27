@@ -20,7 +20,7 @@ public sealed class PaletteRow
     public PaletteRow(PaletteResult result, string? colorHex)
     {
         Command = result.Command;
-        Group = result.IsRecent ? PaletteText.RecentGroup : result.Command.Category;
+        Group = result.IsRecent ? Strings.Get("palette.group_recent") : result.Command.Category;
         if (colorHex is not null)
         {
             try
@@ -159,8 +159,8 @@ public partial class PaletteWindow : Window
         // Screen readers hear the selection move (R1 #107) — the main
         // window's live regions carry it, in Core's exact wording.
         if (ResultList.SelectedItem is PaletteRow row && ResultList.Items.Count > 0)
-            Announcer.Polite(PaletteText.SelectionAnnouncement(
-                row.Command, ResultList.SelectedIndex, ResultList.Items.Count));
+            Announcer.Polite(Strings.Format("palette.selection",
+                row.Command.Title, ResultList.SelectedIndex + 1, ResultList.Items.Count));
     }
 
     private void ExecuteSelected()

@@ -42,6 +42,11 @@ public static class ShellTextScaling
             var baseSize = DesignSizes.GetValue(window, _ => new DesignSize { Value = System.Windows.SystemFonts.MessageFontSize }).Value;
             window.SetValue(TextElement.FontSizeProperty, baseSize * scale);
         }
+        // Line spacing (R7 #170) rides the same pass: every window
+        // this scaler already reaches gains the user's spacing
+        // choice in the same application, computed from the font
+        // sizes just set above.
+        ShellLineSpacing.Apply(root);
     }
 
     private static IEnumerable<DependencyObject> SelfAndDescendants(DependencyObject root)

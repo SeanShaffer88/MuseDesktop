@@ -91,6 +91,7 @@ public partial class SettingsWindow : Window
             (SettingsSearch.AppearanceId, SectionAppearance, HeaderAppearance),
             (SettingsSearch.ZoomId, SectionZoom, HeaderZoom),
             (SettingsSearch.AccessibilityId, SectionAccessibility, HeaderAccessibility),
+            (SettingsSearch.LanguageId, SectionLanguage, HeaderLanguage),
             (SettingsSearch.DownloadsId, SectionDownloads, HeaderDownloads),
             (SettingsSearch.DataId, SectionData, HeaderData),
             (SettingsSearch.FocusId, SectionFocus, HeaderFocus),
@@ -106,25 +107,25 @@ public partial class SettingsWindow : Window
 
         // S5 (#43/#44/#46): theme choices in ThemeMode order, accent
         // keys parallel to AccentCombo's items, text-scale factors.
-        ThemeCombo.Items.Add("Dark");
-        ThemeCombo.Items.Add("Light");
-        ThemeCombo.Items.Add("Follow Windows");
+        ThemeCombo.Items.Add(Strings.Get("ui.dark"));
+        ThemeCombo.Items.Add(Strings.Get("ui.light"));
+        ThemeCombo.Items.Add(Strings.Get("ui.follow_windows"));
         // R6 #159: appended last — the older indices are the stored
         // ThemeMode values and must never shift.
-        ThemeCombo.Items.Add("Follow schedule");
+        ThemeCombo.Items.Add(Strings.Get("ui.follow_schedule"));
         // R6 appearance round 2: the enum-ordered choice lists.
-        BackdropCombo.Items.Add("Automatic (Mica)");
-        BackdropCombo.Items.Add("None (solid)");
-        BackdropCombo.Items.Add("Mica");
-        BackdropCombo.Items.Add("Acrylic");
-        DensityCombo.Items.Add("Comfortable");
-        DensityCombo.Items.Add("Compact");
-        TrayStyleCombo.Items.Add("Color");
-        TrayStyleCombo.Items.Add("Monochrome");
-        TrayStyleCombo.Items.Add("Profile-colored");
-        TrayOverlayCombo.Items.Add("Number badge");
-        TrayOverlayCombo.Items.Add("Dot");
-        TrayOverlayCombo.Items.Add("None");
+        BackdropCombo.Items.Add(Strings.Get("ui.automatic_mica"));
+        BackdropCombo.Items.Add(Strings.Get("ui.none_solid"));
+        BackdropCombo.Items.Add(Strings.Get("ui.mica"));
+        BackdropCombo.Items.Add(Strings.Get("ui.acrylic"));
+        DensityCombo.Items.Add(Strings.Get("ui.comfortable"));
+        DensityCombo.Items.Add(Strings.Get("ui.compact"));
+        TrayStyleCombo.Items.Add(Strings.Get("ui.color"));
+        TrayStyleCombo.Items.Add(Strings.Get("ui.monochrome"));
+        TrayStyleCombo.Items.Add(Strings.Get("ui.profile_colored"));
+        TrayOverlayCombo.Items.Add(Strings.Get("ui.number_badge"));
+        TrayOverlayCombo.Items.Add(Strings.Get("ui.dot"));
+        TrayOverlayCombo.Items.Add(Strings.Get("ui.none"));
         CustomAccentText.TextChanged += (_, _) => RefreshCustomAccentSwatch();
         foreach (var (key, _, _) in AccentPalette.Palette)
         {
@@ -136,7 +137,7 @@ public partial class SettingsWindow : Window
 
         // S3 #24: accent-color choices — "None" then the fixed palette.
         _colorKeys.Add(null);
-        ProfileColorCombo.Items.Add("None");
+        ProfileColorCombo.Items.Add(Strings.Get("ui.none"));
         foreach (var (key, _) in ProfileColors.Palette)
         {
             _colorKeys.Add(key);
@@ -148,13 +149,13 @@ public partial class SettingsWindow : Window
         // profile palette under a "use the app accent" first entry,
         // parallel to _colorKeys (null then the palette keys).
         _glyphKeys.Add(null);
-        WorkspaceGlyphCombo.Items.Add("No icon");
+        WorkspaceGlyphCombo.Items.Add(Strings.Get("ui.no_icon"));
         foreach (var (key, symbol) in WorkspaceGlyphs.Palette)
         {
             _glyphKeys.Add(key);
             WorkspaceGlyphCombo.Items.Add($"{symbol} {key}");
         }
-        WorkspaceAccentCombo.Items.Add("Use app accent");
+        WorkspaceAccentCombo.Items.Add(Strings.Get("ui.use_app_accent"));
         foreach (var (key, _) in ProfileColors.Palette)
             WorkspaceAccentCombo.Items.Add(key);
 
@@ -162,7 +163,7 @@ public partial class SettingsWindow : Window
         // palette (shown as "symbol key", like the workspace list), and
         // the template choices are the three built-in starters.
         _avatarGlyphKeys.Add(null);
-        ProfileGlyphCombo.Items.Add("No icon");
+        ProfileGlyphCombo.Items.Add(Strings.Get("ui.no_icon"));
         foreach (var (key, symbol) in WorkspaceGlyphs.Palette)
         {
             _avatarGlyphKeys.Add(key);
@@ -177,8 +178,8 @@ public partial class SettingsWindow : Window
             ProfileTemplateCombo.SelectedIndex = 0;
 
         // S2 (#16/#21): collision-policy and history-cap choices.
-        CollisionPolicyCombo.Items.Add("Save as a new name");
-        CollisionPolicyCombo.Items.Add("Ask where to save");
+        CollisionPolicyCombo.Items.Add(Strings.Get("ui.save_as_a_new_name"));
+        CollisionPolicyCombo.Items.Add(Strings.Get("ui.ask_where_to_save"));
         foreach (var cap in DownloadHistoryStore.AllowedCaps)
             HistoryCapCombo.Items.Add(cap.ToString());
 
@@ -197,16 +198,16 @@ public partial class SettingsWindow : Window
         foreach (var v in ChatTextScaleChoices)
             ChatTextScaleCombo.Items.Add($"{v}%");
         foreach (var v in ReadingColumnChoices)
-            ReadingColumnCombo.Items.Add(v == 0 ? "Page default" : $"{v} px");
+            ReadingColumnCombo.Items.Add(v == 0 ? Strings.Get("ui.page_default") : $"{v} px");
         foreach (var v in LineSpacingChoices)
-            LineSpacingCombo.Items.Add(v == 0 ? "Page default" : $"{v}%");
+            LineSpacingCombo.Items.Add(v == 0 ? Strings.Get("ui.page_default") : $"{v}%");
 
         // S7 #61: the clear-data choices, titled by Core's plan model
         // so the UI and the confirm dialog always agree.
         foreach (var choice in ClearChoices)
-            ClearChoiceCombo.Items.Add(ClearDataPlan.Title(choice));
-        ClearScopeCombo.Items.Add("This profile only");
-        ClearScopeCombo.Items.Add("All profiles");
+            ClearChoiceCombo.Items.Add(Strings.Get(ClearChoiceKey(choice)));
+        ClearScopeCombo.Items.Add(Strings.Get("ui.this_profile_only"));
+        ClearScopeCombo.Items.Add(Strings.Get("ui.all_profiles"));
         ClearChoiceCombo.SelectedIndex = 2; // All site data — the pre-v0.11.0 behavior, one click away
         ClearScopeCombo.SelectedIndex = 0;
 
@@ -214,12 +215,12 @@ public partial class SettingsWindow : Window
         // quiet-hours combos offer whole hours only — minute precision
         // would be settings-file-only precision theatre.
         foreach (var option in SuspendTimeoutChoices)
-            SuspendTimeoutCombo.Items.Add(option.Label);
+            SuspendTimeoutCombo.Items.Add(Strings.Get(option.Label));
         // S9 (#83/#88): update frequency + channel choices.
         foreach (var option in UpdateFrequencyChoices)
-            UpdateFrequencyCombo.Items.Add(option.Label);
+            UpdateFrequencyCombo.Items.Add(Strings.Get(option.Label));
         foreach (var option in UpdateChannelChoices)
-            UpdateChannelCombo.Items.Add(option.Label);
+            UpdateChannelCombo.Items.Add(Strings.Get(option.Label));
         for (var hour = 0; hour < 24; hour++)
         {
             QuietStartCombo.Items.Add($"{hour:00}:00");
@@ -238,26 +239,26 @@ public partial class SettingsWindow : Window
     /// <summary>Suspend-timeout choices in display order (S4 #34), parallel to SuspendTimeoutCombo's items.</summary>
     private static readonly (SuspendTimeout Value, string Label)[] SuspendTimeoutChoices =
     {
-        (SuspendTimeout.OneMinute, "1 minute"),
-        (SuspendTimeout.FiveMinutes, "5 minutes"),
-        (SuspendTimeout.FifteenMinutes, "15 minutes"),
-        (SuspendTimeout.Never, "Never"),
+        (SuspendTimeout.OneMinute, "settings.suspend.1minute"),
+        (SuspendTimeout.FiveMinutes, "settings.suspend.5minutes"),
+        (SuspendTimeout.FifteenMinutes, "settings.suspend.15minutes"),
+        (SuspendTimeout.Never, "settings.suspend.never"),
     };
 
     /// <summary>Update check-frequency choices in display order (S9 #83), parallel to UpdateFrequencyCombo's items.</summary>
     private static readonly (UpdateCheckFrequency Value, string Label)[] UpdateFrequencyChoices =
     {
-        (UpdateCheckFrequency.EveryLaunch, "Every launch"),
-        (UpdateCheckFrequency.Daily, "Once a day"),
-        (UpdateCheckFrequency.Weekly, "Once a week"),
-        (UpdateCheckFrequency.ManualOnly, "Manual only — I'll check myself"),
+        (UpdateCheckFrequency.EveryLaunch, "settings.update_freq.every_launch"),
+        (UpdateCheckFrequency.Daily, "settings.update_freq.daily"),
+        (UpdateCheckFrequency.Weekly, "settings.update_freq.weekly"),
+        (UpdateCheckFrequency.ManualOnly, "settings.update_freq.manual"),
     };
 
     /// <summary>Update channel choices in display order (S9 #88), parallel to UpdateChannelCombo's items.</summary>
     private static readonly (UpdateChannel Value, string Label)[] UpdateChannelChoices =
     {
-        (UpdateChannel.Stable, "Stable releases only"),
-        (UpdateChannel.IncludePrereleases, "Stable + pre-releases"),
+        (UpdateChannel.Stable, "settings.update_channel.stable"),
+        (UpdateChannel.IncludePrereleases, "settings.update_channel.prereleases"),
     };
 
     /// <summary>Chat text-scale choices in percent (R5B #205), parallel to ChatTextScaleCombo's items.</summary>
@@ -328,6 +329,9 @@ public partial class SettingsWindow : Window
         ReduceMotionCombo.SelectedIndex = (int)_working.ReduceMotion;
         RebuildShortcutRows();
 
+        // R7: language picker, announcement switches, text spacing.
+        PopulateLanguageControls();
+
         // S11: the global hotkey editor (#96 — its status line reports
         // the LIVE registration, which the main window owns) and the
         // musedesktop:// links toggle (#99 — its status line reads the
@@ -371,8 +375,8 @@ public partial class SettingsWindow : Window
         TrayOverlayCombo.SelectedIndex = (int)_working.TrayCountOverlay;
         RebuildToolbarEditor();
         PortableNote.Text = AppPaths.IsPortable
-            ? $"Portable mode is ON: settings, download history, and logs live in {AppPaths.RootDir} — a data folder beside the app. Sign-in data still lives in your user profile (see README, “Where things live”)."
-            : $"Settings, download history, and logs live in {AppPaths.RootDir}. For portable use, put an empty file named portable.txt beside MuseDesktop.exe and restart: settings then live in a data folder beside the app and start fresh there — nothing is moved automatically.";
+            ? Strings.Format("set.portable_on", AppPaths.RootDir)
+            : Strings.Format("set.portable_off", AppPaths.RootDir);
 
         RefreshProfileCombo(_working.ActiveProfileId);
 
@@ -489,7 +493,7 @@ public partial class SettingsWindow : Window
         _working.AutoSortDownloads = AutoSortDownloadsCheck.IsChecked == true;
         _working.DownloadSortUseCategories = SortCategoriesCheck.IsChecked == true;
         _working.DownloadSortRules = DownloadSortRule.ParseLines(SortRulesText.Text, out var ruleErrors);
-        SortRulesNote.Text = ruleErrors.Count > 0 ? $"Rule problem: {ruleErrors[0]}" : "";
+        SortRulesNote.Text = ruleErrors.Count > 0 ? Strings.Format("set.sort_rule_problem", ruleErrors[0]) : "";
         if (int.TryParse(BandwidthLimitText.Text, out var kbps))
             _working.DownloadBandwidthLimitKBps = kbps;
         _working.DownloadQuietHoursEnabled = DownloadQuietCheck.IsChecked == true;
@@ -526,6 +530,22 @@ public partial class SettingsWindow : Window
             2 => ReduceMotionSetting.Off,
             _ => ReduceMotionSetting.FollowSystem,
         };
+        // R7: language (the combo's parallel code list; index 0 =
+        // follow Windows), the four announcement switches (folded
+        // into the OFF-exceptions map), and the spacing scale.
+        if (LanguageCombo.SelectedIndex >= 0 && LanguageCombo.SelectedIndex < _languageCodes.Count)
+            _working.UiLanguage = _languageCodes[LanguageCombo.SelectedIndex];
+        var switches = AnnouncementSwitches.With(_working.AnnouncementKindEnabled,
+            AnnouncementKind.Downloads, AnnouncementDownloadsCheck.IsChecked == true);
+        switches = AnnouncementSwitches.With(switches,
+            AnnouncementKind.Updates, AnnouncementUpdatesCheck.IsChecked == true);
+        switches = AnnouncementSwitches.With(switches,
+            AnnouncementKind.Timers, AnnouncementTimersCheck.IsChecked == true);
+        switches = AnnouncementSwitches.With(switches,
+            AnnouncementKind.Focus, AnnouncementFocusCheck.IsChecked == true);
+        _working.AnnouncementKindEnabled = switches;
+        if (TextSpacingCombo.SelectedIndex >= 0 && TextSpacingCombo.SelectedIndex < ShellTextSpacing.Options.Count)
+            _working.ShellTextSpacingScale = ShellTextSpacing.Options[TextSpacingCombo.SelectedIndex];
         // S5 appearance (the toolbar layout itself is write-through —
         // see the toolbar editor handlers).
         if (ThemeCombo.SelectedIndex >= 0 && ThemeCombo.SelectedIndex <= (int)Core.ThemeMode.FollowSchedule)
@@ -583,7 +603,10 @@ public partial class SettingsWindow : Window
     {
         ProfileCombo.ItemsSource = null;
         ProfileCombo.ItemsSource = _working.Profiles;
-        ProfileCombo.DisplayMemberPath = nameof(AccountProfile.Name);
+        // No DisplayMemberPath here: the combo's ItemTemplate (color dot +
+        // name, R3) already renders each profile, and WPF throws
+        // InvalidOperationException when both are set — the v1.7.0 field
+        // crash on opening Settings. Guarded by an R7 test.
         ProfileCombo.SelectedItem = _working.Profiles.FirstOrDefault(p => p.Id == selectId)
                                     ?? _working.Profiles.FirstOrDefault();
         RefreshCopyFromCombo();
@@ -595,7 +618,7 @@ public partial class SettingsWindow : Window
     {
         _copyFromIds.Clear();
         _copyFromIds.Add(null);
-        var items = new List<string> { "Don't copy settings" };
+        var items = new List<string> { Strings.Get("set.dont_copy") };
         foreach (var p in _working.Profiles)
         {
             _copyFromIds.Add(p.Id);
@@ -678,11 +701,12 @@ public partial class SettingsWindow : Window
     private static string DescribeCap(AccountProfile profile)
     {
         var cleaned = profile.LastCacheCleanupUtc is { } utc
-            ? $" Last cleanup: {utc.LocalDateTime:MMM d, HH:mm} — freed {DownloadText.FormatBytes(profile.LastCacheCleanupFreedBytes)}."
+            ? Strings.Format("settings.cap_last_cleanup", utc.LocalDateTime,
+                DownloadText.FormatBytes(profile.LastCacheCleanupFreedBytes))
             : "";
         return profile.DataCapBytes <= 0
-            ? "No size cap: this profile's data folder grows as Muse uses it." + cleaned
-            : $"When this profile's data folder passes {ProfileDataCaps.Label(profile.DataCapBytes)}, only its disposable caches are emptied, oldest first — cookies and sign-ins are never touched." + cleaned;
+            ? Strings.Get("settings.cap_none") + cleaned
+            : Strings.Format("settings.cap_over", ProfileDataCaps.Label(profile.DataCapBytes)) + cleaned;
     }
 
     private void OnProfileDataCapChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -704,7 +728,7 @@ public partial class SettingsWindow : Window
             return;
         var dialog = new OpenFolderDialog
         {
-            Title = $"Choose where profile \"{selected.Name}\" saves downloads",
+            Title = Strings.Format("set.profile_downloads_title", selected.Name),
             InitialDirectory = Directory.Exists(ProfileDownloadsFolderText.Text)
                 ? ProfileDownloadsFolderText.Text
                 : AppPaths.DownloadsHint,
@@ -764,8 +788,8 @@ public partial class SettingsWindow : Window
         ProfileCustomUrlNote.Text = selected is null || selected.StartPage != StartPageMode.Custom
             ? ""
             : StartPagePolicy.IsValidCustomUrl(selected.CustomStartUrl)
-                ? "This profile will start at that Muse page."
-                : "That address can't be used — it must be an https:// muse.ai page. Until it is fixed, this profile starts at the Muse home page instead.";
+                ? Strings.Get("set.startpage_ok")
+                : Strings.Get("set.startpage_bad");
     }
 
     // ── S3: color palette keys parallel to ProfileColorCombo items ──
@@ -926,14 +950,14 @@ public partial class SettingsWindow : Window
         if (!ok)
         {
             SnippetStatus.Text = PromptSnippets.CleanName(SnippetNameText.Text) is null
-                ? "A snippet needs a name — nothing was saved."
-                : $"A snippet needs its text (up to {PromptSnippets.MaxBodyLength:N0} characters) — nothing was saved.";
+                ? Strings.Get("set.snippet_name")
+                : Strings.Format("set.snippet_text", PromptSnippets.MaxBodyLength);
             return;
         }
         PromptSnippetStore.Save(AppPaths.SnippetsPath, all);
         if (added is not null)
             _selectedSnippetId = added.Id;
-        SnippetStatus.Text = "Snippet saved — it's in Ctrl+K and the ⋯ menu now.";
+        SnippetStatus.Text = Strings.Get("ui.snippet_saved_it_s_in_ctrl_k_and_the");
         RefreshSnippetList();
     }
 
@@ -958,7 +982,7 @@ public partial class SettingsWindow : Window
             _selectedSnippetId = null;
             SnippetNameText.Text = "";
             SnippetBodyText.Text = "";
-            SnippetStatus.Text = "Snippet deleted.";
+            SnippetStatus.Text = Strings.Get("ui.snippet_deleted");
         }
         RefreshSnippetList();
     }
@@ -969,7 +993,7 @@ public partial class SettingsWindow : Window
         if (SelectedProfile is not { } selected)
             return;
         var error = ProfileShortcut.CreateOnDesktop(selected, _log);
-        ProfileNote.Text = error ?? $"Desktop shortcut created: {Profiles.ShortcutFileName(selected)}";
+        ProfileNote.Text = error ?? Strings.Format("set.shortcut_created", Profiles.ShortcutFileName(selected));
     }
 
     private void OnProfileSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e) =>
@@ -981,8 +1005,8 @@ public partial class SettingsWindow : Window
         {
             var capInvoker = FocusReturn.Capture();
             System.Windows.MessageBox.Show(this,
-                $"MuseDesktop supports up to {Profiles.MaxProfiles} profiles.",
-                "Profiles", MessageBoxButton.OK, MessageBoxImage.Information);
+                Strings.Format("set.profiles_cap", Profiles.MaxProfiles),
+                Strings.Get("set.profiles_caption"), MessageBoxButton.OK, MessageBoxImage.Information);
             FocusReturn.Restore(capInvoker);
             return;
         }
@@ -992,10 +1016,8 @@ public partial class SettingsWindow : Window
         {
             var warnInvoker = FocusReturn.Capture();
             var warn = System.Windows.MessageBox.Show(this,
-                $"You already have {_working.Profiles.Count} profiles. " +
-                "Each profile keeps its own Muse sign-in data on this PC, so many profiles use more disk.\n\n" +
-                "Add another profile?",
-                "Profiles", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                Strings.Format("set.profiles_warn", _working.Profiles.Count),
+                Strings.Get("set.profiles_caption"), MessageBoxButton.YesNo, MessageBoxImage.Question);
             if (warn != MessageBoxResult.Yes)
             {
                 FocusReturn.Restore(warnInvoker);
@@ -1003,7 +1025,7 @@ public partial class SettingsWindow : Window
             }
         }
         var name = string.IsNullOrWhiteSpace(NewProfileNameText.Text)
-            ? $"Profile {_working.Profiles.Count + 1}"
+            ? Strings.Format("set.profile_default_name", _working.Profiles.Count + 1)
             : NewProfileNameText.Text.Trim();
         // S3 #29: optionally seed the new profile's SETTINGS from an
         // existing one — never its sign-in or session state.
@@ -1034,10 +1056,8 @@ public partial class SettingsWindow : Window
             return;
         var invoker = FocusReturn.Capture();
         var confirm = System.Windows.MessageBox.Show(this,
-            $"Switch to profile \"{selected.Name}\"?\n\n" +
-            "MuseDesktop restarts now with that profile's sign-in. " +
-            "Any other unsaved changes in this window are discarded.",
-            "Switch profile", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            Strings.Format("set.switch_body", selected.Name),
+            Strings.Get("msg.switch_profile"), MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (confirm != MessageBoxResult.Yes)
         {
             FocusReturn.Restore(invoker);
@@ -1083,10 +1103,10 @@ public partial class SettingsWindow : Window
         // #122 PIN status.
         var hasPin = selected is not null && ProfileLock.HasValidRecord(selected);
         ProfilePinStatus.Text = selected is null ? ""
-            : hasPin && selected.LockEnabled ? "On — asked at launch with this profile"
-            : hasPin ? "Set, but turned off"
-            : "Off";
-        SetProfilePinButton.Content = hasPin ? "Change PIN…" : "Set PIN…";
+            : hasPin && selected.LockEnabled ? Strings.Get("set.pin_on")
+            : hasPin ? Strings.Get("set.pin_set_off")
+            : Strings.Get("set.pin_off");
+        SetProfilePinButton.Content = hasPin ? Strings.Get("set.change_pin") : Strings.Get("set_pin");
         SetProfilePinButton.IsEnabled = selected is not null;
         RemoveProfilePinButton.IsEnabled = hasPin;
         // #123 schedule editor.
@@ -1105,8 +1125,8 @@ public partial class SettingsWindow : Window
         UpdateScheduleControlsEnabled(selected, rule is not null);
         ProfileScheduleText.Text = selected is null ? ""
             : rule is not null
-                ? $"Scheduled: {ProfileSchedule.Describe(rule)} — {(selected.Archived ? "paused while this profile is archived." : _working.ProfileScheduleAutoSwitch ? "MuseDesktop switches on its own at the start time." : "MuseDesktop asks before switching.")}"
-                : "No schedule for this profile.";
+                ? Strings.Format("set.schedule_line", ProfileSchedule.Describe(rule), selected.Archived ? Strings.Get("set.schedule_archived") : _working.ProfileScheduleAutoSwitch ? Strings.Get("set.schedule_auto") : Strings.Get("set.schedule_ask"))
+                : Strings.Get("set.schedule_none");
         ScheduleAutoCheck.IsChecked = _working.ProfileScheduleAutoSwitch;
         _syncingProfileControls = false;
         // Health is a snapshot, not a live value: changing the
@@ -1139,12 +1159,12 @@ public partial class SettingsWindow : Window
         }
         var row = report.Rows.FirstOrDefault(r => r.ProfileId == selected.Id);
         var mine = row is null || row.Launches == 0
-            ? "never launched yet"
-            : $"{row.Launches} launch{(row.Launches == 1 ? "" : "es")}"
-              + (row.LastUsedUtc is { } used ? $", last {used.ToLocalTime():yyyy-MM-dd}" : "");
+            ? Strings.Get("set.usage_never")
+            : Strings.Format(row.Launches == 1 ? "set.usage_launch_one" : "set.usage_launch_many", row.Launches)
+              + (row.LastUsedUtc is { } used ? Strings.Format("set.usage_last", used.ToLocalTime()) : "");
         ProfileUsageText.Text =
-            $"Usage (this PC only): {selected.Name} — {mine}. All profiles: {report.TotalLaunches} launches counted. " +
-            "These counts never leave this PC.";
+            Strings.Format("set.usage_line", selected.Name, mine, report.TotalLaunches) +
+            Strings.Get("set.usage_note");
     }
 
     // #121: avatar glyph write-through.
@@ -1164,7 +1184,7 @@ public partial class SettingsWindow : Window
     {
         _groupIds.Clear();
         _groupIds.Add(null);
-        var items = new List<string> { "No group" };
+        var items = new List<string> { Strings.Get("set.no_group") };
         foreach (var g in _working.ProfileGroups)
         {
             _groupIds.Add(g.Id);
@@ -1193,7 +1213,7 @@ public partial class SettingsWindow : Window
         var group = ProfileGroups.Add(_working, NewGroupText.Text);
         if (group is null)
         {
-            ProfileNote.Text = $"MuseDesktop supports up to {ProfileGroups.MaxGroups} profile groups.";
+            ProfileNote.Text = Strings.Format("set.groups_cap", ProfileGroups.MaxGroups);
             return;
         }
         NewGroupText.Text = "";
@@ -1211,13 +1231,13 @@ public partial class SettingsWindow : Window
         var group = groupId is null ? null : _working.ProfileGroups.FirstOrDefault(g => g.Id == groupId);
         if (group is null)
         {
-            ProfileNote.Text = "Pick a group in the list first, then delete it.";
+            ProfileNote.Text = Strings.Get("ui.pick_a_group_in_the_list_first_then");
             return;
         }
         var invoker = FocusReturn.Capture();
         var confirm = System.Windows.MessageBox.Show(this,
-            $"Delete the group \"{group.Name}\"?\n\nIts profiles stay — they just become ungrouped. Nothing else changes.",
-            "Delete profile group", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            Strings.Format("set.group_delete_body", group.Name),
+            Strings.Get("set.group_delete_caption"), MessageBoxButton.YesNo, MessageBoxImage.Question);
         FocusReturn.Restore(invoker);
         if (confirm != MessageBoxResult.Yes)
             return;
@@ -1243,8 +1263,8 @@ public partial class SettingsWindow : Window
             ? $"Profile {selected.Id} archived (hidden from switchers, data kept)"
             : $"Profile {selected.Id} restored from archive");
         ProfileNote.Text = selected.Archived
-            ? $"{selected.Name} is archived: hidden from switchers, but its data stays on this PC and its desktop shortcut still opens it. Untick the box to restore it."
-            : $"{selected.Name} is back in the switchers.";
+            ? Strings.Format("set.profile_archived_note", selected.Name)
+            : Strings.Format("set.profile_restored_note", selected.Name);
         UpdateProfileButtons();
     }
 
@@ -1256,24 +1276,22 @@ public partial class SettingsWindow : Window
         if (ProfileLock.TryGetRecord(selected, out var existing) && existing is not null)
         {
             var current = new PasswordPromptWindow(
-                $"Type the CURRENT PIN for \"{selected.Name}\" first:", confirm: false) { Owner = this };
+                Strings.Format("set.pin_current_first", selected.Name), confirm: false) { Owner = this };
             if (FocusReturn.ShowDialog(current) != true)
                 return;
             if (!ProfileLock.Verify(current.Password, selected))
             {
-                ProfileNote.Text = "That's not this profile's current PIN — nothing was changed.";
+                ProfileNote.Text = Strings.Get("ui.that_s_not_this_profile_s_current_pin");
                 return;
             }
         }
         var prompt = new PasswordPromptWindow(
-            $"Choose a PIN or password for \"{selected.Name}\" (4–64 characters). " +
-            "It's asked when MuseDesktop launches with this profile — after the app password, if one is set. " +
-            "It is a privacy screen, not encryption.",
+            Strings.Format("set.pin_choose", selected.Name),
             confirm: true, AppLock.MinCredentialLength, AppLock.MaxCredentialLength) { Owner = this };
         if (FocusReturn.ShowDialog(prompt) != true)
             return;
         ProfileLock.SetCredential(selected, prompt.Password);
-        ProfileNote.Text = $"PIN set for {selected.Name} — it takes effect when you choose OK.";
+        ProfileNote.Text = Strings.Format("set.pin_set_note", selected.Name);
         _log.Info($"Profile PIN set for profile {selected.Id}");
         UpdateProfileButtons();
     }
@@ -1283,16 +1301,16 @@ public partial class SettingsWindow : Window
         if (SelectedProfile is not { } selected)
             return;
         var current = new PasswordPromptWindow(
-            $"Type the current PIN for \"{selected.Name}\" to remove it:", confirm: false) { Owner = this };
+            Strings.Format("set.pin_remove_prompt", selected.Name), confirm: false) { Owner = this };
         if (FocusReturn.ShowDialog(current) != true)
             return;
         if (!ProfileLock.Verify(current.Password, selected))
         {
-            ProfileNote.Text = "That's not this profile's current PIN — nothing was changed.";
+            ProfileNote.Text = Strings.Get("ui.that_s_not_this_profile_s_current_pin");
             return;
         }
         ProfileLock.RemoveCredential(selected);
-        ProfileNote.Text = $"PIN removed for {selected.Name} — it takes effect when you choose OK.";
+        ProfileNote.Text = Strings.Format("set.pin_removed_note", selected.Name);
         _log.Info($"Profile PIN removed for profile {selected.Id}");
         UpdateProfileButtons();
     }
@@ -1320,17 +1338,17 @@ public partial class SettingsWindow : Window
                 mask |= ProfileSchedule.MaskFor(ScheduleDayOrder[i]);
         if (start is null || end is null)
         {
-            ProfileScheduleText.Text = "Times must be 24-hour clock, like 09:00 and 17:00 — the schedule wasn't changed.";
+            ProfileScheduleText.Text = Strings.Get("ui.times_must_be_24_hour_clock_like_09_00");
             return;
         }
         if (start == end)
         {
-            ProfileScheduleText.Text = "The start and end times are the same, which would mean all day — the schedule wasn't changed.";
+            ProfileScheduleText.Text = Strings.Get("ui.the_start_and_end_times_are_the_same");
             return;
         }
         if (mask == 0)
         {
-            ProfileScheduleText.Text = "Tick at least one day — the schedule wasn't changed.";
+            ProfileScheduleText.Text = Strings.Get("ui.tick_at_least_one_day_the_schedule_wasn");
             return;
         }
         var rule = new ProfileSwitchRule
@@ -1361,13 +1379,12 @@ public partial class SettingsWindow : Window
         var clone = Profiles.Clone(_working, selected.Id);
         if (clone is null)
         {
-            ProfileNote.Text = $"MuseDesktop supports up to {Profiles.MaxProfiles} profiles — remove one before cloning.";
+            ProfileNote.Text = Strings.Format("set.profiles_cap_clone", Profiles.MaxProfiles);
             return;
         }
         _log.Info($"Profile {selected.Id} cloned to {clone.Id} (settings and appearance only)");
         RefreshProfileCombo(clone.Id);
-        ProfileNote.Text = $"Cloned as \"{clone.Name}\" — its settings and appearance were copied. " +
-            "Its sign-in was NOT copied: the clone starts signed out, with no PIN and no schedule.";
+        ProfileNote.Text = Strings.Format("set.profile_cloned", clone.Name);
     }
 
     // #128: create from a template (same disk warning as adding by hand past the soft threshold).
@@ -1378,17 +1395,15 @@ public partial class SettingsWindow : Window
             return;
         if (_working.Profiles.Count >= Profiles.MaxProfiles)
         {
-            ProfileNote.Text = $"MuseDesktop supports up to {Profiles.MaxProfiles} profiles.";
+            ProfileNote.Text = Strings.Format("set.profiles_cap", Profiles.MaxProfiles);
             return;
         }
         if (_working.Profiles.Count >= Profiles.SoftProfileWarningThreshold)
         {
             var warnInvoker = FocusReturn.Capture();
             var warn = System.Windows.MessageBox.Show(this,
-                $"You already have {_working.Profiles.Count} profiles. " +
-                "Each profile keeps its own Muse sign-in data on this PC, so many profiles use more disk.\n\n" +
-                "Add another profile?",
-                "Profiles", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                Strings.Format("set.profiles_warn", _working.Profiles.Count),
+                Strings.Get("set.profiles_caption"), MessageBoxButton.YesNo, MessageBoxImage.Question);
             FocusReturn.Restore(warnInvoker);
             if (warn != MessageBoxResult.Yes)
                 return;
@@ -1396,7 +1411,7 @@ public partial class SettingsWindow : Window
         var created = ProfileTemplates.Create(_working, _templateKeys[idx]);
         if (created is null)
         {
-            ProfileNote.Text = "That template couldn't be used.";
+            ProfileNote.Text = Strings.Get("ui.that_template_couldn_t_be_used");
             return;
         }
         _log.Info($"Profile created from the {_templateKeys[idx]} template: {created.Id}");
@@ -1431,7 +1446,7 @@ public partial class SettingsWindow : Window
                 new ProfileHealthFacts(dataBytes, cacheBytes, cookieCount, lastBackup));
             ProfileHealthText.Text =
                 string.Join("\n", report.Lines.Select(l => $"{l.Label}: {l.Value}"))
-                + "\nCounts only — no site names, no page data, nothing leaves this PC.";
+                + "\n" + Strings.Get("set.health_counts_note");
         }
         finally
         {
@@ -1444,9 +1459,8 @@ public partial class SettingsWindow : Window
     {
         var invoker = FocusReturn.Capture();
         var confirm = System.Windows.MessageBox.Show(this,
-            "Clear the launch counts for every profile?\n\n" +
-            "The counts live only on this PC and are never sent anywhere. Clearing can't be undone.",
-            "Clear usage counts", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            Strings.Get("set.usage_clear_body"),
+            Strings.Get("clear_usage_counts"), MessageBoxButton.YesNo, MessageBoxImage.Question);
         FocusReturn.Restore(invoker);
         if (confirm != MessageBoxResult.Yes)
             return;
@@ -1464,8 +1478,8 @@ public partial class SettingsWindow : Window
         var dialog = new Microsoft.Win32.SaveFileDialog
         {
             FileName = $"musedesktop-profile-{selected.Name}.json",
-            Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
-            Title = "Export profile bundle",
+            Filter = Strings.Get("dlg.filter_json"),
+            Title = Strings.Get("ui.export_profile_bundle"),
         };
         var invoker = FocusReturn.Capture();
         var chosen = dialog.ShowDialog(this) == true;
@@ -1474,8 +1488,8 @@ public partial class SettingsWindow : Window
             return;
         invoker = FocusReturn.Capture();
         var encrypt = System.Windows.MessageBox.Show(this,
-            ProfileBundle.ContentsNote + "\n\nEncrypt the bundle with a password?",
-            "Export profile", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+            ProfileBundle.ContentsNote + Strings.Get("set.encrypt_bundle_ask"),
+            Strings.Get("set.export_profile_caption"), MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
         FocusReturn.Restore(invoker);
         if (encrypt == MessageBoxResult.Cancel)
             return;
@@ -1483,7 +1497,7 @@ public partial class SettingsWindow : Window
         if (encrypt == MessageBoxResult.Yes)
         {
             var prompt = new PasswordPromptWindow(
-                "Choose a password for this encrypted bundle. You'll need it to import the file — it can't be recovered.",
+                Strings.Get("set.bundle_password_choose"),
                 confirm: true) { Owner = this };
             if (FocusReturn.ShowDialog(prompt) != true)
                 return;
@@ -1492,13 +1506,13 @@ public partial class SettingsWindow : Window
         try
         {
             File.WriteAllText(dialog.FileName, ProfileBundle.Export(selected, password));
-            ProfileNote.Text = $"Profile bundle saved to {dialog.FileName}. {ProfileBundle.ContentsNote}";
+            ProfileNote.Text = Strings.Format("set.bundle_saved", dialog.FileName, ProfileBundle.ContentsNote);
             _log.Info($"Profile bundle exported for profile {selected.Id} (encrypted: {password is not null})");
         }
         catch (Exception ex)
         {
             _log.Warn($"Profile bundle export failed: {ex.Message}");
-            ProfileNote.Text = $"Couldn't write that file ({ex.Message}).";
+            ProfileNote.Text = Strings.Format("set.file_write_failed", ex.Message);
         }
     }
 
@@ -1507,8 +1521,8 @@ public partial class SettingsWindow : Window
     {
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
-            Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
-            Title = "Import profile bundle",
+            Filter = Strings.Get("dlg.filter_json"),
+            Title = Strings.Get("ui.import_profile_bundle"),
         };
         var invoker = FocusReturn.Capture();
         var chosen = dialog.ShowDialog(this) == true;
@@ -1522,14 +1536,14 @@ public partial class SettingsWindow : Window
         }
         catch (Exception ex)
         {
-            ProfileNote.Text = $"Couldn't read that file ({ex.Message}).";
+            ProfileNote.Text = Strings.Format("set.file_read_failed", ex.Message);
             return;
         }
         string? password = null;
         if (ProfileBundle.NeedsPassword(text))
         {
             var prompt = new PasswordPromptWindow(
-                "This profile bundle is encrypted. Type its password to import it:",
+                Strings.Get("set.bundle_password_prompt"),
                 confirm: false) { Owner = this };
             if (FocusReturn.ShowDialog(prompt) != true)
                 return;
@@ -1537,18 +1551,18 @@ public partial class SettingsWindow : Window
         }
         if (!ProfileBundle.TryImport(text, password, out var imported, out var error) || imported is null)
         {
-            ProfileNote.Text = error ?? "That file couldn't be imported.";
+            ProfileNote.Text = error ?? Strings.Get("set.bundle_import_failed");
             return;
         }
         if (_working.Profiles.Count >= Profiles.MaxProfiles)
         {
-            ProfileNote.Text = $"MuseDesktop supports up to {Profiles.MaxProfiles} profiles — remove one before importing.";
+            ProfileNote.Text = Strings.Format("set.profiles_cap_import", Profiles.MaxProfiles);
             return;
         }
         _working.Profiles.Add(imported);
         _log.Info($"Profile bundle imported as new profile {imported.Id} (settings and appearance only)");
         RefreshProfileCombo(imported.Id);
-        ProfileNote.Text = $"Imported as the new profile \"{imported.Name}\". {ProfileBundle.ContentsNote} It starts signed out.";
+        ProfileNote.Text = Strings.Format("set.bundle_imported", imported.Name, ProfileBundle.ContentsNote);
     }
 
     // ───────────────────────── R2: workspaces & sessions ─────────────────────────
@@ -1588,7 +1602,7 @@ public partial class SettingsWindow : Window
                                              && _working.Workspaces.Count < Workspaces.MaxWorkspaces;
         WorkspaceDeleteButton.IsEnabled = selected is not null;
         WorkspaceNote.Text = selected is null
-            ? "No workspaces yet — save one from the main window's ⋯ menu (Save current arrangement as workspace)."
+            ? Strings.Get("set.workspaces_none")
             : DescribeWorkspace(selected);
     }
 
@@ -1599,12 +1613,12 @@ public partial class SettingsWindow : Window
             .Select(w => _working.Profiles.FirstOrDefault(p => p.Id == w.ProfileId)?.Name ?? w.ProfileId)
             .Distinct()
             .ToList();
-        var text = $"{ws.Windows.Count} window(s)"
-                   + (profiles.Count > 0 ? $" · profile: {string.Join(", ", profiles)}" : "");
+        var text = Strings.Format("set.ws_windows", ws.Windows.Count)
+                   + (profiles.Count > 0 ? Strings.Format("set.ws_profile", string.Join(", ", profiles)) : "");
         if (ws.LastAppliedUtc is { } applied)
-            text += $" · Last applied: {applied.LocalDateTime:MMM d, HH:mm}";
+            text += Strings.Format("set.ws_last_applied", applied.LocalDateTime);
         if (_working.StartupWorkspaceId == ws.Id)
-            text += " · Opens at launch";
+            text += Strings.Get("set.ws_opens_at_launch");
         return text;
     }
 
@@ -1704,7 +1718,7 @@ public partial class SettingsWindow : Window
     {
         var dialog = new OpenFolderDialog
         {
-            Title = "Choose where MuseDesktop saves downloads",
+            Title = Strings.Get("ui.choose_where_musedesktop_saves_downloads"),
             InitialDirectory = Directory.Exists(DownloadsFolderText.Text)
                 ? DownloadsFolderText.Text
                 : AppPaths.DownloadsHint,
@@ -1721,7 +1735,7 @@ public partial class SettingsWindow : Window
     {
         var dialog = new OpenFolderDialog
         {
-            Title = "Choose where archived downloads go",
+            Title = Strings.Get("ui.choose_where_archived_downloads_go"),
             InitialDirectory = Directory.Exists(ArchiveFolderText.Text)
                 ? ArchiveFolderText.Text
                 : AppPaths.DownloadsHint,
@@ -1762,7 +1776,7 @@ public partial class SettingsWindow : Window
     {
         if (_privacy is null)
         {
-            ClearResultNote.Text = "The web view isn't running yet — try again once Muse has loaded.";
+            ClearResultNote.Text = Strings.Get("ui.the_web_view_isn_t_running_yet_try");
             return;
         }
         var choice = SelectedClearChoice;
@@ -1774,7 +1788,7 @@ public partial class SettingsWindow : Window
         var confirm = System.Windows.MessageBox.Show(this,
             $"{ClearDataPlan.Title(choice)} — {ClearDataPlan.DescribeScope(scope, ActiveProfileName, _working.Profiles.Count)}\n\n" +
             ClearDataPlan.Describe(choice),
-            "Clear browsing data", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            Strings.Get("set.clear_data_caption"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
         FocusReturn.Restore(invoker);
         if (confirm != MessageBoxResult.Yes)
             return;
@@ -1799,6 +1813,178 @@ public partial class SettingsWindow : Window
     // #62: the running profile's saved permission choices, read live.
     private void OnRefreshPermissions(object sender, RoutedEventArgs e) => _ = RefreshPermissionsAsync();
 
+    // ───────────────────── R7: language, packs, announcements, spacing ─────────────────────
+
+    /// <summary>Language codes parallel to LanguageCombo's items; index 0 is null — "follow Windows" (#162).</summary>
+    private readonly List<string?> _languageCodes = new();
+
+    /// <summary>The clear-data combo's title key for a choice (the localized twin of ClearDataPlan.Title).</summary>
+    private static string ClearChoiceKey(ClearDataChoice choice) => choice switch
+    {
+        ClearDataChoice.Cookies => "settings.clear.cookies",
+        ClearDataChoice.Cache => "settings.clear.cache",
+        _ => "settings.clear.all",
+    };
+
+    /// <summary>
+    /// Fill the language section (#162/#165/#169/#170): the picker
+    /// (System default, the built-in languages, then any imported
+    /// pack that adds a language of its own — a pack replacing a
+    /// built-in doesn't duplicate its row; picking the row picks the
+    /// language, and the pack wins inside it), the four announcement
+    /// switches from the working switches map, and the spacing combo.
+    /// </summary>
+    private void PopulateLanguageControls()
+    {
+        LanguageCombo.Items.Clear();
+        _languageCodes.Clear();
+        LanguageCombo.Items.Add(Strings.Get("ui.system_default"));
+        _languageCodes.Add(null);
+        foreach (var info in LanguageCatalog.BuiltIn)
+        {
+            LanguageCombo.Items.Add(info.NativeName == info.EnglishName
+                ? info.NativeName
+                : $"{info.NativeName} — {info.EnglishName}");
+            _languageCodes.Add(info.Code);
+        }
+        foreach (var (code, pack) in Strings.Packs.OrderBy(p => p.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            if (_languageCodes.Any(c => string.Equals(c, code, StringComparison.OrdinalIgnoreCase)))
+                continue;
+            LanguageCombo.Items.Add(pack.DisplayName);
+            _languageCodes.Add(code);
+        }
+        var selected = _working.UiLanguage is { } preference
+            ? _languageCodes.FindIndex(c => string.Equals(c, preference, StringComparison.OrdinalIgnoreCase))
+            : 0;
+        LanguageCombo.SelectedIndex = selected >= 0 ? selected : 0;
+
+        AnnouncementDownloadsCheck.IsChecked =
+            AnnouncementSwitches.IsEnabled(_working.AnnouncementKindEnabled, AnnouncementKind.Downloads);
+        AnnouncementUpdatesCheck.IsChecked =
+            AnnouncementSwitches.IsEnabled(_working.AnnouncementKindEnabled, AnnouncementKind.Updates);
+        AnnouncementTimersCheck.IsChecked =
+            AnnouncementSwitches.IsEnabled(_working.AnnouncementKindEnabled, AnnouncementKind.Timers);
+        AnnouncementFocusCheck.IsChecked =
+            AnnouncementSwitches.IsEnabled(_working.AnnouncementKindEnabled, AnnouncementKind.Focus);
+
+        var scale = ShellTextSpacing.Sanitize(_working.ShellTextSpacingScale);
+        TextSpacingCombo.SelectedIndex = ShellTextSpacing.Options
+            .Select((value, index) => (value, index))
+            .First(t => t.value == scale).index;
+        RefreshLanguagePackStatus();
+    }
+
+    /// <summary>The line under the pack buttons: what packs are installed, and a named warning for any file that failed validation at launch.</summary>
+    private void RefreshLanguagePackStatus()
+    {
+        var parts = new List<string>();
+        if (Strings.Packs.Count > 0)
+            parts.Add(Strings.Format("settings.packs_installed",
+                string.Join(", ", Strings.Packs.Values.Select(p => p.DisplayName))));
+        if (Strings.SkippedPackFileNames.Count > 0)
+            parts.Add(Strings.Format("settings.packs_skipped",
+                string.Join(", ", Strings.SkippedPackFileNames)));
+        LanguagePackStatus.Text = string.Join(" ", parts);
+    }
+
+    /// <summary>Export a blank pack (#165): the full English source as a template a translator can fill in.</summary>
+    private void OnExportLanguagePack(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = Strings.Get("dlg.export_pack_title"),
+            Filter = Strings.Get("dlg.language_pack_filter"),
+            FileName = LanguagePackFile.FileNameFor("xx-XX"),
+            DefaultExt = ".json",
+        };
+        var invoker = FocusReturn.Capture();
+        var chosen = dialog.ShowDialog(this) == true;
+        FocusReturn.Restore(invoker);
+        if (!chosen)
+            return;
+        try
+        {
+            File.WriteAllText(dialog.FileName, LanguagePackFile.ExportTemplate(StringCatalog.Source));
+            LanguagePackStatus.Text = Strings.Get("settings.pack_exported");
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Language pack export failed: {ex.Message}");
+            LanguagePackStatus.Text = Strings.Get("settings.pack_export_failed");
+        }
+    }
+
+    /// <summary>
+    /// Import a pack (#165): the file is validated by Core before
+    /// anything is written — a valid pack lands in the packs folder
+    /// (a live, file-level action like the Privacy section's, so it
+    /// stands even if the dialog is later cancelled) and the picker
+    /// gains it at once; an invalid one changes nothing and the
+    /// validator's plain-words reason is shown as-is.
+    /// </summary>
+    private void OnImportLanguagePack(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = Strings.Get("dlg.import_pack_title"),
+            Filter = Strings.Get("dlg.language_pack_filter"),
+            DefaultExt = ".json",
+        };
+        var invoker = FocusReturn.Capture();
+        var chosen = dialog.ShowDialog(this) == true;
+        FocusReturn.Restore(invoker);
+        if (!chosen)
+            return;
+        string json;
+        try
+        {
+            json = File.ReadAllText(dialog.FileName);
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Language pack read failed: {ex.Message}");
+            LanguagePackStatus.Text = Strings.Get("settings.pack_read_failed");
+            return;
+        }
+        if (!LanguagePackFile.TryLoad(json, StringCatalog.Source, out var pack, out var error) || pack is null)
+        {
+            System.Windows.MessageBox.Show(this, error ?? Strings.Get("settings.pack_invalid"),
+                Strings.Get("msg.language_pack"), MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        try
+        {
+            Directory.CreateDirectory(AppPaths.LanguagePacksDir);
+            File.WriteAllText(
+                Path.Combine(AppPaths.LanguagePacksDir, LanguagePackFile.FileNameFor(pack.Language)),
+                LanguagePackFile.Serialize(pack));
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Language pack install failed: {ex.Message}");
+            LanguagePackStatus.Text = Strings.Get("settings.pack_install_failed");
+            return;
+        }
+        // Rebuild the localizer so the picker (and Diagnostics) see
+        // the pack now; the working language choice is preserved —
+        // the rebuild reads the app's stored settings, and the
+        // picker's own selection is restored from the clone after.
+        if (System.Windows.Application.Current is App app)
+            Strings.Initialize(app.Settings);
+        var chosenLanguage = _working.UiLanguage;
+        PopulateLanguageControls();
+        _working.UiLanguage = chosenLanguage;
+        if (chosenLanguage is not null)
+        {
+            var index = _languageCodes.FindIndex(c =>
+                string.Equals(c, chosenLanguage, StringComparison.OrdinalIgnoreCase));
+            if (index >= 0)
+                LanguageCombo.SelectedIndex = index;
+        }
+        LanguagePackStatus.Text = Strings.Format("settings.pack_imported", pack.DisplayName);
+    }
+
     // ───────────────────── guided self-tests (S10 #92) ─────────────────────
 
     /// <summary>
@@ -1811,7 +1997,7 @@ public partial class SettingsWindow : Window
     {
         if (_privacy?.LiveEnvironment is not { } environment)
         {
-            SelfTestResultText.Text = "The web view is still starting — give it a moment and try again.";
+            SelfTestResultText.Text = Strings.Get("ui.the_web_view_is_still_starting_give_it");
             return;
         }
         var dialog = new MicTestWindow(environment, _log) { Owner = this };
@@ -1827,18 +2013,18 @@ public partial class SettingsWindow : Window
     private async Task<string> SavedMicLineAsync()
     {
         if (_privacy is null || !_privacy.IsLiveReady)
-            return GuidedSelfTests.SavedMicLine(null);
+            return SelfTestLines.SavedMic(null);
         try
         {
             var rows = await _privacy.GetPermissionsAsync();
             var mic = rows.FirstOrDefault(r =>
                 r.Kind.Equals("Microphone", StringComparison.OrdinalIgnoreCase)
                 && r.Host.Equals("muse.ai", StringComparison.OrdinalIgnoreCase));
-            return GuidedSelfTests.SavedMicLine(mic?.State);
+            return SelfTestLines.SavedMic(mic?.State);
         }
         catch
         {
-            return GuidedSelfTests.SavedMicLine(null);
+            return SelfTestLines.SavedMic(null);
         }
     }
 
@@ -1851,7 +2037,7 @@ public partial class SettingsWindow : Window
     {
         if (_notificationTest is null)
         {
-            SelfTestResultText.Text = "The test notification isn't available right now.";
+            SelfTestResultText.Text = Strings.Get("ui.the_test_notification_isn_t_available");
             return;
         }
         var line = _notificationTest();
@@ -1864,16 +2050,16 @@ public partial class SettingsWindow : Window
         PermissionRows.Children.Clear();
         if (_privacy is null || !_privacy.IsLiveReady)
         {
-            PermissionsNote.Text = "The web view isn't running yet, so saved permissions can't be read. " +
-                "MuseDesktop's own policy stands either way: microphone and notifications are granted to muse.ai when the page asks; everything else is denied.";
+            PermissionsNote.Text = Strings.Get("ui.the_web_view_isn_t_running_yet_so_saved") +
+                Strings.Get("ui.own_policy_stands");
             return;
         }
         try
         {
             var rows = await _privacy.GetPermissionsAsync();
             PermissionsNote.Text = rows.Count == 0
-                ? "No site has a saved permission choice in this profile. MuseDesktop's own policy: microphone and notifications are granted to muse.ai when the page asks; everything else is denied."
-                : "Saved choices in this profile (from any site the profile has visited). Allow / Block change the saved choice; Forget returns it to asking MuseDesktop's policy each time:";
+                ? Strings.Get("set.perms_none")
+                : Strings.Get("set.perms_saved");
             foreach (var row in rows)
             {
                 var line = new System.Windows.Controls.StackPanel
@@ -1888,15 +2074,15 @@ public partial class SettingsWindow : Window
                     VerticalAlignment = VerticalAlignment.Center,
                     TextTrimming = TextTrimming.CharacterEllipsis,
                 });
-                line.Children.Add(PermissionButton("Allow", row, CoreWebView2PermissionState.Allow));
-                line.Children.Add(PermissionButton("Block", row, CoreWebView2PermissionState.Deny));
-                line.Children.Add(PermissionButton("Forget", row, CoreWebView2PermissionState.Default));
+                line.Children.Add(PermissionButton(Strings.Get("set.perm_allow"), row, CoreWebView2PermissionState.Allow));
+                line.Children.Add(PermissionButton(Strings.Get("set.perm_block"), row, CoreWebView2PermissionState.Deny));
+                line.Children.Add(PermissionButton(Strings.Get("set.perm_forget"), row, CoreWebView2PermissionState.Default));
                 PermissionRows.Children.Add(line);
             }
         }
         catch (Exception ex)
         {
-            PermissionsNote.Text = $"Couldn't read saved permissions ({ex.Message}).";
+            PermissionsNote.Text = Strings.Format("set.perms_read_failed", ex.Message);
         }
     }
 
@@ -1908,7 +2094,7 @@ public partial class SettingsWindow : Window
             Width = 58,
             Margin = new Thickness(4, 0, 0, 0),
             Tag = (row, state),
-            ToolTip = $"{label} {row.Kind} for {row.Host}",
+            ToolTip = Strings.Format("set.perm_tooltip", label, row.Kind, row.Host),
         };
         button.Click += OnPermissionButton;
         return button;
@@ -1925,7 +2111,7 @@ public partial class SettingsWindow : Window
         }
         catch (Exception ex)
         {
-            PermissionsNote.Text = $"Couldn't change that permission ({ex.Message}).";
+            PermissionsNote.Text = Strings.Format("set.perms_change_failed", ex.Message);
         }
     }
 
@@ -1939,29 +2125,29 @@ public partial class SettingsWindow : Window
         {
             var label = new System.Windows.Controls.TextBlock
             {
-                Text = $"{profile.Name} — measuring…",
+                Text = Strings.Format("set.sitedata_measuring", profile.Name),
                 Width = 300,
                 VerticalAlignment = VerticalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis,
             };
             var clearButton = new System.Windows.Controls.Button
             {
-                Content = "Clear this profile…",
+                Content = Strings.Get("ui.clear_this_profile"),
                 Width = 118,
                 Margin = new Thickness(4, 0, 0, 0),
                 Tag = profile.Id,
-                ToolTip = $"Clear all site data for {profile.Name} (signs that profile out of Muse)",
+                ToolTip = Strings.Format("set.sitedata_clear_tip", profile.Name),
             };
             clearButton.Click += OnClearOneProfile;
             // S8 #75: the manual cache cleanup — disposable caches
             // only, from the same allowlist the automatic cap uses.
             var cleanButton = new System.Windows.Controls.Button
             {
-                Content = "Clean caches",
+                Content = Strings.Get("ui.clean_caches"),
                 Width = 92,
                 Margin = new Thickness(4, 0, 0, 0),
                 Tag = profile.Id,
-                ToolTip = $"Delete only {profile.Name}'s disposable caches (GPU, code, and page caches) — cookies and sign-ins are never touched",
+                ToolTip = Strings.Format("set.sitedata_clean_tip", profile.Name),
             };
             cleanButton.Click += OnCleanProfileCaches;
             var line = new System.Windows.Controls.StackPanel
@@ -1975,20 +2161,20 @@ public partial class SettingsWindow : Window
             SiteDataRows.Children.Add(line);
 
             var bytes = ProfileDataInfo.MeasureFolderBytes(AppPaths.ProfileDir(profile.Id));
-            var sizeText = bytes is { } b ? DownloadText.FormatBytes(b) : "no data folder yet";
-            var cookieText = " · cookie count unavailable";
+            var sizeText = bytes is { } b ? DownloadText.FormatBytes(b) : Strings.Get("settings.no_data_folder_yet");
+            var cookieText = Strings.Get("settings.cookie_unavailable");
             if (_privacy is not null && await _privacy.GetCookieSummaryAsync(profile.Id) is { } cookies)
             {
                 cookieText = cookies.Count == 0
-                    ? " · no cookies"
-                    : $" · {cookies.Count} cookies across {cookies.Domains.Count} site(s)";
+                    ? Strings.Get("settings.no_cookies")
+                    : Strings.Format("settings.cookies_across", cookies.Count, cookies.Domains.Count);
             }
             // S8 #75: the cap and its last cleanup ride along so the
             // cleanup is visible here, never silent.
-            var capText = profile.DataCapBytes > 0 ? $" · cap {ProfileDataCaps.Label(profile.DataCapBytes)}" : "";
+            var capText = profile.DataCapBytes > 0 ? Strings.Format("settings.cap_suffix", ProfileDataCaps.Label(profile.DataCapBytes)) : "";
             if (profile.LastCacheCleanupUtc is { } cleanedUtc)
-                capText += $" · caches cleaned {cleanedUtc.LocalDateTime:MMM d} (−{DownloadText.FormatBytes(profile.LastCacheCleanupFreedBytes)})";
-            label.Text = $"{profile.Name} — {sizeText}{cookieText}{capText}";
+                capText += Strings.Format("settings.caches_cleaned", cleanedUtc.LocalDateTime, DownloadText.FormatBytes(profile.LastCacheCleanupFreedBytes));
+            label.Text = Strings.Format("settings.profile_data_line", profile.Name, sizeText, cookieText, capText);
         }
     }
 
@@ -2013,8 +2199,9 @@ public partial class SettingsWindow : Window
             profile.LastCacheCleanupFreedBytes = outcome.FreedBytes;
         }
         ClearResultNote.Text = outcome.DeletedCount == 0
-            ? $"{profile.Name}: no disposable caches to clean."
-            : $"{profile.Name}: cleaned {outcome.DeletedCount} cache folder(s), freed {DownloadText.FormatBytes(outcome.FreedBytes)}. Sign-ins untouched.";
+            ? Strings.Format("settings.clean_none", profile.Name)
+            : Strings.Format("settings.clean_done", profile.Name, outcome.DeletedCount,
+                DownloadText.FormatBytes(outcome.FreedBytes));
         _ = RefreshSiteDataAsync();
         UpdateProfileButtons();
     }
@@ -2028,8 +2215,8 @@ public partial class SettingsWindow : Window
             return;
         var invoker = FocusReturn.Capture();
         var confirm = System.Windows.MessageBox.Show(this,
-            $"Clear all site data for {profile.Name}?\n\n" + ClearDataPlan.Describe(ClearDataChoice.AllSiteData),
-            "Clear this profile", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            Strings.Format("set.clear_profile_body", profile.Name) + ClearDataPlan.Describe(ClearDataChoice.AllSiteData),
+            Strings.Get("set.clear_profile_caption"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
         FocusReturn.Restore(invoker);
         if (confirm != MessageBoxResult.Yes)
             return;
@@ -2048,42 +2235,42 @@ public partial class SettingsWindow : Window
         try { stats = PrivacyStatsStore.Load(AppPaths.PrivacyStatsPath); }
         catch { stats = new PrivacyStats(); }
         var sb = new StringBuilder();
-        var since = stats.SinceUtc is { } sinceUtc ? $"Since {sinceUtc.LocalDateTime:yyyy-MM-dd}, on" : "On";
-        sb.AppendLine($"{since} this PC (all profiles combined), MuseDesktop has blocked:");
-        sb.AppendLine($"• {stats.Total(PrivacyEventCategory.BlockedNavigation)} page navigations it won't open");
-        sb.AppendLine($"• {stats.Total(PrivacyEventCategory.BlockedNewWindow)} pop-up / new-window requests");
-        sb.AppendLine($"• {stats.Total(PrivacyEventCategory.DeniedPermission)} permission requests");
+        var since = stats.SinceUtc is { } sinceUtc ? Strings.Format("set.privacy_since", sinceUtc.LocalDateTime) : Strings.Get("set.privacy_on");
+        sb.AppendLine(Strings.Format("set.privacy_blocked_line", since));
+        sb.AppendLine(Strings.Format("set.privacy_nav", stats.Total(PrivacyEventCategory.BlockedNavigation)));
+        sb.AppendLine(Strings.Format("set.privacy_newwin", stats.Total(PrivacyEventCategory.BlockedNewWindow)));
+        sb.AppendLine(Strings.Format("set.privacy_perm", stats.Total(PrivacyEventCategory.DeniedPermission)));
         var rows = stats.Rows().Take(6).ToList();
         if (rows.Count > 0)
         {
-            sb.AppendLine("Most common:");
+            sb.AppendLine(Strings.Get("set.privacy_most_common"));
             foreach (var row in rows)
             {
                 var what = row.Category switch
                 {
-                    nameof(PrivacyEventCategory.BlockedNavigation) => "blocked navigation",
-                    nameof(PrivacyEventCategory.BlockedNewWindow) => "blocked new window",
-                    nameof(PrivacyEventCategory.DeniedPermission) => "denied permission",
+                    nameof(PrivacyEventCategory.BlockedNavigation) => Strings.Get("set.privacy_cat_nav"),
+                    nameof(PrivacyEventCategory.BlockedNewWindow) => Strings.Get("set.privacy_cat_newwin"),
+                    nameof(PrivacyEventCategory.DeniedPermission) => Strings.Get("set.privacy_cat_perm"),
                     _ => row.Category,
                 };
-                sb.AppendLine($"• {row.Count}× {what} — {row.Kind}" +
-                              (string.IsNullOrEmpty(row.Host) ? "" : $" — {row.Host}"));
+                sb.AppendLine(Strings.Format("set.privacy_row", row.Count, what, row.Kind) +
+                              (string.IsNullOrEmpty(row.Host) ? "" : Strings.Format("set.privacy_row_host", row.Host)));
             }
         }
         PrivacyReportText.Text = sb.ToString().TrimEnd();
         PermissionDenialsText.Text = stats.RecentDenials.Count == 0
-            ? "Recently denied by MuseDesktop: nothing yet."
-            : "Recently denied by MuseDesktop (this PC, all profiles):\n" + string.Join("\n",
+            ? Strings.Get("set.privacy_denials_none")
+            : Strings.Get("set.privacy_denials_head") + "\n" + string.Join("\n",
                 stats.RecentDenials.Take(8).Select(d =>
-                    $"• {d.TimeUtc.LocalDateTime:MMM d, HH:mm} — {d.Kind} — {(string.IsNullOrEmpty(d.Host) ? "(unknown site)" : d.Host)}"));
+                    Strings.Format("set.privacy_denial_row", d.TimeUtc.LocalDateTime, d.Kind, string.IsNullOrEmpty(d.Host) ? Strings.Get("set.privacy_unknown_site") : d.Host)));
     }
 
     private void OnResetPrivacyStats(object sender, RoutedEventArgs e)
     {
         var invoker = FocusReturn.Capture();
         var confirm = System.Windows.MessageBox.Show(this,
-            "Start the privacy report's counts over from today? The recent-denials list clears too. Nothing else is affected.",
-            "Reset privacy counters", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            Strings.Get("set.privacy_reset_body"),
+            Strings.Get("set.privacy_reset_caption"), MessageBoxButton.YesNo, MessageBoxImage.Question);
         FocusReturn.Restore(invoker);
         if (confirm != MessageBoxResult.Yes)
             return;
@@ -2117,7 +2304,7 @@ public partial class SettingsWindow : Window
         catch (Exception ex)
         {
             _log.Warn($"Open data folder failed: {ex.Message}");
-            ImportNote.Text = $"Couldn't open the data folder ({ex.Message}). It is at {AppPaths.RootDir}.";
+            ImportNote.Text = Strings.Format("set.datafolder_open_failed", ex.Message, AppPaths.RootDir);
         }
     }
 
@@ -2127,7 +2314,7 @@ public partial class SettingsWindow : Window
         var invoker = FocusReturn.Capture();
         System.Windows.MessageBox.Show(this,
             BackupGuide.Compose(AppPaths.RootDir, webViewRoot),
-            "Back up MuseDesktop", MessageBoxButton.OK, MessageBoxImage.Information);
+            Strings.Get("set.backup_guide_caption"), MessageBoxButton.OK, MessageBoxImage.Information);
         FocusReturn.Restore(invoker);
     }
 
@@ -2148,9 +2335,9 @@ public partial class SettingsWindow : Window
         RemoveLockPasswordButton.Visibility = hasRecord ? Visibility.Visible : Visibility.Collapsed;
         AppLockStatusText.Text = hasRecord
             ? _working.AppLockEnabled
-                ? "App lock is ON — your password or PIN is asked at startup, from Lock now (tray and ⋯ menus), and when the window hides to the tray if that switch is on."
-                : "A password is set, but the lock is OFF — tick “Require my app password or PIN” to use it."
-            : "App lock is off. Set a password or PIN to require it before MuseDesktop opens.";
+                ? Strings.Get("set.lock_on")
+                : Strings.Get("set.lock_set_off")
+            : Strings.Get("set.lock_off");
     }
 
     private void OnAppLockEnabledChanged(object sender, RoutedEventArgs e)
@@ -2179,12 +2366,12 @@ public partial class SettingsWindow : Window
         if (AppLock.TryGetRecord(_working, out var existing) && existing is not null)
         {
             var current = new PasswordPromptWindow(
-                "Type your CURRENT app password or PIN first:", confirm: false) { Owner = this };
+                Strings.Get("set.lock_current_first"), confirm: false) { Owner = this };
             if (FocusReturn.ShowDialog(current) != true)
                 return;
             if (!AppLock.Verify(current.Password, existing))
             {
-                AppLockNote.Text = "That's not the current password — nothing was changed.";
+                AppLockNote.Text = Strings.Get("ui.that_s_not_the_current_password_nothing");
                 return;
             }
         }
@@ -2195,13 +2382,12 @@ public partial class SettingsWindow : Window
     private bool PromptSetLockPassword()
     {
         var prompt = new PasswordPromptWindow(
-            "Choose an app password or PIN (4–64 characters — a PIN is fine; 6 or more characters is better). " +
-            "You'll type it whenever MuseDesktop starts locked.",
+            Strings.Get("set.lock_choose"),
             confirm: true, AppLock.MinCredentialLength, AppLock.MaxCredentialLength) { Owner = this };
         if (FocusReturn.ShowDialog(prompt) != true)
             return false;
         AppLock.SetCredential(_working, prompt.Password);
-        AppLockNote.Text = "App password set — the lock is on. It takes effect when you choose OK.";
+        AppLockNote.Text = Strings.Get("ui.app_password_set_the_lock_is_on_it");
         RefreshLockUi();
         return true;
     }
@@ -2210,14 +2396,13 @@ public partial class SettingsWindow : Window
     {
         var invoker = FocusReturn.Capture();
         var confirm = System.Windows.MessageBox.Show(this,
-            "Remove the app password and turn the app lock off?\n\n" +
-            "MuseDesktop will open without asking for anything. You can set a new password here any time.",
-            "Remove app password", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            Strings.Get("set.lock_remove_body"),
+            Strings.Get("set.lock_remove_caption"), MessageBoxButton.YesNo, MessageBoxImage.Question);
         FocusReturn.Restore(invoker);
         if (confirm != MessageBoxResult.Yes)
             return;
         AppLock.RemoveCredential(_working);
-        AppLockNote.Text = "App password removed — the lock is off once you choose OK.";
+        AppLockNote.Text = Strings.Get("ui.app_password_removed_the_lock_is_off");
         RefreshLockUi();
     }
 
@@ -2274,7 +2459,7 @@ public partial class SettingsWindow : Window
             };
             row.Children.Add(new System.Windows.Controls.TextBlock
             {
-                Text = action.Name,
+                Text = Strings.Get("shortcut." + action.Id),
                 Width = 170,
                 VerticalAlignment = VerticalAlignment.Center,
             });
@@ -2283,18 +2468,18 @@ public partial class SettingsWindow : Window
                 Content = gesture.DisplayText(),
                 Width = 150,
                 Tag = action.Id,
-                ToolTip = $"Click, then press the new keys for {action.Name}",
+                ToolTip = Strings.Format("ui.click_then_press_keys_for", Strings.Get("shortcut." + action.Id)),
             };
             keyButton.Click += OnCaptureShortcut;
             row.Children.Add(keyButton);
             var reset = new System.Windows.Controls.Button
             {
-                Content = "Reset",
+                Content = Strings.Get("ui.reset"),
                 Width = 64,
                 Margin = new Thickness(8, 0, 0, 0),
                 IsEnabled = hasOverride,
                 Tag = action.Id,
-                ToolTip = $"Put {action.Name} back to {action.DisplayGestures}",
+                ToolTip = Strings.Format("ui.put_shortcut_back_to", Strings.Get("shortcut." + action.Id), action.DisplayGestures),
             };
             reset.Click += OnResetShortcut;
             row.Children.Add(reset);
@@ -2307,7 +2492,7 @@ public partial class SettingsWindow : Window
         if (sender is not System.Windows.Controls.Button button || button.Tag is not string actionId)
             return;
         _capturingActionId = actionId;
-        button.Content = "Press keys… (Esc cancels)";
+        button.Content = Strings.Get("ui.press_keys_esc_cancels");
         ShortcutStatus.Text = "";
         button.Focus();
     }
@@ -2357,7 +2542,7 @@ public partial class SettingsWindow : Window
             if (okGlobal)
                 _working.GlobalHotkeyGesture = gesture.Format();
             RefreshGlobalHotkeyControls(okGlobal
-                ? $"Global hotkey is now {gesture.DisplayText()} — it applies when you choose OK."
+                ? Strings.Format("set.hotkey_now", gesture.DisplayText())
                 : globalError ?? "");
             return;
         }
@@ -2370,7 +2555,7 @@ public partial class SettingsWindow : Window
             if (okNote)
                 _working.QuickNoteHotkeyGesture = gesture.Format();
             RefreshQuickNoteHotkeyControls(okNote
-                ? $"Quick-note hotkey is now {gesture.DisplayText()} — it applies when you choose OK."
+                ? Strings.Format("set.hotkey_note_now", gesture.DisplayText())
                 : noteError ?? "");
             return;
         }
@@ -2385,20 +2570,20 @@ public partial class SettingsWindow : Window
         if (ok && gesture == EffectiveGlobalGesture())
         {
             ok = false;
-            error = $"{gesture.DisplayText()} is the global show/hide hotkey — the two have to stay different.";
+            error = Strings.Format("set.hotkey_clash_global", gesture.DisplayText());
         }
         // R5: the same rule for the quick-note hotkey, while it's on.
         if (ok && _working.QuickNoteHotkeyEnabled && gesture == EffectiveQuickNoteGesture())
         {
             ok = false;
-            error = $"{gesture.DisplayText()} is the quick-note hotkey — the two have to stay different.";
+            error = Strings.Format("set.hotkey_clash_note", gesture.DisplayText());
         }
         if (ok)
             _working.ShortcutOverrides = updated;
         _capturingActionId = null;
         RebuildShortcutRows();
         ShortcutStatus.Text = ok
-            ? $"{ShortcutCatalog.Find(actionId)?.Name} now uses {ShortcutBindings.EffectiveGesture(actionId, _working.ShortcutOverrides).DisplayText()}."
+            ? Strings.Format("set.hotkey_action_now", ShortcutCatalog.Find(actionId)?.Name, ShortcutBindings.EffectiveGesture(actionId, _working.ShortcutOverrides).DisplayText())
             : error ?? "";
     }
 
@@ -2433,7 +2618,7 @@ public partial class SettingsWindow : Window
     private void OnCaptureGlobalHotkey(object sender, RoutedEventArgs e)
     {
         _capturingGlobalHotkey = true;
-        GlobalHotkeyButton.Content = "Press keys… (Esc cancels)";
+        GlobalHotkeyButton.Content = Strings.Get("ui.press_keys_esc_cancels");
         GlobalHotkeyStatus.Text = "";
         GlobalHotkeyButton.Focus();
     }
@@ -2442,7 +2627,7 @@ public partial class SettingsWindow : Window
     {
         _working.GlobalHotkeyGesture = null;
         RefreshGlobalHotkeyControls(
-            $"Global hotkey is back to {GlobalHotkey.DefaultGesture.DisplayText()} — it applies when you choose OK.");
+            Strings.Format("set.hotkey_back", GlobalHotkey.DefaultGesture.DisplayText()));
     }
 
     // ───────────────────────── R5: the quick-note hotkey editor (#148) ─────────────────────────
@@ -2466,7 +2651,7 @@ public partial class SettingsWindow : Window
     private void OnCaptureQuickNoteHotkey(object sender, RoutedEventArgs e)
     {
         _capturingQuickNoteHotkey = true;
-        QuickNoteHotkeyButton.Content = "Press keys… (Esc cancels)";
+        QuickNoteHotkeyButton.Content = Strings.Get("ui.press_keys_esc_cancels");
         QuickNoteHotkeyStatus.Text = "";
         QuickNoteHotkeyButton.Focus();
     }
@@ -2475,7 +2660,7 @@ public partial class SettingsWindow : Window
     {
         _working.QuickNoteHotkeyGesture = null;
         RefreshQuickNoteHotkeyControls(
-            $"Quick-note hotkey is back to {QuickNoteHotkey.DefaultGesture.DisplayText()} — it applies when you choose OK.");
+            Strings.Format("set.hotkey_note_back", QuickNoteHotkey.DefaultGesture.DisplayText()));
     }
 
     // ───────────────────────── R5: scheduled commands (#147) ─────────────────────────
@@ -2498,8 +2683,8 @@ public partial class SettingsWindow : Window
         if (_working.CommandSchedules.Count >= CommandScheduler.MaxRules)
         {
             System.Windows.MessageBox.Show(this,
-                $"There can be at most {CommandScheduler.MaxRules} scheduled commands.",
-                "Scheduled commands", MessageBoxButton.OK, MessageBoxImage.Information);
+                Strings.Format("set.schedules_cap", CommandScheduler.MaxRules),
+                Strings.Get("scheduled_commands"), MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
         var dialog = new ScheduleRuleWindow { Owner = this };
@@ -2553,7 +2738,7 @@ public partial class SettingsWindow : Window
     private void OnResetAllShortcuts(object sender, RoutedEventArgs e)
     {
         _working.ShortcutOverrides.Clear();
-        ShortcutStatus.Text = "All shortcuts are back to their defaults.";
+        ShortcutStatus.Text = Strings.Get("ui.all_shortcuts_are_back_to_their_defaults");
         RebuildShortcutRows();
     }
 
@@ -2644,8 +2829,8 @@ public partial class SettingsWindow : Window
                 firstMatch = container;
         }
         SearchSummary.Text = matches.Count == 0
-            ? "No section matches that search — clear the search box to see everything again."
-            : $"{matches.Count} of {_sections.Length} sections match — the others are hidden while you search.";
+            ? Strings.Get("set.search_none")
+            : Strings.Format("set.search_some", matches.Count, _sections.Length);
         if (firstMatch is not null)
             Dispatcher.BeginInvoke(new Action(() => firstMatch.BringIntoView()));
     }
@@ -2752,12 +2937,8 @@ public partial class SettingsWindow : Window
         var backupPath = Path.Combine(AppPaths.RootDir, backupName);
         var invoker = FocusReturn.Capture();
         var confirm = System.Windows.MessageBox.Show(this,
-            "Reset all settings to their defaults?\n\n" +
-            $"First, your current settings are saved to a backup file:\n{backupPath}\n\n" +
-            "Preferences (startup, theme, downloads, tray, zoom…) return to defaults, and the setup wizard " +
-            "will offer itself again next launch. Your profiles, sign-ins, last pages, and downloaded files " +
-            "are NOT touched — and you can Import the backup at any time to undo this.",
-            "Reset all settings", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            Strings.Format("set.reset_body", backupPath),
+            Strings.Get("set.reset_caption"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
         if (confirm != MessageBoxResult.Yes)
         {
             FocusReturn.Restore(invoker);
@@ -2772,13 +2953,13 @@ public partial class SettingsWindow : Window
         catch (Exception ex)
         {
             // No backup, no reset — forgiving means never destructive.
-            ResetNote.Text = $"Couldn't write the backup file ({ex.Message}) — your settings were NOT reset.";
+            ResetNote.Text = Strings.Format("set.reset_backup_write_failed", ex.Message);
             _log.Warn($"Settings reset aborted — backup failed: {ex.Message}");
             return;
         }
         SettingsReset.ApplyDefaults(_working);
         LoadControls();
-        ResetNote.Text = $"Settings reset to defaults. Backup saved as {backupName} in the settings folder — Import it any time to undo.";
+        ResetNote.Text = Strings.Format("set.reset_done", backupName);
         _log.Info("Settings reset to defaults from Settings window (backup written first)");
     }
 
@@ -2808,7 +2989,7 @@ public partial class SettingsWindow : Window
         {
             BackupRows.Children.Add(new System.Windows.Controls.TextBlock
             {
-                Text = "No backups yet — the first automatic one is written today, or use Back up now.",
+                Text = Strings.Get("ui.no_backups_yet_the_first_automatic_one"),
                 Style = (Style)FindResource("Note"),
             });
             return;
@@ -2817,20 +2998,20 @@ public partial class SettingsWindow : Window
         {
             var label = new System.Windows.Controls.TextBlock
             {
-                Text = $"{(backup.Kind == "settings" ? "Settings" : "Downloads history")} — {backup.Stamp.LocalDateTime:yyyy-MM-dd HH:mm}",
+                Text = Strings.Format("set.backup_row", Strings.Get(backup.Kind == "settings" ? "set.backup_kind_settings" : "set.backup_kind_downloads"), backup.Stamp.LocalDateTime),
                 Width = 300,
                 VerticalAlignment = VerticalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis,
             };
             var restore = new System.Windows.Controls.Button
             {
-                Content = "Restore…",
+                Content = Strings.Get("ui.restore"),
                 Width = 76,
                 Margin = new Thickness(4, 0, 0, 0),
                 Tag = backup,
                 ToolTip = backup.Kind == "settings"
-                    ? "Replace the settings in this window with this backup (OK still applies them)"
-                    : "Replace the downloads history file with this backup",
+                    ? Strings.Get("set.backup_tip_settings")
+                    : Strings.Get("set.backup_tip_downloads"),
             };
             restore.Click += OnRestoreBackup;
             var line = new System.Windows.Controls.StackPanel
@@ -2849,12 +3030,12 @@ public partial class SettingsWindow : Window
         HarvestControls();
         if (BackupService.CreateBackup(_log, automatic: false) is { } written)
         {
-            BackupNote.Text = $"Backed up: {string.Join(", ", written)} — kept in the backups folder next to your settings.";
+            BackupNote.Text = Strings.Format("set.backup_done", string.Join(", ", written));
             RefreshBackupRows();
         }
         else
         {
-            BackupNote.Text = "The backup couldn't be written — the log has the details.";
+            BackupNote.Text = Strings.Get("ui.the_backup_couldn_t_be_written_the_log");
         }
     }
 
@@ -2867,10 +3048,8 @@ public partial class SettingsWindow : Window
         if (backup.Kind == "settings")
         {
             var confirm = System.Windows.MessageBox.Show(this,
-                $"Restore settings from the {backup.Stamp.LocalDateTime:yyyy-MM-dd HH:mm} backup?\n\n" +
-                "The settings in this window are replaced by the backup's — choose OK here to apply them, Cancel to discard. " +
-                "Sign-ins and profile data folders are not part of a settings backup.",
-                "Restore settings backup", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                Strings.Format("set.restore_settings_body", backup.Stamp.LocalDateTime),
+                Strings.Get("set.restore_settings_caption"), MessageBoxButton.YesNo, MessageBoxImage.Question);
             FocusReturn.Restore(invoker);
             if (confirm != MessageBoxResult.Yes)
                 return;
@@ -2878,24 +3057,23 @@ public partial class SettingsWindow : Window
             try { json = File.ReadAllText(path); }
             catch (Exception ex)
             {
-                BackupNote.Text = $"That backup couldn't be read ({ex.Message}).";
+                BackupNote.Text = Strings.Format("set.backup_read_failed", ex.Message);
                 return;
             }
             if (!SettingsStore.TryImport(json, out var imported, out var error) || imported is null)
             {
-                BackupNote.Text = $"That backup isn't a settings file MuseDesktop can use ({error}).";
+                BackupNote.Text = Strings.Format("set.backup_not_settings", error);
                 return;
             }
             CopySettingsInto(imported, _working);
             LoadControls();
-            BackupNote.Text = $"Settings restored from the {backup.Stamp.LocalDateTime:yyyy-MM-dd HH:mm} backup — review them, then OK to apply.";
+            BackupNote.Text = Strings.Format("set.settings_restored", backup.Stamp.LocalDateTime);
             _log.Info($"Settings restored from rotating backup {backup.FileName}");
             return;
         }
         var confirmDownloads = System.Windows.MessageBox.Show(this,
-            $"Restore the downloads history from the {backup.Stamp.LocalDateTime:yyyy-MM-dd HH:mm} backup?\n\n" +
-            "The current history file is replaced. The Downloads window shows the restored history next time it opens.",
-            "Restore downloads history", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            Strings.Format("set.restore_downloads_body", backup.Stamp.LocalDateTime),
+            Strings.Get("set.restore_downloads_caption"), MessageBoxButton.YesNo, MessageBoxImage.Question);
         FocusReturn.Restore(invoker);
         if (confirmDownloads != MessageBoxResult.Yes)
             return;
@@ -2903,12 +3081,12 @@ public partial class SettingsWindow : Window
         {
             Directory.CreateDirectory(AppPaths.RootDir);
             File.Copy(path, AppPaths.DownloadsHistoryPath, overwrite: true);
-            BackupNote.Text = $"Downloads history restored from the {backup.Stamp.LocalDateTime:yyyy-MM-dd HH:mm} backup.";
+            BackupNote.Text = Strings.Format("set.downloads_restored", backup.Stamp.LocalDateTime);
             _log.Info($"Downloads history restored from rotating backup {backup.FileName}");
         }
         catch (Exception ex)
         {
-            BackupNote.Text = $"The history couldn't be restored ({ex.Message}).";
+            BackupNote.Text = Strings.Format("set.history_restore_failed", ex.Message);
         }
     }
 
@@ -2920,8 +3098,8 @@ public partial class SettingsWindow : Window
         var dialog = new Microsoft.Win32.SaveFileDialog
         {
             FileName = "musedesktop-settings.json",
-            Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
-            Title = "Export MuseDesktop settings",
+            Filter = Strings.Get("dlg.filter_json"),
+            Title = Strings.Get("ui.export_musedesktop_settings"),
         };
         var invoker = FocusReturn.Capture();
         var chosen = dialog.ShowDialog(this) == true;
@@ -2933,11 +3111,9 @@ public partial class SettingsWindow : Window
         // warning is stated before the file is written, not after.
         invoker = FocusReturn.Capture();
         var encrypt = System.Windows.MessageBox.Show(this,
-            "Encrypt this export with a password?\n\n" +
-            "Yes — the file can only be opened with the password (you'll choose it next). Recommended if the file will leave this PC.\n" +
-            "No — a plain settings file. Anyone who can read it can read your profile names and start pages" +
-            (AppLock.HasValidRecord(_working) ? ", and it includes your app-lock password hash (never the password itself)" : "") + ".",
-            "Export settings", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+            Strings.Get("set.export_body") +
+            (AppLock.HasValidRecord(_working) ? Strings.Get("set.export_body_hash") : "") + ".",
+            Strings.Get("set.export_caption"), MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
         FocusReturn.Restore(invoker);
         if (encrypt == MessageBoxResult.Cancel)
             return;
@@ -2945,7 +3121,7 @@ public partial class SettingsWindow : Window
         if (encrypt == MessageBoxResult.Yes)
         {
             var prompt = new PasswordPromptWindow(
-                "Choose a password for this encrypted export. You'll need it to import the file — it can't be recovered.",
+                Strings.Get("set.export_password_choose"),
                 confirm: true) { Owner = this };
             if (FocusReturn.ShowDialog(prompt) != true)
                 return;
@@ -2959,8 +3135,8 @@ public partial class SettingsWindow : Window
         {
             File.WriteAllText(dialog.FileName, contents);
             ImportNote.Text = encrypt == MessageBoxResult.Yes
-                ? $"Encrypted settings exported to {dialog.FileName}."
-                : $"Settings exported to {dialog.FileName} — unencrypted: profile names and start pages in it are readable by anyone who opens the file.";
+                ? Strings.Format("set.export_encrypted_done", dialog.FileName)
+                : Strings.Format("set.export_plain_done", dialog.FileName);
             _log.Info(encrypt == MessageBoxResult.Yes
                 ? "Settings exported (encrypted) from Settings window"
                 : "Settings exported from Settings window");
@@ -2968,7 +3144,7 @@ public partial class SettingsWindow : Window
         catch (Exception ex)
         {
             _log.Warn($"Settings export failed: {ex.Message}");
-            ImportNote.Text = $"Couldn't write that file ({ex.Message}).";
+            ImportNote.Text = Strings.Format("set.file_write_failed", ex.Message);
         }
     }
 
@@ -2976,8 +3152,8 @@ public partial class SettingsWindow : Window
     {
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
-            Filter = "JSON files (*.json)|*.json|All files (*.*)|*.*",
-            Title = "Import MuseDesktop settings",
+            Filter = Strings.Get("dlg.filter_json"),
+            Title = Strings.Get("ui.import_musedesktop_settings"),
         };
         var invoker = FocusReturn.Capture();
         var chosen = dialog.ShowDialog(this) == true;
@@ -2991,7 +3167,7 @@ public partial class SettingsWindow : Window
         }
         catch (Exception ex)
         {
-            ImportNote.Text = $"Couldn't read that file ({ex.Message}).";
+            ImportNote.Text = Strings.Format("set.file_read_failed", ex.Message);
             return;
         }
         // S7 #65: an encrypted export is detected by its envelope and
@@ -3000,26 +3176,26 @@ public partial class SettingsWindow : Window
         if (EncryptedExport.IsEncrypted(json))
         {
             var prompt = new PasswordPromptWindow(
-                "This settings export is encrypted. Type its password to import it:",
+                Strings.Get("set.import_password_prompt"),
                 confirm: false) { Owner = this };
             if (FocusReturn.ShowDialog(prompt) != true)
                 return;
             if (!EncryptedExport.TryDecrypt(json, prompt.Password, out var plain, out _, out var decryptMessage)
                 || plain is null)
             {
-                ImportNote.Text = decryptMessage ?? "That file couldn't be decrypted.";
+                ImportNote.Text = decryptMessage ?? Strings.Get("set.import_decrypt_failed");
                 return;
             }
             json = plain;
         }
         if (!SettingsStore.TryImport(json, out var imported, out var error) || imported is null)
         {
-            ImportNote.Text = error ?? "That file couldn't be imported.";
+            ImportNote.Text = error ?? Strings.Get("set.bundle_import_failed");
             return;
         }
         CopySettingsInto(imported, _working);
         LoadControls();
-        ImportNote.Text = "Settings imported — choose OK to apply them. If the file names a different active profile, that change takes effect next launch.";
+        ImportNote.Text = Strings.Get("ui.settings_imported_choose_ok_to_apply");
         _log.Info("Settings imported from Settings window");
     }
 

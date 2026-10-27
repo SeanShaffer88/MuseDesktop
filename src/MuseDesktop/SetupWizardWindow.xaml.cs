@@ -39,7 +39,7 @@ public partial class SetupWizardWindow : Window
     {
         var dialog = new OpenFolderDialog
         {
-            Title = "Choose where MuseDesktop saves downloads",
+            Title = Strings.Get("ui.choose_where_musedesktop_saves_downloads"),
             InitialDirectory = Directory.Exists(DownloadsFolderText.Text)
                 ? DownloadsFolderText.Text
                 : AppPaths.DownloadsHint,

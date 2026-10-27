@@ -66,7 +66,7 @@ public partial class MicTestWindow : Window
             core.WebMessageReceived += OnWebMessageReceived;
             core.SetVirtualHostNameToFolderMapping(
                 GuidedSelfTests.MicTestHost, _tempDir, CoreWebView2HostResourceAccessKind.Allow);
-            StatusText.Text = "Asking for the microphone…";
+            StatusText.Text = Strings.Get("ui.asking_for_the_microphone");
             _timeout.Start();
             core.Navigate($"https://{GuidedSelfTests.MicTestHost}/test.html");
         }
@@ -110,10 +110,10 @@ public partial class MicTestWindow : Window
         _finished = true;
         _timeout.Stop();
         Outcome = outcome;
-        ResultLine = GuidedSelfTests.MicrophoneLine(outcome);
+        ResultLine = SelfTestLines.Microphone(outcome);
         StatusText.Text = outcome is MicTestOutcome.HeardSound or MicTestOutcome.GrantedButSilent
-            ? "Test finished."
-            : "Test finished — the microphone didn't pass.";
+            ? Strings.Get("mictest.finished")
+            : Strings.Get("mictest.finished_failed");
         ResultText.Text = ResultLine;
         _log.Info($"Microphone test outcome: {outcome}");
     }

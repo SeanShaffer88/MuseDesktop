@@ -1,23 +1,23 @@
 <Window x:Class="MuseDesktop.NotesWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Notes"
+        Title="{local:Loc notes}"
         Width="560" Height="480" MinWidth="420" MinHeight="320"
         WindowStartupLocation="CenterOwner"
-        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}" xmlns:local="clr-namespace:MuseDesktop">
     <DockPanel Margin="14,12,14,12">
         <TextBlock DockPanel.Dock="Top"
-                   Text="Your quick notes for this profile — kept on this PC only, newest first."/>
+                   Text="{local:Loc your_quick_notes_for_this_profile_kept_on}"/>
         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,10,0,0">
-            <Button x:Name="NewButton" Content="New note…" Width="104" Height="28" Click="OnNew"/>
-            <Button x:Name="DeleteButton" Content="Delete" Width="84" Height="28" Margin="8,0,0,0" Click="OnDelete"/>
-            <Button Content="Close" Width="84" Height="28" Margin="8,0,0,0" IsCancel="True"/>
+            <Button x:Name="NewButton" Content="{local:Loc new_note}" Width="104" Height="28" Click="OnNew" KeyboardNavigation.TabIndex="1"/>
+            <Button x:Name="DeleteButton" Content="{local:Loc delete}" Width="84" Height="28" Margin="8,0,0,0" Click="OnDelete" KeyboardNavigation.TabIndex="2"/>
+            <Button Content="{local:Loc close}" Width="84" Height="28" Margin="8,0,0,0" IsCancel="True" KeyboardNavigation.TabIndex="3"/>
         </StackPanel>
         <ListBox x:Name="NoteList" Margin="0,10,0,0"
                  Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
                  BorderBrush="{StaticResource HairlineBrush}"
                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                 AutomationProperties.Name="Notes">
+                 AutomationProperties.Name="{local:Loc notes}" KeyboardNavigation.TabIndex="4">
             <ListBox.ItemContainerStyle>
                 <Style TargetType="ListBoxItem">
                     <Setter Property="AutomationProperties.Name" Value="{Binding AutomationName}"/>

@@ -10,9 +10,11 @@
     <LangVersion>latest</LangVersion>
     <AssemblyName>MuseDesktop</AssemblyName>
     <RootNamespace>MuseDesktop</RootNamespace>
-    <Version>1.7.0</Version>
-    <!-- Ship only English satellite assemblies: the shell UI is English-only,
-         and the self-contained runtime otherwise adds a folder per culture. -->
+    <Version>1.8.0</Version>
+    <!-- Ship only English satellite assemblies: the shell UI's own
+         localization is MuseDesktop's catalog (R7, in Core — no WPF
+         satellite assemblies involved), and the self-contained runtime
+         otherwise adds a folder per culture. -->
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <Authors>Sean Shaffer</Authors>
     <Description>A native Windows desktop client for Muse (muse.ai).</Description>

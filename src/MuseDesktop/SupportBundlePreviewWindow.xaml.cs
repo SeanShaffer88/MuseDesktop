@@ -43,7 +43,7 @@ public partial class SupportBundlePreviewWindow : Window
         {
             ScreenshotCheck.IsEnabled = false;
             ScreenshotUnavailableText.Text = screenshotUnavailableReason
-                ?? "A screenshot isn't available right now.";
+                ?? Strings.Get("bundle.no_screenshot");
             ScreenshotUnavailableText.Visibility = Visibility.Visible;
         }
         RefreshPreviewText();
@@ -59,7 +59,7 @@ public partial class SupportBundlePreviewWindow : Window
             ScreenshotPng = _captureScreenshot();
             if (ScreenshotPng is null)
             {
-                CaptureNote.Text = "The window couldn't be captured — the bundle will be written without a screenshot.";
+                CaptureNote.Text = Strings.Get("ui.the_window_couldn_t_be_captured_the");
                 ScreenshotCheck.IsChecked = false;
                 return;
             }

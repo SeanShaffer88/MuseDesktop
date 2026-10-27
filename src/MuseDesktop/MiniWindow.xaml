@@ -1,11 +1,11 @@
 <Window x:Class="MuseDesktop.MiniWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="MuseDesktop — mini"
+        Title="{local:Loc musedesktop_mini}"
         Width="348" SizeToContent="Height" ResizeMode="NoResize"
         Topmost="True" ShowInTaskbar="False" WindowStyle="ToolWindow"
         Background="{StaticResource BgBrush}"
-        Foreground="{StaticResource TextBrush}">
+        Foreground="{StaticResource TextBrush}" xmlns:local="clr-namespace:MuseDesktop">
     <!-- R6 #154: the mini strip — shell chrome only. A profile-color
          band, the page's favicon + title, the live download summary
          with Pause all / Resume all, and Expand back to the main
@@ -27,18 +27,18 @@
                    Margin="0,0,8,0" VerticalAlignment="Center" Visibility="Collapsed"/>
             <TextBlock x:Name="PageTitleText" Grid.Row="0" Grid.Column="1" Text="Muse"
                        VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
-                       ToolTip="The page open in the main window"/>
-            <Button x:Name="ExpandButton" Grid.Row="0" Grid.Column="2" Content="Expand"
+                       ToolTip="{local:Loc the_page_open_in_the_main_window}"/>
+            <Button x:Name="ExpandButton" Grid.Row="0" Grid.Column="2" Content="{local:Loc expand}"
                     Margin="8,0,0,0" Padding="10,3" Click="OnExpand"
-                    ToolTip="Back to the full MuseDesktop window" AutomationProperties.Name="Expand to full window"/>
+                    ToolTip="{local:Loc back_to_the_full_musedesktop_window}" AutomationProperties.Name="{local:Loc expand_to_full_window}" KeyboardNavigation.TabIndex="1"/>
             <TextBlock x:Name="DownloadLabel" Grid.Row="1" Grid.Column="0" Grid.ColumnSpan="2"
                        Margin="0,7,0,0" VerticalAlignment="Center" FontSize="12"
-                       Foreground="{StaticResource MutedBrush}" Text="No active downloads"/>
+                       Foreground="{StaticResource MutedBrush}" Text="{local:Loc no_active_downloads}"/>
             <StackPanel Grid.Row="1" Grid.Column="2" Orientation="Horizontal" Margin="8,7,0,0">
-                <Button x:Name="PauseAllButton" Content="Pause all" Padding="8,2" Click="OnPauseAll"
-                        ToolTip="Pause every download that's currently transferring" AutomationProperties.Name="Pause all downloads"/>
-                <Button x:Name="ResumeAllButton" Content="Resume all" Padding="8,2" Margin="6,0,0,0" Click="OnResumeAll"
-                        ToolTip="Resume every paused download that can resume" AutomationProperties.Name="Resume all downloads"/>
+                <Button x:Name="PauseAllButton" Content="{local:Loc pause_all}" Padding="8,2" Click="OnPauseAll"
+                        ToolTip="{local:Loc pause_every_download_that_s_currently}" AutomationProperties.Name="{local:Loc pause_all_downloads}" KeyboardNavigation.TabIndex="2"/>
+                <Button x:Name="ResumeAllButton" Content="{local:Loc resume_all}" Padding="8,2" Margin="6,0,0,0" Click="OnResumeAll"
+                        ToolTip="{local:Loc resume_every_paused_download_that_can_resume}" AutomationProperties.Name="{local:Loc resume_all_downloads}" KeyboardNavigation.TabIndex="3"/>
             </StackPanel>
         </Grid>
     </StackPanel>

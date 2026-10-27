@@ -11,7 +11,7 @@ public sealed class ReadingListRow
     {
         Entry = entry;
         Title = entry.Title;
-        Detail = $"{(entry.IsRead ? "Read" : "Unread")} · {entry.Route} · saved {entry.AddedUtc.LocalDateTime:yyyy-MM-dd}";
+        Detail = Strings.Format("reading.detail", Strings.Get(entry.IsRead ? "reading.read" : "reading.unread"), entry.Route, entry.AddedUtc.LocalDateTime);
     }
 
     public ReadingListEntry Entry { get; }

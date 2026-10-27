@@ -1,10 +1,10 @@
 <Window x:Class="MuseDesktop.ResetWizardWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Reset MuseDesktop"
+        Title="{local:Loc reset_musedesktop}"
         Width="500" SizeToContent="Height" MaxHeight="760"
         ResizeMode="NoResize" WindowStartupLocation="CenterOwner"
-        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}" xmlns:local="clr-namespace:MuseDesktop">
     <Window.Resources>
         <Style x:Key="Note" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11"/>
@@ -25,33 +25,33 @@
     </Window.Resources>
 
     <StackPanel Margin="18,14,18,16">
-        <TextBlock Text="Reset MuseDesktop" FontSize="17" FontWeight="SemiBold"/>
+        <TextBlock Text="{local:Loc reset_musedesktop}" FontSize="17" FontWeight="SemiBold"/>
         <TextBlock Style="{StaticResource Note}" FontSize="12" Margin="0,6,0,0"
-                   Text="For when MuseDesktop won't start properly or won't sign in. This walks through the reset in order — nothing happens until the last step, and your current settings are backed up before anything changes."/>
+                   Text="{local:Loc for_when_musedesktop_won_t_start_properly}"/>
 
-        <TextBlock Text="Step 1 — Backup (done for you)" Style="{StaticResource Step}"/>
+        <TextBlock Text="{local:Loc step_1_backup_done_for_you}" Style="{StaticResource Step}"/>
         <TextBlock x:Name="BackupStatusText" Style="{StaticResource Note}"
-                   Text="Writing a backup of your current settings…"/>
+                   Text="{local:Loc writing_a_backup_of_your_current_settings}"/>
 
-        <TextBlock Text="Step 2 — Choose what to reset" Style="{StaticResource Step}"/>
-        <CheckBox x:Name="ResetSettingsCheck" Content="Reset my settings to defaults"
+        <TextBlock Text="{local:Loc step_2_choose_what_to_reset}" Style="{StaticResource Step}"/>
+        <CheckBox x:Name="ResetSettingsCheck" Content="{local:Loc reset_my_settings_to_defaults}"
                   Checked="OnChoiceChanged" Unchecked="OnChoiceChanged"
-                  ToolTip="Preferences (startup, theme, downloads, tray, zoom…) return to their defaults. Profiles, sign-ins, last pages, and downloaded files are never touched by a settings reset"/>
+                  ToolTip="{local:Loc preferences_startup_theme_downloads_tray}" KeyboardNavigation.TabIndex="1"/>
         <TextBlock Style="{StaticResource Note}" Margin="18,0,0,0"
-                   Text="Preferences only — your profiles, sign-ins, and files stay. The setup wizard will offer itself again next launch."/>
-        <CheckBox x:Name="ClearDataCheck" Content="Clear site data for all profiles"
+                   Text="{local:Loc preferences_only_your_profiles_sign_ins_and}"/>
+        <CheckBox x:Name="ClearDataCheck" Content="{local:Loc clear_site_data_for_all_profiles}"
                   Checked="OnChoiceChanged" Unchecked="OnChoiceChanged"
-                  ToolTip="Cookies, cache, and site storage for every profile — this is the step that fixes most sign-in problems"/>
+                  ToolTip="{local:Loc cookies_cache_and_site_storage_for_every}" KeyboardNavigation.TabIndex="2"/>
         <TextBlock Style="{StaticResource Note}" Margin="18,0,0,0"
-                   Text="Signs every profile out of Muse (your chats are in your Muse account, never at risk). This happens as soon as you run the reset — Settings' Cancel can't undo it."/>
+                   Text="{local:Loc signs_every_profile_out_of_muse_your_chats}"/>
 
-        <TextBlock Text="Step 3 — Run the reset" Style="{StaticResource Step}"/>
+        <TextBlock Text="{local:Loc step_3_run_the_reset}" Style="{StaticResource Step}"/>
         <TextBlock x:Name="ResultText" Style="{StaticResource Note}"
-                   Text="Choose at least one thing to reset above, then run it."/>
+                   Text="{local:Loc choose_at_least_one_thing_to_reset_above}"/>
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
-            <Button x:Name="RunButton" Content="Run the reset" Width="130" Height="30" Click="OnRunReset" IsEnabled="False"
-                    ToolTip="Apply the chosen steps now (you'll be asked to confirm first)"/>
-            <Button x:Name="CloseButton" Content="Close" Width="86" Height="30" Margin="8,0,0,0" IsCancel="True"/>
+            <Button x:Name="RunButton" Content="{local:Loc run_the_reset}" Width="130" Height="30" Click="OnRunReset" IsEnabled="False"
+                    ToolTip="{local:Loc apply_the_chosen_steps_now_you_ll_be_asked}" KeyboardNavigation.TabIndex="3"/>
+            <Button x:Name="CloseButton" Content="{local:Loc close}" Width="86" Height="30" Margin="8,0,0,0" IsCancel="True" KeyboardNavigation.TabIndex="4"/>
         </StackPanel>
     </StackPanel>
 </Window>
