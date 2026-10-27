@@ -4,6 +4,21 @@ All notable changes to MuseDesktop. Format follows Keep a Changelog; versions us
 
 Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhancement program; they were never published as releases. Everything in them shipped together as **1.0.0** (2026-10-24).
 
+## [1.8.1] — Unreleased
+
+Hotfix for the Settings crash found in the v1.7.0 field pass.
+
+### Fixed
+
+- **Settings opens again — for real this time.** The fix itself
+  was in v1.8.0's source, but the v1.8.0 installers were built
+  from the tree just before the fix landed, so the crash shipped
+  anyway. v1.8.1's installers are built from the fixed tree and
+  verified against it. (The bug: the profile dropdown carried
+  both a custom item template and a DisplayMemberPath, a
+  combination the Windows UI framework refuses; a guard test
+  now fails the build if it ever recurs.)
+
 ## [1.8.0] — Unreleased
 
 Round 2 Slice R7 (items 161–170): accessibility & language

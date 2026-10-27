@@ -2,6 +2,12 @@
 
 Run before publishing any release. CI covers the automated half; this is the on-machine half that automation can't prove — it exists because v0.1.0 passed every automated check and crashed on first launch.
 
+## v1.8.1 hotfix — on-machine check (2 minutes)
+
+- [ ] Update to v1.8.1 via the in-app updater (or the fresh installer).
+- [ ] Open Settings from the tray menu: it opens, no error dialog.
+- [ ] Open Settings from the main window's menu too: same result.
+
 ## Catch-up pass — v0.2.0 + v0.3.0 + v0.3.1 behaviors (one sitting, ~25 minutes)
 
 The per-release items below accumulated faster than on-machine passes ran. This ordered pass clears the whole backlog against the current release; after it, delete this section and rely on the per-release items again.
