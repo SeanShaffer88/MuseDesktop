@@ -174,4 +174,48 @@ public class SettingsRailShellTests
         Assert.Contains("SettingsPages.PageForSection", code);
         Assert.Contains("Strings.Get(page.NavTitleKey)", code);
     }
+
+    [Fact]
+    public void SettingsWindow_RailItems_UseTheThemeTextBrush()
+    {
+        var xaml = ShellFile("SettingsWindow.xaml");
+        // R7E2 field fix (SEAN, on v1.8.6): the rail's topic labels and
+        // icons rendered BLACK on the near-black rail. WPF's built-in
+        // ListBox style sets the control's text color to the system
+        // window-text color, which outranks the color the list would
+        // inherit from the window — so the text brush must be pinned
+        // on the list itself (the pattern every other list in the
+        // shell follows) AND on the item template's icon and label,
+        // so no state of the item can fall back to the system color.
+        var navStart = xaml.IndexOf("x:Name=\"NavList\"", StringComparison.Ordinal);
+        Assert.True(navStart >= 0, "NavList not found in SettingsWindow.xaml");
+        var navEnd = xaml.IndexOf("</ListBox>", navStart, StringComparison.Ordinal);
+        Assert.True(navEnd > navStart, "NavList element is not closed");
+        var nav = xaml[navStart..navEnd];
+        // One pin on the list element, one on the glyph, one on the title.
+        Assert.True(CountOccurrences(nav, "Foreground=\"{StaticResource TextBrush}\"") >= 3,
+            "NavList, its icon glyph, and its title must all pin the theme text brush");
+        Assert.Contains("Text=\"{Binding Glyph}\"", nav);
+        Assert.Contains("Text=\"{Binding Title}\"", nav);
+        // The item container style must never re-darken the text in any
+        // state (hover, selected, disabled): it sets no Foreground at
+        // all — its triggers only repaint the pill's background.
+        var styleStart = xaml.IndexOf("x:Key=\"NavItemStyle\"", StringComparison.Ordinal);
+        Assert.True(styleStart >= 0, "NavItemStyle not found in SettingsWindow.xaml");
+        var styleEnd = xaml.IndexOf("</Style>", styleStart, StringComparison.Ordinal);
+        var style = xaml[styleStart..styleEnd];
+        Assert.DoesNotContain("Foreground", style);
+    }
+
+    private static int CountOccurrences(string haystack, string needle)
+    {
+        var count = 0;
+        var at = 0;
+        while ((at = haystack.IndexOf(needle, at, StringComparison.Ordinal)) >= 0)
+        {
+            count++;
+            at += needle.Length;
+        }
+        return count;
+    }
 }
