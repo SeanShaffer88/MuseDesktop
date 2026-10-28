@@ -295,6 +295,7 @@ public partial class SettingsWindow : Window
         TraySingleClickCheck.IsChecked = _working.TraySingleClickRestore;
         FlashOnAttentionCheck.IsChecked = _working.FlashTaskbarOnAttention;
         ApprovalBeepCheck.IsChecked = _working.ApprovalBeepEnabled;
+        ApprovalToastCheck.IsChecked = _working.ApprovalToastEnabled;
         QuietHoursCheck.IsChecked = _working.QuietHoursEnabled;
         QuietStartCombo.SelectedIndex = Math.Clamp(_working.QuietHoursStartMinutes / 60, 0, 23);
         QuietEndCombo.SelectedIndex = Math.Clamp(_working.QuietHoursEndMinutes / 60, 0, 23);
@@ -458,6 +459,7 @@ public partial class SettingsWindow : Window
         _working.TraySingleClickRestore = TraySingleClickCheck.IsChecked == true;
         _working.FlashTaskbarOnAttention = FlashOnAttentionCheck.IsChecked == true;
         _working.ApprovalBeepEnabled = ApprovalBeepCheck.IsChecked == true;
+        _working.ApprovalToastEnabled = ApprovalToastCheck.IsChecked == true;
         _working.QuietHoursEnabled = QuietHoursCheck.IsChecked == true;
         if (QuietStartCombo.SelectedIndex >= 0)
             _working.QuietHoursStartMinutes = QuietStartCombo.SelectedIndex * 60;
@@ -3357,6 +3359,7 @@ public partial class SettingsWindow : Window
         target.TraySingleClickRestore = source.TraySingleClickRestore;
         target.FlashTaskbarOnAttention = source.FlashTaskbarOnAttention;
         target.ApprovalBeepEnabled = source.ApprovalBeepEnabled;
+        target.ApprovalToastEnabled = source.ApprovalToastEnabled;
         target.QuietHoursEnabled = source.QuietHoursEnabled;
         target.QuietHoursStartMinutes = source.QuietHoursStartMinutes;
         target.QuietHoursEndMinutes = source.QuietHoursEndMinutes;
