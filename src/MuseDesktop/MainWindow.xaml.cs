@@ -56,7 +56,11 @@ public partial class MainWindow : Window
     private bool _tokenRefreshBusy;
     // R7C: the approval-beep policy (Core) — fed by the bridge
     // watcher's appeared/gone reports; it decides, the shell sounds.
+    // R7C2: a slow tick asks the policy for reminder beeps while a
+    // card waits; every verdict is logged (presence/reason only).
     private readonly ApprovalAttentionPolicy _approvalAttention = new();
+    private DispatcherTimer? _approvalTimer;
+    private ApprovalBeepOutcome? _lastApprovalTickOutcome;
     private bool _isFullScreen;
     private WindowState _preFullScreenState;
     private WindowStyle _preFullScreenStyle;
@@ -381,6 +385,13 @@ public partial class MainWindow : Window
         _tokenTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(45) };
         _tokenTimer.Tick += (_, _) => { if (IsVisible) _ = RefreshTokenUsageAsync(); };
         _tokenTimer.Start();
+
+        // R7C2: reminder beeps — while an approval card waits and
+        // the user is elsewhere, Core's policy is asked every few
+        // seconds whether the 20 s reminder is due.
+        _approvalTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _approvalTimer.Tick += (_, _) => OnApprovalAttentionTick();
+        _approvalTimer.Start();
         Loaded += OnLoaded;
         Closing += OnClosing;
         Closed += (_, _) => _hotkeyManager?.Dispose();
@@ -3934,34 +3945,108 @@ public partial class MainWindow : Window
                 _ = RefreshTokenUsageDelayedAsync(4000);
                 break;
             case PageBridgeKind.ApprovalAppeared:
-                OnApprovalCardAppeared();
+                OnApprovalCardAppeared(message.Signal);
                 break;
             case PageBridgeKind.ApprovalGone:
-                _approvalAttention.ObserveGone();
+                OnApprovalCardGone();
                 break;
         }
     }
 
     /// <summary>
-    /// An approval card appeared on the page (R7C): Core's policy
-    /// judges the appearance — setting on, window not the active
-    /// one, once per card, global cooldown — and only a "beep"
-    /// verdict makes a sound and flashes the taskbar button (the
-    /// S4 flash helper; it stops on activation like any flash).
-    /// A window hidden in the tray counts as not-looking: the
-    /// flash then no-ops (a tray-hidden window has no taskbar
+    /// An approval card appeared on the page (R7C; detection rebuilt
+    /// in R7C2): Core's policy judges the appearance — setting on,
+    /// window not the active one, once per card, global cooldown —
+    /// and only a "beep" verdict makes a sound and flashes the
+    /// taskbar button (the S4 flash helper; it stops on activation
+    /// like any flash). Every verdict is logged with the signal that
+    /// fired and, when the beep is skipped, the reason — presence
+    /// and reasons only, never anything the card said. (The v1.8.3
+    /// failure was undiagnosable in the field because nothing was
+    /// logged.) A window hidden in the tray counts as not-looking:
+    /// the flash then no-ops (a tray-hidden window has no taskbar
     /// button) and the sound carries the alert. NOTHING here can
     /// answer the card — noticing it is all this feature does.
     /// </summary>
-    private void OnApprovalCardAppeared()
+    private void OnApprovalCardAppeared(ApprovalDetectionSignal signal)
     {
         var userLooking = IsActive && WindowState != WindowState.Minimized;
-        if (!_approvalAttention.ObserveAppeared(_settings.ApprovalBeepEnabled, userLooking, DateTimeOffset.UtcNow))
+        var outcome = _approvalAttention.ObserveAppeared(
+            signal, _settings.ApprovalBeepEnabled, userLooking, DateTimeOffset.UtcNow);
+        switch (outcome)
+        {
+            case ApprovalBeepOutcome.Beep:
+                _log.Info($"Approval card detected (signal: {ApprovalSignalName(signal)}) — beep sounded.");
+                SoundApprovalAlert();
+                break;
+            case ApprovalBeepOutcome.SuppressedWindowActive:
+                _log.Info($"Approval card detected (signal: {ApprovalSignalName(signal)}); no beep — the window is active.");
+                break;
+            case ApprovalBeepOutcome.SuppressedSettingOff:
+                _log.Info($"Approval card detected (signal: {ApprovalSignalName(signal)}); no beep — the beep setting is off.");
+                break;
+            case ApprovalBeepOutcome.SuppressedCooldown:
+                _log.Info($"Approval card detected (signal: {ApprovalSignalName(signal)}); no beep — inside the cooldown after the last beep.");
+                break;
+        }
+    }
+
+    /// <summary>The card went away (R7C2): re-arm the policy, and leave one log line for the transition.</summary>
+    private void OnApprovalCardGone()
+    {
+        if (_approvalAttention.CardPresent)
+            _log.Info("Approval card gone.");
+        _approvalAttention.ObserveGone();
+        _lastApprovalTickOutcome = null;
+    }
+
+    /// <summary>
+    /// The reminder tick (R7C2): while a card waits, Core's policy
+    /// is asked whether a reminder beep is due (every 20 s, only
+    /// while the window isn't active and this card's first beep
+    /// sounded). The cycle ends when the card clears or the window
+    /// gains focus. Verdicts are logged when they change or when a
+    /// reminder sounds; the steady states (not due yet, nothing
+    /// alerting) stay silent, so the log keeps one line per event,
+    /// not one per tick.
+    /// </summary>
+    private void OnApprovalAttentionTick()
+    {
+        if (!_approvalAttention.CardPresent)
             return;
+        var userLooking = IsActive && WindowState != WindowState.Minimized;
+        var outcome = _approvalAttention.ObserveStillPresent(
+            _settings.ApprovalBeepEnabled, userLooking, DateTimeOffset.UtcNow);
+        if (outcome == ApprovalBeepOutcome.Beep)
+        {
+            _log.Info($"Approval card still waiting (signal: {ApprovalSignalName(_approvalAttention.CurrentSignal)}) — reminder beep sounded.");
+            SoundApprovalAlert();
+        }
+        else if (outcome != _lastApprovalTickOutcome)
+        {
+            if (outcome == ApprovalBeepOutcome.SuppressedWindowActive)
+                _log.Info("Approval reminders stopped — the window is active now.");
+            else if (outcome == ApprovalBeepOutcome.SuppressedSettingOff)
+                _log.Info("Approval reminders stopped — the beep setting was turned off.");
+        }
+        _lastApprovalTickOutcome = outcome;
+    }
+
+    /// <summary>The alert itself (R7C): the system exclamation sound, then the taskbar flash.</summary>
+    private void SoundApprovalAlert()
+    {
         try { System.Media.SystemSounds.Exclamation.Play(); }
         catch (Exception ex) { _log.Warn($"Approval beep failed: {ex.Message}"); }
         FlashTaskbarButton();
     }
+
+    /// <summary>The log name of a detection signal (R7C2): which watcher rule matched — never anything the card said.</summary>
+    private static string ApprovalSignalName(ApprovalDetectionSignal signal) => signal switch
+    {
+        ApprovalDetectionSignal.AllowPrefix => "allow-prefix",
+        ApprovalDetectionSignal.ButtonPair => "pair",
+        _ => "unknown",
+    };
 
     /// <summary>Feed the page everything the profile asks for (R5B #201/#205 style, then the route's saved draft for #204) — called on the bridge's ready handshake, when the document the handshake came from is the one on screen.</summary>
     private async Task PushPageStateAsync()

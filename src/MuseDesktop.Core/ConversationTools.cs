@@ -123,7 +123,7 @@ public static class PageStyleCss
 
 // ─────────────────────── the page bridge protocol ───────────────────────
 
-/// <summary>What the injected page script can tell the shell (R5B). Deliberately tiny: a bookmark request (a message's text, nothing else), composer draft text, "the draft was sent", the ready handshake that asks the shell to push the current page style + any saved draft for this route, and (R7C) the two approval-card transitions — a card appeared / the card went away, carrying no card content at all.</summary>
+/// <summary>What the injected page script can tell the shell (R5B). Deliberately tiny: a bookmark request (a message's text, nothing else), composer draft text, "the draft was sent", the ready handshake that asks the shell to push the current page style + any saved draft for this route, and (R7C) the two approval-card transitions — a card appeared / the card went away, carrying no card content at all. Since R7C2 the appearance also carries WHICH watcher rule matched (<see cref="ApprovalDetectionSignal"/>) — a rule name, never content.</summary>
 public enum PageBridgeKind
 {
     Ready,
@@ -134,8 +134,9 @@ public enum PageBridgeKind
     ApprovalGone,
 }
 
-/// <summary>One parsed page-bridge message (R5B). <see cref="Text"/> is the message snippet (bookmark) or the composer text (draft) — capped at parse time, and never logged by anyone.</summary>
-public sealed record PageBridgeMessage(PageBridgeKind Kind, string Text);
+/// <summary>One parsed page-bridge message (R5B). <see cref="Text"/> is the message snippet (bookmark) or the composer text (draft) — capped at parse time, and never logged by anyone. <see cref="Signal"/> is set only on an approval appearance (R7C2): which watcher rule matched — a rule name from a fixed set, never page content.</summary>
+public sealed record PageBridgeMessage(
+    PageBridgeKind Kind, string Text, ApprovalDetectionSignal Signal = ApprovalDetectionSignal.Unknown);
 
 /// <summary>
 /// The parser for the page bridge's JSON (R5B). The page is a live
@@ -184,7 +185,21 @@ public static class PageBridge
                 case "md-draft-sent":
                     return new PageBridgeMessage(PageBridgeKind.DraftSent, "");
                 case "md-approval-appeared":
-                    return new PageBridgeMessage(PageBridgeKind.ApprovalAppeared, "");
+                    // R7C2: which watcher rule matched. The page is
+                    // untrusted, so the value is mapped through a
+                    // fixed vocabulary — anything else is Unknown,
+                    // never echoed anywhere.
+                    var signal = ApprovalDetectionSignal.Unknown;
+                    if (root.TryGetProperty("signal", out var signalEl) && signalEl.ValueKind == JsonValueKind.String)
+                    {
+                        signal = signalEl.GetString() switch
+                        {
+                            "allow-prefix" => ApprovalDetectionSignal.AllowPrefix,
+                            "pair" => ApprovalDetectionSignal.ButtonPair,
+                            _ => ApprovalDetectionSignal.Unknown,
+                        };
+                    }
+                    return new PageBridgeMessage(PageBridgeKind.ApprovalAppeared, "", signal);
                 case "md-approval-gone":
                     return new PageBridgeMessage(PageBridgeKind.ApprovalGone, "");
                 default:
