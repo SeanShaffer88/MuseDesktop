@@ -4,6 +4,27 @@ All notable changes to MuseDesktop. Format follows Keep a Changelog; versions us
 
 Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhancement program; they were never published as releases. Everything in them shipped together as **1.0.0** (2026-10-24).
 
+## [1.8.5] — Unreleased
+
+Hotfix R7D1 (directed 2026-10-27): the installer close/relaunch
+fix for R7D, from SEAN's field test of v1.8.4.
+
+### Fixed
+
+- **The installer now really closes MuseDesktop before
+  installing.** The v1.8.4 installer could fail to notice
+  MuseDesktop was running, so it didn't close it before
+  installing — it now checks for the running program
+  directly, asks it to close (and makes it close if it
+  won't), and only then copies the new files. Reopening is
+  the **Run MuseDesktop** box on the installer's last page:
+  the app starts as you close the installer, and only if
+  the box is ticked. When MuseDesktop was running, the
+  box starts out ticked so the app comes back — untick it
+  and it stays closed. Installing from inside the app is
+  unchanged: no installer window appears, and the app
+  closes, updates, and reopens by itself.
+
 ## [1.8.4] — Unreleased
 
 Follow-on slice R7D (directed 2026-10-27): seamless updates.
