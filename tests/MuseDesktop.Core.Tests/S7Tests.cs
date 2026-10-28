@@ -292,23 +292,24 @@ public class S7Tests
         Assert.False(imported!.PasswordAutosaveEnabled);
         Assert.False(imported.GeneralAutofillEnabled);
 
-        // Defaults stay at the WebView2 defaults (both on).
-        Assert.True(new AppSettings().PasswordAutosaveEnabled);
-        Assert.True(new AppSettings().GeneralAutofillEnabled);
+        // Defaults since R7F (v1.8.8): both off — password autosave
+        // is never on at all, and general autofill starts off.
+        Assert.False(new AppSettings().PasswordAutosaveEnabled);
+        Assert.False(new AppSettings().GeneralAutofillEnabled);
     }
 
     [Fact]
-    public void SettingsReset_RestoresAutofillDefaultsAndKeepsIdentity()
+    public void SettingsReset_RestoresPrivacyDefaultsAndKeepsIdentity()
     {
         var settings = new AppSettings
         {
-            PasswordAutosaveEnabled = false,
-            GeneralAutofillEnabled = false,
+            PasswordAutosaveEnabled = true,
+            GeneralAutofillEnabled = true,
             ActiveProfileId = Profiles.DefaultId,
         };
         SettingsReset.ApplyDefaults(settings);
-        Assert.True(settings.PasswordAutosaveEnabled);
-        Assert.True(settings.GeneralAutofillEnabled);
+        Assert.False(settings.PasswordAutosaveEnabled);
+        Assert.False(settings.GeneralAutofillEnabled);
     }
 
     [Theory]
