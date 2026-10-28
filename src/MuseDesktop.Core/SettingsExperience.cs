@@ -6,14 +6,18 @@ namespace MuseDesktop.Core;
 public sealed record SettingsSectionInfo(string Id, string Title, string Keywords);
 
 /// <summary>
-/// The Settings search index (S5 #41). Settings is one scrolling window
-/// of sections (not tabs), so search works at section level: a query
-/// matches a section when EVERY term fuzzy-matches some word of its
-/// title or keywords; matching sections stay visible (and are
-/// highlighted), the rest collapse, and the window scrolls to the
-/// best match. The index lives in Core so the mapping from words to
-/// sections is unit-tested against the real layout instead of
-/// drifting in the shell.
+/// The Settings search index (S5 #41). Search works at section
+/// level: a query matches a section when EVERY term fuzzy-matches
+/// some word of its title or keywords; matching sections stay
+/// visible (and are highlighted), the rest collapse, and the window
+/// scrolls to the best match. Since R7E (v1.8.6) the window is a
+/// rail of pages (<see cref="SettingsPages"/>) rather than one
+/// scrolling column, but the unit of search is unchanged: the
+/// matched sections show as cards, the rail highlights the best
+/// match's page, and clearing the search returns to page view. The
+/// index lives in Core so the mapping from words to sections is
+/// unit-tested against the real layout instead of drifting in the
+/// shell.
 ///
 /// R1 (#108): matching and ranking are the command palette's ONE
 /// fuzzy matcher (<see cref="FuzzyMatch"/>), replacing the S5

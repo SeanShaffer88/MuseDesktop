@@ -128,6 +128,7 @@ Try this:
 2. Switching profiles from the keyboard: Ctrl+Shift+1 through Ctrl+Shift+9 switch to the 1st–9th profile in your profile list. These work inside MuseDesktop only; there is no Windows-wide version, on purpose — Ctrl+Shift+number means something in many other apps, and MuseDesktop won't take those keys away from them everywhere.
 3. Moving windows: type "tile" or "monitor" in the palette for the per-window actions — tile left/right, move to the next monitor, always-on-top, and (for the main window) focus mode.
 4. The full list: this page ends with every command the palette offers, generated from the palette itself when you open the page — so it can never describe a command that isn't really there. Your profiles, recent downloads, and open windows appear in the palette too; they're yours, so they're not printed here.
+5. Finding a setting by eye: the Settings window lists its topics down the left side (General, Appearance, Profiles, Workspaces, Notifications, Focus, Downloads, Data, Language, Accessibility, Privacy). Pick a topic to see just that topic's settings, grouped in cards — or type in the search box at the top of the list, and Settings jumps to the topic that holds the match. Settings reopens where you left it, on the same topic.
 
 ## Focus mode, timers, reading list & notes
 

@@ -82,21 +82,31 @@ public partial class SettingsWindow : Window
 
         // The section registry (S5 #41/#48): id ↔ container ↔ header,
         // in layout order — shared by search and the scroll tracker.
-        _sections = new (string, System.Windows.Controls.StackPanel, System.Windows.Controls.TextBlock)[]
+        // R7E: the container is the section's CARD (the border the
+        // window shows/hides per page and per search); the section
+        // panel inside it is untouched.
+        _sections = new (string, System.Windows.Controls.Border, System.Windows.Controls.TextBlock)[]
         {
-            (SettingsSearch.BehaviorId, SectionBehavior, HeaderBehavior),
-            (SettingsSearch.TrayId, SectionTray, HeaderTray),
-            (SettingsSearch.ProfilesId, SectionProfiles, HeaderProfiles),
-            (SettingsSearch.WorkspacesId, SectionWorkspaces, HeaderWorkspaces),
-            (SettingsSearch.AppearanceId, SectionAppearance, HeaderAppearance),
-            (SettingsSearch.ZoomId, SectionZoom, HeaderZoom),
-            (SettingsSearch.AccessibilityId, SectionAccessibility, HeaderAccessibility),
-            (SettingsSearch.LanguageId, SectionLanguage, HeaderLanguage),
-            (SettingsSearch.DownloadsId, SectionDownloads, HeaderDownloads),
-            (SettingsSearch.DataId, SectionData, HeaderData),
-            (SettingsSearch.FocusId, SectionFocus, HeaderFocus),
-            (SettingsSearch.PrivacyId, SectionPrivacy, HeaderPrivacy),
+            (SettingsSearch.BehaviorId, CardBehavior, HeaderBehavior),
+            (SettingsSearch.TrayId, CardTray, HeaderTray),
+            (SettingsSearch.ProfilesId, CardProfiles, HeaderProfiles),
+            (SettingsSearch.WorkspacesId, CardWorkspaces, HeaderWorkspaces),
+            (SettingsSearch.AppearanceId, CardAppearance, HeaderAppearance),
+            (SettingsSearch.ZoomId, CardZoom, HeaderZoom),
+            (SettingsSearch.AccessibilityId, CardAccessibility, HeaderAccessibility),
+            (SettingsSearch.LanguageId, CardLanguage, HeaderLanguage),
+            (SettingsSearch.DownloadsId, CardDownloads, HeaderDownloads),
+            (SettingsSearch.DataId, CardData, HeaderData),
+            (SettingsSearch.FocusId, CardFocus, HeaderFocus),
+            (SettingsSearch.PrivacyId, CardPrivacy, HeaderPrivacy),
         };
+
+        // R7E: the rail's pages, from the Core catalog — each entry's
+        // title is resolved once, here, in the window's language
+        // (this window is rebuilt per open, like every shell window).
+        foreach (var page in SettingsPages.Pages)
+            _navItems.Add(new SettingsNavItem(page, Strings.Get(page.NavTitleKey)));
+        NavList.ItemsSource = _navItems;
 
         // S6 #57: the zoom lists come from the step table for the
         // working extended-range choice; the toggle rebuilds them.
@@ -408,6 +418,10 @@ public partial class SettingsWindow : Window
         // (re-applied after every LoadControls — the design sizes are
         // remembered, so this never compounds).
         ShellTextScaling.Apply(this, _working.ShellFontScale);
+        // R7E: the rail's 208 DIP is a design width like the font
+        // sizes above — it scales with the same factor, recomputed
+        // from the design value every time, so it never compounds.
+        RailColumn.Width = new GridLength(208 * _working.ShellFontScale);
     }
 
     /// <summary>The snooze line + its cancel button (S9 #83): visible only while a snooze is actually in force.</summary>
@@ -2760,8 +2774,41 @@ public partial class SettingsWindow : Window
 
     // ───────────────────────── S5: search, memory, appearance, reset, wizard ─────────────────────────
 
-    /// <summary>Section registry (S5 #41/#48), built in the constructor: (Core section id, container, header) in layout order.</summary>
-    private readonly (string Id, System.Windows.Controls.StackPanel Container, System.Windows.Controls.TextBlock Header)[] _sections = null!;
+    /// <summary>Section registry (S5 #41/#48), built in the constructor: (Core section id, card, header) in layout order.</summary>
+    private readonly (string Id, System.Windows.Controls.Border Container, System.Windows.Controls.TextBlock Header)[] _sections = null!;
+
+    // ── R7E: the rail ──
+
+    /// <summary>One rail entry: the Core page plus its title in the window's language (the glyph comes from the page).</summary>
+    private sealed class SettingsNavItem
+    {
+        public SettingsNavItem(SettingsPageInfo page, string title)
+        {
+            Page = page;
+            Title = title;
+        }
+
+        public SettingsPageInfo Page { get; }
+        public string Title { get; }
+        public string Glyph => Page.IconGlyph;
+    }
+
+    /// <summary>The rail entries in rail order, built in the constructor from <see cref="SettingsPages.Pages"/>.</summary>
+    private readonly List<SettingsNavItem> _navItems = new();
+
+    /// <summary>The page the content pane is showing (a <see cref="SettingsPages"/> id).</summary>
+    private string _currentPageId = SettingsPages.GeneralId;
+
+    /// <summary>True while the rail's selection is being set from code (restore, search jump) — the change handler must not treat those as user picks.</summary>
+    private bool _syncingNav;
+
+    /// <summary>The section ids the active search matched (empty when not searching); card visibility reads this set.</summary>
+    private HashSet<string> _matchIds = new();
+
+    private SettingsPageInfo CurrentPage =>
+        SettingsPages.PageForId(_currentPageId) ?? SettingsPages.Default;
+
+    private bool SearchActive => !string.IsNullOrWhiteSpace(SettingsSearchText.Text);
 
     /// <summary>Accent keys parallel to AccentCombo's items (S5 #44).</summary>
     private readonly List<string> _accentKeys = new();
@@ -2771,8 +2818,13 @@ public partial class SettingsWindow : Window
 
     private void OnSettingsLoaded(object sender, RoutedEventArgs e)
     {
-        // S5 #48: scroll back to the section Settings was left on.
-        if (_working.SettingsLastSection is { } last)
+        // S5 #48 + R7E: reopen where Settings was left. The memory
+        // still stores a SECTION id (deep links name sections too);
+        // the window opens on the page carrying it and scrolls its
+        // card into view within the page.
+        var last = _working.SettingsLastSection;
+        SelectPage(SettingsPages.PageForSection(last), userDriven: false);
+        if (last is not null)
         {
             foreach (var (id, container, _) in _sections)
             {
@@ -2783,6 +2835,69 @@ public partial class SettingsWindow : Window
                     break;
                 }
             }
+        }
+    }
+
+    private void OnNavSelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_syncingNav)
+            return;
+        if (NavList.SelectedItem is SettingsNavItem item)
+            SelectPage(item.Page, userDriven: true);
+    }
+
+    /// <summary>
+    /// Show one page (R7E): its title over the pane, its rail entry
+    /// picked, its cards the only ones visible (an active search's
+    /// filter still governs the cards — see RefreshSectionVisibility).
+    /// A deliberate pick from the rail ends any search in progress:
+    /// the box clears and the page shows whole — the topic the user
+    /// just named is a clearer intent than the stale query. Search's
+    /// own jump calls this with userDriven: false and keeps its
+    /// filter. Switching pages never touches control state — every
+    /// control lives in its card for the window's whole life, so the
+    /// working copy notices nothing.
+    /// </summary>
+    private void SelectPage(SettingsPageInfo page, bool userDriven, bool scrollToTop = true)
+    {
+        if (userDriven && SearchActive)
+            SettingsSearchText.Text = ""; // ApplySearch (blank) runs; visibility re-applies below
+        _currentPageId = page.Id;
+        PageTitleText.Text = Strings.Get(page.NavTitleKey);
+        _syncingNav = true;
+        NavList.SelectedItem = _navItems.FirstOrDefault(i => i.Page.Id == page.Id);
+        _syncingNav = false;
+        RefreshSectionVisibility();
+        if (_currentSectionId is null || !page.SectionIds.Contains(_currentSectionId))
+            _currentSectionId = page.SectionIds[0];
+        if (scrollToTop)
+            SettingsScroller.ScrollToTop();
+        if (userDriven)
+            Announcer.Polite(PageTitleText.Text);
+    }
+
+    /// <summary>
+    /// The one place card visibility is decided (R7E): an active
+    /// search shows exactly its matched sections' cards (the S5 #41
+    /// filter, unchanged in spirit); otherwise the current page's
+    /// cards — and only those.
+    /// </summary>
+    private void RefreshSectionVisibility()
+    {
+        if (SearchActive)
+        {
+            foreach (var (id, container, _) in _sections)
+                container.Visibility = _matchIds.Contains(id)
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+        }
+        else
+        {
+            var page = CurrentPage;
+            foreach (var (id, container, _) in _sections)
+                container.Visibility = page.SectionIds.Contains(id)
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
         }
     }
 
@@ -2817,32 +2932,37 @@ public partial class SettingsWindow : Window
         var query = SettingsSearchText.Text;
         if (string.IsNullOrWhiteSpace(query))
         {
-            foreach (var (_, container, header) in _sections)
-            {
-                container.Visibility = Visibility.Visible;
+            // Back to page view: the current page's cards (R7E), the
+            // highlights gone, the count line cleared.
+            _matchIds = new HashSet<string>();
+            foreach (var (_, _, header) in _sections)
                 header.Background = null;
-            }
             SearchSummary.Text = "";
+            RefreshSectionVisibility();
             return;
         }
         var matches = SettingsSearch.Search(query);
-        var matchIds = new HashSet<string>(matches.Select(m => m.Id));
-        System.Windows.FrameworkElement? firstMatch = null;
-        foreach (var (id, container, header) in _sections)
-        {
-            var hit = matchIds.Contains(id);
-            container.Visibility = hit ? Visibility.Visible : Visibility.Collapsed;
-            header.Background = hit ? SearchHighlightBrush() : null;
-            // R1 #108: search results are ranked now — the window
-            // scrolls to the BEST match, not the first in layout order.
-            if (hit && matches.Count > 0 && id == matches[0].Id)
-                firstMatch = container;
-        }
+        _matchIds = new HashSet<string>(matches.Select(m => m.Id));
+        foreach (var (id, _, header) in _sections)
+            header.Background = _matchIds.Contains(id) ? SearchHighlightBrush() : null;
         SearchSummary.Text = matches.Count == 0
             ? Strings.Get("set.search_none")
             : Strings.Format("set.search_some", matches.Count, _sections.Length);
-        if (firstMatch is not null)
-            Dispatcher.BeginInvoke(new Action(() => firstMatch.BringIntoView()));
+        RefreshSectionVisibility();
+        if (matches.Count > 0)
+        {
+            // R1 #108: results are ranked — land on the BEST match.
+            // R7E: its page takes the rail and the title, its card
+            // scrolls into view; the matched cards stay the visible
+            // set (RefreshSectionVisibility's search branch).
+            var best = matches[0];
+            var page = SettingsPages.PageForSection(best.Id);
+            if (page.Id != _currentPageId)
+                SelectPage(page, userDriven: false, scrollToTop: false);
+            _currentSectionId = best.Id;
+            var card = _sections.First(s => s.Id == best.Id).Container;
+            Dispatcher.BeginInvoke(new Action(() => card.BringIntoView()));
+        }
     }
 
     /// <summary>A translucent wash of the current accent behind a matched section's header.</summary>
