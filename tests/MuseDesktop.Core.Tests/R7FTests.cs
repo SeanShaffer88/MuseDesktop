@@ -65,7 +65,13 @@ public class SavedPasswordSweepTests
 
     private static string Plant(string root, string relative)
     {
-        var path = Path.Combine(root, relative);
+        // Normalize the planted path to this OS's separator: the sweep
+        // builds its paths with Path.Combine (backslashes on Windows),
+        // so an expected path written with forward slashes would differ
+        // as a STRING on Windows even though it names the same file.
+        // (This is why this test passed on Linux and failed on the
+        // Windows CI runner — v1.8.8, PR #31's first run.)
+        var path = Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar));
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, "planted");
         return path;
