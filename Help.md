@@ -38,6 +38,7 @@ Try this:
 3. The button below opens Settings → Tray & notifications: check quiet hours isn't covering the whole day by accident, and that "Tell me when a download finishes while the window is hidden" is on if it's download alerts you're missing.
 4. Remember the app can't manufacture Muse alerts: if a task finishes without muse.ai sending a notification, there's nothing for Windows to show.
 5. Approval cards specifically: when Muse shows an approval card (a permission prompt) while the MuseDesktop window isn't the one you're looking at, the app beeps once and flashes its taskbar button — Settings → Tray & notifications → "Beep when an approval needs my attention" (on by default). It only notices the card; the approving click is always yours. If the beep stops working after a Muse page update, the card's buttons may have changed shape — that's a known limit, not your settings.
+6. Approval toasts: the same alert can also pop up as a Windows toast — Settings → Tray & notifications → "Toast notification when approval is needed" (on by default, independent of the beep: either, both, or neither). The toast says only that an approval is waiting. For Windows to deliver it, the app keeps a Start Menu shortcut named "MuseDesktop" that carries its notification identity; the shortcut is created automatically at startup while the toast setting is on, and deleting it just means it comes back next launch. If toasts stop arriving, check Windows Settings → Notifications for MuseDesktop and that Do Not Disturb is off.
 
 ## The WebView2 Runtime is missing or too old
 
