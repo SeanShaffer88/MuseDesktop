@@ -195,8 +195,11 @@ public static class SettingsReset
         target.EstimatedContextLimitTokens = fresh.EstimatedContextLimitTokens;
         // R7C field (v1.8.3): the approval beep returns to on.
         target.ApprovalBeepEnabled = fresh.ApprovalBeepEnabled;
-        // S7 fields (v0.11.0): password autosave / general autofill
-        // return to the WebView2 defaults (both on).
+        // S7 fields (v0.11.0): the autofill pair return to the
+        // current defaults — since R7F (v1.8.8) both are OFF:
+        // password autosave is never on at all (Sanitized forces it
+        // regardless), and general autofill starts off on a fresh
+        // install.
         target.PasswordAutosaveEnabled = fresh.PasswordAutosaveEnabled;
         target.GeneralAutofillEnabled = fresh.GeneralAutofillEnabled;
         // S11 fields (v1.0.0): the global hotkey returns to on with
