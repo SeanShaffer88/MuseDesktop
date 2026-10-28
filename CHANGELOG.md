@@ -4,6 +4,24 @@ All notable changes to MuseDesktop. Format follows Keep a Changelog; versions us
 
 Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhancement program; they were never published as releases. Everything in them shipped together as **1.0.0** (2026-10-24).
 
+## [1.8.8] — Unreleased
+
+Follow-on hotfix R7E2 (directed 2026-10-27): the Settings
+topics rail, made readable — from SEAN's field test of
+v1.8.6.
+
+### Fixed
+
+- **The Settings topics list reads clearly again.** The
+  topic names and icons down the left side of Settings were
+  painted black on the near-black rail in the dark theme —
+  a built-in Windows list default quietly overrode the
+  window's text color for that one list, so the topics you
+  hadn't picked were almost invisible. The rail now uses
+  the theme's text color like the rest of the window:
+  white in the dark theme, dark in the light theme, in
+  every state — picked, hovered, or waiting.
+
 ## [1.8.7] — Unreleased
 
 Follow-on slice R7C2 (directed 2026-10-27): the approval beep,

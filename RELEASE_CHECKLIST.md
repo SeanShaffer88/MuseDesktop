@@ -276,6 +276,12 @@ Updates are the one feature that needs a *newer release* to fully exist. This se
 - [ ] **R7 #170 Text spacing:** Settings → Text spacing = Wide, OK — the shell's own windows gain visibly airier line spacing (multi-line labels, Settings notes, Help chrome) at every shell text size; = Standard restores the original spacing exactly; the Muse page's text does NOT change (its reading controls are the page's own, #205); combine Wide with shell text size 150% and Compact density — nothing overlaps or clips
 - [ ] **R7 regressions:** shell text size, theme/accent, High Contrast, and the S6 focus visuals behave as before in both languages; the tray menu shows the picked language but keeps the Windows font size; --help on the command line prints the usage text in the picked language and --version still answers; the log holds no full URLs and no new startup warnings; About reads version 1.8.0
 
+## v1.8.8 — R7E2 (Settings rail text) on-machine items
+
+- [ ] **R7E2 rail text readable (dark theme):** open Settings — every topic name and icon down the left side reads at a glance, not just the picked one; hover a few topics and pick each one in turn: the text stays bright in every state and the picked topic's pill still stands out
+- [ ] **R7E2 rail text readable (light theme):** switch the shell theme to Light (Settings → Appearance) — the rail topics read dark on the light rail; switch back to Dark and confirm the rail is bright again
+- [ ] **R7E2 regressions:** Settings search still jumps to a matching topic and the count line shows under the search box; Settings opens from the tray, the ⋯ menu, and Help's buttons; About reads version 1.8.8
+
 ## v1.8.7 — R7C2 (approval beep fix) on-machine items
 
 - [ ] **R7C2 the beep sounds:** with Settings → Tray & notifications → "Beep when an approval needs my attention" ON (the default), start something in Muse that triggers an approval card, then switch to another app (MuseDesktop not active) before the card appears — when the card appears: a beep within about a second and the taskbar button flashes; the card is still waiting, unanswered (the app never answers it)
