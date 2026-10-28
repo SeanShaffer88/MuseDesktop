@@ -88,8 +88,14 @@
                              ToolTip="{local:Loc type_to_jump_to_a_setting_matching_sections}" KeyboardNavigation.TabIndex="1"/>
                     <TextBlock x:Name="SearchSummary" Style="{StaticResource Note}"/>
                 </StackPanel>
+                <!-- R7E2: Foreground is pinned on the list itself, the
+                     pattern every other list in the shell follows. WPF's
+                     built-in ListBox style paints its text with the
+                     system window-text color (black) instead of the
+                     window's inherited text color — unpinned, the rail
+                     rendered black on near-black in the dark theme. -->
                 <ListBox x:Name="NavList" Margin="0,10,0,10"
-                         Background="Transparent" BorderThickness="0"
+                         Background="Transparent" Foreground="{StaticResource TextBrush}" BorderThickness="0"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                          SelectionChanged="OnNavSelectionChanged"
                          ItemContainerStyle="{StaticResource NavItemStyle}"
@@ -103,9 +109,10 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Text="{Binding Glyph}" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
-                                           FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                           FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Foreground="{StaticResource TextBrush}"/>
                                 <TextBlock Grid.Column="1" Text="{Binding Title}" VerticalAlignment="Center"
-                                           TextTrimming="CharacterEllipsis"/>
+                                           TextTrimming="CharacterEllipsis" Foreground="{StaticResource TextBrush}"/>
                             </Grid>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
