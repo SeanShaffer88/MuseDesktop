@@ -313,6 +313,23 @@ public partial class App : System.Windows.Application
         }
 
         RunPendingProfileFolderDeletions();
+        // R7F (v1.8.8): the saved-password sweep — passwords a
+        // pre-v1.8.8 version let WebView2 save are deleted from every
+        // profile's WebView2 folder, before any WebView2 environment
+        // exists. Running it here (not only in the installer) covers
+        // portable-zip copies, which never run an installer. The
+        // sweep's file set names only the two stored-password files —
+        // cookies are never in it, so sign-ins survive. Counts only
+        // are logged, and only when something happened.
+        try
+        {
+            var sweep = SavedPasswordSweep.Run(AppPaths.ProfilesDataRoot);
+            if (sweep.Deleted > 0)
+                Log.Info($"Startup password sweep removed {sweep.Deleted} saved-password file(s) left by an older version — MuseDesktop never saves passwords now. Sign-in cookies were not touched.");
+            if (sweep.Failed > 0)
+                Log.Warn($"Startup password sweep couldn't remove {sweep.Failed} saved-password file(s) (likely in use); the sweep runs again at the next launch.");
+        }
+        catch (Exception ex) { Log.Warn($"Startup password sweep failed: {ex.Message}"); }
         // S8 #75: the startup cache-cap pass — capped profiles over
         // their cap get their allowlisted caches trimmed, and the
         // cleanup is stamped so Settings can show it happened (never

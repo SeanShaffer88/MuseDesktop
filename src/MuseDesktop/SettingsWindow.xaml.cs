@@ -401,11 +401,12 @@ public partial class SettingsWindow : Window
         AutoSaveSessionCheck.IsChecked = _working.AutoSaveSession;
         RefreshWorkspaceCombo(_working.ActiveWorkspaceId);
 
-        // S7: privacy section state — the autofill toggles (#68), the
-        // clear-data plan note (#61), the app lock (#64), the privacy
-        // report (#67), and the two live reads (#62/#63, fire-and-
-        // forget: they fill their rows when WebView2 answers).
-        PasswordAutosaveCheck.IsChecked = _working.PasswordAutosaveEnabled;
+        // S7: privacy section state — the autofill toggle (#68; the
+        // password toggle is gone since R7F — passwords are never
+        // saved, so there is nothing to load), the clear-data plan
+        // note (#61), the app lock (#64), the privacy report (#67),
+        // and the two live reads (#62/#63, fire-and-forget: they
+        // fill their rows when WebView2 answers).
         GeneralAutofillCheck.IsChecked = _working.GeneralAutofillEnabled;
         UpdateClearPlanNote();
         RefreshLockUi();
@@ -600,12 +601,13 @@ public partial class SettingsWindow : Window
         // Sanitized() (on adoption) clamps whatever parses.
         if (int.TryParse(EstimatedLimitText.Text, out var estimatedLimit))
             _working.EstimatedContextLimitTokens = estimatedLimit;
-        // S7: the autofill toggles (#68) and the app lock's tray-hide
+        // S7: the autofill toggle (#68) and the app lock's tray-hide
         // switch (#64). The lock's on/off comes from its checkbox too,
         // but the credential fields are write-through from the lock
         // dialogs — and the switch only counts with a record present
         // (AppLock.IsLockActive enforces the same rule everywhere).
-        _working.PasswordAutosaveEnabled = PasswordAutosaveCheck.IsChecked == true;
+        // Password autosave has no control to harvest since R7F —
+        // the working copy's value is whatever Sanitized left (false).
         _working.GeneralAutofillEnabled = GeneralAutofillCheck.IsChecked == true;
         _working.AppLockEnabled = AppLockEnabledCheck.IsChecked == true && AppLock.HasValidRecord(_working);
         _working.AppLockOnTrayHide = AppLockTrayHideCheck.IsChecked == true;
@@ -3388,9 +3390,11 @@ public partial class SettingsWindow : Window
         target.ShortcutOverrides = source.ShortcutOverrides;
         target.ReduceMotion = source.ReduceMotion;
         target.ExtendedZoomRange = source.ExtendedZoomRange;
-        // S7 fields (autofill toggles #68, app lock #64 — the record
-        // travels with exports/imports like everything else; a plain
-        // export exposes the salted hash, never a password, and the
+        // S7 fields (the autofill toggle #68 — the password value
+        // rides too, inert since R7F: always false after Sanitized —
+        // and the app lock #64: the record travels with
+        // exports/imports like everything else; a plain export
+        // exposes the salted hash, never a password, and the
         // fail-open sanitize means a bad record can never lock
         // anyone out).
         target.PasswordAutosaveEnabled = source.PasswordAutosaveEnabled;
