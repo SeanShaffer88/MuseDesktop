@@ -276,11 +276,16 @@ Updates are the one feature that needs a *newer release* to fully exist. This se
 - [ ] **R7 #170 Text spacing:** Settings → Text spacing = Wide, OK — the shell's own windows gain visibly airier line spacing (multi-line labels, Settings notes, Help chrome) at every shell text size; = Standard restores the original spacing exactly; the Muse page's text does NOT change (its reading controls are the page's own, #205); combine Wide with shell text size 150% and Compact density — nothing overlaps or clips
 - [ ] **R7 regressions:** shell text size, theme/accent, High Contrast, and the S6 focus visuals behave as before in both languages; the tray menu shows the picked language but keeps the Windows font size; --help on the command line prints the usage text in the picked language and --version still answers; the log holds no full URLs and no new startup warnings; About reads version 1.8.0
 
-## v1.8.8 — R7E2 (Settings rail text) on-machine items
+## v1.8.8 — R7E2 (Settings rail text) + R7F (password hardening) on-machine items
 
 - [ ] **R7E2 rail text readable (dark theme):** open Settings — every topic name and icon down the left side reads at a glance, not just the picked one; hover a few topics and pick each one in turn: the text stays bright in every state and the picked topic's pill still stands out
 - [ ] **R7E2 rail text readable (light theme):** switch the shell theme to Light (Settings → Appearance) — the rail topics read dark on the light rail; switch back to Dark and confirm the rail is bright again
 - [ ] **R7E2 regressions:** Settings search still jumps to a matching topic and the count line shows under the search box; Settings opens from the tray, the ⋯ menu, and Help's buttons; About reads version 1.8.8
+- [ ] **R7F upgrade wipes a saved password, sign-in survives:** on v1.8.7 or older (password saving still on there), sign in somewhere in the web view and let it save a password; upgrade to v1.8.8 with the Setup installer (expand the wizard's details view: the "Saved-password cleanup" lines name the removal) — afterwards the saved password is GONE (the site does not offer it back; it asks you to type it) and no page offers to save a password ever again — but you are still signed in to Muse, untouched (cookies were never in the wipe)
+- [ ] **R7F portable first-run sweep:** with a profile folder that holds a saved password from an older version, run the v1.8.8 PORTABLE zip copy (no installer) once — after that first launch the saved password is gone too (the log's "Startup password sweep" line reports the count) and the Muse sign-in still survives
+- [ ] **R7F Privacy section shape:** Settings → Privacy & security — there is NO password-saving switch anymore; the section opens with the note saying passwords are never saved, sign-ins are cookies in each profile's browser folder, and the app sends nothing anywhere; check the note reads correctly in Spanish too (Settings → Language → Español, reopen Settings)
+- [ ] **R7F autofill default:** a FRESH profile (or fresh install) starts with "Let the web view remember and refill form entries" OFF; a profile that already had it on before the upgrade still has it on (stored choices are kept)
+- [ ] **R7F regressions:** clear browsing data (cookies only) still signs the profile out as before; the in-app update path (accept → installer closes the app → installs → reopens) still works end to end; the support bundle (⋯ → save a support bundle) still saves and its preview still says cookies are not included
 
 ## v1.8.7 — R7C2 (approval beep fix) on-machine items
 
