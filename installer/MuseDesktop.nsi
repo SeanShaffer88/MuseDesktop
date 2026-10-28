@@ -69,6 +69,26 @@
 ;   silent — in-app installs have no checkbox, and the click on
 ;   Install inside the app is the consent.
 ;
+; Saved-password wipe (v1.8.8, R7F — the owner's rule: passwords
+; are never saved in this app):
+; - Versions before v1.8.8 let the web view save passwords. Upgrading
+;   removes them: after the close chain above (the app must not be
+;   holding the files) and before the new files copy, the installer
+;   deletes the stored-password database — the files named exactly
+;   "Login Data" and "Login Data-journal" — from every profile's
+;   WebView2 folder under %LOCALAPPDATA%\MuseDesktop (the default
+;   profile's "WebView2" and every "WebView2-<id>" sibling), in the
+;   two places Chromium keeps that database: the folder itself and
+;   its "Default" subfolder.
+; - ONLY those two names, only in those places. Cookies — what keeps
+;   the user signed in — are never touched, and neither is anything
+;   else. Every deletion and every not-found prints a DetailPrint
+;   line; a file that can't be deleted warns in the details view
+;   and the install continues regardless (the app's own startup
+;   sweep, Core SavedPasswordSweep, retries the same wipe on every
+;   launch, which also covers portable-zip copies that never run
+;   this installer).
+;
 ; Installer audit (v0.13.0, S9 #86):
 ; - Install folder: the directory page (MUI_PAGE_DIRECTORY) offers a
 ;   choice, still per-user with no admin, and InstallDirRegKey reads
@@ -134,6 +154,8 @@ Var MdWasRunning  ; 1 when a MuseDesktop instance was running at install start
 Var MdRunning     ; scratch: result of the last process check (1 = still running)
 Var MdCheckCode   ; scratch: exit-code text of the last process check
 Var MdTries       ; scratch: poll-loop counter
+Var MdPwDir       ; R7F scratch: profile folder the saved-password wipe is working on
+Var MdPwFind      ; R7F scratch: FindFirst/FindNext handle for the profile-folder walk
 
 ; Is MuseDesktop.exe running? Sets $MdRunning. The answer rides
 ; PowerShell's EXIT CODE — 0 = a MuseDesktop process exists, 3 =
@@ -171,6 +193,33 @@ Var MdTries       ; scratch: poll-loop counter
     Sleep 500
   ${Loop}
 !macroend
+
+; R7F: delete ONE saved-password file (path relative to $MdPwDir),
+; saying what happened either way. A failed Delete never aborts the
+; install — it warns here and the app's startup sweep retries later.
+!macro MD_DELETE_SAVED_PASSWORD REL
+  ${If} ${FileExists} "$MdPwDir\${REL}"
+    Delete "$MdPwDir\${REL}"
+    ${If} ${FileExists} "$MdPwDir\${REL}"
+      DetailPrint "Saved-password cleanup: couldn't remove ${REL} from $MdPwDir — continuing anyway (the app retries at its next launch)."
+    ${Else}
+      DetailPrint "Saved-password cleanup: removed ${REL} from $MdPwDir."
+    ${EndIf}
+  ${Else}
+    DetailPrint "Saved-password cleanup: no ${REL} in $MdPwDir."
+  ${EndIf}
+!macroend
+
+; R7F: wipe the saved-password database from the profile folder in
+; $MdPwDir — the two file names, in the two places Chromium keeps
+; them (the folder itself and its Default subfolder). Nothing else
+; in the folder is ever named here, so cookies and sign-ins survive.
+Function MdWipeProfilePasswords
+  !insertmacro MD_DELETE_SAVED_PASSWORD "Login Data"
+  !insertmacro MD_DELETE_SAVED_PASSWORD "Login Data-journal"
+  !insertmacro MD_DELETE_SAVED_PASSWORD "Default\Login Data"
+  !insertmacro MD_DELETE_SAVED_PASSWORD "Default\Login Data-journal"
+FunctionEnd
 
 Section "MuseDesktop" SecMain
   SectionIn RO
@@ -222,6 +271,28 @@ Section "MuseDesktop" SecMain
       ${EndIf}
     ${EndIf}
   ${EndIf}
+
+  ; ── R7F: wipe passwords saved by older versions ──
+  ; After the close chain above (nothing is holding the files now),
+  ; before the new program files copy. Every profile folder: the
+  ; default profile's own folder, then every WebView2-<id> sibling.
+  ; Only the two stored-password names are ever deleted — cookies
+  ; (sign-ins) and everything else stay exactly as they were.
+  DetailPrint "Saved-password cleanup: removing passwords saved by older MuseDesktop versions (sign-ins and cookies are kept)."
+  StrCpy $MdPwDir "$LOCALAPPDATA\MuseDesktop\WebView2"
+  Call MdWipeProfilePasswords
+  FindFirst $MdPwFind $MdPwDir "$LOCALAPPDATA\MuseDesktop\WebView2-*"
+  MdPwLoop:
+    StrCmp $MdPwDir "" MdPwDone
+    Push $MdPwDir
+    StrCpy $MdPwDir "$LOCALAPPDATA\MuseDesktop\$MdPwDir"
+    Call MdWipeProfilePasswords
+    Pop $MdPwDir
+    FindNext $MdPwFind $MdPwDir
+    IfErrors MdPwDone
+    Goto MdPwLoop
+  MdPwDone:
+  FindClose $MdPwFind
 
   SetOutPath "$INSTDIR"
   File /r "${STAGE}\*.*"

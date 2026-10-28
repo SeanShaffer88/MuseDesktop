@@ -1109,12 +1109,14 @@ public partial class MainWindow : Window
         core.Settings.IsBuiltInErrorPageEnabled = false;
         core.Settings.IsZoomControlEnabled = true;
         core.Settings.AreBrowserAcceleratorKeysEnabled = true;
-        // S7 #68: password autosave / general autofill are the user's
-        // choice now (both default to WebView2's defaults — on). The
-        // value is shared per profile, so this one application covers
-        // every web view this profile ever creates.
+        // S7 #68, hardened by R7F (v1.8.8): general autofill is the
+        // user's choice (default off since R7F); password autosave
+        // is OFF unconditionally — the owner's rule is that passwords
+        // are never saved in the app, so no setting value is read
+        // here at all. The value is shared per profile, so this one
+        // application covers every web view this profile creates.
         core.Settings.IsGeneralAutofillEnabled = _settings.GeneralAutofillEnabled;
-        core.Settings.IsPasswordAutosaveEnabled = _settings.PasswordAutosaveEnabled;
+        core.Settings.IsPasswordAutosaveEnabled = false;
 
         core.NavigationStarting += OnNavigationStarting;
         core.NavigationCompleted += OnNavigationCompleted;
@@ -2441,10 +2443,13 @@ public partial class MainWindow : Window
         _settings.ShortcutOverrides = clone.ShortcutOverrides;
         _settings.ReduceMotion = clone.ReduceMotion;
         _settings.ExtendedZoomRange = clone.ExtendedZoomRange;
-        // S7: the autofill toggles (#68, applied live just below) and
+        // S7: the autofill toggle (#68, applied live just below) and
         // the app-lock record + switches (#64 — write-through from the
         // Privacy section's own dialogs, adopted here like everything
-        // else so Cancel in Settings discards a removal too).
+        // else so Cancel in Settings discards a removal too). The
+        // password-autosave value rides along only so the settings
+        // file keeps its shape — since R7F it is always false after
+        // Sanitized and is never applied to the web view.
         _settings.PasswordAutosaveEnabled = clone.PasswordAutosaveEnabled;
         _settings.GeneralAutofillEnabled = clone.GeneralAutofillEnabled;
         _settings.AppLockEnabled = clone.AppLockEnabled;
@@ -2476,8 +2481,9 @@ public partial class MainWindow : Window
         {
             // #68 live apply: the value is shared per WebView2
             // profile, so setting it on the running view covers the
-            // profile (see DECISIONS).
-            Browser.CoreWebView2.Settings.IsPasswordAutosaveEnabled = _settings.PasswordAutosaveEnabled;
+            // profile (see DECISIONS). Password autosave is applied
+            // as OFF unconditionally (R7F) — never from the setting.
+            Browser.CoreWebView2.Settings.IsPasswordAutosaveEnabled = false;
             Browser.CoreWebView2.Settings.IsGeneralAutofillEnabled = _settings.GeneralAutofillEnabled;
         }
         Topmost = _settings.AlwaysOnTop;

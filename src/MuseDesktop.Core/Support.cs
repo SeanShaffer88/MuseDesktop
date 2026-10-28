@@ -171,6 +171,10 @@ public static class SupportBundle
         copy.AppLockSalt = null;
         copy.AppLockHash = null;
         copy.AppLockIterations = 0;
+        // R7F (v1.8.8): the bundle copy states the standing rule —
+        // passwords are never saved — rather than echoing a legacy
+        // stored value an un-sanitized caller might still hold.
+        copy.PasswordAutosaveEnabled = false;
         // Last pages are full conversation URLs; custom start pages are
         // full URLs the user typed. Both stay home.
         copy.LastUrl = null;

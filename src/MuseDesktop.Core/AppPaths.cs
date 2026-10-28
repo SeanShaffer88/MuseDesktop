@@ -100,15 +100,23 @@ public static class AppPaths
     public static string LogDir => Path.Combine(RootDir, "logs");
     public static string LogPath => Path.Combine(LogDir, "musedesktop.log");
 
-    /// <summary>WebView2 profile (cookies / local storage — what keeps you signed in) for the default profile; additional profiles get sibling folders (see Profiles.FolderName).</summary>
-    public static string WebViewDataDir => Path.Combine(
+    /// <summary>
+    /// The per-user data root holding every profile's WebView2 folder:
+    /// %LOCALAPPDATA%\MuseDesktop, with one subfolder per profile
+    /// (WebView2, WebView2-&lt;id&gt;, … — see Profiles.FolderName).
+    /// The installer's saved-password wipe and the startup sweep
+    /// (R7F) both enumerate THIS folder's profile subfolders.
+    /// </summary>
+    public static string ProfilesDataRoot => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "MuseDesktop", "WebView2");
+        "MuseDesktop");
+
+    /// <summary>WebView2 profile (cookies / local storage — what keeps you signed in) for the default profile; additional profiles get sibling folders (see Profiles.FolderName).</summary>
+    public static string WebViewDataDir => Path.Combine(ProfilesDataRoot, "WebView2");
 
     /// <summary>The WebView2 data folder for any profile id (v0.3.0).</summary>
     public static string ProfileDir(string profileId) => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "MuseDesktop", Profiles.FolderName(profileId));
+        ProfilesDataRoot, Profiles.FolderName(profileId));
 
     public static string DownloadsHint =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "Downloads");

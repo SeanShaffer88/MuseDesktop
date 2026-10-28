@@ -351,15 +351,28 @@ public sealed class AppSettings
 
     // Privacy & security (v0.11.0, S7).
     /// <summary>
-    /// Let Muse (and its sign-in pages) save passwords in WebView2 and
-    /// offer them back (S7 #68). This is WebView2's own default (on);
-    /// the app hardcoded it on before v0.11.0. Applied to each profile's
-    /// web view at init and live when changed in Settings.
+    /// Was: let Muse (and its sign-in pages) save passwords in WebView2
+    /// and offer them back (S7 #68 — a user choice, defaulting on).
+    /// Since v1.8.8 (R7F, the owner's decision) passwords are NEVER
+    /// saved in the app: the property remains in the file only so
+    /// settings written by older versions still load, and
+    /// <see cref="Sanitized"/> forces it to false on every load — a
+    /// stored true is never honored, the Settings toggle is gone, and
+    /// the shell applies WebView2's password autosave as OFF
+    /// unconditionally. Passwords older versions did save are wiped
+    /// by the installer and by the startup sweep
+    /// (<see cref="SavedPasswordSweep"/>); sign-in cookies are never
+    /// touched by any of it.
     /// </summary>
-    public bool PasswordAutosaveEnabled { get; set; } = true;
+    public bool PasswordAutosaveEnabled { get; set; }
 
-    /// <summary>Let WebView2 remember and refill ordinary form fields (S7 #68). WebView2's default (on), like password autosave.</summary>
-    public bool GeneralAutofillEnabled { get; set; } = true;
+    /// <summary>
+    /// Let WebView2 remember and refill ordinary form fields (S7 #68).
+    /// The toggle stays, but the DEFAULT changed in v1.8.8 (R7F):
+    /// fresh installs start with autofill off; a value a user already
+    /// stored is an explicit choice and is respected exactly as stored.
+    /// </summary>
+    public bool GeneralAutofillEnabled { get; set; }
 
     // App lock (v0.11.0, S7 #64). The credential itself is NEVER stored —
     // only the AppLock record: a random salt + PBKDF2 hash + iteration
@@ -533,6 +546,12 @@ public sealed class AppSettings
         // other numeric knob — a hand-edited absurdity degrades to
         // the default or the nearest offered bound, never a crash.
         EstimatedContextLimitTokens = TokenEstimator.SanitizeLimit(EstimatedContextLimitTokens);
+        // R7F (v1.8.8): passwords are never saved in the app — a
+        // stored true from a version that still offered the toggle
+        // is repaired to false here, on every load path (Load and
+        // TryImport both come through Sanitized), so nothing
+        // downstream can honor it.
+        PasswordAutosaveEnabled = false;
         // After the profile list is final: pending deletions must never
         // name a live profile (S3 #28).
         global::MuseDesktop.Core.Profiles.SanitizePendingDeletions(this);

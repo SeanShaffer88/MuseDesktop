@@ -867,8 +867,10 @@
                     <StackPanel x:Name="SectionPrivacy">
                         <TextBlock x:Name="HeaderPrivacy" Text="{local:Loc privacy_security}" Style="{StaticResource SectionHeader}"/>
 
-                        <CheckBox x:Name="PasswordAutosaveCheck" Content="{local:Loc let_muse_save_passwords_in_the_web_view}"
-                                  ToolTip="{local:Loc webview2_s_own_password_save_on_by_default}" KeyboardNavigation.TabIndex="180"/>
+                        <!-- R7F (v1.8.8): what is stored where, in plain words — including the
+                             never-save-passwords rule that replaced the old password toggle. -->
+                        <TextBlock Style="{StaticResource Note}" Margin="0,2,0,8"
+                                   Text="{local:Loc musedesktop_never_saves_passwords_the_web_view}"/>
                         <CheckBox x:Name="GeneralAutofillCheck" Content="{local:Loc let_the_web_view_remember_and_refill_form}"
                                   ToolTip="{local:Loc webview2_s_general_autofill_for_ordinary}" KeyboardNavigation.TabIndex="181"/>
                         <TextBlock Style="{StaticResource Note}"
