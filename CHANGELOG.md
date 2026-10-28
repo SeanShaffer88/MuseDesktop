@@ -4,6 +4,25 @@ All notable changes to MuseDesktop. Format follows Keep a Changelog; versions us
 
 Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhancement program; they were never published as releases. Everything in them shipped together as **1.0.0** (2026-10-24).
 
+## [1.8.6] — Unreleased
+
+Follow-on slice R7E (directed 2026-10-27): the Settings window,
+reorganized.
+
+### Changed
+
+- **Settings is organized by topic now.** The window used to be
+  one long scrolling page of twelve sections. Now it works like
+  the Settings in the Muse app itself: a list of topics down
+  the left side — General, Appearance, Profiles, Workspaces,
+  Notifications, Focus, Downloads, Data, Language, Accessibility,
+  Privacy — and the right side shows just the topic you picked,
+  its settings grouped in cards. (Zoom rides along in
+  Appearance, as its own card.) Every setting is where it was —
+  same names, same order inside each topic — only the layout
+  changed. The search box still jumps straight to a setting,
+  Settings still reopens where you left it, and links that open
+  Settings at a particular section land on the right topic.
 ## [1.8.5] — Unreleased
 
 Hotfix R7D1 (directed 2026-10-27): the installer close/relaunch
