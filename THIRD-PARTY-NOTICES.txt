@@ -21,3 +21,10 @@ Microsoft.Web.WebView2 (the WebView2 SDK)
   MuseDesktop ships as a self-contained build, so the .NET runtime
   travels inside the install — that's most of the download size, and
   it's why runtime fixes arrive with app releases.
+
+NotifyKit v0.2.0 (notify_kit.dll)
+  Licensed under the MIT License.
+  https://github.com/SeanShaffer88/NotifyKit
+  Vendored release binary, shipped unmodified beside MuseDesktop.exe:
+  the approval toast notifications are shown through it. The DLL is
+  loaded at runtime only; nothing of it is compiled into MuseDesktop.

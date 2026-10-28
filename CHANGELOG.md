@@ -4,6 +4,25 @@ All notable changes to MuseDesktop. Format follows Keep a Changelog; versions us
 
 Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhancement program; they were never published as releases. Everything in them shipped together as **1.0.0** (2026-10-24).
 
+## [1.9.0] — Unreleased
+
+### Added
+
+- **Approval alerts can pop a toast as well as beep.** When
+  Muse shows an approval card while the MuseDesktop window
+  isn't the active one, the alert can now also appear as a
+  Windows toast notification: Settings → Tray & notifications →
+  "Toast notification when approval is needed" (on by
+  default), beside the beep switch. The two channels are
+  independent — beep only, toast only, both, or neither — and
+  the toast says only that an approval is waiting, never what
+  the card asks. MuseDesktop still only notices the card;
+  the approving click is always yours. Toasts are shown
+  through the bundled NotifyKit library, and the app keeps a
+  Start Menu shortcut named "MuseDesktop" that carries its
+  notification identity, which is what Windows needs to
+  deliver them.
+
 ## [1.8.8] — Unreleased
 
 Two changes ship together in v1.8.8 (grouped release):

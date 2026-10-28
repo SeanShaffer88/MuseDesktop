@@ -59,6 +59,10 @@ public partial class MainWindow : Window
     // R7C2: a slow tick asks the policy for reminder beeps while a
     // card waits; every verdict is logged (presence/reason only).
     private readonly ApprovalAttentionPolicy _approvalAttention = new();
+    // R8: the approval toast channel — the beep's sibling, fed by
+    // the same policy verdicts. Its own failures are logged inside
+    // the notifier, which then disables itself for the session.
+    private readonly NotifyKitToastNotifier _approvalToastNotifier;
     private DispatcherTimer? _approvalTimer;
     private ApprovalBeepOutcome? _lastApprovalTickOutcome;
     private bool _isFullScreen;
@@ -208,6 +212,7 @@ public partial class MainWindow : Window
     {
         _settings = settings;
         _log = log;
+        _approvalToastNotifier = new NotifyKitToastNotifier(log);
         _safeMode = safeMode;
         _startupClock = startupClock;
         // Locked-at-start is only ever the background (tray) launch
@@ -396,6 +401,13 @@ public partial class MainWindow : Window
         Closing += OnClosing;
         Closed += (_, _) => _hotkeyManager?.Dispose();
         Closed += (_, _) => _noteHotkeyManager?.Dispose();
+        Closed += (_, _) => _approvalToastNotifier.Dispose();
+        // R8: the toast identity errand — the Start Menu shortcut
+        // stamped with the app's AppUserModelID, ensured off the UI
+        // thread. Toasts are its only reason to exist, so it runs
+        // only when the toast channel is on.
+        if (_settings.ApprovalToastEnabled)
+            _ = Task.Run(() => AppUserModelId.Ensure(_log));
         PreviewKeyDown += OnPreviewKeyDown;
         // R1 #103: the main window is the MRU list's permanent first
         // citizen — touched here so the switcher always knows it.
@@ -2392,6 +2404,7 @@ public partial class MainWindow : Window
         _settings.TraySingleClickRestore = clone.TraySingleClickRestore;
         _settings.FlashTaskbarOnAttention = clone.FlashTaskbarOnAttention;
         _settings.ApprovalBeepEnabled = clone.ApprovalBeepEnabled;
+        _settings.ApprovalToastEnabled = clone.ApprovalToastEnabled;
         _settings.QuietHoursEnabled = clone.QuietHoursEnabled;
         _settings.QuietHoursStartMinutes = clone.QuietHoursStartMinutes;
         _settings.QuietHoursEndMinutes = clone.QuietHoursEndMinutes;
@@ -3978,12 +3991,12 @@ public partial class MainWindow : Window
     {
         var userLooking = IsActive && WindowState != WindowState.Minimized;
         var outcome = _approvalAttention.ObserveAppeared(
-            signal, _settings.ApprovalBeepEnabled, userLooking, DateTimeOffset.UtcNow);
+            signal, _settings.ApprovalBeepEnabled || _settings.ApprovalToastEnabled, userLooking, DateTimeOffset.UtcNow);
         switch (outcome)
         {
             case ApprovalBeepOutcome.Beep:
                 _log.Info($"Approval card detected (signal: {ApprovalSignalName(signal)}) — beep sounded.");
-                SoundApprovalAlert();
+                FireApprovalAlert();
                 break;
             case ApprovalBeepOutcome.SuppressedWindowActive:
                 _log.Info($"Approval card detected (signal: {ApprovalSignalName(signal)}); no beep — the window is active.");
@@ -4022,11 +4035,11 @@ public partial class MainWindow : Window
             return;
         var userLooking = IsActive && WindowState != WindowState.Minimized;
         var outcome = _approvalAttention.ObserveStillPresent(
-            _settings.ApprovalBeepEnabled, userLooking, DateTimeOffset.UtcNow);
+            _settings.ApprovalBeepEnabled || _settings.ApprovalToastEnabled, userLooking, DateTimeOffset.UtcNow);
         if (outcome == ApprovalBeepOutcome.Beep)
         {
             _log.Info($"Approval card still waiting (signal: {ApprovalSignalName(_approvalAttention.CurrentSignal)}) — reminder beep sounded.");
-            SoundApprovalAlert();
+            FireApprovalAlert();
         }
         else if (outcome != _lastApprovalTickOutcome)
         {
@@ -4036,6 +4049,26 @@ public partial class MainWindow : Window
                 _log.Info("Approval reminders stopped — the beep setting was turned off.");
         }
         _lastApprovalTickOutcome = outcome;
+    }
+
+    /// <summary>
+    /// Fan one judged alert out to its channels (R8). The policy
+    /// was asked with the beep and toast settings OR-ed — a verdict
+    /// can therefore arrive for either channel — and each channel
+    /// still honors only its own switch: the beep sounds only when
+    /// the beep setting is on, the toast shows only when the toast
+    /// setting is on, and the taskbar flash rides along unchanged
+    /// either way (it is inside the beep path, and stands in for it
+    /// when the beep is off). No channel can answer the card.
+    /// </summary>
+    private void FireApprovalAlert()
+    {
+        if (_settings.ApprovalBeepEnabled)
+            SoundApprovalAlert();
+        else
+            FlashTaskbarButton();
+        if (_settings.ApprovalToastEnabled)
+            _approvalToastNotifier.Show();
     }
 
     /// <summary>The alert itself (R7C): the system exclamation sound, then the taskbar flash.</summary>

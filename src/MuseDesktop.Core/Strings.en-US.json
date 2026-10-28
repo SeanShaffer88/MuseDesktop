@@ -947,6 +947,8 @@
  "token.used_of_limit": "{0} of {1} tokens ({2}%)",
  "approval.beep_label": "Beep when an approval needs my attention",
  "approval.beep_tooltip": "When Muse shows an approval card — a permission prompt waiting for your click — while this window isn't active, play a beep and flash the taskbar button. If the card keeps waiting, the beep repeats every 20 seconds until you answer the card or come back to this window. MuseDesktop only notices the card; it never answers it.",
+ "approval.toast_label": "Toast notification when approval is needed",
+ "approval.toast_tooltip": "When an approval alert fires (the same moment the beep would sound), also show a Windows toast notification, so the alert is visible even with the sound off. The toast only says an approval is waiting — never what the card asks. MuseDesktop only notices the card; it never answers it.",
  "toolbar_buttons_tick_to_show_select_then": "Toolbar buttons — tick to show, select then move with ↑ / ↓ (the ⋯ menu is always there, last):",
  "tray.downloads": "Downloads",
  "tray.focus_done_body": "Nice work — {0} minutes focused. Take a break?",

@@ -10,7 +10,7 @@
     <LangVersion>latest</LangVersion>
     <AssemblyName>MuseDesktop</AssemblyName>
     <RootNamespace>MuseDesktop</RootNamespace>
-    <Version>1.8.8</Version>
+    <Version>1.9.0</Version>
     <!-- Ship only English satellite assemblies: the shell UI's own
          localization is MuseDesktop's catalog (R7, in Core — no WPF
          satellite assemblies involved), and the self-contained runtime
@@ -65,6 +65,14 @@
          view shows the files this install actually carries. -->
     <Content Include="..\..\LICENSE" Link="LICENSE" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\..\THIRD-PARTY-NOTICES.txt" Link="THIRD-PARTY-NOTICES.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- NotifyKit (R8): the vendored notify_kit.dll ships beside the
+         exe; the approval toast channel P/Invokes it at runtime. The
+         binary is the NotifyKit v0.2.0 release asset, vendored
+         unmodified — see THIRD-PARTY-NOTICES.txt. -->
+    <Content Include="Native\notify_kit.dll" Link="notify_kit.dll" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

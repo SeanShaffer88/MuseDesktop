@@ -195,6 +195,8 @@ public static class SettingsReset
         target.EstimatedContextLimitTokens = fresh.EstimatedContextLimitTokens;
         // R7C field (v1.8.3): the approval beep returns to on.
         target.ApprovalBeepEnabled = fresh.ApprovalBeepEnabled;
+        // R8 field: the approval toast returns to on, with the beep.
+        target.ApprovalToastEnabled = fresh.ApprovalToastEnabled;
         // S7 fields (v0.11.0): the autofill pair return to the
         // current defaults — since R7F (v1.8.8) both are OFF:
         // password autosave is never on at all (Sanitized forces it

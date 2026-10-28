@@ -947,6 +947,8 @@
  "token.used_of_limit": "{0} de {1} tokens ({2} %)",
  "approval.beep_label": "Emitir un pitido cuando una aprobación necesite mi atención",
  "approval.beep_tooltip": "Cuando Muse muestra una tarjeta de aprobación — una solicitud de permiso que espera tu clic — mientras esta ventana no está activa, reproduce un pitido y hace parpadear el botón de la barra de tareas. Si la tarjeta sigue esperando, el pitido se repite cada 20 segundos hasta que respondas la tarjeta o vuelvas a esta ventana. MuseDesktop solo detecta la tarjeta; nunca la responde.",
+ "approval.toast_label": "Notificación toast cuando se necesite una aprobación",
+ "approval.toast_tooltip": "Cuando se activa una alerta de aprobación (el mismo momento en que sonaría el pitido), muestra también una notificación toast de Windows, para que la alerta se vea aunque el sonido esté apagado. La notificación solo dice que hay una aprobación en espera, nunca lo que pide la tarjeta. MuseDesktop solo detecta la tarjeta; nunca la responde.",
  "toolbar_buttons_tick_to_show_select_then": "Botones de la barra de herramientas — marca para mostrar, selecciona y mueve con ↑ / ↓ (el menú ⋯ siempre está, al final):",
  "tray.downloads": "Descargas",
  "tray.focus_done_body": "Buen trabajo — {0} minutos concentrado. ¿Tomamos un descanso?",

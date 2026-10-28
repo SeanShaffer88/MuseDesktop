@@ -2,6 +2,13 @@
 
 A living log of significant architecture, UX, security, and dependency decisions.
 
+## 2026-10-28 — Approval alerts gain a toast channel (R8): NotifyKit vendored, own AppUserModelID
+
+- **The policy was not extended — the shell fans out.** Core's ApprovalAttentionPolicy judges an approval card once (setting on, window not active, cooldown, the 20 s reminder cycle). R8 asks it with the beep and toast settings OR-ed and fans a "beep" verdict out to the channels, each honoring only its own setting; the taskbar flash is unchanged. One state machine means the channels can never disagree about whether an alert is due; the alternative — a second policy for toasts — would duplicate every judgment and invite exactly that drift.
+- **NotifyKit is vendored as a binary, not taken as a package.** NotifyKit is a single zero-dependency DLL behind a C ABI (v0.2.0 adds the WinRT toast backend). The release binary ships unmodified in `src/MuseDesktop/Native/notify_kit.dll` and is copied beside the exe as content; the shell P/Invokes it lazily and treats every failure as "channel unavailable for this session", logged once. There is no package feed for the sibling project, and inventing one for a single file would be machinery without a payoff; the pinned version and its provenance are recorded in THIRD-PARTY-NOTICES.txt.
+- **The app carries its own AppUserModelID on a Start Menu shortcut.** Windows delivers toasts to unpackaged apps only under an identity it learned from a Start Menu shortcut stamped with that identity. The app ensures its per-user shortcut (`MuseDesktop.lnk`, pointing at the running executable) at startup on a background thread — created when missing, stamped either way — rather than depending on the installer, so portable-zip runs get toasts too. The errand is best-effort: a failure is a log line, never a prompt.
+- **Observe-only, still.** The toast's title and body are fixed strings built in Core; nothing the card says crosses into the notification, the watcher remains the only thing that looks at the page, and no toast surface can approve, deny, or dismiss anything.
+
 ## 2026-10-27 — v1.8.8 slice R7F: passwords are never saved — and the ones already saved are wiped
 
 - **The owner's two decisions (SEAN, 2026-10-27), implemented exactly:** (1) "Never save passwords in the app" — password saving inside the embedded browser is off for good, a rule rather than a default; (2) "The installer should delete previously saved passwords for MuseDesktop" — upgrading removes what older versions saved. And the standing constraint on both: sign-ins must survive — cookies are never touched by any of it, because being signed in to Muse is a cookie, not a password.
