@@ -4,6 +4,35 @@ All notable changes to MuseDesktop. Format follows Keep a Changelog; versions us
 
 Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhancement program; they were never published as releases. Everything in them shipped together as **1.0.0** (2026-10-24).
 
+## [1.8.7] — Unreleased
+
+Follow-on slice R7C2 (directed 2026-10-27): the approval beep,
+fixed — from SEAN's field test of v1.8.3.
+
+### Fixed
+
+- **The approval beep can hear the card now.** The v1.8.3
+  watcher only believed a card when it found an approve button
+  and a deny button side by side, both with exact labels, inside
+  a small box — and on the real page it never matched, so the
+  beep never sounded. The watcher now leads with the rule from
+  SEAN's own browser alert script, which works on the real page:
+  any visible button whose label starts with "Allow". The old
+  pair rule stays on as a back-up signal, the box-size condition
+  is gone, and the watcher speaks up sooner — about a third of
+  a second after a card appears, not most of a second.
+- **The beep repeats while a card waits.** If an approval card
+  is still waiting and you still haven't come back to the
+  window, the beep sounds again every 20 seconds, so a card
+  that appears the moment you step away isn't missed for good.
+  Answering the card, or coming back to the window, ends the
+  reminders for that card.
+- **The log now says what the beep did, and why.** Every
+  detection, beep, reminder, and skip (window active, setting
+  off, too soon after the last beep) leaves a short line in the
+  app log — which rule matched and the reason, never anything
+  the card itself said.
+
 ## [1.8.6] — Unreleased
 
 Follow-on slice R7E (directed 2026-10-27): the Settings window,
