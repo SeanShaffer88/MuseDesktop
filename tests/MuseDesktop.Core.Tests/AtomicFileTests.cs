@@ -68,7 +68,9 @@ public sealed class AtomicFileTests
 
         try
         {
-            Assert.ThrowsAny<IOException>(() => AtomicFile.WriteAllText(target, "replacement"));
+            var error = Record.Exception(() => AtomicFile.WriteAllText(target, "replacement"));
+            // Replacing a directory is an I/O failure on Unix and access-denied on Windows.
+            Assert.True(error is IOException or UnauthorizedAccessException, $"Unexpected failure: {error}");
             Assert.True(Directory.Exists(target));
             Assert.Empty(Directory.GetFiles(directory, "target.json.*.tmp"));
         }

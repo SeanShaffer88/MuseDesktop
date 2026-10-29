@@ -666,7 +666,9 @@ public class R5Tests
             Array.Empty<DownloadRecord>(), Array.Empty<WindowDescriptor>(),
             noteEntries: notes.NotesFor("p1"));
 
-        var result = Assert.Single(palette.Search("quasar", new ActionHistory()));
+        var results = palette.Search("quasar", new ActionHistory());
+        var result = Assert.Single(results, item => item.Command.Source == PaletteCommandSource.Note);
+        Assert.Same(result, results[0]); // The full-text hit outranks incidental fuzzy keyword matches.
         Assert.Equal(PaletteCommandSource.Note, result.Command.Source);
         Assert.Equal($"note.open.{note.Id}", result.Command.Id);
         Assert.Equal(note.Id, result.Command.Payload);

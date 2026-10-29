@@ -2,6 +2,10 @@
 
 A living log of significant architecture, UX, security, and dependency decisions.
 
+## 2026-10-29 — PR #20 compile and regression verification
+
+Resolve WPF/WinForms name ambiguities explicitly and remove the download tracker local-name collision without changing UI behavior. Support-bundle redaction processes UNC paths before drive paths: otherwise a drive-path match can consume the first slash of a later UNC path and expose its server/share suffix. Regression assertions cover isolated paths, adjacent mixed paths, and newline-separated paths. Test contracts accept cancellation subclasses and platform-specific file replacement failures; note-search checks the unique note hit and its top rank while preserving documented fuzzy matching.
+
 ## 2026-10-25 — v1.6.0 Round 2 Slice R5B: conversation tools (items 201–206)
 
 - **The no-injection rule gains a scoped, owner-approved exception.** The standing rule (2026-10-20) was that the shell never restyles or injects into muse.ai. SEAN's follow-on six require exactly that, so this slice injects — and the exception is drawn tightly: the app may RESTYLE the page at the user's own settings (scrollbars, text size, column width, line spacing), OBSERVE it (composer text for drafts, message structure for export/find), and INSERT text the user explicitly chose (a snippet, a restored draft) into the composer. It never acts in the page on the user's behalf: nothing is sent, submitted, clicked, or navigated by injection. All of it ships as one document script installed with `AddScriptToExecuteOnDocumentCreatedAsync`, and every feature degrades to a quiet no-op if the page's shape changes — the page as shipped is always the fallback. This entry does not reopen the rule for anything beyond these six items.

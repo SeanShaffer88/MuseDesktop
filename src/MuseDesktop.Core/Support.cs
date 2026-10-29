@@ -173,7 +173,9 @@ public static class SupportBundle
     {
         if (string.IsNullOrEmpty(text))
             return text ?? "";
-        return UncLocalPath.Replace(WindowsLocalPath.Replace(text, "[local path omitted]"), "[local path omitted]");
+        // Remove UNC paths before a drive-path match can consume their first slash
+        // and leave a server/share suffix that no longer looks like a UNC path.
+        return WindowsLocalPath.Replace(UncLocalPath.Replace(text, "[local path omitted]"), "[local path omitted]");
     }
 
     /// <summary>The bundle's log excerpt: the tail, with secrets and local paths redacted. Never the raw file.</summary>

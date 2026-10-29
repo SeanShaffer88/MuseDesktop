@@ -705,7 +705,7 @@ public class R4Tests
 
         using var cancelled = new CancellationTokenSource();
         cancelled.Cancel();
-        await Assert.ThrowsAsync<OperationCanceledException>(() =>
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
             DownloadHash.VerifyAsync(path, new string('0', 64), cancellationToken: cancelled.Token));
     }
 
@@ -739,7 +739,7 @@ public class R4Tests
         Assert.InRange(parsed.Links.Count, 0, BatchLinkParser.MaxLinks);
         Assert.All(parsed.Links, link =>
         {
-            Assert.True(Uri.TryCreate(link.Uri, UriKind.Absolute, out var uri));
+            Assert.True(Uri.TryCreate(link.Url, UriKind.Absolute, out var uri));
             Assert.True(uri!.Scheme is "http" or "https");
             Assert.False(string.IsNullOrWhiteSpace(uri.Host));
             Assert.InRange(link.FileName.Length, 1, 120);

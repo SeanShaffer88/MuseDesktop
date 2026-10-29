@@ -184,7 +184,17 @@ public class S10Tests
             @"Failure at C:\Users\Riley Smith\AppData\Local\MuseDesktop\settings.json and \\server\share\profile\data.db");
         Assert.DoesNotContain(@"C:\Users", redacted);
         Assert.DoesNotContain(@"\\server\share", redacted);
-        Assert.Equal(2, redacted.Split("[local path omitted]", StringSplitOptions.None).Length - 1);
+        Assert.DoesNotContain("Riley Smith", redacted);
+        Assert.DoesNotContain("server", redacted);
+        Assert.DoesNotContain("share", redacted);
+        Assert.DoesNotContain("profile", redacted);
+        Assert.DoesNotContain("data.db", redacted);
+        // Conservative redaction may remove both paths in one span.
+        Assert.Contains("[local path omitted]", redacted);
+        Assert.Equal("[local path omitted]", SupportBundle.RedactLocalPaths(@"C:\Users\Riley Smith\settings.json"));
+        Assert.Equal("[local path omitted]", SupportBundle.RedactLocalPaths(@"\\server\share\profile\data.db"));
+        var separatePaths = SupportBundle.RedactLocalPaths("C:\\Users\\Riley\\settings.json\n\\\\server\\share\\data.db");
+        Assert.Equal("[local path omitted]\n[local path omitted]", separatePaths);
     }
 
     [Fact]

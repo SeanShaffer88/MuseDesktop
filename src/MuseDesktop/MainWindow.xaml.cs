@@ -9,6 +9,8 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Windows;
+using Grid = System.Windows.Controls.Grid;
+using ScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media.Imaging;
@@ -5784,7 +5786,7 @@ public partial class MainWindow : Window
         var buttons = new System.Windows.Controls.StackPanel
         {
             Orientation = System.Windows.Controls.Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
         };
         var restore = new System.Windows.Controls.Button
         {

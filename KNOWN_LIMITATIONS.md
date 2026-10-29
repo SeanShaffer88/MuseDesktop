@@ -4,6 +4,8 @@ Honest list of what MuseDesktop does not do or has not proven yet. Kept current 
 
 ## Verification status
 
+- **PR #20 repair (2026-10-29):** Windows x64 Release build and all 950 Core tests passed locally; self-contained x64 and arm64 publishing passed, and the x64 startup/WebView2 smoke test passed. Native arm64 runtime behavior still requires its CI runner or an arm64 machine. These checks do not verify the new tabs/recovery UI end-to-end.
+
 - **Verified on a real Windows machine (2026-10-23, v0.1.2):** startup (clean log, WebView2 ready), sign-in, and voice — confirmed by the user with the app log. (v0.1.0 crashed at startup; v0.1.1 fixed it; v0.1.2 is the first fully verified line.)
 - **Still unverified at runtime:** tray menu items exercised end-to-end, close-to-tray, Start-with-Windows autostart, a completed download with progress/ETA, and F11 full screen — these run through `RELEASE_CHECKLIST.md` on the next on-machine pass. CI green alone is never treated as "it works".
 - **New in v0.2.0, also runtime-unverified:** the update notice appearing (and the ⋯ item opening the release page), download cancel / click-to-open / Save-As prompt / custom downloads folder, clear-browsing-data sign-out, and WebView2 suspend-after-5-minutes-in-tray with clean resume. All are covered by new `RELEASE_CHECKLIST.md` items.

@@ -109,14 +109,14 @@ public partial class DownloadsWindow : Window
         };
         Refresh();
         RefreshActive();
-        if (_tracker is { } tracker)
+        if (_tracker is { } activeTracker)
         {
             // Tracker events refresh rows/history; the separate 750 ms
             // timer samples only the visible in-memory speed graph.
-            tracker.Changed += OnTrackerChanged;
-            tracker.Completed += OnTrackerHistoryChanged;
-            tracker.Failed += OnTrackerHistoryChanged;
-            _speedHistory.Add(DateTimeOffset.Now, tracker.TotalSpeed);
+            activeTracker.Changed += OnTrackerChanged;
+            activeTracker.Completed += OnTrackerHistoryChanged;
+            activeTracker.Failed += OnTrackerHistoryChanged;
+            _speedHistory.Add(DateTimeOffset.Now, activeTracker.TotalSpeed);
             DrawSpeedGraph();
             _speedSampleTimer?.Start();
             Closed += (_, _) =>
@@ -124,9 +124,9 @@ public partial class DownloadsWindow : Window
                 _historySearchTimer?.Stop();
                 _activeRefreshTimer?.Stop();
                 _speedSampleTimer?.Stop();
-                tracker.Changed -= OnTrackerChanged;
-                tracker.Completed -= OnTrackerHistoryChanged;
-                tracker.Failed -= OnTrackerHistoryChanged;
+                activeTracker.Changed -= OnTrackerChanged;
+                activeTracker.Completed -= OnTrackerHistoryChanged;
+                activeTracker.Failed -= OnTrackerHistoryChanged;
             };
         }
         else
