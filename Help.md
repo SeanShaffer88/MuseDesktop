@@ -37,6 +37,8 @@ Try this:
 2. Check Windows Settings → Notifications: MuseDesktop (for its balloons) and your browser-style notifications from muse.ai must be allowed, and Focus Assist / Do Not Disturb schedules can hold everything until later.
 3. The button below opens Settings → Tray & notifications: check quiet hours isn't covering the whole day by accident, and that "Tell me when a download finishes while the window is hidden" is on if it's download alerts you're missing.
 4. Remember the app can't manufacture Muse alerts: if a task finishes without muse.ai sending a notification, there's nothing for Windows to show.
+5. Approval cards specifically: when Muse shows an approval card (a permission prompt) while the MuseDesktop window isn't the one you're looking at, the app beeps once and flashes its taskbar button — Settings → Tray & notifications → "Beep when an approval needs my attention" (on by default). It only notices the card; the approving click is always yours. If the beep stops working after a Muse page update, the card's buttons may have changed shape — that's a known limit, not your settings.
+6. Approval toasts: the same alert can also pop up as a Windows toast — Settings → Tray & notifications → "Toast notification when approval is needed" (on by default, independent of the beep: either, both, or neither). The toast says only that an approval is waiting. For Windows to deliver it, the app keeps a Start Menu shortcut named "MuseDesktop" that carries its notification identity; the shortcut is created automatically at startup while the toast setting is on, and deleting it just means it comes back next launch. If toasts stop arriving, check Windows Settings → Notifications for MuseDesktop and that Do Not Disturb is off.
 
 ## The WebView2 Runtime is missing or too old
 
@@ -104,6 +106,18 @@ Try this:
 4. If a proxy is involved (work/school networks), the button below opens Diagnostics, which shows the proxy Windows is configured with — MuseDesktop never overrides it; WebView2 follows Windows.
 5. Still stuck every launch? Start MuseDesktop with --safe-mode (it opens at the home page and skips the update check), or use the guided reset in Settings → Data — it backs your settings up before changing anything.
 
+## Updating to a new version
+
+What you see: the status bar (or the ⋯ menu) says a new version of MuseDesktop is available, and the update window offers Download, then Install.
+
+Why it happens: MuseDesktop checks GitHub Releases for newer versions (Settings → Behavior controls whether it checks, and how often). Nothing downloads and nothing installs until you accept — an update is always your decision, never a surprise.
+
+Try this:
+1. Choose Download: the installer is downloaded with progress shown, and its SHA-256 fingerprint is checked against the fingerprint published with the release before it can run. If the two don't match, the file is deleted and nothing runs.
+2. Choose Install: from there, everything is automatic. You don't need to close MuseDesktop first — the installer closes it for you (even if it's hidden in the tray), installs the new version over the old one, and reopens MuseDesktop when it's done. Your sign-in and settings carry over.
+3. Rather wait? The same window can snooze the reminder until tomorrow or next week — MuseDesktop won't keep asking in between.
+4. Changed your mind afterwards? Diagnostics can reinstall the previous version, when that version arrived through the in-app updater. That older installer still uses the classic setup wizard: you'll click through it yourself, and it doesn't reopen MuseDesktop for you.
+
 ## Commands & the command palette
 
 What you see: you want to get to a setting, a download, another window, or a help page without clicking through menus — or you middle-clicked the tray icon and a small search box appeared.
@@ -115,6 +129,7 @@ Try this:
 2. Switching profiles from the keyboard: Ctrl+Shift+1 through Ctrl+Shift+9 switch to the 1st–9th profile in your profile list. These work inside MuseDesktop only; there is no Windows-wide version, on purpose — Ctrl+Shift+number means something in many other apps, and MuseDesktop won't take those keys away from them everywhere.
 3. Moving windows: type "tile" or "monitor" in the palette for the per-window actions — tile left/right, move to the next monitor, always-on-top, and (for the main window) focus mode.
 4. The full list: this page ends with every command the palette offers, generated from the palette itself when you open the page — so it can never describe a command that isn't really there. Your profiles, recent downloads, and open windows appear in the palette too; they're yours, so they're not printed here.
+5. Finding a setting by eye: the Settings window lists its topics down the left side (General, Appearance, Profiles, Workspaces, Notifications, Focus, Downloads, Data, Language, Accessibility, Privacy). Pick a topic to see just that topic's settings, grouped in cards — or type in the search box at the top of the list, and Settings jumps to the topic that holds the match. Settings reopens where you left it, on the same topic.
 
 ## Focus mode, timers, reading list & notes
 
@@ -135,8 +150,32 @@ What you see: you want to mark one message in a conversation and come back to it
 Why it happens: these are MuseDesktop's conversation tools. Everything about them is stored on this PC only — bookmarks, drafts, and snippets live in small files beside your settings, and nothing is ever sent anywhere. A few of them work by adding small touches to the Muse page itself (a wider scrollbar, a bookmark button on each message); if Muse's page ever changes shape, those touches quietly stop appearing rather than getting in the page's way.
 
 Try this:
-1. Bookmarks: hover a message in a conversation and click its bookmark button. You'll be asked for a nickname first — a bookmark can't be saved without one, because the nickname is how you'll recognize it later. The Bookmarks button in the bar at the left of the window (or Ctrl+K) opens your list; choosing one opens that conversation and highlights the message. Bookmarks can only be revisited from inside MuseDesktop — that's deliberate: they hold a snippet of the message to find it by, and they never leave the app. If a message has been edited since, you'll land in the conversation and be told the exact text couldn't be found.
+1. Bookmarks: hover a message in a conversation and click its bookmark button. You'll be asked for a nickname first — a bookmark can't be saved without one, because the nickname is how you'll recognize it later. The Bookmarks button at the window's upper right — just left of the zoom controls (or Ctrl+K) opens your list; choosing one opens that conversation and highlights the message. Bookmarks can only be revisited from inside MuseDesktop — that's deliberate: they hold a snippet of the message to find it by, and they never leave the app. If a message has been edited since, you'll land in the conversation and be told the exact text couldn't be found.
 2. Drafts: what you type in the message box is kept — per conversation, for the profile you're using — and put back when you return to that conversation, even after restarting the app. Sending the message (or emptying the box) clears its draft. Turn this off in Settings → Account profiles if you'd rather nothing was kept.
 3. Snippets: save the prompts you reuse in Settings → Account profiles (a name and the text), then insert one from Ctrl+K ("Insert snippet: …") or the ⋯ menu's Snippets list. The text lands in the message box for you to edit before sending — nothing is ever sent for you.
 4. Export: ⋯ menu → "Export conversation as Markdown…" saves the chat as a tidy text file (your messages and Muse's, code blocks intact) wherever you choose. "Export conversation as PDF…" prints the conversation page to a PDF as it appears on screen.
 5. Reading comfort: Settings → Account profiles holds, per profile, the always-visible conversation scrollbar (on by default), the chat text size, the reading-column width, and the line spacing. Changes apply when you press OK in Settings.
+6. Token ring: the small ring at the upper right, between Bookmarks and the zoom controls, shows how full the current conversation's context is. If the Muse page itself displays a usage count, the ring reads that; if not, it estimates from the conversation's length — estimates wear a "~" and say so. Click the ring for the numbers, the source, and a Refresh button. The limit the estimate is measured against lives in Settings → Appearance & toolbar ("Estimated context limit") — set it to your plan's context window if that differs from 200,000.
+
+## Backdrop, title bar tint, custom accent, theme schedule & mini mode
+
+Why it happens: nothing is broken — these are MuseDesktop's appearance extras (Settings → Appearance & toolbar, plus two items in the main window's ⋯ menu), and this page explains what each one does and where its limits are. They restyle MuseDesktop's own windows only; the Muse page is never changed by any of them, and Windows High Contrast turns the decorative ones off.
+
+Try this:
+1. Backdrop (Mica / Acrylic): on Windows 11, Settings → Appearance → "Window backdrop" can put the window on Mica (a soft tint of your wallpaper) or Acrylic (a stronger frosted blur). If nothing changes, check three things: Windows 11 is required (Windows 10 keeps the solid window, by design), Windows' own transparency effects must be on (Windows Settings → Personalization → Colors), and High Contrast must be off.
+2. Title bar tint: the title bar wears the active profile's color so you can see which profile a window belongs to. Turn it off in Settings → Appearance if you prefer the plain bar. It follows the profile color — change the color on the profile in Settings → Account profiles.
+3. Custom accent: tick "Custom accent color" and type any color as six hex digits (for example E50914). The app adjusts the color until it passes the same readability check as the built-in accents, on both themes — so a pale yellow, say, gets deepened rather than washing out. Unticking returns to the preset accent.
+4. Theme schedule: choose "Follow schedule" as the shell theme and set "Light from" and "Dark from" (24-hour times). The shell then switches between light and dark by the clock, checked every minute. The dark time may be earlier than the light time — the light hours then wrap past midnight, which suits night owls.
+5. Mini mode: ⋯ menu → "Mini mode" shrinks the app to a small always-on-top strip showing the profile color, the page's icon and title, and your downloads with Pause all / Resume all. "Expand" on the strip (or opening the window from the tray) brings the full window back. The page is not inside the strip — it stays in the main window, which hides while the strip is up.
+6. Tray icon styles and window opacity: Settings → Appearance sets the tray icon's painting (color, monochrome, or profile-tinted) and how its attention count shows (numbered badge, plain dot, or none). The ⋯ menu's "Window opacity" slider makes the window see-through down to 60%; it is per-window and for this session only, it does nothing in High Contrast, and the window goes fully solid whenever the app locks.
+
+## Languages, language packs, announcements & text spacing
+
+Why it happens: nothing is broken — these are MuseDesktop's language and accessibility extras (Settings → Language & announcements), and this page explains what each one does and where its limits are. They change MuseDesktop's own windows only; the Muse page itself is never translated or restyled by any of them.
+
+Try this:
+1. App language: pick "System default" to follow the Windows display language, or choose a language yourself — Spanish (Español) ships with the app. A change applies to windows opened afterwards, and to everything the next time the app starts. If a string hasn't been translated yet, it shows in English — Diagnostics lists, per language, exactly how many strings that is.
+2. Language packs: anyone can translate the shell. "Export a blank language pack…" saves a template holding every string in English; translate each one, then "Import a language pack…" brings the finished file in. A pack is checked before it's used: it must translate every string, and any {0}-style placeholders must match the English exactly — if something's off, the import is refused and the reason is shown in plain words. Imported packs live in the app-data folder's language-packs folder and can be removed by deleting their file there.
+3. Spoken announcements: MuseDesktop can speak events through a screen reader (a download finishing, an update appearing, a timer ending, focus mode turning on). Turn any kind off here if it's noise; every announcement — spoken or not — is still recorded under Diagnostics → Recent announcements, so nothing is lost.
+4. Text spacing: Standard / Relaxed / Wide widens the space between lines of text in the app's own windows, for low-vision reading. (Windows' text controls don't offer letter spacing, so the control is line spacing — the spacing that matters most.) The Muse page has its own reading controls in Settings → Account profiles.
+5. Keyboard order: every window's controls follow a deliberate tab order — the order you'd read the screen — and every control has a spoken name. If you find one that doesn't, that's a bug worth reporting.

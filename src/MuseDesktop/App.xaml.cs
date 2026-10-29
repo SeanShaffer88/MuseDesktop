@@ -34,6 +34,14 @@ public partial class App : System.Windows.Application
         // fatal.
         var options = CommandLine.Parse(e.Args);
 
+        // R7 #161: even the pre-instance answers below speak the
+        // user's language — a read-only settings peek purely to pick
+        // the catalog language (the real load happens further down,
+        // unchanged; Load's corrupt-file preservation is timestamped
+        // and best-effort, so the peek is safe).
+        try { Strings.Initialize(SettingsStore.Load(AppPaths.SettingsPath)); }
+        catch { /* English is the fallback — language never breaks startup */ }
+
         // S11 #100: --help / --version are information, not actions —
         // answered by THIS process, before single-instance, so asking
         // never wakes (or waits behind the lock of) a running instance.
@@ -41,8 +49,7 @@ public partial class App : System.Windows.Application
         {
             var version = typeof(App).Assembly.GetName().Version;
             System.Windows.MessageBox.Show(
-                $"MuseDesktop {version?.ToString(3) ?? "?"}\n\n" +
-                "A native Windows desktop client for Muse (muse.ai).",
+                Strings.Format("app.version.body", version?.ToString(3) ?? "?"),
                 "MuseDesktop", MessageBoxButton.OK, MessageBoxImage.Information);
             Shutdown();
             return;
@@ -51,8 +58,8 @@ public partial class App : System.Windows.Application
         {
             var version = typeof(App).Assembly.GetName().Version;
             System.Windows.MessageBox.Show(
-                CommandLineUsage.Text(version?.ToString(3) ?? "?"),
-                "MuseDesktop — command line", MessageBoxButton.OK, MessageBoxImage.Information);
+                Strings.Format("app.usage.text", version?.ToString(3) ?? "?"),
+                Strings.Get("app.help.caption"), MessageBoxButton.OK, MessageBoxImage.Information);
             Shutdown();
             return;
         }
@@ -108,6 +115,20 @@ public partial class App : System.Windows.Application
             return;
         }
 
+        // R7D: --exit-for-update with NO running instance (the
+        // installer raced a quit, or a stray script): this process IS
+        // the first instance, and there is nothing to close — exit
+        // quietly rather than start the app the installer is about
+        // to replace. The mutex above was created by this process and
+        // is released in OnExit, so the installer's wait for the
+        // mutex to disappear completes at once.
+        if (options.ExitForUpdate)
+        {
+            Log.Info("--exit-for-update: no running instance to close — exiting");
+            Shutdown();
+            return;
+        }
+
         var settingsFileExisted = File.Exists(AppPaths.SettingsPath);
         Settings = SettingsStore.Load(AppPaths.SettingsPath);
         // Upgrade vs first run (S5 #50): a settings file written by a
@@ -119,6 +140,20 @@ public partial class App : System.Windows.Application
         if (settingsFileExisted && Settings.SchemaVersion < 2 && !Settings.FirstRunCompleted)
             Settings.FirstRunCompleted = true;
         Settings.SchemaVersion = Math.Max(Settings.SchemaVersion, 2);
+        // Shell language (R7 #161/#162/#166): resolve the catalog
+        // language from the real settings (the peek above may have
+        // run on defaults), and give every window the language's
+        // reading direction as it loads — one class handler, so
+        // right-to-left readiness covers windows added later too.
+        Strings.Initialize(Settings);
+        EventManager.RegisterClassHandler(typeof(Window), FrameworkElement.LoadedEvent,
+            new RoutedEventHandler((sender, _) =>
+            {
+                if (sender is Window window)
+                    window.FlowDirection = Strings.Current.IsRightToLeft
+                        ? System.Windows.FlowDirection.RightToLeft
+                        : System.Windows.FlowDirection.LeftToRight;
+            }));
         // Shell theme (v0.9.0, S5 #43): apply before any window exists,
         // and keep following Windows while the app runs when the mode
         // says so.
@@ -278,6 +313,23 @@ public partial class App : System.Windows.Application
         }
 
         RunPendingProfileFolderDeletions();
+        // R7F (v1.8.8): the saved-password sweep — passwords a
+        // pre-v1.8.8 version let WebView2 save are deleted from every
+        // profile's WebView2 folder, before any WebView2 environment
+        // exists. Running it here (not only in the installer) covers
+        // portable-zip copies, which never run an installer. The
+        // sweep's file set names only the two stored-password files —
+        // cookies are never in it, so sign-ins survive. Counts only
+        // are logged, and only when something happened.
+        try
+        {
+            var sweep = SavedPasswordSweep.Run(AppPaths.ProfilesDataRoot);
+            if (sweep.Deleted > 0)
+                Log.Info($"Startup password sweep removed {sweep.Deleted} saved-password file(s) left by an older version — MuseDesktop never saves passwords now. Sign-in cookies were not touched.");
+            if (sweep.Failed > 0)
+                Log.Warn($"Startup password sweep couldn't remove {sweep.Failed} saved-password file(s) (likely in use); the sweep runs again at the next launch.");
+        }
+        catch (Exception ex) { Log.Warn($"Startup password sweep failed: {ex.Message}"); }
         // S8 #75: the startup cache-cap pass — capped profiles over
         // their cap get their allowlisted caches trimmed, and the
         // cleanup is stamped so Settings can show it happened (never
@@ -299,8 +351,7 @@ public partial class App : System.Windows.Application
             Log.Error($"Unhandled: {args.Exception}");
             args.Handled = true;
             System.Windows.MessageBox.Show(
-                "MuseDesktop hit an unexpected error but kept your session safe.\n\n" +
-                $"Details were written to the log:\n{AppPaths.LogPath}",
+                Strings.Format("app.unhandled_error", AppPaths.LogPath),
                 "MuseDesktop", MessageBoxButton.OK, MessageBoxImage.Warning);
         };
 
@@ -318,8 +369,7 @@ public partial class App : System.Windows.Application
         {
             Log.Error($"Main window creation failed: {ex}");
             System.Windows.MessageBox.Show(
-                "MuseDesktop could not create its main window.\n\n" +
-                $"The full error was written to the log:\n{AppPaths.LogPath}",
+                Strings.Format("app.main_window_failed", AppPaths.LogPath),
                 "MuseDesktop", MessageBoxButton.OK, MessageBoxImage.Error);
             Shutdown(1);
             return;
@@ -435,6 +485,11 @@ public partial class App : System.Windows.Application
     /// </summary>
     private LaunchIntent SecondLaunchIntent(CommandLineOptions options)
     {
+        // R7D: an exit-for-update launch carries exactly one ask —
+        // it outranks any link or flag that rode along (the installer
+        // passes the flag alone; anything else beside it is noise).
+        if (options.ExitForUpdate)
+            return new LaunchIntent(LaunchIntentKind.ExitForUpdate);
         if (options.ProtocolUri is not null)
         {
             var saved = SettingsStore.Load(AppPaths.SettingsPath);

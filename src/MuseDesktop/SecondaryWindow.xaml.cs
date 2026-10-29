@@ -67,7 +67,14 @@ public partial class SecondaryWindow : Window
         Foreground = new System.Windows.Media.SolidColorBrush(
             (System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(palette.Text));
         Browser.DefaultBackgroundColor = ThemeManager.BrowserBackground;
-        SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(this);
+        SourceInitialized += (_, _) =>
+        {
+            ThemeManager.ApplyTitleBar(this);
+            // R6 #151: the second window wears the same backdrop.
+            ThemeManager.ApplyBackdrop(this);
+            if (ThemeManager.CurrentBackdrop != BackdropMaterial.None)
+                Background = System.Windows.Media.Brushes.Transparent;
+        };
         Loaded += OnLoaded;
     }
 
@@ -84,7 +91,7 @@ public partial class SecondaryWindow : Window
             core.DocumentTitleChanged += (_, _) =>
             {
                 var t = core.DocumentTitle;
-                Title = string.IsNullOrWhiteSpace(t) ? "Muse — second window" : $"{t} — MuseDesktop";
+                Title = string.IsNullOrWhiteSpace(t) ? Strings.Get("muse_second_window") : $"{t} — MuseDesktop";
             };
             core.Navigate(_initialUrl);
             _log.Info($"Secondary window opened: {UrlPolicy.RedactForLog(_initialUrl)}");

@@ -2,10 +2,10 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
-        Title="Test microphone"
+        Title="{local:Loc test_microphone}"
         Width="520" Height="360" MinWidth="440" MinHeight="300"
         WindowStartupLocation="CenterOwner"
-        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}" xmlns:local="clr-namespace:MuseDesktop">
     <Window.Resources>
         <Style x:Key="Note" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11"/>
@@ -17,16 +17,16 @@
 
     <DockPanel Margin="14,12,14,12">
         <TextBlock DockPanel.Dock="Top" TextWrapping="Wrap"
-                   Text="This test asks for the microphone exactly the way a page does, then listens for a few seconds. Say something while it listens — that's how it knows sound actually arrives, not just that permission was granted."/>
+                   Text="{local:Loc this_test_asks_for_the_microphone_exactly}"/>
         <TextBlock DockPanel.Dock="Top" x:Name="StatusText" Margin="0,10,0,0" TextWrapping="Wrap"
-                   FontWeight="SemiBold" Text="Starting…"
-                   AutomationProperties.Name="Microphone test status"/>
+                   FontWeight="SemiBold" Text="{local:Loc starting}"
+                   AutomationProperties.Name="{local:Loc microphone_test_status}"/>
         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-            <Button Content="Close" Width="86" Height="30" IsCancel="True" Click="OnClose"/>
+            <Button Content="{local:Loc close}" Width="86" Height="30" IsCancel="True" Click="OnClose" KeyboardNavigation.TabIndex="1"/>
         </StackPanel>
         <TextBlock DockPanel.Dock="Bottom" x:Name="ResultText" Style="{StaticResource Note}" Margin="0,8,0,0"
-                   AutomationProperties.Name="Microphone test result"/>
+                   AutomationProperties.Name="{local:Loc microphone_test_result}"/>
         <wv2:WebView2 x:Name="TestView" Margin="0,10,0,0" DefaultBackgroundColor="#141417"
-                      AutomationProperties.Name="Microphone test page"/>
+                      AutomationProperties.Name="{local:Loc microphone_test_page}"/>
     </DockPanel>
 </Window>

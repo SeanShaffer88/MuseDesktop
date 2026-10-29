@@ -35,12 +35,12 @@ public static class ProfileShortcut
         {
             var exe = Environment.ProcessPath;
             if (string.IsNullOrEmpty(exe))
-                return "Couldn't find the MuseDesktop program file.";
+                return Strings.Get("deskshortcut.create_no_exe");
 
             var shellType = Type.GetTypeFromProgID("WScript.Shell")
-                            ?? throw new InvalidOperationException("WScript.Shell is not available on this PC.");
+                            ?? throw new InvalidOperationException(Strings.Get("deskshortcut.create_no_wscript"));
             shell = Activator.CreateInstance(shellType)
-                    ?? throw new InvalidOperationException("WScript.Shell could not be started.");
+                    ?? throw new InvalidOperationException(Strings.Get("deskshortcut.create_wscript_failed"));
 
             var desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
             var path = Path.Combine(desktop, Profiles.ShortcutFileName(profile));
@@ -65,7 +65,7 @@ public static class ProfileShortcut
         catch (Exception ex)
         {
             log.Warn($"Shortcut creation failed for profile {profile.Id}: {ex.Message}");
-            return $"Couldn't create the shortcut ({ex.Message}).";
+            return Strings.Format("deskshortcut.create_failed", ex.Message);
         }
         finally
         {

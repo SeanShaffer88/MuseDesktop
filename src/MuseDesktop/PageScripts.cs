@@ -28,6 +28,8 @@ namespace MuseDesktop;
 ///   {type:"md-bookmark", text}        — bookmark button clicked on a message
 ///   {type:"md-draft", text}           — composer text changed (debounced)
 ///   {type:"md-draft-sent"}            — a send was attempted (Enter / send button)
+///   {type:"md-approval-appeared", signal} — an approval card appeared (R7C; presence + which watcher rule matched, never any card content)
+///   {type:"md-approval-gone"}         — that card went away (R7C)
 /// </summary>
 public static class PageScripts
 {
@@ -269,6 +271,64 @@ public static class PageScripts
             } catch (e) { return null; }
           };
 
+          // ── usage probe (R7B): read-only, like everything else
+          // here. Two things: the usage figure the PAGE ITSELF
+          // displays (if it displays one — a "12,400 / 200,000
+          // tokens" style label or a context percent, found via
+          // aria-labels, titles, or short visible texts that talk
+          // about context/tokens), and the conversation's total
+          // text LENGTH in characters — the only input the shell's
+          // fallback estimate needs. The text itself never leaves
+          // the page for this; counts and a length only.
+          window.__mdUsageProbe = function () {
+            try {
+              var out = { used: null, limit: null, percent: null, textLength: 0 };
+              var msgs = messageElements();
+              var total = 0;
+              for (var i = 0; i < msgs.length; i++) {
+                var t = msgs[i].innerText || msgs[i].textContent || '';
+                total += t.length;
+              }
+              out.textLength = total;
+              var pairRe = /(?:context|tokens?|usage)[^0-9]{0,40}([0-9][0-9,]*)\s*(?:\/|of)\s*([0-9][0-9,]*)/i;
+              var pctRe = /(?:context|tokens?|usage)[^0-9%]{0,40}([0-9]{1,3}(?:\.[0-9]+)?)\s*%/i;
+              var texts = [];
+              var labelled = document.querySelectorAll('[aria-label], [title]');
+              for (var a = 0; a < labelled.length && texts.length < 400; a++) {
+                var s = (labelled[a].getAttribute('aria-label') || '') + ' ' + (labelled[a].getAttribute('title') || '');
+                if (s.trim()) texts.push(s);
+              }
+              var all = document.querySelectorAll('main *');
+              for (var b = 0; b < all.length && texts.length < 900; b++) {
+                var el = all[b];
+                if (el.children.length) continue;      // leaf elements only
+                var own = (el.textContent || '').trim();
+                if (own && own.length <= 120) texts.push(own);
+              }
+              var parseNum = function (s) { return parseInt(String(s).replace(/,/g, ''), 10); };
+              for (var c = 0; c < texts.length; c++) {
+                var m = pairRe.exec(texts[c]);
+                if (m) {
+                  var used = parseNum(m[1]), limit = parseNum(m[2]);
+                  if (isFinite(used) && isFinite(limit) && limit > 0) {
+                    out.used = used; out.limit = limit;
+                    break;
+                  }
+                }
+              }
+              if (out.used === null) {
+                for (var d = 0; d < texts.length; d++) {
+                  var pm = pctRe.exec(texts[d]);
+                  if (pm) {
+                    var pct = parseFloat(pm[1]);
+                    if (isFinite(pct)) { out.percent = pct; break; }
+                  }
+                }
+              }
+              return JSON.stringify(out);
+            } catch (e) { return null; }
+          };
+
           // ── the composer: drafts (#204) + snippet insert (#206).
           function findComposer() {
             var candidates = document.querySelectorAll(
@@ -363,6 +423,145 @@ public static class PageScripts
             } catch (e) { }
           }, true);
 
+          // ── approval watcher (R7C; detection rebuilt R7C2):
+          // OBSERVE ONLY. It reports that an approval card
+          // appeared / went away so the shell can beep for the
+          // user's attention; it never clicks, focuses, or
+          // otherwise touches the card, and it reports presence
+          // plus WHICH rule matched — no card text ever crosses
+          // the bridge.
+          //
+          // Two signals; either one is enough:
+          //  1. 'allow-prefix' (PRIMARY, R7C2): a visible button
+          //     whose whole label STARTS with "allow" or "always
+          //     allow" (case-insensitive, whole-word start, so
+          //     "allowance" doesn't count). This is the rule from
+          //     the user's own browser alert script, which works
+          //     on the real page; R7C's stricter detector below
+          //     never once fired there (the field failure behind
+          //     R7C2 — see DECISIONS). The label is capped at 60
+          //     characters so a paragraph wearing a button
+          //     costume can't match.
+          //  2. 'pair' (the R7C rule, kept as the back-up): a
+          //     visible container holding BOTH an approve-style
+          //     action and a deny-style one, where an action is a
+          //     real <button> or role="button" element whose
+          //     ENTIRE label is exactly one of the known words.
+          //     Chat text can quote "allow" and "deny" all day —
+          //     a message contains no such button pair, so it
+          //     can't trip this. The reported container is the
+          //     smallest element holding both actions; the page
+          //     root, <main> itself, a message element, and
+          //     anything containing the composer are never the
+          //     card. (R7C also required the container to be
+          //     under 60% of the viewport; R7C2 dropped that —
+          //     one more way for a real card to be filtered out.)
+          var APPROVE_WORDS = ['allow', 'allow once', 'allow always', 'approve', 'yes'];
+          var DENY_WORDS = ['deny', 'reject', 'cancel', 'no'];
+          var ALLOW_LABEL_MAX = 60;
+          var APPROVAL_SETTLE_MS = 300;
+          function isShown(el) {
+            if (!el) return false;
+            var r = el.getBoundingClientRect();
+            if (!r.width || !r.height) return false;
+            if (el.offsetParent === null && getComputedStyle(el).position !== 'fixed') return false;
+            return true;
+          }
+          function buttonLabel(el) {
+            return collapse(el.getAttribute('aria-label') || el.innerText || el.textContent || '');
+          }
+          function actionWord(el) {
+            var label = buttonLabel(el).toLowerCase();
+            if (!label || label.length > 24) return '';
+            if (APPROVE_WORDS.indexOf(label) >= 0) return 'approve';
+            if (DENY_WORDS.indexOf(label) >= 0) return 'deny';
+            return '';
+          }
+          function allowPrefixHit(el) {
+            var label = buttonLabel(el).toLowerCase();
+            if (!label || label.length > ALLOW_LABEL_MAX) return false;
+            return /^allow\b/.test(label) || /^always allow\b/.test(label);
+          }
+          // Returns 'allow-prefix', 'pair', or null.
+          function detectApprovalSignal() {
+            try {
+              var buttons = document.querySelectorAll('button, [role="button"]');
+              var approves = [], denies = [];
+              for (var i = 0; i < buttons.length; i++) {
+                if (!isShown(buttons[i])) continue;
+                if (allowPrefixHit(buttons[i])) return 'allow-prefix';
+                var w = actionWord(buttons[i]);
+                if (w === 'approve') approves.push(buttons[i]);
+                else if (w === 'deny') denies.push(buttons[i]);
+              }
+              if (!approves.length || !denies.length) return null;
+              // Smallest common container of an approve/deny pair.
+              var pair = null;
+              outer:
+              for (var a = 0; a < approves.length; a++) {
+                for (var d = 0; d < denies.length; d++) {
+                  var node = approves[a];
+                  while (node && node !== document.body) {
+                    if (node.contains(denies[d])) { pair = node; break outer; }
+                    node = node.parentElement;
+                  }
+                }
+              }
+              if (!pair || pair === document.body || pair === document.documentElement) return null;
+              var main = document.querySelector('main');
+              if (main && pair === main) return null;
+              var testid = (pair.getAttribute('data-testid') || '').toLowerCase();
+              if (testid.indexOf('message') >= 0) return null;      // a message is not a card
+              var composer = findComposer();
+              if (composer && pair.contains(composer)) return null; // the composer block is not a card
+              if (!isShown(pair)) return null;
+              return 'pair';
+            } catch (e) { return null; }
+          }
+          // Transitions post only after the new state survives a
+          // short settle delay (~0.3s, R7C2 — it was ~0.8s in
+          // R7C), so a framework re-render that drops and re-adds
+          // the node doesn't flap the signal — and the shell
+          // still hears about a card that appears on an otherwise
+          // static page (the confirm timer). The verdict that
+          // settles is re-checked at post time, so the reported
+          // signal is the one that actually survived.
+          var approvalReported = false;
+          var approvalCandidateSeen = false;
+          var approvalCandidateSignal = null;
+          var approvalCandidateSince = 0;
+          var approvalConfirmTimer = null;
+          function scanApproval() {
+            try {
+              var signal = detectApprovalSignal();
+              var present = !!signal;
+              if (present === approvalReported) {
+                approvalCandidateSeen = false;
+                approvalCandidateSignal = null;
+                return;
+              }
+              var now = Date.now();
+              if (!approvalCandidateSeen || approvalCandidateSignal !== signal) {
+                approvalCandidateSeen = true;
+                approvalCandidateSignal = signal;
+                approvalCandidateSince = now;
+                if (!approvalConfirmTimer) {
+                  approvalConfirmTimer = setTimeout(function () {
+                    approvalConfirmTimer = null;
+                    scanApproval();
+                  }, APPROVAL_SETTLE_MS + 50);
+                }
+                return;
+              }
+              if (now - approvalCandidateSince < APPROVAL_SETTLE_MS) return;
+              approvalReported = present;
+              approvalCandidateSeen = false;
+              approvalCandidateSignal = null;
+              if (present) post({ type: 'md-approval-appeared', signal: signal });
+              else post({ type: 'md-approval-gone' });
+            } catch (e) { }
+          }
+
           // ── watch the page: conversations render and grow as the
           // user chats, so buttons/composer binding re-check on
           // mutation (debounced) rather than once.
@@ -375,6 +574,7 @@ public static class PageScripts
               ensureBookmarkButtons();
               ensureCodeFoldButtons();
               bindComposer();
+              scanApproval();
             }, 600);
           }
           try {
@@ -386,6 +586,7 @@ public static class PageScripts
           ensureCodeFoldButtons();
           bindComposer();
           scheduleAutoFold();
+          scanApproval();
           post({ type: 'md-ready' });
         })();
         """;
@@ -401,6 +602,10 @@ public static class PageScripts
     /// <summary>Ask the page for the conversation's messages as a JSON string (the script result is that string, itself JSON-encoded).</summary>
     public const string ExtractConversation =
         "(window.__mdExtractConversation ? window.__mdExtractConversation() : null)";
+
+    /// <summary>Ask the page for its usage probe (R7B): the usage figure the page itself displays, if any, plus the conversation's text length for the shell's fallback estimate — as a JSON string (the script result is that string, itself JSON-encoded). Observe-only: the probe reads labels and counts characters; it changes nothing.</summary>
+    public const string UsageProbe =
+        "(window.__mdUsageProbe ? window.__mdUsageProbe() : null)";
 
     /// <summary>Offer a saved draft back to the page's composer (it lands only when the composer is empty and present, or when it appears).</summary>
     public static string RestoreDraft(string text) =>

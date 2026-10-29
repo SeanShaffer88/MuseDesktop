@@ -38,14 +38,14 @@ public partial class LogViewerWindow : Window
         catch (Exception ex)
         {
             _logText = "";
-            AuditText.Text = $"Couldn't read the log file ({ex.Message}). It lives at {AppPaths.LogPath}.";
+            AuditText.Text = Strings.Format("ui.couldnt_read_log_file", ex.Message, AppPaths.LogPath);
             FindingsText.Text = "";
             LogText.Text = "";
             return;
         }
         if (_logText.Length == 0)
         {
-            AuditText.Text = "The log is empty right now — nothing has been written to it yet.";
+            AuditText.Text = Strings.Get("ui.the_log_is_empty_right_now_nothing_has");
             FindingsText.Text = "";
             LogText.Text = "";
             return;
@@ -57,8 +57,8 @@ public partial class LogViewerWindow : Window
         AuditText.Text = RedactionAudit.Summarize(findings, lineCount);
         FindingsText.Text = findings.Count == 0
             ? ""
-            : string.Join("\n", findings.Take(30).Select(f => $"Line {f.LineNumber}: {f.Description}.")) +
-              (findings.Count > 30 ? $"\n…and {findings.Count - 30} more." : "");
+            : string.Join("\n", findings.Take(30).Select(f => Strings.Format("log.line_finding", f.LineNumber, f.Description))) +
+              (findings.Count > 30 ? "\n" + Strings.Format("log.and_more", findings.Count - 30) : "");
     }
 
     private void OnCopyRedacted(object sender, RoutedEventArgs e)
@@ -68,11 +68,11 @@ public partial class LogViewerWindow : Window
         try
         {
             System.Windows.Clipboard.SetText(RedactionAudit.Redact(_logText));
-            CopyNote.Text = "Copied — anything the check flagged was removed first.";
+            CopyNote.Text = Strings.Get("ui.copied_anything_the_check_flagged_was");
         }
         catch
         {
-            CopyNote.Text = "Couldn't copy — the clipboard is busy. Try again.";
+            CopyNote.Text = Strings.Get("ui.couldn_t_copy_the_clipboard_is_busy_try");
         }
     }
 
@@ -84,17 +84,17 @@ public partial class LogViewerWindow : Window
         var last = LogReading.LastError(_logText);
         if (last is null)
         {
-            CopyNote.Text = "No errors in the current log — nothing to copy.";
+            CopyNote.Text = Strings.Get("ui.no_errors_in_the_current_log_nothing_to");
             return;
         }
         try
         {
             System.Windows.Clipboard.SetText(last);
-            CopyNote.Text = "Copied the most recent error (redacted).";
+            CopyNote.Text = Strings.Get("ui.copied_the_most_recent_error_redacted");
         }
         catch
         {
-            CopyNote.Text = "Couldn't copy — the clipboard is busy. Try again.";
+            CopyNote.Text = Strings.Get("ui.couldn_t_copy_the_clipboard_is_busy_try");
         }
     }
 
@@ -105,14 +105,14 @@ public partial class LogViewerWindow : Window
         {
             if (!File.Exists(AppPaths.LogPath))
             {
-                CopyNote.Text = "There's no log file yet — it appears once something is written to it.";
+                CopyNote.Text = Strings.Get("ui.there_s_no_log_file_yet_it_appears_once");
                 return;
             }
             Process.Start(new ProcessStartInfo(AppPaths.LogPath) { UseShellExecute = true });
         }
         catch (Exception ex)
         {
-            CopyNote.Text = $"Couldn't open the log file ({ex.Message}). It lives at {AppPaths.LogPath}.";
+            CopyNote.Text = Strings.Format("ui.couldnt_open_log_file", ex.Message, AppPaths.LogPath);
         }
     }
 }

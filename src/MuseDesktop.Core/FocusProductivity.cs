@@ -228,6 +228,9 @@ public sealed class SessionTimer
     /// <summary>Work blocks completed in the current set (resets after a long break).</summary>
     public int CycleInSet { get; private set; }
 
+    /// <summary>Work blocks per set before the long break (from the config) — exposed so the shell's localized line (R7 TimerLines) reports the same cycle position StatusLine does.</summary>
+    public int CyclesBeforeLongBreak => _config.CyclesBeforeLongBreak;
+
     /// <summary>Work blocks completed since Start, across all sets.</summary>
     public int TotalWorkBlocks { get; private set; }
 

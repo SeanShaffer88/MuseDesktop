@@ -1,7 +1,7 @@
 <Window x:Class="MuseDesktop.DownloadsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Downloads"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:local="clr-namespace:MuseDesktop"
+        Title="{local:Loc downloads}"
         Width="620" Height="680" MinWidth="460" MinHeight="440"
         WindowStartupLocation="CenterOwner"
         Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
@@ -29,7 +29,7 @@
 
         <!-- Active downloads (S2 #13) on top -->
         <StackPanel Grid.Row="0">
-            <TextBlock Text="Active downloads" Style="{StaticResource Section}"/>
+            <TextBlock Text="{local:Loc active_downloads}" Style="{StaticResource Section}"/>
             <ListBox x:Name="ActiveList" Height="104" Background="{StaticResource SurfaceBrush}"
                      Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource HairlineBrush}"
                      SelectionChanged="OnActiveSelectionChanged"
@@ -37,7 +37,7 @@
                      ScrollViewer.CanContentScroll="True"
                      VirtualizingPanel.IsVirtualizing="True"
                      VirtualizingPanel.VirtualizationMode="Recycling"
-                     AutomationProperties.Name="Active downloads">
+                     AutomationProperties.Name="{local:Loc active_downloads}" KeyboardNavigation.TabIndex="1">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <StackPanel Margin="4,3">
@@ -49,23 +49,23 @@
                 </ListBox.ItemTemplate>
             </ListBox>
             <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
-                <Button x:Name="PauseButton" Content="Pause" Width="76" Height="26" Click="OnPauseDownload"/>
-                <Button x:Name="ResumeButton" Content="Resume" Width="76" Height="26" Margin="8,0,0,0" Click="OnResumeDownload"/>
-                <Button x:Name="CancelButton" Content="Cancel" Width="76" Height="26" Margin="8,0,0,0" Click="OnCancelDownload"/>
-                <Button x:Name="RetryButton" Content="Retry" Width="76" Height="26" Margin="8,0,0,0" Click="OnRetryDownload"
-                        ToolTip="Re-download a file that failed during this session"/>
+                <Button x:Name="PauseButton" Content="{local:Loc pause}" Width="76" Height="26" Click="OnPauseDownload" KeyboardNavigation.TabIndex="3"/>
+                <Button x:Name="ResumeButton" Content="{local:Loc resume}" Width="76" Height="26" Margin="8,0,0,0" Click="OnResumeDownload" KeyboardNavigation.TabIndex="4"/>
+                <Button x:Name="CancelButton" Content="{local:Loc cancel}" Width="76" Height="26" Margin="8,0,0,0" Click="OnCancelDownload" KeyboardNavigation.TabIndex="5"/>
+                <Button x:Name="RetryButton" Content="{local:Loc retry}" Width="76" Height="26" Margin="8,0,0,0" Click="OnRetryDownload"
+                        ToolTip="{local:Loc re_download_a_file_that_failed_during_this}" KeyboardNavigation.TabIndex="6"/>
                 <TextBlock x:Name="ActiveNote" Style="{StaticResource Note}" Margin="10,4,0,0"
-                           Text="Nothing is downloading right now."/>
+                           Text="{local:Loc nothing_is_downloading_right_now}"/>
             </StackPanel>
             <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
-                <Button x:Name="PauseAllButton" Content="Pause all" Width="82" Height="24" Click="OnPauseAll"
-                        ToolTip="Pause every download that can currently be paused"/>
-                <Button x:Name="ResumeAllButton" Content="Resume all" Width="82" Height="24" Margin="8,0,0,0" Click="OnResumeAll"
-                        ToolTip="Resume every paused download that WebView2 allows"/>
+                <Button x:Name="PauseAllButton" Content="{local:Loc pause_all}" Width="82" Height="24" Click="OnPauseAll"
+                        ToolTip="{local:Loc pr20.pause_every_download_that_can_currently_be_paused}" KeyboardNavigation.TabIndex="7"/>
+                <Button x:Name="ResumeAllButton" Content="{local:Loc resume_all}" Width="82" Height="24" Margin="8,0,0,0" Click="OnResumeAll"
+                        ToolTip="{local:Loc pr20.resume_every_paused_download_that_webview2_allows}" KeyboardNavigation.TabIndex="8"/>
             </StackPanel>
             <!-- Speed history (R4 #135): samples stay in memory, on this PC only -->
             <TextBlock x:Name="SpeedGraphLabel" Style="{StaticResource Note}" Margin="0,8,0,2"
-                       Text="Download speed (this PC only)"/>
+                       Text="{local:Loc dl.speed_graph_plain}"/>
             <Border BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1"
                     Background="{StaticResource SurfaceBrush}">
                 <Canvas x:Name="SpeedCanvas" Height="44" ClipToBounds="True">
@@ -76,23 +76,23 @@
 
         <!-- History controls + list -->
         <DockPanel Grid.Row="1" Margin="0,10,0,0">
-            <TextBlock Text="History" Style="{StaticResource Section}" DockPanel.Dock="Top"/>
+            <TextBlock Text="{local:Loc history}" Style="{StaticResource Section}" DockPanel.Dock="Top"/>
             <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,6">
                 <TextBox x:Name="SearchText" Width="180" Height="24" VerticalContentAlignment="Center"
                          Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
                          BorderBrush="{StaticResource HairlineBrush}" TextChanged="OnSearchTextChanged"
-                         ToolTip="Search by file name" AutomationProperties.Name="Search downloads"/>
+                         ToolTip="{local:Loc search_by_file_name}" AutomationProperties.Name="{local:Loc search_downloads}" KeyboardNavigation.TabIndex="9"/>
                 <ComboBox x:Name="StateFilterCombo" Width="110" Margin="8,0,0,0" SelectionChanged="OnSearchOrFilterChanged"
-                          ToolTip="Show all, completed only, or failed only" AutomationProperties.Name="Filter by state">
-                    <ComboBoxItem Content="All" Tag="All" IsSelected="True"/>
-                    <ComboBoxItem Content="Completed" Tag="Completed"/>
-                    <ComboBoxItem Content="Failed" Tag="Failed"/>
+                          ToolTip="{local:Loc show_all_completed_only_or_failed_only}" AutomationProperties.Name="{local:Loc filter_by_state}" KeyboardNavigation.TabIndex="10">
+                    <ComboBoxItem Content="{local:Loc all}" Tag="All" IsSelected="True"/>
+                    <ComboBoxItem Content="{local:Loc completed}" Tag="Completed"/>
+                    <ComboBoxItem Content="{local:Loc dl.detail_failed}" Tag="Failed"/>
                 </ComboBox>
                 <ComboBox x:Name="SortCombo" Width="120" Margin="8,0,0,0" SelectionChanged="OnSearchOrFilterChanged"
-                          ToolTip="Sort the history" AutomationProperties.Name="Sort downloads">
-                    <ComboBoxItem Content="Newest first" Tag="NewestFirst" IsSelected="True"/>
-                    <ComboBoxItem Content="Largest first" Tag="LargestFirst"/>
-                    <ComboBoxItem Content="Name A–Z" Tag="NameAscending"/>
+                          ToolTip="{local:Loc sort_the_history}" AutomationProperties.Name="{local:Loc msg.sort_downloads}" KeyboardNavigation.TabIndex="11">
+                    <ComboBoxItem Content="{local:Loc newest_first}" Tag="NewestFirst" IsSelected="True"/>
+                    <ComboBoxItem Content="{local:Loc largest_first}" Tag="LargestFirst"/>
+                    <ComboBoxItem Content="{local:Loc name_a_z}" Tag="NameAscending"/>
                 </ComboBox>
             </StackPanel>
             <ListBox x:Name="DownloadsList" Background="{StaticResource SurfaceBrush}"
@@ -102,7 +102,7 @@
                      ScrollViewer.CanContentScroll="True"
                      VirtualizingPanel.IsVirtualizing="True"
                      VirtualizingPanel.VirtualizationMode="Recycling"
-                     AutomationProperties.Name="Download history">
+                     AutomationProperties.Name="{local:Loc download_history}" KeyboardNavigation.TabIndex="12">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <StackPanel Margin="4,3">
@@ -118,32 +118,32 @@
         <!-- Bottom: note + history actions -->
         <StackPanel Grid.Row="2">
             <TextBlock x:Name="NoteText" Style="{StaticResource Note}"
-                       Text="Files Muse downloaded for you, newest first. The list is kept on this PC only."/>
+                       Text="{local:Loc files_muse_downloaded_for_you_newest_first}"/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-                <Button x:Name="OpenButton" Content="Open" Width="76" Height="30" Click="OnOpen"
-                        Background="{StaticResource AccentBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0"/>
-                <Button x:Name="FolderButton" Content="Show in folder" Width="104" Height="30" Margin="8,0,0,0" Click="OnShowInFolder"/>
-                <Button x:Name="CopyPathButton" Content="Copy path" Width="84" Height="30" Margin="8,0,0,0" Click="OnCopyPath"/>
-                <Button x:Name="OpenWithButton" Content="Open with…" Width="92" Height="30" Margin="8,0,0,0" Click="OnOpenWith"/>
-                <Button x:Name="DeleteFileButton" Content="Delete file" Width="86" Height="30" Margin="8,0,0,0" Click="OnDeleteFile"/>
+                <Button x:Name="OpenButton" Content="{local:Loc open}" Width="76" Height="30" Click="OnOpen"
+                        Background="{StaticResource AccentBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0" KeyboardNavigation.TabIndex="14"/>
+                <Button x:Name="FolderButton" Content="{local:Loc show_in_folder}" Width="104" Height="30" Margin="8,0,0,0" Click="OnShowInFolder" KeyboardNavigation.TabIndex="15"/>
+                <Button x:Name="CopyPathButton" Content="{local:Loc copy_path}" Width="84" Height="30" Margin="8,0,0,0" Click="OnCopyPath" KeyboardNavigation.TabIndex="16"/>
+                <Button x:Name="OpenWithButton" Content="{local:Loc open_with}" Width="92" Height="30" Margin="8,0,0,0" Click="OnOpenWith" KeyboardNavigation.TabIndex="17"/>
+                <Button x:Name="DeleteFileButton" Content="{local:Loc delete_file}" Width="86" Height="30" Margin="8,0,0,0" Click="OnDeleteFile" KeyboardNavigation.TabIndex="18"/>
             </StackPanel>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
-                <Button x:Name="NoteButton" Content="Note…" Width="76" Height="30" Click="OnEditNote"
-                        ToolTip="Attach a short note to the selected history entry (kept on this PC only)"/>
-                <Button x:Name="VerifyButton" Content="Verify SHA-256…" Width="118" Height="30" Margin="8,0,0,0" Click="OnVerifyHash"
-                        ToolTip="Check the selected file against a pasted SHA-256 hash; select again while checking to cancel"/>
-                <Button x:Name="SortButton" Content="Sort…" Width="70" Height="30" Margin="8,0,0,0" Click="OnSortDownloads"
-                        ToolTip="Move finished downloads into subfolders by type or your rules — preview first, undo after"/>
-                <Button x:Name="UndoSortButton" Content="Undo sort" Width="84" Height="30" Margin="8,0,0,0" Click="OnUndoSort"
-                        ToolTip="Move the last sort's or archive's files back where they were"/>
-                <Button x:Name="ArchiveButton" Content="Archive…" Width="84" Height="30" Margin="8,0,0,0" Click="OnArchiveDownloads"
-                        ToolTip="Move finished downloads into dated folders in the archive"/>
-                <Button x:Name="AddLinksButton" Content="Add links…" Width="92" Height="30" Margin="8,0,0,0" Click="OnAddLinks"
-                        ToolTip="Paste a list of links and download them all"/>
+                <Button x:Name="NoteButton" Content="{local:Loc note}" Width="76" Height="30" Click="OnEditNote"
+                        ToolTip="{local:Loc attach_a_short_note_to_the_selected_history}" KeyboardNavigation.TabIndex="19"/>
+                <Button x:Name="VerifyButton" Content="{local:Loc verify_sha_256}" Width="118" Height="30" Margin="8,0,0,0" Click="OnVerifyHash"
+                        ToolTip="{local:Loc pr20.check_the_selected_file_against_a_pasted_sha_256_hash_select_agai}" KeyboardNavigation.TabIndex="20"/>
+                <Button x:Name="SortButton" Content="{local:Loc sort}" Width="70" Height="30" Margin="8,0,0,0" Click="OnSortDownloads"
+                        ToolTip="{local:Loc move_finished_downloads_into_subfolders_by}" KeyboardNavigation.TabIndex="21"/>
+                <Button x:Name="UndoSortButton" Content="{local:Loc msg.undo_sort}" Width="84" Height="30" Margin="8,0,0,0" Click="OnUndoSort"
+                        ToolTip="{local:Loc move_the_last_sort_s_or_archive_s_files}" KeyboardNavigation.TabIndex="22"/>
+                <Button x:Name="ArchiveButton" Content="{local:Loc archive}" Width="84" Height="30" Margin="8,0,0,0" Click="OnArchiveDownloads"
+                        ToolTip="{local:Loc move_finished_downloads_into_dated_folders}" KeyboardNavigation.TabIndex="23"/>
+                <Button x:Name="AddLinksButton" Content="{local:Loc add_links}" Width="92" Height="30" Margin="8,0,0,0" Click="OnAddLinks"
+                        ToolTip="{local:Loc paste_a_list_of_links_and_download_them_all}" KeyboardNavigation.TabIndex="24"/>
             </StackPanel>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
-                <Button Content="Clear history" Width="100" Height="30" Click="OnClear"/>
-                <Button Content="Close" Width="86" Height="30" Margin="8,0,0,0" IsCancel="True"/>
+                <Button Content="{local:Loc clear_history}" Width="100" Height="30" Click="OnClear" KeyboardNavigation.TabIndex="25"/>
+                <Button Content="{local:Loc close}" Width="86" Height="30" Margin="8,0,0,0" IsCancel="True" KeyboardNavigation.TabIndex="26"/>
             </StackPanel>
         </StackPanel>
     </Grid>

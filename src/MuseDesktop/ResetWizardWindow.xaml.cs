@@ -45,15 +45,13 @@ public partial class ResetWizardWindow : Window
             File.WriteAllText(backupPath, SettingsStore.Export(_working));
             _backupOk = true;
             BackupStatusText.Text =
-                $"Your current settings were saved to {backupName} in the settings folder. " +
-                "If this reset makes things worse, Settings → Data → Import settings… brings them back.";
+                Strings.Format("reset.backup_saved", backupName);
         }
         catch (Exception ex)
         {
             _backupOk = false;
             BackupStatusText.Text =
-                $"The backup couldn't be written ({ex.Message}), so the settings reset is unavailable — " +
-                "MuseDesktop never resets settings without a backup. Clearing site data below still works.";
+                Strings.Format("reset.backup_failed", ex.Message);
             _log.Warn($"Reset wizard backup failed: {ex.Message}");
         }
         UpdateRunButton();
@@ -78,13 +76,13 @@ public partial class ResetWizardWindow : Window
         var clearData = ClearDataCheck.IsChecked == true;
         var steps = new List<string>();
         if (resetSettings)
-            steps.Add("• Reset your settings to defaults (backup already saved)");
+            steps.Add(Strings.Get("ui.reset_step_settings"));
         if (clearData)
-            steps.Add("• Clear site data for ALL profiles — every profile is signed out of Muse");
+            steps.Add(Strings.Get("ui.reset_step_clear_data"));
         var invoker = FocusReturn.Capture();
         var confirm = System.Windows.MessageBox.Show(this,
-            "Run the reset now?\n\n" + string.Join("\n", steps),
-            "Reset MuseDesktop", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            Strings.Format("msg.run_reset_body", string.Join("\n", steps)),
+            Strings.Get("msg.reset_musedesktop"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
         FocusReturn.Restore(invoker);
         if (confirm != MessageBoxResult.Yes)
             return;
@@ -97,14 +95,14 @@ public partial class ResetWizardWindow : Window
         {
             SettingsReset.ApplyDefaults(_working);
             SettingsWereReset = true;
-            results.Add("Settings are back to defaults (choose OK in Settings to apply them).");
+            results.Add(Strings.Get("ui.reset_result_settings"));
             _log.Info("Settings reset to defaults from the reset wizard (backup written first)");
         }
         if (clearData)
         {
             if (_privacy is null)
             {
-                results.Add("Site data couldn't be cleared — the web view isn't running yet.");
+                results.Add(Strings.Get("ui.reset_result_clear_failed"));
             }
             else
             {
@@ -114,6 +112,6 @@ public partial class ResetWizardWindow : Window
             }
         }
         ResultText.Text = string.Join("\n", results) +
-            "\nIf Muse still won't sign in, the backup guide in Settings → Data explains what else can be copied aside.";
+            Strings.Get("ui.reset_result_suffix");
     }
 }

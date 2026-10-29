@@ -13,12 +13,12 @@ namespace MuseDesktop;
 /// </summary>
 public partial class TextPromptWindow : Window
 {
-    public TextPromptWindow(string title, string prompt, string initialText = "", bool multiline = false, string okText = "OK")
+    public TextPromptWindow(string title, string prompt, string initialText = "", bool multiline = false, string? okText = null)
     {
         InitializeComponent();
         Title = title;
         PromptText.Text = prompt;
-        OkButton.Content = okText;
+        OkButton.Content = okText ?? Strings.Get("ok");
         InputText.Text = initialText;
         if (multiline)
         {

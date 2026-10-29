@@ -11,7 +11,7 @@ public sealed class ReadingListRow
     {
         Entry = entry;
         Title = entry.Title;
-        Detail = $"{(entry.IsRead ? "Read" : "Unread")} · {entry.Route} · saved {entry.AddedUtc.LocalDateTime:yyyy-MM-dd}";
+        Detail = Strings.Format("reading.detail", Strings.Get(entry.IsRead ? "reading.read" : "reading.unread"), entry.Route, entry.AddedUtc.LocalDateTime);
     }
 
     public ReadingListEntry Entry { get; }
@@ -51,7 +51,7 @@ public partial class ReadingListWindow : Window
     {
         var rows = _refresh().Select(e => new ReadingListRow(e)).ToList();
         EntryList.ItemsSource = rows;
-        EmptyStateText.Text = "Your reading list is empty. Save a page from the ⋯ menu or command palette to keep it here.";
+        EmptyStateText.Text = Strings.Get("pr20.your_reading_list_is_empty_save_a_page_from_the_menu_or_command_p");
         EmptyStateText.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         if (keepId is not null)
             EntryList.SelectedItem = rows.FirstOrDefault(r => r.Entry.Id == keepId);

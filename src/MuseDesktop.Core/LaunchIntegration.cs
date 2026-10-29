@@ -36,6 +36,9 @@ public enum LaunchIntentKind
 
     /// <summary>Run the named profile. On a running instance this is the confirm-then-restart switch, never a silent swap.</summary>
     SwitchProfile,
+
+    /// <summary>Close cleanly because an update is installing (R7D): the installer detected this instance, asked it to exit so the program files can be replaced, and reopens the app when the install finishes. The one intent that applies IMMEDIATELY — never queued behind the app lock (exiting reveals nothing; the lock re-engages at the next launch) and never a show/navigation: the window is not brought forward for it, including when the app is hidden in the tray.</summary>
+    ExitForUpdate,
 }
 
 /// <summary>
@@ -50,13 +53,18 @@ public sealed record LaunchIntent(LaunchIntentKind Kind, string? ProfileId = nul
 
     /// <summary>
     /// Reduce a command line to its intent. Precedence when several
-    /// action flags combine: a profile switch outranks opening a
-    /// surface (the switch restarts the app — opening Settings first
-    /// would be wasted work), then Settings, Downloads, Home, dictate.
+    /// action flags combine: exit-for-update outranks everything (the
+    /// installer is waiting to replace this build — any other action
+    /// would be work done by a process that is about to exit), then a
+    /// profile switch outranks opening a surface (the switch restarts
+    /// the app — opening Settings first would be wasted work), then
+    /// Settings, Downloads, Home, dictate.
     /// --help/--version never reach here (answered in-process).
     /// </summary>
     public static LaunchIntent FromCommandLine(CommandLineOptions options)
     {
+        if (options.ExitForUpdate)
+            return new LaunchIntent(LaunchIntentKind.ExitForUpdate);
         if (options.ProfileId is not null)
             return new LaunchIntent(LaunchIntentKind.SwitchProfile, options.ProfileId);
         if (options.OpenSettings)
@@ -258,14 +266,33 @@ public enum IntentDisposition
 public static class LaunchIntentRouting
 {
     /// <summary>
+    /// Whether an intent applies the moment it arrives, whatever the
+    /// lock state (R7D). Only the exit-for-update intent qualifies:
+    /// applying it shows nothing, navigates nowhere, and names no
+    /// profile — the process simply closes, and the app lock
+    /// re-engages on the next launch exactly as it does after any
+    /// exit. Every other intent can put content on screen or reveal
+    /// that a profile exists, so every other intent waits behind the
+    /// lock.
+    /// </summary>
+    public static bool AppliesImmediately(LaunchIntent intent) =>
+        intent.Kind == LaunchIntentKind.ExitForUpdate;
+
+    /// <summary>
     /// The lock rule (S7 #64 extended by S11): while the app lock is
     /// engaged, NO intent applies — not even a profile switch or the
     /// dictate shortcut, which could leak which profile exists or put
     /// content on screen. The intent queues (last one wins, see
     /// <see cref="PendingIntentQueue"/>) and applies after unlock.
+    /// The single exception is exit-for-update (R7D, see
+    /// <see cref="AppliesImmediately"/>): an update the user already
+    /// accepted must not stall behind a lock screen nobody may be
+    /// present to answer.
     /// </summary>
     public static IntentDisposition Decide(LaunchIntent intent, bool appLocked) =>
-        appLocked ? IntentDisposition.QueueBehindLock : IntentDisposition.ApplyNow;
+        AppliesImmediately(intent) || !appLocked
+            ? IntentDisposition.ApplyNow
+            : IntentDisposition.QueueBehindLock;
 }
 
 /// <summary>

@@ -223,6 +223,12 @@ public sealed class AppSettings
     /// <summary>Flash the taskbar button when Muse asks for attention while the window is hidden (S4 #39). Off by default.</summary>
     public bool FlashTaskbarOnAttention { get; set; }
 
+    /// <summary>Beep (and flash the taskbar button) when the page shows an approval card while this window isn't the active one (R7C). On by default — the feature exists because SEAN asked to hear it. The watcher is observe-only: it can never answer the card.</summary>
+    public bool ApprovalBeepEnabled { get; set; } = true;
+
+    /// <summary>Show a Windows toast notification when the page shows an approval card and the approval policy fires an alert (R8, via the vendored NotifyKit). The toast rides the same policy verdict as the beep — either channel can be on without the other. On by default. Display-only like the beep: the watcher is observe-only and a toast can never answer the card.</summary>
+    public bool ApprovalToastEnabled { get; set; } = true;
+
     /// <summary>In-app quiet hours (S4 #38): while on and inside the window, MuseDesktop's own balloons/flash stay quiet (and say so in the log).</summary>
     public bool QuietHoursEnabled { get; set; }
 
@@ -247,6 +253,32 @@ public sealed class AppSettings
 
     /// <summary>Toolbar items the user hid (S5 #45). Sanitized by ToolbarLayout (Back can never be hidden).</summary>
     public List<string> ToolbarHidden { get; set; } = new();
+
+    // Appearance round 2 (v1.7.0, R6 #151–#160). All global: these
+    // describe the shell's own face, not one profile's page.
+    /// <summary>Backdrop material preference (R6 #151): Auto (Mica when the PC can), None, Mica, or Acrylic. The effective material is BackdropPolicy's call — this is only the wish.</summary>
+    public BackdropPreference Backdrop { get; set; } = BackdropPreference.Auto;
+
+    /// <summary>Title bar tinted with the active profile's color (R6 #152). High Contrast and reduced transparency outrank it (TitleBarTint + the shell's capability checks).</summary>
+    public bool TitleBarProfileTint { get; set; } = true;
+
+    /// <summary>Shell chrome density (R6 #153): Comfortable (the long-standing spacing) or Compact. Independent of ShellFontScale.</summary>
+    public ShellDensity Density { get; set; } = ShellDensity.Comfortable;
+
+    /// <summary>Tray icon painting style (R6 #155).</summary>
+    public TrayIconStyle TrayIconStyle { get; set; } = TrayIconStyle.Color;
+
+    /// <summary>Tray attention overlay style (R6 #155): numbered badge, plain dot, or none.</summary>
+    public TrayOverlayStyle TrayCountOverlay { get; set; } = TrayOverlayStyle.NumberBadge;
+
+    /// <summary>A custom accent color as "#RRGGBB" (R6 #158), or null for the preset in AccentColor. Sanitized by CustomAccent; derived variants pass the same contrast guard as the presets.</summary>
+    public string? CustomAccent { get; set; }
+
+    /// <summary>Theme schedule light-start, minutes after local midnight (R6 #159; default 07:00). Only speaks when Theme is FollowSchedule.</summary>
+    public int ThemeLightStartMinutes { get; set; } = ThemeScheduleMath.DefaultLightStartMinutes;
+
+    /// <summary>Theme schedule dark-start, minutes after local midnight (R6 #159; default 19:00; may be earlier than the light start — the light window wraps midnight).</summary>
+    public int ThemeDarkStartMinutes { get; set; } = ThemeScheduleMath.DefaultDarkStartMinutes;
 
     // Settings-window memory (v0.9.0, S5 #48).
     /// <summary>The Settings section last in view (a SettingsSearch section id), so Settings reopens where it was left. Sanitized to a known id or null.</summary>
@@ -280,17 +312,70 @@ public sealed class AppSettings
     /// <summary>Extended zoom range (S6 #57): 25%–500% instead of 50%–200%, for low-vision users. Off by default.</summary>
     public bool ExtendedZoomRange { get; set; }
 
+    // Language & announcements (v1.8.0, R7 #161–#170).
+    /// <summary>
+    /// The shell language (R7 #162): a language code from the catalog
+    /// ("es-ES") or an imported pack, or null for "follow Windows"
+    /// (the default — the system culture resolves against the
+    /// available languages at launch). A code naming nothing available
+    /// resolves to English at launch and is left as stored; Sanitized
+    /// only drops values that aren't plausible codes at all.
+    /// </summary>
+    public string? UiLanguage { get; set; }
+
+    /// <summary>
+    /// The announcement center's per-type switches (R7 #169): kind id
+    /// → enabled, holding only the OFF exceptions (see
+    /// <see cref="AnnouncementSwitches"/>). Empty = every type speaks,
+    /// the S6 behavior.
+    /// </summary>
+    public Dictionary<string, bool> AnnouncementKindEnabled { get; set; } = new();
+
+    /// <summary>
+    /// Shell text spacing (R7 #170): the line-spacing scale for the
+    /// app's own windows — 1.0 (Standard), 1.25 (Relaxed), or 1.5
+    /// (Wide). Sanitized by <see cref="ShellTextSpacing"/> to the
+    /// nearest offered value.
+    /// </summary>
+    public double ShellTextSpacingScale { get; set; } = 1.0;
+
+    // Token usage ring (v1.8.2, R7B).
+    /// <summary>
+    /// The context limit (tokens) the token ring's ESTIMATE is
+    /// measured against (R7B). It is used only when the Muse page
+    /// reports no usage figure of its own — a page-reported figure
+    /// always wins over this. Default 200,000 (the common large
+    /// context window); sanitized by <see cref="TokenEstimator"/>
+    /// (non-positive restores the default, otherwise clamped to
+    /// 1,000–10,000,000) because only the user knows their plan's
+    /// real window.
+    /// </summary>
+    public int EstimatedContextLimitTokens { get; set; } = TokenEstimator.DefaultLimitTokens;
+
     // Privacy & security (v0.11.0, S7).
     /// <summary>
-    /// Let Muse (and its sign-in pages) save passwords in WebView2 and
-    /// offer them back (S7 #68). This is WebView2's own default (on);
-    /// the app hardcoded it on before v0.11.0. Applied to each profile's
-    /// web view at init and live when changed in Settings.
+    /// Was: let Muse (and its sign-in pages) save passwords in WebView2
+    /// and offer them back (S7 #68 — a user choice, defaulting on).
+    /// Since v1.8.8 (R7F, the owner's decision) passwords are NEVER
+    /// saved in the app: the property remains in the file only so
+    /// settings written by older versions still load, and
+    /// <see cref="Sanitized"/> forces it to false on every load — a
+    /// stored true is never honored, the Settings toggle is gone, and
+    /// the shell applies WebView2's password autosave as OFF
+    /// unconditionally. Passwords older versions did save are wiped
+    /// by the installer and by the startup sweep
+    /// (<see cref="SavedPasswordSweep"/>); sign-in cookies are never
+    /// touched by any of it.
     /// </summary>
-    public bool PasswordAutosaveEnabled { get; set; } = true;
+    public bool PasswordAutosaveEnabled { get; set; }
 
-    /// <summary>Let WebView2 remember and refill ordinary form fields (S7 #68). WebView2's default (on), like password autosave.</summary>
-    public bool GeneralAutofillEnabled { get; set; } = true;
+    /// <summary>
+    /// Let WebView2 remember and refill ordinary form fields (S7 #68).
+    /// The toggle stays, but the DEFAULT changed in v1.8.8 (R7F):
+    /// fresh installs start with autofill off; a value a user already
+    /// stored is an explicit choice and is respected exactly as stored.
+    /// </summary>
+    public bool GeneralAutofillEnabled { get; set; }
 
     // App lock (v0.11.0, S7 #64). The credential itself is NEVER stored —
     // only the AppLock record: a random salt + PBKDF2 hash + iteration
@@ -452,6 +537,24 @@ public sealed class AppSettings
         ShortcutOverrides ??= new Dictionary<string, string>();
         if (!Enum.IsDefined(ReduceMotion))
             ReduceMotion = ReduceMotionSetting.FollowSystem;
+        // R7: the language must be a plausible code (a hand-edited
+        // sentence is not a language — it reads as "follow Windows");
+        // the announcement switches keep only known OFF entries; the
+        // text-spacing scale clamps to the nearest offered step.
+        if (UiLanguage is not null && !LanguageCatalog.IsPlausibleCode(UiLanguage))
+            UiLanguage = null;
+        AnnouncementKindEnabled = AnnouncementSwitches.Sanitize(AnnouncementKindEnabled);
+        ShellTextSpacingScale = ShellTextSpacing.Sanitize(ShellTextSpacingScale);
+        // R7B: the token ring's estimated limit repairs like every
+        // other numeric knob — a hand-edited absurdity degrades to
+        // the default or the nearest offered bound, never a crash.
+        EstimatedContextLimitTokens = TokenEstimator.SanitizeLimit(EstimatedContextLimitTokens);
+        // R7F (v1.8.8): passwords are never saved in the app — a
+        // stored true from a version that still offered the toggle
+        // is repaired to false here, on every load path (Load and
+        // TryImport both come through Sanitized), so nothing
+        // downstream can honor it.
+        PasswordAutosaveEnabled = false;
         // After the profile list is final: pending deletions must never
         // name a live profile (S3 #28).
         global::MuseDesktop.Core.Profiles.SanitizePendingDeletions(this);
@@ -508,6 +611,24 @@ public sealed class AppSettings
         var (order, hidden) = ToolbarLayout.Sanitize(ToolbarOrder, ToolbarHidden);
         ToolbarOrder = order;
         ToolbarHidden = hidden;
+        // R6: appearance-round-2 repairs — undefined enums fall back
+        // to the default face; a malformed custom accent drops to
+        // the preset (never an unreadable look); schedule times
+        // repair per-field so one bad value keeps the other.
+        if (!Enum.IsDefined(Backdrop))
+            Backdrop = BackdropPreference.Auto;
+        if (!Enum.IsDefined(Density))
+            Density = ShellDensity.Comfortable;
+        if (!Enum.IsDefined(TrayIconStyle))
+            TrayIconStyle = TrayIconStyle.Color;
+        if (!Enum.IsDefined(TrayCountOverlay))
+            TrayCountOverlay = TrayOverlayStyle.NumberBadge;
+        // Fully qualified: the property above shadows the class here.
+        CustomAccent = MuseDesktop.Core.CustomAccent.TryNormalize(CustomAccent);
+        if (!QuietHours.IsValidMinutes(ThemeLightStartMinutes))
+            ThemeLightStartMinutes = ThemeScheduleMath.DefaultLightStartMinutes;
+        if (!QuietHours.IsValidMinutes(ThemeDarkStartMinutes))
+            ThemeDarkStartMinutes = ThemeScheduleMath.DefaultDarkStartMinutes;
         // S5 #48: Settings-window memory — a known section id or
         // nothing; sizes clamped to what a real monitor could show.
         if (!SettingsSearch.IsKnownSection(SettingsLastSection))

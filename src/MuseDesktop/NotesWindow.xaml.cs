@@ -48,7 +48,7 @@ public partial class NotesWindow : Window
     {
         var rows = _refresh().Select(n => new NoteRow(n)).ToList();
         NoteList.ItemsSource = rows;
-        EmptyStateText.Text = "No notes yet. Choose New note or use the quick-note shortcut to capture one.";
+        EmptyStateText.Text = Strings.Get("pr20.no_notes_yet_choose_new_note_or_use_the_quick_note_shortcut_to_ca");
         EmptyStateText.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         if (selectedNoteId is not null
             && rows.FirstOrDefault(row => row.Note.Id == selectedNoteId) is { } selected)

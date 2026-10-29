@@ -13,10 +13,11 @@ name: Sign-Release
 #       SIGNING_CERT_PFX      — the code-signing certificate (.pfx),
 #                               base64-encoded
 #       SIGNING_CERT_PASSWORD — the .pfx password
-# When enabled for a release tag, it downloads that release's two
-# installer assets, signs them with signtool (SHA-256, timestamped),
-# regenerates SHA256SUMS.txt over all four release assets, and
-# re-uploads the changed files. Signing BEFORE a release is published
+# When enabled for a release tag, it downloads that release's
+# assets, signs the installer with signtool (SHA-256, timestamped),
+# regenerates SHA256SUMS.txt over the release's two binaries (the
+# x64-only shape, SEAN 2026-10-27), and re-uploads the changed
+# files. Signing BEFORE a release is published
 # is the better order once this is routine (sign the staged
 # installers, then publish) — the checklist describes both.
 on:
@@ -61,7 +62,7 @@ jobs:
         run: |
           [IO.File]::WriteAllBytes("$env:RUNNER_TEMP\signing.pfx", [Convert]::FromBase64String($env:CERT_PFX))
 
-      - name: Sign the installers
+      - name: Sign the installer
         shell: pwsh
         env:
           CERT_PASSWORD: ${{ secrets.SIGNING_CERT_PASSWORD }}
@@ -70,7 +71,7 @@ jobs:
             Sort-Object FullName | Select-Object -Last 1
           if (-not $signtool) { throw "signtool.exe not found on the runner." }
           $installers = Get-ChildItem assets\MuseDesktop-Setup-*.exe
-          if ($installers.Count -ne 2) { throw "Expected exactly 2 installer assets, found $($installers.Count)." }
+          if ($installers.Count -ne 1) { throw "Expected exactly 1 installer asset, found $($installers.Count)." }
           foreach ($installer in $installers) {
             & $signtool.FullName sign /f "$env:RUNNER_TEMP\signing.pfx" /p $env:CERT_PASSWORD `
               /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 $installer.FullName
@@ -87,9 +88,7 @@ jobs:
         run: |
           $names = @(
             "MuseDesktop-v$($env:TAG.TrimStart('v'))-windows-x64.zip",
-            "MuseDesktop-v$($env:TAG.TrimStart('v'))-windows-arm64.zip",
-            "MuseDesktop-Setup-$env:TAG-x64.exe",
-            "MuseDesktop-Setup-$env:TAG-arm64.exe"
+            "MuseDesktop-Setup-$env:TAG-x64.exe"
           )
           $lines = foreach ($name in $names) {
             $path = Join-Path assets $name

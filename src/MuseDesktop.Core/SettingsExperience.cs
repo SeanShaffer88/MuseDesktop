@@ -6,14 +6,18 @@ namespace MuseDesktop.Core;
 public sealed record SettingsSectionInfo(string Id, string Title, string Keywords);
 
 /// <summary>
-/// The Settings search index (S5 #41). Settings is one scrolling window
-/// of sections (not tabs), so search works at section level: a query
-/// matches a section when EVERY term fuzzy-matches some word of its
-/// title or keywords; matching sections stay visible (and are
-/// highlighted), the rest collapse, and the window scrolls to the
-/// best match. The index lives in Core so the mapping from words to
-/// sections is unit-tested against the real layout instead of
-/// drifting in the shell.
+/// The Settings search index (S5 #41). Search works at section
+/// level: a query matches a section when EVERY term fuzzy-matches
+/// some word of its title or keywords; matching sections stay
+/// visible (and are highlighted), the rest collapse, and the window
+/// scrolls to the best match. Since R7E (v1.8.6) the window is a
+/// rail of pages (<see cref="SettingsPages"/>) rather than one
+/// scrolling column, but the unit of search is unchanged: the
+/// matched sections show as cards, the rail highlights the best
+/// match's page, and clearing the search returns to page view. The
+/// index lives in Core so the mapping from words to sections is
+/// unit-tested against the real layout instead of drifting in the
+/// shell.
 ///
 /// R1 (#108): matching and ranking are the command palette's ONE
 /// fuzzy matcher (<see cref="FuzzyMatch"/>), replacing the S5
@@ -32,6 +36,7 @@ public static class SettingsSearch
     public const string AppearanceId = "appearance";
     public const string ZoomId = "zoom";
     public const string AccessibilityId = "accessibility";
+    public const string LanguageId = "language";
     public const string DownloadsId = "downloads";
     public const string DataId = "data";
     public const string FocusId = "focus";
@@ -48,11 +53,17 @@ public static class SettingsSearch
         new SettingsSectionInfo(WorkspacesId, "Workspaces & sessions",
             "workspace workspaces session sessions layout windows arrangement save apply startup launch auto-save restore snapshot crash glyph icon accent duplicate rename delete"),
         new SettingsSectionInfo(AppearanceId, "Appearance & toolbar",
-            "theme dark light follow windows system accent color shell text size font scale toolbar customize reorder hide show buttons layout reset appearance"),
+            "theme dark light follow windows system accent color shell text size font scale toolbar customize reorder hide show buttons layout reset appearance mica acrylic backdrop material titlebar tint title bar profile color density compact spacing monochrome grayscale overlay badge custom picker hex opacity schedule time of day mini"),
         new SettingsSectionInfo(ZoomId, "Zoom",
             "zoom default percent bigger smaller text size page extended range low vision 500"),
         new SettingsSectionInfo(AccessibilityId, "Keyboard & accessibility",
             "keyboard shortcuts keys remap rebind change hotkey global show hide anywhere dictate reduce motion animation effects announcements screen reader narrator focus dialog extended zoom range low vision accessibility"),
+        // R7 (v1.8.0): language & announcements sit between
+        // accessibility and downloads in the layout; its words
+        // (language, español, announcements, spacing) are its own, so
+        // the older sections keep their established matches.
+        new SettingsSectionInfo(LanguageId, "Language & announcements",
+            "language español spanish english translation translate pack import export locale region system default announcements announce spoken narrator screen reader mute quiet types downloads updates timers focus text spacing line height low vision rtl right-to-left"),
         new SettingsSectionInfo(DownloadsId, "Downloads",
             "downloads folder save ask where collision already exists rename history keep cap notify finished balloon sort rules subfolder file type organize archive dated bandwidth limit speed quiet hours schedule hold large duplicate already downloaded warn again hash sha-256 verify note retry automatic attempts quota soft cap storage batch links paste list"),
         new SettingsSectionInfo(DataId, "Data",
@@ -170,8 +181,27 @@ public static class SettingsReset
         target.ShortcutOverrides = fresh.ShortcutOverrides;
         target.ReduceMotion = fresh.ReduceMotion;
         target.ExtendedZoomRange = fresh.ExtendedZoomRange;
-        // S7 fields (v0.11.0): password autosave / general autofill
-        // return to the WebView2 defaults (both on).
+        // R7 fields (v1.8.0): the language returns to "follow Windows",
+        // every announcement type speaks again, and text spacing
+        // returns to Standard. Imported language PACKS are files in
+        // the packs folder, not preferences — a reset leaves them
+        // installed (deleting a user's translation files is not a
+        // preference reset's business).
+        target.UiLanguage = fresh.UiLanguage;
+        target.AnnouncementKindEnabled = fresh.AnnouncementKindEnabled;
+        target.ShellTextSpacingScale = fresh.ShellTextSpacingScale;
+        // R7B field (v1.8.2): the token ring's estimated limit is a
+        // preference and resets to the default window.
+        target.EstimatedContextLimitTokens = fresh.EstimatedContextLimitTokens;
+        // R7C field (v1.8.3): the approval beep returns to on.
+        target.ApprovalBeepEnabled = fresh.ApprovalBeepEnabled;
+        // R8 field: the approval toast returns to on, with the beep.
+        target.ApprovalToastEnabled = fresh.ApprovalToastEnabled;
+        // S7 fields (v0.11.0): the autofill pair return to the
+        // current defaults — since R7F (v1.8.8) both are OFF:
+        // password autosave is never on at all (Sanitized forces it
+        // regardless), and general autofill starts off on a fresh
+        // install.
         target.PasswordAutosaveEnabled = fresh.PasswordAutosaveEnabled;
         target.GeneralAutofillEnabled = fresh.GeneralAutofillEnabled;
         // S11 fields (v1.0.0): the global hotkey returns to on with
@@ -232,6 +262,17 @@ public static class SettingsReset
         target.ShellFontScale = fresh.ShellFontScale;
         target.ToolbarOrder = fresh.ToolbarOrder;
         target.ToolbarHidden = fresh.ToolbarHidden;
+        // R6 fields: the round-2 face resets with the rest of it —
+        // backdrop, title bar tint, density, tray styles, the custom
+        // accent, and the theme schedule times.
+        target.Backdrop = fresh.Backdrop;
+        target.TitleBarProfileTint = fresh.TitleBarProfileTint;
+        target.Density = fresh.Density;
+        target.TrayIconStyle = fresh.TrayIconStyle;
+        target.TrayCountOverlay = fresh.TrayCountOverlay;
+        target.CustomAccent = fresh.CustomAccent;
+        target.ThemeLightStartMinutes = fresh.ThemeLightStartMinutes;
+        target.ThemeDarkStartMinutes = fresh.ThemeDarkStartMinutes;
         // A reset returns the app to its first-run state, wizard
         // included: the setup wizard offers itself again next launch.
         target.FirstRunCompleted = fresh.FirstRunCompleted;

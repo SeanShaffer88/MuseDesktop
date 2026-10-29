@@ -66,7 +66,7 @@ public enum AttentionKind
 /// </summary>
 public sealed record TrayIconPlan(bool ShowProfileDot, bool ShowBadge, string? BadgeText);
 
-public static class TrayIconPlanner
+public static partial class TrayIconPlanner
 {
     /// <summary>Badge label for a count: the number itself, capped at "9+" so it fits a 32px icon.</summary>
     public static string BadgeTextFor(int count) => count > 9 ? "9+" : count.ToString();

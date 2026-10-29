@@ -4,6 +4,389 @@ All notable changes to MuseDesktop. Format follows Keep a Changelog; versions us
 
 Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhancement program; they were never published as releases. Everything in them shipped together as **1.0.0** (2026-10-24).
 
+## [1.9.0] — Unreleased
+
+### Added
+
+- **Approval alerts can pop a toast as well as beep.** When
+  Muse shows an approval card while the MuseDesktop window
+  isn't the active one, the alert can now also appear as a
+  Windows toast notification: Settings → Tray & notifications →
+  "Toast notification when approval is needed" (on by
+  default), beside the beep switch. The two channels are
+  independent — beep only, toast only, both, or neither — and
+  the toast says only that an approval is waiting, never what
+  the card asks. MuseDesktop still only notices the card;
+  the approving click is always yours. Toasts are shown
+  through the bundled NotifyKit library, and the app keeps a
+  Start Menu shortcut named "MuseDesktop" that carries its
+  notification identity, which is what Windows needs to
+  deliver them.
+
+## [1.8.8] — Unreleased
+
+Two changes ship together in v1.8.8 (grouped release):
+hotfix R7E2 (directed 2026-10-27) — the Settings topics
+rail, made readable, from the field test of v1.8.6 — and
+slice R7F: the browser password hardening.
+
+### Fixed
+
+- **The Settings topics list reads clearly again.** The
+  topic names and icons down the left side of Settings were
+  painted black on the near-black rail in the dark theme —
+  a built-in Windows list default quietly overrode the
+  window's text color for that one list, so the topics you
+  hadn't picked were almost invisible. The rail now uses
+  the theme's text color like the rest of the window:
+  white in the dark theme, dark in the light theme, in
+  every state — picked, hovered, or waiting.
+
+### Security
+
+- **Passwords are never saved now.** The web view's
+  password saving is off for good — not a setting, a rule.
+  The old "let Muse save passwords" switch is gone from
+  Settings, and a saved "on" from an older version is not
+  honored.
+- **Passwords older versions saved are removed.**
+  Upgrading deletes the saved-password store (the files
+  named `Login Data` and `Login Data-journal`) from every
+  profile's browser folder — the installer does it during
+  the upgrade, and the app repeats the same wipe at every
+  start, which also covers the portable zip. Your
+  sign-ins are cookies, and cookies are never touched:
+  you stay signed in to Muse. A site whose password was
+  saved will simply ask you to type it again.
+- **Form autofill starts off.** On a fresh install the
+  web view no longer remembers and refills ordinary form
+  entries until you turn it on in Settings → Privacy &
+  security. If you already had it on, your choice is kept.
+- **Settings → Privacy & security now says what is stored
+  where:** no passwords, ever; sign-in cookies in each
+  profile's browser folder on this PC, removable with the
+  clear-data control; and nothing sent anywhere by the
+  app itself.
+
+## [1.8.7] — Unreleased
+
+Follow-on slice R7C2 (directed 2026-10-27): the approval beep,
+fixed — from SEAN's field test of v1.8.3.
+
+### Fixed
+
+- **The approval beep can hear the card now.** The v1.8.3
+  watcher only believed a card when it found an approve button
+  and a deny button side by side, both with exact labels, inside
+  a small box — and on the real page it never matched, so the
+  beep never sounded. The watcher now leads with the rule from
+  SEAN's own browser alert script, which works on the real page:
+  any visible button whose label starts with "Allow". The old
+  pair rule stays on as a back-up signal, the box-size condition
+  is gone, and the watcher speaks up sooner — about a third of
+  a second after a card appears, not most of a second.
+- **The beep repeats while a card waits.** If an approval card
+  is still waiting and you still haven't come back to the
+  window, the beep sounds again every 20 seconds, so a card
+  that appears the moment you step away isn't missed for good.
+  Answering the card, or coming back to the window, ends the
+  reminders for that card.
+- **The log now says what the beep did, and why.** Every
+  detection, beep, reminder, and skip (window active, setting
+  off, too soon after the last beep) leaves a short line in the
+  app log — which rule matched and the reason, never anything
+  the card itself said.
+
+## [1.8.6] — Unreleased
+
+Follow-on slice R7E (directed 2026-10-27): the Settings window,
+reorganized.
+
+### Changed
+
+- **Settings is organized by topic now.** The window used to be
+  one long scrolling page of twelve sections. Now it works like
+  the Settings in the Muse app itself: a list of topics down
+  the left side — General, Appearance, Profiles, Workspaces,
+  Notifications, Focus, Downloads, Data, Language, Accessibility,
+  Privacy — and the right side shows just the topic you picked,
+  its settings grouped in cards. (Zoom rides along in
+  Appearance, as its own card.) Every setting is where it was —
+  same names, same order inside each topic — only the layout
+  changed. The search box still jumps straight to a setting,
+  Settings still reopens where you left it, and links that open
+  Settings at a particular section land on the right topic.
+## [1.8.5] — Unreleased
+
+Hotfix R7D1 (directed 2026-10-27): the installer close/relaunch
+fix for R7D, from SEAN's field test of v1.8.4.
+
+### Fixed
+
+- **The installer now really closes MuseDesktop before
+  installing.** The v1.8.4 installer could fail to notice
+  MuseDesktop was running, so it didn't close it before
+  installing — it now checks for the running program
+  directly, asks it to close (and makes it close if it
+  won't), and only then copies the new files. Reopening is
+  the **Run MuseDesktop** box on the installer's last page:
+  the app starts as you close the installer, and only if
+  the box is ticked. When MuseDesktop was running, the
+  box starts out ticked so the app comes back — untick it
+  and it stays closed. Installing from inside the app is
+  unchanged: no installer window appears, and the app
+  closes, updates, and reopens by itself.
+
+## [1.8.4] — Unreleased
+
+Follow-on slice R7D (directed 2026-10-27): seamless updates.
+
+### Changed
+
+- **Updating is hands-free after you accept.** You still get
+  the say: the update window offers the new version, you
+  choose Download, the installer is checked against the
+  release's published fingerprint, and you choose Install.
+  From that click on, there's nothing else to do — you don't
+  have to close MuseDesktop first or click through a setup
+  wizard. The installer closes the app if it's running
+  (even hidden in the tray, even locked), installs the new
+  version over the old one, and reopens MuseDesktop when
+  it's done. Your sign-in and settings carry over, as
+  always. Rollback is unchanged: reinstalling the previous
+  version from Diagnostics keeps the classic installer
+  wizard and doesn't reopen the app for you.
+
+## [1.8.3] — Unreleased
+
+Follow-on slice R7C (directed 2026-10-27): a beep when an
+approval card needs attention.
+
+### Added
+
+- **Approval beep.** When Muse shows an approval card — a
+  permission prompt waiting for your click — while the
+  MuseDesktop window isn't the active one, the app beeps
+  once and flashes its taskbar button, so you hear about the
+  prompt without watching the window. One beep per card,
+  with a short cooldown between cards, and never a beep for
+  a card that arrived while you were already looking at the
+  window. MuseDesktop only NOTICES the card: the watcher
+  is observe-only and can never approve, deny, or dismiss
+  anything — the click is always yours. On by default;
+  turn it off under Settings → Tray & notifications ("Beep
+  when an approval needs my attention"). Detection watches
+  for the page's own approval cards as best it can — if
+  the page changes its cards, the beep can quietly stop
+  (see Known limitations).
+
+## [1.8.2] — Unreleased
+
+Follow-on slice R7B (directed 2026-10-27): a token-usage ring
+in the main window, and the Bookmarks button's move to the
+upper-right corner.
+
+### Added
+
+- **Token-usage ring.** A circular ring in the main window's
+  upper-right corner, immediately left of the zoom controls,
+  shows how full the current conversation's context is, with
+  the percent in its center (a ~ marks an estimate). When the
+  Muse page itself displays a usage figure, the ring reads
+  that; when it doesn't, the ring estimates from the
+  conversation's length and says so — in the ring, its
+  tooltip, and its panel. Clicking the ring opens a small
+  panel with the counts, the source, and a Refresh button.
+  The estimate's limit is a new Settings → Appearance &
+  toolbar value (default 200,000 tokens), used only in
+  estimate mode.
+- **Bookmarks moved.** The Bookmarks button now sits in the
+  upper-right cluster, left of the token ring, instead of on
+  the left rail.
+
+### Removed
+
+- **The left rail is gone.** The slim left strip added in
+  v1.6.0 held only the Bookmarks button; with the button
+  moved, the rail is removed and the conversation reclaims
+  the full window width.
+
+### Changed
+
+- **The titlebar says "MuseDesktop" — and nothing else.** No
+  page title, no profile name; just the app's name, so the
+  window is instantly recognizable in the taskbar and task
+  switcher. (Secondary windows keep their conversation
+  titles, so they stay tellable apart.)
+## [1.8.1] — Unreleased
+
+Hotfix for the Settings crash found in the v1.7.0 field pass.
+
+### Fixed
+
+- **Settings opens again — for real this time.** The fix itself
+  was in v1.8.0's source, but the v1.8.0 installers were built
+  from the tree just before the fix landed, so the crash shipped
+  anyway. v1.8.1's installers are built from the fixed tree and
+  verified against it. (The bug: the profile dropdown carried
+  both a custom item template and a DisplayMemberPath, a
+  combination the Windows UI framework refuses; a guard test
+  now fails the build if it ever recurs.)
+
+## [1.8.0] — Unreleased
+
+Round 2 Slice R7 (items 161–170): accessibility & language
+round 2. The whole shell — every menu, dialog, Settings page,
+and the tray — now speaks through one string catalog, ships in
+English and Spanish, and can learn more languages from pack
+files. Announcements get per-type switches and a quiet visual
+history, every window gets a deliberate keyboard tab order, and
+the shell's own text gains line-spacing choices for low-vision
+readers. As always, only MuseDesktop's own windows are
+translated or restyled; the Muse page is never touched.
+
+### Added
+
+- **#161 Localization framework.** Every string the shell shows
+  — menus, dialogs, Settings, the tray, status lines — lives in
+  a string catalog instead of being written into the windows.
+  A test fails the build if a hard-coded user-facing string
+  turns up in the shell, so the catalog can't quietly fall
+  behind the windows it feeds.
+- **#162 Language picker.** Settings → Language &
+  announcements → Shell language: **System default** (follows
+  the Windows display language), English, Español, plus any
+  language an imported pack adds. No reinstall and no separate
+  download. Windows opened after a change use the new language
+  right away; windows already open switch at the next launch.
+- **#163 Spanish shell language.** A full Spanish translation
+  of every shell string, held to the same completeness
+  standard as English: the coverage guard below counts it at
+  100%, placeholders and all.
+- **#164 Translation coverage guard.** If a language lacks a
+  string, the shell falls back to English for that string —
+  and counts it. Diagnostics shows a per-language coverage
+  report, so a partial translation is always visible, never a
+  silent gap.
+- **#165 Language packs as files.** Anyone can translate the
+  shell: export a template holding every string, translate it,
+  and import the finished file in the same Settings section.
+  The app validates a pack before using it — every string
+  present, no unknown strings, placeholders intact — and
+  refuses a bad pack with the reason in plain words. Packs
+  live in the `language-packs` folder in the data folder.
+- **#166 Right-to-left readiness.** The catalog and the shell
+  layout know each language's reading direction, and windows
+  follow it. No right-to-left language ships yet; the machinery
+  is proven in tests with a synthetic Arabic pack, so adding
+  one later is translation only.
+- **#167 Accessibility audit, extended.** The automated
+  audit that checks every control has an accessible name now
+  covers every window added since round 1 — the command
+  palette, workspaces, profiles extras, the downloads extras,
+  bookmarks and the left rail, the mini window, and the R5/R6
+  surfaces — and runs as tests on every build.
+- **#168 Logical tab order everywhere.** Every window has a
+  deliberate keyboard focus order that follows the order a
+  person reads the screen, pinned by the same audit so a new
+  control can't silently land in the wrong place.
+- **#169 Announcement center.** The spoken announcements
+  (a download finishing, an update waiting, a timer ending,
+  focus mode turning on) get per-type switches in Settings →
+  Language & announcements — turn off the kinds you don't
+  want spoken and keep the rest. Diagnostics keeps a quiet
+  visual history of the last 100 announcements, including the
+  ones a switched-off type didn't speak, so nothing the app
+  said is ever lost.
+- **#170 Shell text spacing.** Line spacing for the app's own
+  windows — Standard, Relaxed, or Wide — in Settings →
+  Language & announcements, for low-vision readers. (WPF has
+  no letter-spacing setting, so the control is line spacing
+  only; see Known limitations.)
+
+Core test suite grows by 94 cases (981 → 1075); everything above is
+**Unverified** on a real machine until the on-machine pass (see
+RELEASE_CHECKLIST).
+
+### Fixed
+
+- **Settings would not open (crash, found in the v1.7.0 field
+  pass).** The profile picker in Settings carries a custom item
+  template (color dot + name), and an older line of code also set
+  its DisplayMemberPath — Windows' UI framework refuses the
+  combination and throws, closing the window before it appears.
+  The redundant line is gone (the template already shows the
+  name), and a new test fails the build if any templated control
+  ever gets a DisplayMemberPath again.
+
+## [1.7.0] — Unreleased
+
+Round 2 Slice R6 (items 151–160): appearance round 2. The shell
+gets its Windows 11 face — backdrop materials, a title bar that can
+wear the active profile's color, denser chrome, a mini mode, tray
+icon styles, a see-through slider, any accent color you can name,
+light/dark on your own schedule, and theme bundles inside the
+settings export. As always, only MuseDesktop's own windows are
+restyled; the Muse page is never touched, and Windows High
+Contrast outranks every choice below.
+
+### Added
+
+- **#151 Backdrop materials.** On Windows 11 the window can sit on
+  Mica (a soft tint of your wallpaper) or Acrylic (a stronger
+  frosted blur): Settings → Appearance → Window backdrop. Automatic
+  means Mica. On Windows 10, with Windows transparency effects off,
+  or in High Contrast, the window simply stays solid — no fake
+  substitute.
+- **#152 Per-profile title bar tint.** The title bar takes the
+  active profile's color, so the profile in use is visible at a
+  glance. On by default; the switch is in Settings → Appearance.
+  High Contrast turns it off.
+- **#153 Compact density.** A Compact choice alongside Comfortable
+  packs the toolbar and status bar tighter (Settings →
+  Appearance → Chrome density). It works with shell text size,
+  not instead of it — one sets the spacing, the other the words.
+- **#154 Mini mode.** ⋯ menu (or Ctrl+K) → **Mini mode** shrinks
+  MuseDesktop to a small always-on-top strip: the profile color,
+  the page's icon and title, and the live downloads with **Pause
+  all** / **Resume all**. The page itself keeps living in the main
+  window, which comes back with **Expand**. Shell chrome only —
+  there is no second web view in the strip.
+- **#155 Tray icon styles.** The tray icon can be painted Color,
+  Monochrome, or tinted with the active profile's color, and its
+  attention overlay can be a numbered badge, a plain dot, or off
+  entirely: Settings → Appearance → Tray icon / Count overlay.
+- **#156 Window opacity.** A slider in the ⋯ menu makes this
+  window see-through, from 100% down to 60%. It is per-window and
+  lasts for the session only; it turns off in High Contrast, and
+  the window goes fully solid whenever the app locks.
+- **#157 No white flash.** Every web view the app creates — the
+  main window, a second window, the recovery views — now starts on
+  the theme's own background color, chosen in one place, so
+  nothing flashes white (or black) against the shell before the
+  page paints. Under High Contrast it follows the system window
+  color instead.
+- **#158 Custom accent picker.** In Settings → Appearance, tick
+  **Custom accent color** and type any color as six hex digits.
+  The color is adjusted until it passes the same measured
+  readability (contrast) check as the five presets — on both the
+  dark and the light shell — so a custom accent can never be an
+  unreadable one.
+- **#159 Theme scheduling.** A fourth theme choice, **Follow
+  schedule**: light from one time of day, dark from another (the
+  times sit right under the theme choice in Settings; the dark
+  time may be the earlier one, for night owls). The shell checks
+  the clock every minute and switches quietly.
+- **#160 Theme bundles.** The appearance face — theme mode,
+  accent (preset or custom), and backdrop — travels inside the
+  ordinary settings export/import, so one export carries the whole
+  look to another PC. The schedule times ride the same export, so
+  a Follow schedule look is never stranded without its times.
+
+Core test suite grows by 65 cases (916 → 981); everything above is
+**Unverified** on a real machine until the on-machine pass (see
+RELEASE_CHECKLIST).
+
 ## [1.6.0] — Unreleased
 
 Round 2 Slice R5B (the follow-on six, items 201–206): conversation

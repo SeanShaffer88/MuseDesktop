@@ -1,11 +1,11 @@
 <Window x:Class="MuseDesktop.SwitcherWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Switch window"
+        Title="{local:Loc switch_window_2}"
         Width="480" Height="360" MinWidth="360" MinHeight="240"
         WindowStartupLocation="CenterOwner"
         ShowInTaskbar="False"
-        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}" xmlns:local="clr-namespace:MuseDesktop">
     <Window.Resources>
         <Style x:Key="Note" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11"/>
@@ -16,16 +16,16 @@
     </Window.Resources>
 
     <DockPanel Margin="14,12,14,12">
-        <TextBlock DockPanel.Dock="Top" Text="Open windows, most recently used first:"/>
+        <TextBlock DockPanel.Dock="Top" Text="{local:Loc open_windows_most_recently_used_first}"/>
         <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource Note}"
-                   Text="Arrow keys choose a window, Enter switches to it, Esc cancels. Right-click a window to tile it or group it with others; Enter on a group raises all its windows."/>
+                   Text="{local:Loc arrow_keys_choose_a_window_enter_switches}"/>
         <ListBox x:Name="WindowList" Margin="0,10,0,0"
                  Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
                  BorderBrush="{StaticResource HairlineBrush}"
                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                  MouseDoubleClick="OnDoubleClick" PreviewKeyDown="OnListKeyDown"
                  MouseRightButtonUp="OnListRightButtonUp"
-                 AutomationProperties.Name="Open windows">
+                 AutomationProperties.Name="{local:Loc open_windows}" KeyboardNavigation.TabIndex="1">
             <ListBox.ItemContainerStyle>
                 <Style TargetType="ListBoxItem">
                     <Setter Property="AutomationProperties.Name" Value="{Binding AutomationName}"/>

@@ -75,7 +75,7 @@ public partial class ScheduleRuleWindow : Window
         if (trigger == ScheduleTriggerKind.DailyAt
             && !TimeOfDayText.TryParseMinutes(DailyTimeText.Text, out dailyMinutes))
         {
-            ErrorText.Text = "The daily time needs to be hours and minutes, like 09:30.";
+            ErrorText.Text = Strings.Get("ui.the_daily_time_needs_to_be_hours_and");
             return;
         }
         DateTimeOffset? onceAt = null;
@@ -85,7 +85,7 @@ public partial class ScheduleRuleWindow : Window
                 || !DateTime.TryParseExact(OnceDateText.Text.Trim(), "yyyy-MM-dd",
                     CultureInfo.InvariantCulture, DateTimeStyles.None, out var date))
             {
-                ErrorText.Text = "The one-off schedule needs a date like 2026-10-27 and a time like 09:30.";
+                ErrorText.Text = Strings.Get("ui.the_one_off_schedule_needs_a_date_like");
                 return;
             }
             var local = date.AddMinutes(minutes);
@@ -94,7 +94,7 @@ public partial class ScheduleRuleWindow : Window
         if (!CommandScheduler.TryCreate(action?.Id, trigger, dailyMinutes, onceAt,
                 out var rule, out var error) || rule is null)
         {
-            ErrorText.Text = error ?? "That schedule can't be saved.";
+            ErrorText.Text = error ?? Strings.Get("schedule.cant_save");
             return;
         }
         rule.Enabled = EnabledCheck.IsChecked == true;

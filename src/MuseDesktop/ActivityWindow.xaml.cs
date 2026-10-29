@@ -40,14 +40,14 @@ public partial class ActivityWindow : Window
     private void OnClear(object sender, RoutedEventArgs e)
     {
         var confirm = MessageBox.Show(this,
-            "Clear the recent-activity list on this PC? New notifications will still be recorded.",
-            "Clear recent activity", MessageBoxButton.YesNo, MessageBoxImage.Question);
+            Strings.Get("pr20.clear_the_recent_activity_list_on_this_pc_new_notifications_will"),
+            Strings.Get("pr20.clear_recent_activity"), MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (confirm != MessageBoxResult.Yes)
             return;
         if (ActivityHistoryStore.Clear(AppPaths.ActivityHistoryPath))
             Reload();
         else
-            MessageBox.Show(this, "The recent-activity list couldn't be cleared.",
-                "Clear recent activity", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, Strings.Get("pr20.the_recent_activity_list_couldn_t_be_cleared"),
+                Strings.Get("pr20.clear_recent_activity"), MessageBoxButton.OK, MessageBoxImage.Warning);
     }
 }

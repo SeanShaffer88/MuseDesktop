@@ -1,10 +1,10 @@
 <Window x:Class="MuseDesktop.LockWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="MuseDesktop is locked"
+        Title="{local:Loc musedesktop_is_locked}"
         Width="400" Height="300" MinWidth="360" MinHeight="270"
         WindowStartupLocation="CenterScreen" ResizeMode="NoResize"
-        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}" xmlns:local="clr-namespace:MuseDesktop">
     <Window.Resources>
         <Style x:Key="Note" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11"/>
@@ -15,21 +15,21 @@
     </Window.Resources>
 
     <StackPanel Margin="22,18,22,18">
-        <TextBlock Text="MuseDesktop is locked" FontSize="17" FontWeight="SemiBold"/>
+        <TextBlock Text="{local:Loc musedesktop_is_locked}" FontSize="17" FontWeight="SemiBold"/>
         <TextBlock Style="{StaticResource Note}" Margin="0,8,0,0"
-                   Text="Type your app password or PIN to keep using MuseDesktop. Your chats and sign-ins are untouched — this only unlocks the app on this PC."/>
+                   Text="{local:Loc type_your_app_password_or_pin_to_keep_using}"/>
         <PasswordBox x:Name="PasswordEntry" Margin="0,14,0,0"
-                     AutomationProperties.Name="App password"
-                     KeyDown="OnPasswordKeyDown"/>
+                     AutomationProperties.Name="{local:Loc app_password}"
+                     KeyDown="OnPasswordKeyDown" KeyboardNavigation.TabIndex="1"/>
         <TextBlock x:Name="StatusText" Style="{StaticResource Note}"
                    Foreground="{StaticResource AccentBrush}"
-                   AutomationProperties.Name="Unlock status"/>
-        <Button x:Name="UnlockButton" Content="Unlock" Height="32" Margin="0,14,0,0"
+                   AutomationProperties.Name="{local:Loc unlock_status}"/>
+        <Button x:Name="UnlockButton" Content="{local:Loc unlock}" Height="32" Margin="0,14,0,0"
                 IsDefault="True" Click="OnUnlock"
                 Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0"
-                ToolTip="Unlock MuseDesktop (Enter)"/>
-        <Button x:Name="LeaveButton" Content="Stay locked" Height="28" Margin="0,8,0,0"
+                ToolTip="{local:Loc unlock_musedesktop_enter}" KeyboardNavigation.TabIndex="2"/>
+        <Button x:Name="LeaveButton" Content="{local:Loc stay_locked}" Height="28" Margin="0,8,0,0"
                 IsCancel="True" Click="OnLeave"
-                ToolTip="Close this window without unlocking"/>
+                ToolTip="{local:Loc close_this_window_without_unlocking}" KeyboardNavigation.TabIndex="3"/>
     </StackPanel>
 </Window>
