@@ -716,12 +716,7 @@ public static class ReadingListStore
 
     public static void Save(string path, ReadingLists lists)
     {
-        var dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-        var tmp = path + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(lists, Options));
-        File.Move(tmp, path, overwrite: true);
+        AtomicFile.WriteAllText(path, JsonSerializer.Serialize(lists, Options));
     }
 }
 
@@ -990,12 +985,7 @@ public static class ProfileNotesStore
 
     public static void Save(string path, ProfileNotes notes)
     {
-        var dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-        var tmp = path + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(notes, Options));
-        File.Move(tmp, path, overwrite: true);
+        AtomicFile.WriteAllText(path, JsonSerializer.Serialize(notes, Options));
     }
 }
 
@@ -1189,12 +1179,7 @@ public static class WeeklyStatsStore
 
     public static void Save(string path, WeeklyStats stats)
     {
-        var dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-        var tmp = path + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(stats, Options));
-        File.Move(tmp, path, overwrite: true);
+        AtomicFile.WriteAllText(path, JsonSerializer.Serialize(stats, Options));
     }
 }
 
@@ -1387,9 +1372,50 @@ public static class CommandScheduler
         CommandRegistry.BuiltinActions.FirstOrDefault(a => a.Id == commandId)?.Title;
 
     /// <summary>
+    /// Find the next real command deadline after <paramref name="localNow"/>.
+    /// Startup rules are due immediately only while startup is pending;
+    /// daily rules use local wall-clock time and one-off rules retain their
+    /// stored instant. The shell uses this to arm a one-shot wakeup rather
+    /// than scanning every few seconds.
+    /// </summary>
+    public static DateTimeOffset? NextDue(
+        IReadOnlyList<ScheduledCommand> rules, DateTimeOffset localNow, bool startupPending)
+    {
+        DateTimeOffset? next = startupPending && rules.Any(r =>
+            r is not null && r.Enabled && IsKnownCommand(r.CommandId)
+            && r.Trigger == ScheduleTriggerKind.OnStartup)
+            ? localNow
+            : null;
+        var today = localNow.ToString("yyyy-MM-dd");
+        foreach (var rule in rules)
+        {
+            if (rule is null || !rule.Enabled || !IsKnownCommand(rule.CommandId))
+                continue;
+            DateTimeOffset? due = rule.Trigger switch
+            {
+                ScheduleTriggerKind.OnceAt when !rule.HasFired && rule.OnceAtUtc is { } at && at > localNow => at,
+                ScheduleTriggerKind.DailyAt => NextDailyDue(rule, localNow, today),
+                _ => null,
+            };
+            if (due is not null && (next is null || due.Value < next.Value))
+                next = due;
+        }
+        return next;
+    }
+
+    private static DateTimeOffset? NextDailyDue(
+        ScheduledCommand rule, DateTimeOffset localNow, string today)
+    {
+        var dueToday = new DateTimeOffset(localNow.Year, localNow.Month, localNow.Day,
+            rule.DailyMinutes / 60, rule.DailyMinutes % 60, 0, localNow.Offset);
+        if (rule.LastRunLocalDate == today || dueToday <= localNow)
+            return dueToday.AddDays(1);
+        return dueToday;
+    }
+
+    /// <summary>
     /// The rules due right now. Due rules are stamped BEFORE the
-    /// caller runs them: a command that fails must not refire in a
-    /// loop on every tick.
+    /// caller runs them: a command that fails must not refire in a loop.
     /// </summary>
     public static IReadOnlyList<ScheduledCommand> Evaluate(
         List<ScheduledCommand> rules, DateTimeOffset localNow, bool startupPending)

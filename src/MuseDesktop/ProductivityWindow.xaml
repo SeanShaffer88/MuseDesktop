@@ -11,7 +11,8 @@
                     AutomationProperties.Name="{local:Loc clear_stats_data}" KeyboardNavigation.TabIndex="1"/>
             <Button Content="{local:Loc close}" Width="84" Height="28" Margin="8,0,0,0" IsCancel="True" KeyboardNavigation.TabIndex="2"/>
         </StackPanel>
-        <TabControl x:Name="Tabs" Background="{StaticResource SurfaceBrush}"
+        <TabControl x:Name="Tabs" AutomationProperties.Name="{local:Loc pr20.productivity_views}"
+                    Background="{StaticResource SurfaceBrush}"
                     Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource HairlineBrush}">
             <TabItem Header="{local:Loc weekly_digest_2}" AutomationProperties.Name="{local:Loc weekly_digest_tab}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="12">

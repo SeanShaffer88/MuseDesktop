@@ -104,8 +104,14 @@ public sealed class DownloadTracker
     /// <summary>Raised when a download fails (not on pause or user-cancel).</summary>
     public event Action? Failed;
 
-    /// <summary>Raised on any progress/state change — the taskbar mirror listens here.</summary>
+    /// <summary>Raised on any progress/state change — taskbar and governor listeners use this.</summary>
     public event Action? Changed;
+
+    /// <summary>Raised when a final state frees a batch-download slot.</summary>
+    public event Action? CapacityChanged;
+
+    /// <summary>Raised for operation state transitions, not byte-progress updates.</summary>
+    public event Action? TransferStateChanged;
 
     /// <summary>Take over a download whose destination has already been decided by policy.</summary>
     public void Attach(CoreWebView2DownloadOperation op)
@@ -188,6 +194,24 @@ public sealed class DownloadTracker
         catch (Exception ex) { _log.Warn($"Resume download failed: {ex.Message}"); }
     }
 
+    public void PauseAll()
+    {
+        foreach (var id in _entries
+                     .Where(entry => entry.Model.State == DownloadActivityState.InProgress)
+                     .Select(entry => entry.Model.Id)
+                     .ToList())
+            Pause(id);
+    }
+
+    public void ResumeAll()
+    {
+        foreach (var id in _entries
+                     .Where(entry => entry.Model.State == DownloadActivityState.Paused && entry.Model.CanResume)
+                     .Select(entry => entry.Model.Id)
+                     .ToList())
+            Resume(id);
+    }
+
     /// <summary>Remove and return a session-failed download for a retry attempt (S2 #15), or null.</summary>
     public SessionFailedDownload? TakeSessionFailed(string id)
     {
@@ -266,6 +290,7 @@ public sealed class DownloadTracker
                 {
                     model.State = DownloadActivityState.InProgress;
                     entry.Sampler.Reset();
+                    TransferStateChanged?.Invoke();
                     _log.Info($"Download resumed: {name}");
                 }
                 RefreshStatus();
@@ -304,6 +329,7 @@ public sealed class DownloadTracker
                     // history record, Resume stays available per CanResume.
                     model.State = DownloadActivityState.Paused;
                     model.SpeedBytesPerSecond = 0;
+                    TransferStateChanged?.Invoke();
                     _log.Info($"Download paused: {name}");
                     if (_entries.Count == 1)
                         _setStatus(Strings.Format("status.download_paused_name", name), null);
@@ -351,6 +377,8 @@ public sealed class DownloadTracker
                         FullPath = op.ResultFilePath,
                         Uri = uri,
                     });
+                    if (_sessionFailed.Count > DownloadRetryPolicy.MaxSessionFailures)
+                        _sessionFailed.RemoveAt(0); // Oldest retry address is no longer retained.
                 }
                 if (_entries.Count > 0) RefreshStatus();
                 else _setStatus(Strings.Format("announce.download.failed_reason", name, reason), null);
@@ -380,6 +408,7 @@ public sealed class DownloadTracker
         catch { /* the operation may already be gone; finalizing is bookkeeping */ }
         _entries.Remove(entry);
         _set.Remove(entry.Model.Id);
+        CapacityChanged?.Invoke();
         if (_entries.Count == 0)
             ActiveChanged?.Invoke(false);
     }

@@ -299,6 +299,80 @@ public sealed class DownloadMove
     }
 }
 
+public sealed record DownloadMoveRollbackFailure(DownloadMove Move, Exception Error);
+
+/// <summary>The result of applying a move plan, including any paths left moved after a failed rollback.</summary>
+public sealed class DownloadMoveExecutionResult
+{
+    public required IReadOnlyList<DownloadMove> Applied { get; init; }
+    public DownloadMove? FailedMove { get; init; }
+    public Exception? Failure { get; init; }
+    public IReadOnlyList<DownloadMoveRollbackFailure> RollbackFailures { get; init; } = Array.Empty<DownloadMoveRollbackFailure>();
+}
+
+/// <summary>
+/// Applies a file-move plan as one best-effort transaction. Delegates
+/// keep the failure/rollback behavior deterministic and independently
+/// testable without touching the user's filesystem.
+/// </summary>
+public static class DownloadMoveTransaction
+{
+    public static DownloadMoveExecutionResult Apply(
+        IReadOnlyList<DownloadMove> moves,
+        Func<string, bool> exists,
+        Action<string, string> move)
+    {
+        var applied = new List<DownloadMove>();
+        for (var index = 0; index < moves.Count; index++)
+        {
+            var current = moves[index];
+            try
+            {
+                if (!exists(current.SourcePath))
+                    throw new FileNotFoundException("The source file no longer exists.", current.SourcePath);
+                if (exists(current.DestinationPath))
+                    throw new IOException("The destination already exists; refusing to overwrite it.");
+                move(current.SourcePath, current.DestinationPath);
+                applied.Add(current);
+            }
+            catch (Exception failure)
+            {
+                var rollbackFailures = new List<DownloadMoveRollbackFailure>();
+                for (var rollbackIndex = applied.Count - 1; rollbackIndex >= 0; rollbackIndex--)
+                {
+                    var previous = applied[rollbackIndex];
+                    try
+                    {
+                        if (!exists(previous.DestinationPath))
+                        {
+                            applied.RemoveAt(rollbackIndex);
+                            continue;
+                        }
+                        if (exists(previous.SourcePath))
+                            throw new IOException("The original path is occupied; refusing to overwrite it during rollback.");
+                        move(previous.DestinationPath, previous.SourcePath);
+                        applied.RemoveAt(rollbackIndex);
+                    }
+                    catch (Exception rollbackError)
+                    {
+                        rollbackFailures.Add(new DownloadMoveRollbackFailure(previous, rollbackError));
+                    }
+                }
+
+                return new DownloadMoveExecutionResult
+                {
+                    Applied = applied.ToList(),
+                    FailedMove = current,
+                    Failure = failure,
+                    RollbackFailures = rollbackFailures,
+                };
+            }
+        }
+
+        return new DownloadMoveExecutionResult { Applied = applied };
+    }
+}
+
 /// <summary>
 /// The archive hook for the sort planner (R4 #138): completed downloads
 /// older than <see cref="AfterDays"/> go to a dated subfolder of
@@ -502,13 +576,8 @@ public static class DownloadSortJournalStore
 
     public static void Save(string path, List<DownloadSortBatch> batches)
     {
-        var dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
         var kept = batches.TakeLast(MaxBatches).ToList();
-        var tmp = path + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(kept, Options));
-        File.Move(tmp, path, overwrite: true);
+        AtomicFile.WriteAllText(path, JsonSerializer.Serialize(kept, Options));
     }
 
     public static void Append(string path, DownloadSortBatch batch)
@@ -758,20 +827,87 @@ public static class DownloadHash
         return true;
     }
 
-    public static string ComputeSha256(string path)
+    public static string ComputeSha256(string path) =>
+        ComputeSha256(path, progress: null, cancellationToken: CancellationToken.None);
+
+    public static string ComputeSha256(string path, IProgress<long>? progress, CancellationToken cancellationToken)
     {
-        using var stream = File.OpenRead(path);
-        return Convert.ToHexStringLower(SHA256.HashData(stream));
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read,
+            bufferSize: 128 * 1024, FileOptions.SequentialScan);
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var buffer = new byte[128 * 1024];
+        long totalRead = 0;
+        int read;
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            read = stream.Read(buffer, 0, buffer.Length);
+            if (read == 0)
+                break;
+            hash.AppendData(buffer, 0, read);
+            totalRead += read;
+            progress?.Report(totalRead);
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        return Convert.ToHexStringLower(hash.GetHashAndReset());
     }
 
-    public static HashCheckResult Verify(string path, string? expectedText)
+    public static async Task<string> ComputeSha256Async(
+        string path, IProgress<long>? progress = null, CancellationToken cancellationToken = default)
+    {
+        await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read,
+            bufferSize: 128 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        var buffer = new byte[128 * 1024];
+        long totalRead = 0;
+        int read;
+        while ((read = await stream.ReadAsync(buffer.AsMemory(), cancellationToken)) > 0)
+        {
+            hash.AppendData(buffer, 0, read);
+            totalRead += read;
+            progress?.Report(totalRead);
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        return Convert.ToHexStringLower(hash.GetHashAndReset());
+    }
+
+    public static HashCheckResult Verify(string path, string? expectedText) =>
+        Verify(path, expectedText, progress: null, cancellationToken: CancellationToken.None);
+
+    public static async Task<HashCheckResult> VerifyAsync(
+        string path, string? expectedText, IProgress<long>? progress = null,
+        CancellationToken cancellationToken = default)
     {
         if (!TryNormalizeSha256(expectedText, out var expected))
             return new HashCheckResult(false, false, "", "That isn't a SHA-256 hash — it should be 64 hex characters.");
         try
         {
-            var actual = ComputeSha256(path);
+            var actual = await ComputeSha256Async(path, progress, cancellationToken);
             return new HashCheckResult(true, string.Equals(actual, expected, StringComparison.Ordinal), actual, null);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return new HashCheckResult(true, false, "", ex.Message);
+        }
+    }
+
+    public static HashCheckResult Verify(
+        string path, string? expectedText, IProgress<long>? progress, CancellationToken cancellationToken)
+    {
+        if (!TryNormalizeSha256(expectedText, out var expected))
+            return new HashCheckResult(false, false, "", "That isn't a SHA-256 hash — it should be 64 hex characters.");
+        try
+        {
+            var actual = ComputeSha256(path, progress, cancellationToken);
+            return new HashCheckResult(true, string.Equals(actual, expected, StringComparison.Ordinal), actual, null);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -840,8 +976,11 @@ public static class BatchLinkParser
     {
         var segment = uri.Segments.LastOrDefault() ?? "";
         var name = Uri.UnescapeDataString(segment).Trim();
-        var invalid = Path.GetInvalidFileNameChars();
-        name = new string(name.Select(c => invalid.Contains(c) ? '_' : c).ToArray()).Trim();
+        // Downloads land on Windows even when Core tests run elsewhere;
+        // sanitize Windows-reserved characters consistently on every OS.
+        var windowsInvalid = new[] { '<', '>', ':', '"', '/', '\\', '|', '?', '*' };
+        var invalid = new HashSet<char>(Path.GetInvalidFileNameChars().Concat(windowsInvalid));
+        name = new string(name.Select(c => invalid.Contains(c) || char.IsControl(c) ? '_' : c).ToArray()).Trim();
         // A bare host or folder link ("https://example.com/") leaves
         // nothing but separators behind — that sanitizes to "_"s, which
         // is no name at all.
@@ -963,6 +1102,9 @@ public sealed class DownloadSpeedHistory
 /// </summary>
 public static class DownloadRetryPolicy
 {
+    /// <summary>Maximum failures retained for in-session retry and per-path attempt tracking.</summary>
+    public const int MaxSessionFailures = 100;
+
     public const int DefaultMaxAttempts = 3;
     public const int MinMaxAttempts = 1;
     public const int MaxMaxAttempts = 5;

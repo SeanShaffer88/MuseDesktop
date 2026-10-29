@@ -43,9 +43,86 @@ jobs:
           $p = Start-Process -FilePath "publish/win-x64/MuseDesktop.exe" -ArgumentList "--smoke-test" -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "Smoke test failed with exit code $($p.ExitCode)" }
 
+      - name: Generate CycloneDX SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: publish/win-x64
+          format: cyclonedx-json
+          output-file: publish/win-x64/sbom.cdx.json
+          upload-artifact: false
+
+      - name: Record build inputs
+        shell: pwsh
+        run: |
+          $facts = [ordered]@{
+            commit = "${{ github.sha }}"
+            sdk = (dotnet --version)
+            runtimeIdentifier = "win-x64"
+            configuration = "Release"
+          }
+          $facts | ConvertTo-Json | Set-Content publish/win-x64/build-info.json -Encoding utf8
+
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         with:
           name: MuseDesktop-win-x64
           path: publish/win-x64
+          if-no-files-found: error
+  build-arm64:
+    runs-on: windows-11-arm
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore MuseDesktop.sln
+
+      - name: Build (Release)
+        run: dotnet build MuseDesktop.sln -c Release --no-restore
+
+      - name: Test (core logic)
+        run: dotnet test tests/MuseDesktop.Core.Tests -c Release --no-build
+
+      - name: Publish (win-arm64, self-contained)
+        run: dotnet publish src/MuseDesktop/MuseDesktop.csproj -c Release -r win-arm64 --self-contained true -o publish/win-arm64
+
+      - name: Stage release folder
+        shell: pwsh
+        run: |
+          Copy-Item README.md, LICENSE, KNOWN_LIMITATIONS.md, RELEASE_CHECKLIST.md publish/win-arm64/
+
+      - name: Smoke test (window construction + WebView2 init)
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "publish/win-arm64/MuseDesktop.exe" -ArgumentList "--smoke-test" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "Smoke test failed with exit code $($p.ExitCode)" }
+
+      - name: Generate CycloneDX SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          path: publish/win-arm64
+          format: cyclonedx-json
+          output-file: publish/win-arm64/sbom.cdx.json
+          upload-artifact: false
+
+      - name: Record build inputs
+        shell: pwsh
+        run: |
+          $facts = [ordered]@{
+            commit = "${{ github.sha }}"
+            sdk = (dotnet --version)
+            runtimeIdentifier = "win-arm64"
+            configuration = "Release"
+          }
+          $facts | ConvertTo-Json | Set-Content publish/win-arm64/build-info.json -Encoding utf8
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: MuseDesktop-win-arm64
+          path: publish/win-arm64
           if-no-files-found: error

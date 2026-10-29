@@ -866,12 +866,7 @@ public static class ProfileUsageStore
 
     public static void Save(string path, ProfileUsage usage)
     {
-        var dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-        var tmp = path + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(usage, Options));
-        File.Move(tmp, path, overwrite: true);
+        AtomicFile.WriteAllText(path, JsonSerializer.Serialize(usage, Options));
     }
 
     /// <summary>Delete the tallies file ("clear usage counts"): gone is gone — there is no other copy.</summary>

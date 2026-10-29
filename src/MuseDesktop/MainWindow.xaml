@@ -19,6 +19,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="40"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="24"/>
         </Grid.RowDefinitions>
@@ -62,97 +63,101 @@
                             ToolTip="{local:Loc more_options}" Click="OnMenu" AutomationProperties.Name="{local:Loc more_options}" KeyboardNavigation.TabIndex="9">
                         <Button.ContextMenu>
                             <ContextMenu x:Name="MoreMenu">
-                                <MenuItem x:Name="ProfileItem" Header="{local:Loc profile_default}" IsEnabled="False" Visibility="Collapsed" KeyboardNavigation.TabIndex="10"/>
+                                <MenuItem x:Name="ProfileItem" Header="{local:Loc profile_default}" IsEnabled="False" Visibility="Collapsed" KeyboardNavigation.TabIndex="11"/>
                                 <Separator x:Name="ProfileSeparator" Visibility="Collapsed"/>
                                 <MenuItem x:Name="SwitchProfileItem" Header="{local:Loc switch_profile}"
-                                          ToolTip="{local:Loc restart_musedesktop_signed_in_with_another}" KeyboardNavigation.TabIndex="11"/>
+                                          ToolTip="{local:Loc restart_musedesktop_signed_in_with_another}" KeyboardNavigation.TabIndex="12"/>
                                 <MenuItem Header="{local:Loc settings}" Click="OnSettings" InputGestureText="Ctrl+,"
-                                          ToolTip="{local:Loc startup_downloads_updates_memory_and_data}" KeyboardNavigation.TabIndex="12"/>
+                                          ToolTip="{local:Loc startup_downloads_updates_memory_and_data}" KeyboardNavigation.TabIndex="13"/>
                                 <MenuItem x:Name="UpdateItem" Header="{local:Loc check_for_updates}" Click="OnCheckForUpdates"
-                                          ToolTip="{local:Loc see_whether_a_newer_musedesktop_is_available}" KeyboardNavigation.TabIndex="13"/>
+                                          ToolTip="{local:Loc see_whether_a_newer_musedesktop_is_available}" KeyboardNavigation.TabIndex="14"/>
                                 <MenuItem Header="{local:Loc downloads_2}" Click="OnDownloads"
-                                          ToolTip="{local:Loc files_muse_has_downloaded_for_you_newest}" KeyboardNavigation.TabIndex="14"/>
+                                          ToolTip="{local:Loc files_muse_has_downloaded_for_you_newest}" KeyboardNavigation.TabIndex="15"/>
                                 <MenuItem Header="{local:Loc command_palette}" Click="OnCommandPalette" InputGestureText="Ctrl+K"
-                                          ToolTip="{local:Loc every_action_profile_setting_download_and}" KeyboardNavigation.TabIndex="15"/>
+                                          ToolTip="{local:Loc every_action_profile_setting_download_and}" KeyboardNavigation.TabIndex="16"/>
                                 <MenuItem Header="{local:Loc switch_window}" Click="OnSwitchWindow"
-                                          ToolTip="{local:Loc jump_to_another_open_musedesktop_window}" KeyboardNavigation.TabIndex="16"/>
+                                          ToolTip="{local:Loc jump_to_another_open_musedesktop_window}" KeyboardNavigation.TabIndex="17"/>
                                 <MenuItem x:Name="WorkspacesItem" Header="{local:Loc workspaces}"
-                                          ToolTip="{local:Loc apply_a_saved_workspace_a_named_set_of}" KeyboardNavigation.TabIndex="17"/>
+                                          ToolTip="{local:Loc apply_a_saved_workspace_a_named_set_of}" KeyboardNavigation.TabIndex="18"/>
                                 <MenuItem Header="{local:Loc save_current_arrangement_as_workspace}" Click="OnSaveWorkspace"
-                                          ToolTip="{local:Loc save_the_open_windows_as_a_workspace_you}" KeyboardNavigation.TabIndex="18"/>
+                                          ToolTip="{local:Loc save_the_open_windows_as_a_workspace_you}" KeyboardNavigation.TabIndex="19"/>
                                 <MenuItem Header="{local:Loc take_session_snapshot}" Click="OnTakeSessionSnapshot"
-                                          ToolTip="{local:Loc remember_the_open_windows_once_sections}" KeyboardNavigation.TabIndex="19"/>
+                                          ToolTip="{local:Loc remember_the_open_windows_once_sections}" KeyboardNavigation.TabIndex="20"/>
                                 <MenuItem Header="{local:Loc restore_session_snapshot}" Click="OnRestoreSessionSnapshot"
-                                          ToolTip="{local:Loc bring_back_the_windows_from_the_last}" KeyboardNavigation.TabIndex="20"/>
+                                          ToolTip="{local:Loc bring_back_the_windows_from_the_last}" KeyboardNavigation.TabIndex="21"/>
+                                <MenuItem Header="{local:Loc pr20.recent_activity_2}" Click="OnActivityCenter" ToolTip="{local:Loc pr20.revisit_recent_app_notifications}" KeyboardNavigation.TabIndex="22"/>
+                                <MenuItem Header="{local:Loc pr20.new_tab}" Click="OnNewTab" InputGestureText="Ctrl+T" KeyboardNavigation.TabIndex="23"/>
+                                <MenuItem Header="{local:Loc pr20.close_tab}" Click="OnCloseActiveTab" InputGestureText="Ctrl+W" KeyboardNavigation.TabIndex="24"/>
+                                <MenuItem Header="{local:Loc pr20.next_tab}" Click="OnNextTab" InputGestureText="Ctrl+Tab" KeyboardNavigation.TabIndex="25"/>
                                 <Separator/>
                                 <MenuItem Header="{local:Loc quick_note}" Click="OnQuickNote"
-                                          ToolTip="{local:Loc jot_a_note_for_the_profile_you_re_using}" KeyboardNavigation.TabIndex="21"/>
+                                          ToolTip="{local:Loc jot_a_note_for_the_profile_you_re_using}" KeyboardNavigation.TabIndex="26"/>
                                 <MenuItem Header="{local:Loc open_notes}" Click="OnNotes"
-                                          ToolTip="{local:Loc this_profile_s_quick_notes}" KeyboardNavigation.TabIndex="22"/>
+                                          ToolTip="{local:Loc this_profile_s_quick_notes}" KeyboardNavigation.TabIndex="27"/>
                                 <MenuItem Header="{local:Loc save_page_to_reading_list}" Click="OnSaveToReadingList"
-                                          ToolTip="{local:Loc keep_this_muse_page_for_later_title_in_app}" KeyboardNavigation.TabIndex="23"/>
+                                          ToolTip="{local:Loc keep_this_muse_page_for_later_title_in_app}" KeyboardNavigation.TabIndex="28"/>
                                 <MenuItem Header="{local:Loc reading_list}" Click="OnReadingList"
-                                          ToolTip="{local:Loc pages_you_saved_for_later_for_this_profile}" KeyboardNavigation.TabIndex="24"/>
+                                          ToolTip="{local:Loc pages_you_saved_for_later_for_this_profile}" KeyboardNavigation.TabIndex="29"/>
                                 <MenuItem Header="{local:Loc bookmarks_2}" Click="OnBookmarks"
-                                          ToolTip="{local:Loc messages_you_bookmarked_in_conversations}" KeyboardNavigation.TabIndex="25"/>
+                                          ToolTip="{local:Loc messages_you_bookmarked_in_conversations}" KeyboardNavigation.TabIndex="30"/>
                                 <MenuItem x:Name="SnippetsItem" Header="{local:Loc insert_snippet}"
-                                          ToolTip="{local:Loc put_one_of_your_saved_prompts_into_the}" KeyboardNavigation.TabIndex="26"/>
+                                          ToolTip="{local:Loc put_one_of_your_saved_prompts_into_the}" KeyboardNavigation.TabIndex="31"/>
                                 <Separator/>
                                 <MenuItem Header="{local:Loc start_focus_timer}" Click="OnStartFocusTimer"
-                                          ToolTip="{local:Loc a_timed_focus_block_length_in_settings}" KeyboardNavigation.TabIndex="27"/>
+                                          ToolTip="{local:Loc a_timed_focus_block_length_in_settings}" KeyboardNavigation.TabIndex="32"/>
                                 <MenuItem Header="{local:Loc take_a_break}" Click="OnTakeBreak"
-                                          ToolTip="{local:Loc start_the_suggested_break_offered_when_a}" KeyboardNavigation.TabIndex="28"/>
+                                          ToolTip="{local:Loc start_the_suggested_break_offered_when_a}" KeyboardNavigation.TabIndex="33"/>
                                 <MenuItem Header="{local:Loc start_stop_session_timer}" Click="OnSessionTimer"
-                                          ToolTip="{local:Loc pomodoro_style_work_break_cycles_the}" KeyboardNavigation.TabIndex="29"/>
+                                          ToolTip="{local:Loc pomodoro_style_work_break_cycles_the}" KeyboardNavigation.TabIndex="34"/>
                                 <MenuItem Header="{local:Loc weekly_digest}" Click="OnWeeklyDigest"
-                                          ToolTip="{local:Loc a_plain_summary_of_this_week_counted_on}" KeyboardNavigation.TabIndex="30"/>
+                                          ToolTip="{local:Loc a_plain_summary_of_this_week_counted_on}" KeyboardNavigation.TabIndex="35"/>
                                 <MenuItem Header="{local:Loc stats_dashboard}" Click="OnStatsDashboard"
-                                          ToolTip="{local:Loc this_week_s_counts_per_profile_launches}" KeyboardNavigation.TabIndex="31"/>
+                                          ToolTip="{local:Loc this_week_s_counts_per_profile_launches}" KeyboardNavigation.TabIndex="36"/>
                                 <Separator/>
-                                <MenuItem Header="{local:Loc find_in_page}" Click="OnFind" InputGestureText="Ctrl+F" KeyboardNavigation.TabIndex="32"/>
+                                <MenuItem Header="{local:Loc find_in_page}" Click="OnFind" InputGestureText="Ctrl+F" KeyboardNavigation.TabIndex="37"/>
                                 <MenuItem Header="{local:Loc keyboard_shortcuts}" Click="OnShortcuts" InputGestureText="Ctrl+/"
-                                          ToolTip="{local:Loc every_keyboard_shortcut_in_one_searchable}" KeyboardNavigation.TabIndex="33"/>
-                                <MenuItem Header="{local:Loc print}" Click="OnPrint" InputGestureText="Ctrl+P" KeyboardNavigation.TabIndex="34"/>
-                                <MenuItem Header="{local:Loc save_as_pdf}" Click="OnSaveAsPdf" KeyboardNavigation.TabIndex="35"/>
+                                          ToolTip="{local:Loc every_keyboard_shortcut_in_one_searchable}" KeyboardNavigation.TabIndex="38"/>
+                                <MenuItem Header="{local:Loc print}" Click="OnPrint" InputGestureText="Ctrl+P" KeyboardNavigation.TabIndex="39"/>
+                                <MenuItem Header="{local:Loc save_as_pdf}" Click="OnSaveAsPdf" KeyboardNavigation.TabIndex="40"/>
                                 <MenuItem Header="{local:Loc export_conversation_as_markdown}" Click="OnExportConversationMarkdown"
-                                          ToolTip="{local:Loc save_this_conversation_as_a_tidy_markdown}" KeyboardNavigation.TabIndex="36"/>
+                                          ToolTip="{local:Loc save_this_conversation_as_a_tidy_markdown}" KeyboardNavigation.TabIndex="41"/>
                                 <MenuItem Header="{local:Loc export_conversation_as_pdf}" Click="OnExportConversationPdf"
-                                          ToolTip="{local:Loc print_this_conversation_page_to_a_pdf_as_it}" KeyboardNavigation.TabIndex="37"/>
-                                <MenuItem Header="{local:Loc copy_page_address}" Click="OnCopyPageAddress" KeyboardNavigation.TabIndex="38"/>
-                                <MenuItem Header="{local:Loc open_in_browser}" Click="OnOpenInBrowser" KeyboardNavigation.TabIndex="39"/>
+                                          ToolTip="{local:Loc print_this_conversation_page_to_a_pdf_as_it}" KeyboardNavigation.TabIndex="42"/>
+                                <MenuItem Header="{local:Loc copy_page_address}" Click="OnCopyPageAddress" KeyboardNavigation.TabIndex="43"/>
+                                <MenuItem Header="{local:Loc open_in_browser}" Click="OnOpenInBrowser" KeyboardNavigation.TabIndex="44"/>
                                 <MenuItem Header="{local:Loc open_in_new_window}" Click="OnOpenInNewWindow"
-                                          ToolTip="{local:Loc open_the_current_page_in_a_second_window_on}" KeyboardNavigation.TabIndex="40"/>
+                                          ToolTip="{local:Loc open_the_current_page_in_a_second_window_on}" KeyboardNavigation.TabIndex="45"/>
                                 <Separator/>
                                 <MenuItem x:Name="PinItem" Header="{local:Loc always_on_top}" IsCheckable="True" Click="OnTogglePin"
-                                          ToolTip="{local:Loc keep_musedesktop_above_other_windows}" KeyboardNavigation.TabIndex="41"/>
+                                          ToolTip="{local:Loc keep_musedesktop_above_other_windows}" KeyboardNavigation.TabIndex="46"/>
                                 <MenuItem x:Name="FocusItem" Header="{local:Loc focus_mode}" IsCheckable="True" Click="OnToggleFocusMode"
-                                          InputGestureText="F8" ToolTip="{local:Loc hide_the_toolbar_and_status_bar_f8_or_esc}" KeyboardNavigation.TabIndex="42"/>
+                                          InputGestureText="F8" ToolTip="{local:Loc hide_the_toolbar_and_status_bar_f8_or_esc}" KeyboardNavigation.TabIndex="47"/>
                                 <MenuItem Header="{local:Loc mini_mode}" Click="OnToggleMiniMode"
-                                          ToolTip="{local:Loc shrink_to_a_small_always_on_top_strip}" KeyboardNavigation.TabIndex="43"/>
+                                          ToolTip="{local:Loc shrink_to_a_small_always_on_top_strip}" KeyboardNavigation.TabIndex="48"/>
                                 <MenuItem Header="{local:Loc window_opacity}" StaysOpenOnClick="True"
-                                          ToolTip="{local:Loc how_see_through_this_window_is_it_cannot_go}" KeyboardNavigation.TabIndex="44">
+                                          ToolTip="{local:Loc how_see_through_this_window_is_it_cannot_go}" KeyboardNavigation.TabIndex="49">
                                     <StackPanel Orientation="Horizontal" Margin="4,2">
                                         <Slider x:Name="OpacitySlider" Width="110" Minimum="60" Maximum="100" Value="100"
-                                                ValueChanged="OnOpacityChanged" ToolTip="{local:Loc window_opacity}" AutomationProperties.Name="{local:Loc window_opacity}" KeyboardNavigation.TabIndex="45"/>
+                                                ValueChanged="OnOpacityChanged" ToolTip="{local:Loc window_opacity}" AutomationProperties.Name="{local:Loc window_opacity}" KeyboardNavigation.TabIndex="50"/>
                                         <TextBlock x:Name="OpacityLabel" Text="100%" Width="38" Margin="8,0,0,0" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </MenuItem>
-                                <MenuItem Header="{local:Loc restore_last_closed_page}" Click="OnRestoreClosedPage" InputGestureText="Ctrl+Shift+T" KeyboardNavigation.TabIndex="46"/>
+                                <MenuItem Header="{local:Loc restore_last_closed_page}" Click="OnRestoreClosedPage" InputGestureText="Ctrl+Shift+T" KeyboardNavigation.TabIndex="51"/>
                                 <Separator/>
                                 <MenuItem Header="{local:Loc connection_security}" Click="OnConnectionSecurity"
-                                          ToolTip="{local:Loc the_current_site_s_connection_address}" KeyboardNavigation.TabIndex="47"/>
+                                          ToolTip="{local:Loc the_current_site_s_connection_address}" KeyboardNavigation.TabIndex="52"/>
                                 <MenuItem x:Name="LockNowItem" Header="{local:Loc lock_now}" Click="OnLockNow" Visibility="Collapsed"
-                                          ToolTip="{local:Loc lock_musedesktop_with_your_app_password}" KeyboardNavigation.TabIndex="48"/>
+                                          ToolTip="{local:Loc lock_musedesktop_with_your_app_password}" KeyboardNavigation.TabIndex="53"/>
                                 <MenuItem Header="{local:Loc view_log}" Click="OnViewLog"
-                                          ToolTip="{local:Loc read_the_diagnostic_log_in_the_app_with_its}" KeyboardNavigation.TabIndex="49"/>
-                                <MenuItem Header="{local:Loc open_log_folder}" Click="OnOpenLogFolder" KeyboardNavigation.TabIndex="50"/>
+                                          ToolTip="{local:Loc read_the_diagnostic_log_in_the_app_with_its}" KeyboardNavigation.TabIndex="54"/>
+                                <MenuItem Header="{local:Loc open_log_folder}" Click="OnOpenLogFolder" KeyboardNavigation.TabIndex="55"/>
                                 <MenuItem Header="{local:Loc diagnostics_2}" Click="OnDiagnostics"
-                                          ToolTip="{local:Loc versions_runtime_health_proxy_memory}" KeyboardNavigation.TabIndex="51"/>
+                                          ToolTip="{local:Loc versions_runtime_health_proxy_memory}" KeyboardNavigation.TabIndex="56"/>
                                 <MenuItem Header="{local:Loc help_troubleshooting_2}" Click="OnHelp"
-                                          ToolTip="{local:Loc offline_pages_for_the_common_problems_sign}" KeyboardNavigation.TabIndex="52"/>
+                                          ToolTip="{local:Loc offline_pages_for_the_common_problems_sign}" KeyboardNavigation.TabIndex="57"/>
                                 <MenuItem Header="{local:Loc export_support_bundle}" Click="OnExportSupportBundle"
-                                          ToolTip="{local:Loc one_zip_with_the_diagnostics_report_the}" KeyboardNavigation.TabIndex="53"/>
-                                <MenuItem Header="{local:Loc about_musedesktop}" Click="OnAbout" KeyboardNavigation.TabIndex="54"/>
+                                          ToolTip="{local:Loc one_zip_with_the_diagnostics_report_the}" KeyboardNavigation.TabIndex="58"/>
+                                <MenuItem Header="{local:Loc about_musedesktop}" Click="OnAbout" KeyboardNavigation.TabIndex="59"/>
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>
@@ -171,11 +176,11 @@
                     <Button x:Name="BookmarksButton" Style="{StaticResource BarButton}" Content="&#x1F516;"
                             Width="34" Height="34" Click="OnBookmarks"
                             ToolTip="{local:Loc bookmarks_messages_you_marked_in}"
-                            AutomationProperties.Name="{local:Loc bookmarks}" KeyboardNavigation.TabIndex="55"/>
+                            AutomationProperties.Name="{local:Loc bookmarks}" KeyboardNavigation.TabIndex="60"/>
                     <Button x:Name="TokenRingButton" Style="{StaticResource BarButton}" Width="34" Height="34" Margin="2,0,0,0"
                             Click="OnTokenRing"
                             ToolTip="{local:Loc token.usage}"
-                            AutomationProperties.Name="{local:Loc token.usage}" KeyboardNavigation.TabIndex="56">
+                            AutomationProperties.Name="{local:Loc token.usage}" KeyboardNavigation.TabIndex="61">
                         <Grid Width="26" Height="26" IsHitTestVisible="False">
                             <Ellipse Stroke="{StaticResource FaintBrush}" StrokeThickness="3" Opacity="0.45"/>
                             <Path x:Name="TokenRingArc" Stroke="{StaticResource AccentBrush}" StrokeThickness="3"
@@ -199,8 +204,25 @@
             </DockPanel>
         </Border>
 
+        <!-- Each tab retains its live WebView2 page; the status text reports observable app/page state only. -->
+        <Border x:Name="TabStrip" Grid.Row="1" Height="34" Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,0,1">
+            <DockPanel LastChildFill="True" Margin="6,2">
+                <Button x:Name="NewTabButton" DockPanel.Dock="Right" Content="+" Width="30" Margin="4,0,0,0"
+                        Style="{StaticResource BarButton}" ToolTip="{local:Loc pr20.new_tab_ctrl_t}" Click="OnNewTab"
+                        AutomationProperties.Name="{local:Loc pr20.new_tab}" KeyboardNavigation.TabIndex="62"/>
+                <TextBlock x:Name="PageActivityText" DockPanel.Dock="Right" Width="190" Margin="8,0"
+                           VerticalAlignment="Center" TextAlignment="Right" TextTrimming="CharacterEllipsis" FontSize="11"
+                           Foreground="{StaticResource MutedBrush}" AutomationProperties.Name="{local:Loc pr20.page_activity}"
+                           AutomationProperties.LiveSetting="Polite"/>
+                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                    <StackPanel x:Name="TabButtonsPanel" Orientation="Horizontal"/>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+
         <!-- Find bar (v0.5.0, S1 #1) -->
-        <Border x:Name="FindBar" Grid.Row="1" Background="{StaticResource SurfaceBrush}"
+        <Border x:Name="FindBar" Grid.Row="2" Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,0,0,1"
                 Visibility="Collapsed">
             <StackPanel Orientation="Horizontal" Margin="6,3" VerticalAlignment="Center">
@@ -208,34 +230,33 @@
                          Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}"
                          BorderBrush="{StaticResource HairlineBrush}"
                          KeyDown="OnFindTextKeyDown" TextChanged="OnFindTextChanged"
-                         AutomationProperties.Name="{local:Loc find_in_page_2}" KeyboardNavigation.TabIndex="57"/>
+                         AutomationProperties.Name="{local:Loc find_in_page_2}" KeyboardNavigation.TabIndex="63"/>
                 <TextBlock x:Name="FindCountText" Text="" Margin="8,0" VerticalAlignment="Center"
                            Foreground="{StaticResource MutedBrush}" FontSize="12"/>
                 <Button Style="{StaticResource BarButton}" Content="&#x2191;" Width="28"
-                        ToolTip="{local:Loc previous_match_shift_enter}" Click="OnFindPrevious" AutomationProperties.Name="{local:Loc previous_match}" KeyboardNavigation.TabIndex="58"/>
+                        ToolTip="{local:Loc previous_match_shift_enter}" Click="OnFindPrevious" AutomationProperties.Name="{local:Loc previous_match}" KeyboardNavigation.TabIndex="64"/>
                 <Button Style="{StaticResource BarButton}" Content="&#x2193;" Width="28"
-                        ToolTip="{local:Loc next_match_enter}" Click="OnFindNext" AutomationProperties.Name="{local:Loc next_match}" KeyboardNavigation.TabIndex="59"/>
+                        ToolTip="{local:Loc next_match_enter}" Click="OnFindNext" AutomationProperties.Name="{local:Loc next_match}" KeyboardNavigation.TabIndex="65"/>
                 <Button Style="{StaticResource BarButton}" Content="&#x2715;" Width="28"
-                        ToolTip="{local:Loc close_find_esc}" Click="OnFindClose" AutomationProperties.Name="{local:Loc close_find}" KeyboardNavigation.TabIndex="60"/>
+                        ToolTip="{local:Loc close_find_esc}" Click="OnFindClose" AutomationProperties.Name="{local:Loc close_find}" KeyboardNavigation.TabIndex="66"/>
             </StackPanel>
         </Border>
+
 
         <!-- Web content. The first-run / error overlay sits above it until the page loads.
              ContentGrid is named because S8 #71's recovery replaces the web
              view controls inside it when the browser process exits. -->
-        <Grid Grid.Row="2" x:Name="ContentGrid">
+        <Grid Grid.Row="3" x:Name="ContentGrid">
             <!-- Focus ring (S6 #58): the border is always 2px (so the
                  page never shifts); its brush turns accent-colored
                  while keyboard focus is inside the page, transparent
                  while focus is on the shell chrome. -->
-            <Border x:Name="WebFocusRing" BorderThickness="2" BorderBrush="Transparent">
-                <wv2:WebView2 x:Name="Browser" DefaultBackgroundColor="#0B0B0D"
-                              AutomationProperties.Name="{local:Loc muse_web_content}"/>
-            </Border>
-            <!-- Hidden retry view (S2 #15): same environment/profile, used only to
-                 re-issue a download that failed in this session. Never shown. -->
-            <wv2:WebView2 x:Name="RetryBrowser" Width="1" Height="1" Visibility="Hidden"
-                          IsHitTestVisible="False" DefaultBackgroundColor="#0B0B0D"/>
+            <Grid x:Name="BrowserHost">
+                <Border x:Name="WebFocusRing" BorderThickness="2" BorderBrush="Transparent">
+                    <wv2:WebView2 x:Name="InitialBrowser" DefaultBackgroundColor="#0B0B0D"
+                                  AutomationProperties.Name="{local:Loc muse_web_content}"/>
+                </Border>
+            </Grid>
             <!-- S8 #80: the hung-page banner. Non-modal on purpose —
                  the user may be mid-voice-call; the page is never
                  reloaded without their say-so. -->
@@ -249,9 +270,9 @@
                                TextWrapping="Wrap"
                                Text="{local:Loc the_page_hasn_t_answered_musedesktop_s_last}"/>
                     <Button Content="{local:Loc reload_the_page}" Margin="12,0,0,0" Padding="10,4" Click="OnWatchdogReload"
-                            ToolTip="{local:Loc reload_now_chat_drafts_and_scroll_position}" KeyboardNavigation.TabIndex="62"/>
+                            ToolTip="{local:Loc reload_now_chat_drafts_and_scroll_position}" KeyboardNavigation.TabIndex="67"/>
                     <Button Content="{local:Loc wait}" Margin="8,0,0,0" Padding="10,4" Click="OnWatchdogWait"
-                            ToolTip="{local:Loc leave_the_page_exactly_as_it_is_don_t_check}" KeyboardNavigation.TabIndex="63"/>
+                            ToolTip="{local:Loc leave_the_page_exactly_as_it_is_don_t_check}" KeyboardNavigation.TabIndex="68"/>
                 </StackPanel>
             </Border>
             <Border x:Name="Overlay" Background="{StaticResource BgBrush}" Visibility="Visible">
@@ -262,19 +283,19 @@
                                Foreground="{StaticResource MutedBrush}" TextAlignment="Center" TextWrapping="Wrap"/>
                     <Button x:Name="OverlayButton" Content="{local:Loc retry}" Width="110" Height="32" Margin="0,18,0,0"
                             Visibility="Collapsed" Click="OnReload" HorizontalAlignment="Center"
-                            Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0" KeyboardNavigation.TabIndex="64"/>
+                            Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0" KeyboardNavigation.TabIndex="69"/>
                 </StackPanel>
             </Border>
         </Grid>
 
         <!-- Status bar -->
-        <Border x:Name="StatusBar" Grid.Row="3" Background="{StaticResource SurfaceBrush}"
+        <Border x:Name="StatusBar" Grid.Row="4" Background="{StaticResource SurfaceBrush}"
                 BorderBrush="{StaticResource HairlineBrush}" BorderThickness="0,1,0,0">
             <DockPanel LastChildFill="True" Margin="8,0">
                 <Button x:Name="CancelDownloadButton" DockPanel.Dock="Right" Content="&#x2715;" Width="22" Height="18"
                         Visibility="Collapsed" ToolTip="{local:Loc cancel_the_most_recent_download_downloads}" Click="OnCancelDownload"
                         Background="Transparent" Foreground="{StaticResource MutedBrush}" BorderThickness="0"
-                        AutomationProperties.Name="{local:Loc cancel_download}" KeyboardNavigation.TabIndex="65"/>
+                        AutomationProperties.Name="{local:Loc cancel_download}" KeyboardNavigation.TabIndex="70"/>
                 <!-- Live regions (S6 #54): zero-width, invisible, not
                      hit-testable — present in the UIA tree only, so
                      screen readers speak download/update events. -->

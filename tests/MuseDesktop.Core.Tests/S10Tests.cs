@@ -115,6 +115,9 @@ public class S10Tests
             AppLockIterations = 210000,
         };
         settings.Profiles[0].CustomStartUrl = "https://muse.ai/chat/abc123";
+        settings.DownloadsFolder = @"C:\Users\Riley\Downloads";
+        settings.DownloadArchiveFolder = @"D:\Muse Archive";
+        settings.Profiles[0].DownloadsFolder = @"C:\Users\Riley\Profile Downloads";
         settings.LastUrlByProfile[settings.ActiveProfileId] = "https://muse.ai/chat/xyz789";
         settings = settings.Sanitized();
         Assert.True(AppLock.HasValidRecord(settings));
@@ -135,6 +138,9 @@ public class S10Tests
         Assert.Empty(bundle.LastUrlByProfile);
         Assert.Null(bundle.LastUrl);
         Assert.All(bundle.Profiles, p => Assert.Null(p.CustomStartUrl));
+        Assert.Null(bundle.DownloadsFolder);
+        Assert.Null(bundle.DownloadArchiveFolder);
+        Assert.All(bundle.Profiles, p => Assert.Null(p.DownloadsFolder));
         // The bundle's serialized form (which also drops the derived
         // get-only properties the plain serializer emits — a derived
         // startupUrl would otherwise reintroduce a full URL).
@@ -144,9 +150,85 @@ public class S10Tests
         Assert.DoesNotContain("startupUrl", json);
         Assert.DoesNotContain("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=", json);
         Assert.DoesNotContain("AAECAwQFBgcICQoLDA0ODw==", json);
+        Assert.DoesNotContain("Riley", json);
+        Assert.DoesNotContain("Muse Archive", json);
         // Non-sensitive settings survive (support can still see them).
         Assert.Equal(UpdateChannel.IncludePrereleases, bundle.UpdateChannel);
-        Assert.Equal("Default", bundle.Profiles[0].Name);
+        Assert.Equal("Profile 1", bundle.Profiles[0].Name);
+    }
+
+    [Fact]
+    public void DiagnosticsBundleModeRedactsPathFields()
+    {
+        var report = DiagnosticsReport.Compose(new DiagnosticsData
+        {
+            AppVersion = "1.2.3",
+            SettingsPath = @"C:\Users\Riley\AppData\settings.json",
+            LogPath = @"C:\Users\Riley\AppData\logs\app.log",
+            ProfileDir = @"C:\Users\Riley\AppData\profile",
+            ActiveProfileName = "Personal Journal",
+            RedactLocalPaths = true,
+            RedactProfileName = true,
+        });
+
+        Assert.DoesNotContain("Riley", report);
+        Assert.DoesNotContain("Personal Journal", report);
+        Assert.Contains("[profile name omitted]", report);
+        Assert.Equal(3, report.Split("[local path omitted]", StringSplitOptions.None).Length - 1);
+    }
+
+    [Fact]
+    public void Bundle_RedactsLocalWindowsAndNetworkPaths()
+    {
+        var redacted = SupportBundle.RedactLocalPaths(
+            @"Failure at C:\Users\Riley Smith\AppData\Local\MuseDesktop\settings.json and \\server\share\profile\data.db");
+        Assert.DoesNotContain(@"C:\Users", redacted);
+        Assert.DoesNotContain(@"\\server\share", redacted);
+        Assert.DoesNotContain("Riley Smith", redacted);
+        Assert.DoesNotContain("server", redacted);
+        Assert.DoesNotContain("share", redacted);
+        Assert.DoesNotContain("profile", redacted);
+        Assert.DoesNotContain("data.db", redacted);
+        // Conservative redaction may remove both paths in one span.
+        Assert.Contains("[local path omitted]", redacted);
+        Assert.Equal("[local path omitted]", SupportBundle.RedactLocalPaths(@"C:\Users\Riley Smith\settings.json"));
+        Assert.Equal("[local path omitted]", SupportBundle.RedactLocalPaths(@"\\server\share\profile\data.db"));
+        var separatePaths = SupportBundle.RedactLocalPaths("C:\\Users\\Riley\\settings.json\n\\\\server\\share\\data.db");
+        Assert.Equal("[local path omitted]\n[local path omitted]", separatePaths);
+    }
+
+    [Fact]
+    public void Bundle_DownloadHistoryExportOmitsLocalDestinationPaths()
+    {
+        using var temp = new TempDir();
+        var path = Path.Combine(temp.Path, "downloads.json");
+        var fullPath = Path.Combine(temp.Path, "private", "report.csv");
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        DownloadHistoryStore.Save(path, new List<DownloadRecord>
+        {
+            new()
+            {
+                FileName = "report.csv",
+                FullPath = fullPath,
+                SizeBytes = 42,
+                CompletedUtc = DateTimeOffset.UtcNow,
+                Note = "Reviewed",
+            },
+        });
+
+        var exported = DownloadHistoryStore.ExportJson(path);
+        Assert.Contains("report.csv", exported);
+        Assert.Contains("Reviewed", exported);
+        Assert.DoesNotContain(temp.Path, exported);
+        Assert.DoesNotContain("fullPath", exported);
+    }
+
+    [Fact]
+    public void Bundle_SizeCapsAreExplicit()
+    {
+        Assert.Equal(64L * 1024 * 1024, SupportBundle.MaxArchiveBytes);
+        Assert.Equal(8_000_000, SupportBundle.MaxScreenshotPixels);
+        Assert.Equal(32 * 1024 * 1024, SupportBundle.MaxScreenshotBytes);
     }
 
     [Fact]
@@ -334,6 +416,20 @@ public class S10Tests
     {
         Assert.Contains(SettingsSearch.Search("microphone test"), s => s.Id == SettingsSearch.PrivacyId);
         Assert.Contains(SettingsSearch.Search("support bundle"), s => s.Id == SettingsSearch.DataId);
+    }
+
+    private sealed class TempDir : IDisposable
+    {
+        public string Path { get; } = System.IO.Path.Combine(
+            System.IO.Path.GetTempPath(), "MuseDesktop-tests-" + Guid.NewGuid().ToString("N"));
+
+        public TempDir() => Directory.CreateDirectory(Path);
+
+        public void Dispose()
+        {
+            try { Directory.Delete(Path, recursive: true); }
+            catch { /* best-effort cleanup */ }
+        }
     }
 
     private static string RepoRoot()

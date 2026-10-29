@@ -291,8 +291,12 @@ public static class Profiles
     }
 
     /// <summary>Folder name (under %LOCALAPPDATA%\MuseDesktop) for a profile's WebView2 data.</summary>
-    public static string FolderName(string profileId) =>
-        profileId == DefaultId ? "WebView2" : $"WebView2-{profileId}";
+    public static string FolderName(string profileId)
+    {
+        if (!IsValidId(profileId))
+            throw new ArgumentException("Profile id is not a valid path-safe profile identifier.", nameof(profileId));
+        return profileId == DefaultId ? "WebView2" : $"WebView2-{profileId}";
+    }
 
     /// <summary>The effective zoom for a launch (S3 #26): the profile's override when it has one, else the shared zoom — always clamped.</summary>
     public static double EffectiveZoom(AccountProfile? profile, double sharedZoom) =>
@@ -478,6 +482,23 @@ public static class Profiles
 /// </summary>
 public static class ProfileDataInfo
 {
+    private static readonly object SizeCacheGate = new();
+    private static readonly StringComparer SizeCachePathComparer = OperatingSystem.IsWindows()
+        ? StringComparer.OrdinalIgnoreCase
+        : StringComparer.Ordinal;
+    private static readonly Dictionary<string, (DateTime MeasuredUtc, long Bytes)> SizeCache = new(SizeCachePathComparer);
+    private static readonly TimeSpan SizeCacheLifetime = TimeSpan.FromSeconds(15);
+    private const int MaxCachedFolders = 32;
+    // Bounded invalidation epochs prevent an in-flight older scan from
+    // repopulating the cache after a folder was explicitly invalidated.
+    private static readonly long[] SizeCacheEpochs = new long[64];
+
+    private static int SizeCacheStripe(string fullPath)
+    {
+        var hash = SizeCachePathComparer.GetHashCode(fullPath) & int.MaxValue;
+        return hash % SizeCacheEpochs.Length;
+    }
+
     /// <summary>Total size in bytes of a profile folder (recursive), or null when the folder doesn't exist.</summary>
     public static long? MeasureFolderBytes(string folderPath)
     {
@@ -511,10 +532,63 @@ public static class ProfileDataInfo
         }
     }
 
+    /// <summary>
+    /// Cached size for read-only UI summaries. The cache is bounded and short-lived; quota and cleanup decisions must use the uncached measurement.
+    /// </summary>
+    public static long? MeasureFolderBytesCached(string folderPath)
+    {
+        string fullPath;
+        try { fullPath = Path.GetFullPath(folderPath); }
+        catch { return MeasureFolderBytes(folderPath); }
+
+        var now = DateTime.UtcNow;
+        int stripe;
+        long epoch;
+        lock (SizeCacheGate)
+        {
+            if (SizeCache.TryGetValue(fullPath, out var cached)
+                && now - cached.MeasuredUtc < SizeCacheLifetime)
+                return cached.Bytes;
+            stripe = SizeCacheStripe(fullPath);
+            epoch = SizeCacheEpochs[stripe];
+        }
+
+        var bytes = MeasureFolderBytes(fullPath);
+        if (bytes is not { } measured)
+            return null; // Do not cache missing or unreadable paths.
+        lock (SizeCacheGate)
+        {
+            // An invalidation may race the scan; return this scan's value
+            // to its caller, but never let it overwrite the newer cache state.
+            if (epoch != SizeCacheEpochs[stripe])
+                return measured;
+            if (SizeCache.Count >= MaxCachedFolders && !SizeCache.ContainsKey(fullPath))
+                SizeCache.Clear();
+            SizeCache[fullPath] = (DateTime.UtcNow, measured);
+        }
+        return measured;
+    }
+
+    /// <summary>Invalidate a UI size summary after an app-owned folder change.</summary>
+    public static void InvalidateCachedFolderBytes(string folderPath)
+    {
+        try
+        {
+            var fullPath = Path.GetFullPath(folderPath);
+            var stripe = SizeCacheStripe(fullPath);
+            lock (SizeCacheGate)
+            {
+                SizeCacheEpochs[stripe]++;
+                SizeCache.Remove(fullPath);
+            }
+        }
+        catch { /* a bad path has no cache entry */ }
+    }
+
     /// <summary>The Settings line for a profile: "Data: 12.4 MB · Last used: 2026-10-24", or "No data on this PC yet" when the folder doesn't exist.</summary>
     public static string Describe(string folderPath, AccountProfile profile)
     {
-        var bytes = MeasureFolderBytes(folderPath);
+        var bytes = MeasureFolderBytesCached(folderPath);
         if (bytes is null)
             return "No data on this PC yet";
         var text = $"Data: {DownloadText.FormatBytes(bytes.Value)}";

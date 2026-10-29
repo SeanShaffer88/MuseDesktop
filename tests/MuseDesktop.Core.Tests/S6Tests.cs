@@ -444,6 +444,7 @@ public class XamlAccessibilityAuditTests
     {
         "Button", "MenuItem", "TextBox", "ComboBox", "CheckBox",
         "RadioButton", "Hyperlink", "ToggleButton", "ListBox",
+        "PasswordBox", "ProgressBar", "TabControl", "TabItem",
     };
 
     private static string RepoRoot()
@@ -489,6 +490,37 @@ public class XamlAccessibilityAuditTests
             foreach (var nested in DescendantsSkippingTemplates(child))
                 yield return nested;
         }
+    }
+
+    [Fact]
+    public void LongShellListsUseRecyclingVirtualization()
+    {
+        var expected = new HashSet<string>(StringComparer.Ordinal)
+        {
+            "DownloadsList", "ResultList", "BookmarkList", "EntryList", "NoteList",
+        };
+        var found = new HashSet<string>(StringComparer.Ordinal);
+        var xamlFiles = Directory.GetFiles(Path.Combine(RepoRoot(), "src", "MuseDesktop"), "*.xaml");
+        foreach (var file in xamlFiles)
+        {
+            var doc = XDocument.Load(file);
+            foreach (var element in DescendantsSkippingTemplates(doc.Root!))
+            {
+                if (element.Name.LocalName != "ListBox")
+                    continue;
+                var name = element.Attribute("{http://schemas.microsoft.com/winfx/2006/xaml}Name")?.Value;
+                if (name is null || !expected.Contains(name))
+                    continue;
+                Assert.Equal("True", element.Attribute("VirtualizingPanel.IsVirtualizing")?.Value);
+                Assert.Equal("Recycling", element.Attribute("VirtualizingPanel.VirtualizationMode")?.Value);
+                Assert.Equal("True", element.Attribute("ScrollViewer.CanContentScroll")?.Value);
+                if (name == "ResultList")
+                    Assert.Equal("True", element.Attribute("VirtualizingPanel.IsVirtualizingWhenGrouping")?.Value);
+                found.Add(name);
+            }
+        }
+        Assert.Equal(expected.Count, found.Count);
+        Assert.All(expected, name => Assert.Contains(name, found));
     }
 
     [Fact]

@@ -816,7 +816,7 @@ public static class SettingsStore
         {
             try
             {
-                var backup = $"{path}.corrupt-{DateTime.Now:yyyyMMdd-HHmmss}";
+                var backup = $"{path}.corrupt-{DateTime.Now:yyyyMMdd-HHmmss-fff}-{Guid.NewGuid():N}";
                 File.Copy(path, backup, overwrite: false);
             }
             catch
@@ -829,13 +829,7 @@ public static class SettingsStore
 
     public static void Save(string path, AppSettings settings)
     {
-        var dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-
-        var tmp = path + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(settings, Options));
-        File.Move(tmp, path, overwrite: true);
+        AtomicFile.WriteAllText(path, JsonSerializer.Serialize(settings, Options));
     }
 
     // Settings export / import (v0.4.0): the same JSON the app itself

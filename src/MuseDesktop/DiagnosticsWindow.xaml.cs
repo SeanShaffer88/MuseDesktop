@@ -16,7 +16,8 @@ namespace MuseDesktop;
 /// </summary>
 public partial class DiagnosticsWindow : Window
 {
-    private readonly Func<string> _reportProvider;
+    private readonly Func<Task<string>> _reportProvider;
+    private int _reportGeneration;
     private readonly Action? _onRollback;
     private readonly Action? _onExportBundle;
     private readonly Action? _onOpenLog;
@@ -31,7 +32,7 @@ public partial class DiagnosticsWindow : Window
     /// <paramref name="lastErrorProvider"/>) light up the support
     /// actions row; the main window supplies all three.
     /// </summary>
-    public DiagnosticsWindow(Func<string> reportProvider,
+    public DiagnosticsWindow(Func<Task<string>> reportProvider,
         string? rollbackLabel = null, Action? onRollback = null,
         Action? onExportBundle = null, Action? onOpenLog = null,
         Func<string?>? lastErrorProvider = null)
@@ -53,7 +54,7 @@ public partial class DiagnosticsWindow : Window
             OpenLogButton.Visibility = Visibility.Visible;
         if (lastErrorProvider is not null)
             CopyLastErrorButton.Visibility = Visibility.Visible;
-        RefreshReport();
+        _ = RefreshReportAsync();
     }
 
     private void OnRollback(object sender, RoutedEventArgs e) => _onRollback?.Invoke();
@@ -82,19 +83,24 @@ public partial class DiagnosticsWindow : Window
         }
     }
 
-    private void RefreshReport()
+    private async Task RefreshReportAsync()
     {
+        var generation = ++_reportGeneration;
+        ReportText.Text = Strings.Get("pr20.collecting_diagnostics");
         try
         {
-            ReportText.Text = _reportProvider();
+            var report = await _reportProvider();
+            if (generation == _reportGeneration)
+                ReportText.Text = report;
         }
         catch (Exception ex)
         {
-            ReportText.Text = Strings.Format("ui.diagnostics_couldnt_be_collected", ex.Message);
+            if (generation == _reportGeneration)
+                ReportText.Text = Strings.Format("ui.diagnostics_couldnt_be_collected", ex.Message);
         }
     }
 
-    private void OnRefresh(object sender, RoutedEventArgs e) => RefreshReport();
+    private async void OnRefresh(object sender, RoutedEventArgs e) => await RefreshReportAsync();
 
     private void OnCopy(object sender, RoutedEventArgs e)
     {

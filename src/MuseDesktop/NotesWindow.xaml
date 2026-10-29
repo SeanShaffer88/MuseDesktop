@@ -8,6 +8,9 @@
     <DockPanel Margin="14,12,14,12">
         <TextBlock DockPanel.Dock="Top"
                    Text="{local:Loc your_quick_notes_for_this_profile_kept_on}"/>
+        <TextBlock x:Name="EmptyStateText" DockPanel.Dock="Bottom" Margin="0,10,0,0"
+                   Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Visibility="Collapsed"/>
+
         <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,10,0,0">
             <Button x:Name="NewButton" Content="{local:Loc new_note}" Width="104" Height="28" Click="OnNew" KeyboardNavigation.TabIndex="1"/>
             <Button x:Name="DeleteButton" Content="{local:Loc delete}" Width="84" Height="28" Margin="8,0,0,0" Click="OnDelete" KeyboardNavigation.TabIndex="2"/>
@@ -17,6 +20,9 @@
                  Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
                  BorderBrush="{StaticResource HairlineBrush}"
                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 ScrollViewer.CanContentScroll="True"
+                 VirtualizingPanel.IsVirtualizing="True"
+                 VirtualizingPanel.VirtualizationMode="Recycling"
                  AutomationProperties.Name="{local:Loc notes}" KeyboardNavigation.TabIndex="4">
             <ListBox.ItemContainerStyle>
                 <Style TargetType="ListBoxItem">

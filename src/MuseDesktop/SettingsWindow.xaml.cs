@@ -45,6 +45,10 @@ public partial class SettingsWindow : Window
     private readonly Func<string>? _quickNoteHotkeyStatus;
     private readonly Action? _openWeeklyDigest;
     private readonly Action? _openStatsDashboard;
+    private readonly Func<int>? _activeDownloadCount;
+
+    /// <summary>Local records validated and staged by a full-backup import; written only by OK.</summary>
+    public LocalDataBackupContents? PendingLocalDataRestore { get; private set; }
 
     /// <summary>Workspace glyph choices (R2 #119), parallel to WorkspaceGlyphCombo's items: null ("No icon") then the palette keys.</summary>
     private readonly List<string?> _glyphKeys = new();
@@ -58,7 +62,8 @@ public partial class SettingsWindow : Window
         Action<AppSettings, string>? applyWorkspace = null,
         Func<string>? quickNoteHotkeyStatus = null,
         Action? openWeeklyDigest = null,
-        Action? openStatsDashboard = null)
+        Action? openStatsDashboard = null,
+        Func<int>? activeDownloadCount = null)
     {
         _working = working;
         _log = log;
@@ -70,6 +75,7 @@ public partial class SettingsWindow : Window
         _quickNoteHotkeyStatus = quickNoteHotkeyStatus;
         _openWeeklyDigest = openWeeklyDigest;
         _openStatsDashboard = openStatsDashboard;
+        _activeDownloadCount = activeDownloadCount;
         InitializeComponent();
 
         // S5 #48: reopen at the remembered size; the last section is
@@ -1083,8 +1089,14 @@ public partial class SettingsWindow : Window
         if (selected is null || selected.Id == _working.ActiveProfileId)
             return;
         var invoker = FocusReturn.Capture();
+        var activeDownloadCount = Math.Max(0, _activeDownloadCount?.Invoke() ?? 0);
+        var downloadWarning = activeDownloadCount == 0
+            ? ""
+            : $" {activeDownloadCount} active download(s) will stop; check Downloads before retrying any partial file.";
         var confirm = System.Windows.MessageBox.Show(this,
-            Strings.Format("set.switch_body", selected.Name),
+            Strings.Format("pr20.switch_to_profile_0", selected.Name) +
+            Strings.Get("pr20.musedesktop_restarts_now_with_that_profile_s_sign_in") + downloadWarning + " " +
+            Strings.Get("pr20.any_other_unsaved_changes_in_this_window_are_discarded"),
             Strings.Get("msg.switch_profile"), MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (confirm != MessageBoxResult.Yes)
         {
@@ -1455,7 +1467,7 @@ public partial class SettingsWindow : Window
         try
         {
             var dir = AppPaths.ProfileDir(selected.Id);
-            var dataBytes = ProfileDataInfo.MeasureFolderBytes(dir);
+            var dataBytes = await Task.Run(() => ProfileDataInfo.MeasureFolderBytesCached(dir));
             long? cacheBytes = null;
             try
             {
@@ -2188,7 +2200,8 @@ public partial class SettingsWindow : Window
             line.Children.Add(cleanButton);
             SiteDataRows.Children.Add(line);
 
-            var bytes = ProfileDataInfo.MeasureFolderBytes(AppPaths.ProfileDir(profile.Id));
+            var profileDir = AppPaths.ProfileDir(profile.Id);
+            var bytes = await Task.Run(() => ProfileDataInfo.MeasureFolderBytesCached(profileDir));
             var sizeText = bytes is { } b ? DownloadText.FormatBytes(b) : Strings.Get("settings.no_data_folder_yet");
             var cookieText = Strings.Get("settings.cookie_unavailable");
             if (_privacy is not null && await _privacy.GetCookieSummaryAsync(profile.Id) is { } cookies)
@@ -2221,6 +2234,7 @@ public partial class SettingsWindow : Window
             return;
         var profileDir = AppPaths.ProfileDir(profile.Id);
         var outcome = await Task.Run(() => CacheCleanupRunner.RunManual(profileDir, _log));
+        ProfileDataInfo.InvalidateCachedFolderBytes(profileDir);
         if (outcome.DeletedCount > 0)
         {
             profile.LastCacheCleanupUtc = DateTimeOffset.UtcNow;
@@ -2437,6 +2451,26 @@ public partial class SettingsWindow : Window
     private void OnOk(object sender, RoutedEventArgs e)
     {
         HarvestControls();
+        if (PendingLocalDataRestore is { } backup)
+        {
+            if ((_activeDownloadCount?.Invoke() ?? 0) > 0)
+            {
+                LocalDataBackupNote.Text = Strings.Get("pr20.a_download_is_active_finish_or_cancel_all_downloads_before_applyi");
+                return;
+            }
+            try
+            {
+                LocalDataBackup.RestoreStores(backup.Stores, _working.DownloadHistoryCap);
+                PendingLocalDataRestore = null;
+                _log.Info("Full local-data backup imported after Settings confirmation");
+            }
+            catch (Exception ex)
+            {
+                _log.Warn("Full local-data backup restore failed; local paths and private record content were not logged.");
+                LocalDataBackupNote.Text = Strings.Format("pr20.the_backup_couldn_t_be_applied_0_the_previous_data_was_restored_w", ex.Message);
+                return;
+            }
+        }
         DialogResult = true;
     }
 
@@ -3221,6 +3255,131 @@ public partial class SettingsWindow : Window
         catch (Exception ex)
         {
             BackupNote.Text = Strings.Format("set.history_restore_failed", ex.Message);
+        }
+    }
+
+    // ───────────────────────── full local-data backup / restore ─────────────────────────
+
+    private void OnExportLocalData(object sender, RoutedEventArgs e)
+    {
+        HarvestControls();
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            FileName = "musedesktop-backup.musedata",
+            Filter = "MuseDesktop data backup (*.musedata)|*.musedata|All files (*.*)|*.*",
+            Title = "Export MuseDesktop full backup",
+        };
+        var invoker = FocusReturn.Capture();
+        var chosen = dialog.ShowDialog(this) == true;
+        FocusReturn.Restore(invoker);
+        if (!chosen)
+            return;
+
+        invoker = FocusReturn.Capture();
+        var encrypt = System.Windows.MessageBox.Show(this,
+            Strings.Get("pr20.this_backup_contains_profile_settings_the_app_lock_password_hash") +
+            Strings.Get("pr20.download_names_and_local_paths_notes_bookmarks_drafts_and_other_l") +
+            Strings.Get("pr20.encrypt_it_with_a_password_yes_is_recommended_if_the_file_will_le") +
+            Strings.Get("pr20.no_writes_a_readable_unencrypted_backup"),
+            Strings.Get("pr20.export_full_backup_2"), MessageBoxButton.YesNoCancel, MessageBoxImage.Warning);
+        FocusReturn.Restore(invoker);
+        if (encrypt == MessageBoxResult.Cancel)
+            return;
+
+        string contents;
+        try
+        {
+            contents = LocalDataBackup.Export(_working, DateTimeOffset.UtcNow);
+            if (encrypt == MessageBoxResult.Yes)
+            {
+                var prompt = new PasswordPromptWindow(
+                    "Choose a password for this encrypted backup. You'll need it to import the file — it can't be recovered.",
+                    confirm: true) { Owner = this };
+                if (FocusReturn.ShowDialog(prompt) != true)
+                    return;
+                contents = EncryptedExport.Encrypt(contents, prompt.Password);
+            }
+            File.WriteAllText(dialog.FileName, contents);
+            LocalDataBackupNote.Text = encrypt == MessageBoxResult.Yes
+                ? $"Encrypted full backup exported to {dialog.FileName}."
+                : $"Full backup exported to {dialog.FileName} — unencrypted and readable by anyone who opens it.";
+            _log.Info(encrypt == MessageBoxResult.Yes
+                ? "Full local-data backup exported (encrypted)"
+                : "Full local-data backup exported (unencrypted)");
+        }
+        catch (Exception ex)
+        {
+            _log.Warn("Full local-data backup export failed; private file paths and content were not logged.");
+            LocalDataBackupNote.Text = Strings.Format("pr20.couldn_t_export_the_full_backup_0", ex.Message);
+        }
+    }
+
+    private void OnImportLocalData(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Filter = "MuseDesktop data backup (*.musedata)|*.musedata|JSON files (*.json)|*.json|All files (*.*)|*.*",
+            Title = "Import MuseDesktop full backup",
+        };
+        var invoker = FocusReturn.Capture();
+        var chosen = dialog.ShowDialog(this) == true;
+        FocusReturn.Restore(invoker);
+        if (!chosen)
+            return;
+        try
+        {
+            if (new FileInfo(dialog.FileName).Length > LocalDataBackup.MaxCharacters * 2L)
+            {
+                LocalDataBackupNote.Text = Strings.Get("pr20.that_backup_is_too_large_to_import");
+                return;
+            }
+            var json = File.ReadAllText(dialog.FileName);
+            if (EncryptedExport.IsEncrypted(json))
+            {
+                var prompt = new PasswordPromptWindow(
+                    "This backup is encrypted. Type its password to preview and import it:",
+                    confirm: false) { Owner = this };
+                if (FocusReturn.ShowDialog(prompt) != true)
+                    return;
+                if (!EncryptedExport.TryDecrypt(json, prompt.Password, out var plain, out _, out var decryptMessage)
+                    || plain is null)
+                {
+                    LocalDataBackupNote.Text = decryptMessage ?? "That backup couldn't be decrypted.";
+                    return;
+                }
+                json = plain;
+            }
+
+            if (!LocalDataBackup.TryImport(json, out var backup, out var error) || backup is null)
+            {
+                LocalDataBackupNote.Text = error ?? "That file isn't a usable MuseDesktop backup.";
+                return;
+            }
+            if ((_activeDownloadCount?.Invoke() ?? 0) > 0)
+            {
+                LocalDataBackupNote.Text = Strings.Get("pr20.finish_or_cancel_all_downloads_before_staging_a_full_data_import");
+                return;
+            }
+
+            var preview = LocalDataBackup.Preview(backup);
+            invoker = FocusReturn.Capture();
+            var confirm = System.Windows.MessageBox.Show(this,
+                preview + Strings.Get("pr20.import_replaces_the_current_settings_and_local_records_it_is_stag") +
+                Strings.Get("pr20.choose_ok_in_settings_to_apply_it_or_cancel_to_leave_the_current"),
+                Strings.Get("pr20.preview_full_backup_import"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            FocusReturn.Restore(invoker);
+            if (confirm != MessageBoxResult.Yes)
+                return;
+
+            CopySettingsInto(backup.Settings, _working);
+            LoadControls();
+            PendingLocalDataRestore = backup;
+            LocalDataBackupNote.Text = Strings.Get("pr20.backup_preview_accepted_nothing_is_written_yet_choose_ok_to_apply");
+        }
+        catch (Exception ex)
+        {
+            _log.Warn("Full local-data backup import failed; the selected file path and data were not logged.");
+            LocalDataBackupNote.Text = Strings.Format("pr20.couldn_t_read_the_full_backup_0", ex.Message);
         }
     }
 

@@ -329,6 +329,33 @@ public class S2Tests
     }
 
     [Fact]
+    public void History_LoadFiltersMalformedRecordsAndBoundsOptionalText()
+    {
+        var path = TempPath();
+        try
+        {
+            var valid = Rec("valid.zip", 1);
+            valid.Note = new string('n', 240);
+            var mismatchedName = Rec("claimed.zip", 2);
+            mismatchedName.FullPath = @"C:\Downloads\other.zip";
+            var negativeSize = Rec("negative.zip", 3);
+            negativeSize.SizeBytes = -1;
+            var invalidState = Rec("state.zip", 4);
+            invalidState.State = (DownloadRecordState)999;
+
+            DownloadHistoryStore.Save(path, new List<DownloadRecord>
+            {
+                valid, mismatchedName, negativeSize, invalidState, null!,
+            });
+
+            var loaded = Assert.Single(DownloadHistoryStore.Load(path));
+            Assert.Equal("valid.zip", loaded.FileName);
+            Assert.Equal(200, loaded.Note!.Length);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [Fact]
     public void History_RemoveDeletesOnlyTheMatchingEntry()
     {
         var path = TempPath();
@@ -377,11 +404,27 @@ public class S2Tests
     }
 
     [Fact]
+    public void UniqueFileName_SkipsAnOccupiedInFlightDestination()
+    {
+        var inFlight = @"C:\Downloads\report.pdf";
+        Assert.Equal(@"C:\Downloads\report (1).pdf",
+            UniqueFileName.ForPath(inFlight,
+                path => string.Equals(path, inFlight, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    [Fact]
     public void UniqueFileName_NoExtension()
     {
         var existing = new HashSet<string> { @"C:\Downloads\notes" };
         Assert.Equal(@"C:\Downloads\notes (1)",
             UniqueFileName.ForPath(@"C:\Downloads\notes", existing.Contains));
+    }
+
+    [Fact]
+    public void UniqueFileName_ExhaustionFailsInsteadOfReturningOccupiedPath()
+    {
+        var path = @"C:\Downloads\report.pdf";
+        Assert.Throws<InvalidOperationException>(() => UniqueFileName.ForPath(path, _ => true));
     }
 
     // ── #20 per-profile downloads folder ──

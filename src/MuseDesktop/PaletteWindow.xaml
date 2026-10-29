@@ -23,13 +23,13 @@
 
     <DockPanel Margin="14,12,14,12">
         <StackPanel DockPanel.Dock="Top">
-            <TextBlock Text="{local:Loc type_a_command_a_profile_a_setting_a}"/>
+            <TextBlock Text="{local:Loc pr20.search_commands_downloads_notes_bookmarks_snippets_and_pages}"/>
             <TextBox x:Name="SearchText" Margin="0,6,0,0" Height="26" VerticalContentAlignment="Center"
                      Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
                      BorderBrush="{StaticResource HairlineBrush}"
                      TextChanged="OnSearchChanged" PreviewKeyDown="OnSearchKeyDown"
-                     ToolTip="{local:Loc search_commands_a_few_letters_are_enough}"
-                     AutomationProperties.Name="{local:Loc search_commands}" KeyboardNavigation.TabIndex="1"/>
+                     ToolTip="{local:Loc pr20.search_actions_and_your_local_content_a_few_letters_are_enough}"
+                     AutomationProperties.Name="{local:Loc pr20.search_commands_and_local_content}" KeyboardNavigation.TabIndex="1"/>
         </StackPanel>
 
         <TextBlock x:Name="SummaryText" DockPanel.Dock="Bottom" Style="{StaticResource Note}"
@@ -39,6 +39,10 @@
                  Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
                  BorderBrush="{StaticResource HairlineBrush}"
                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 ScrollViewer.CanContentScroll="True"
+                 VirtualizingPanel.IsVirtualizing="True"
+                 VirtualizingPanel.IsVirtualizingWhenGrouping="True"
+                 VirtualizingPanel.VirtualizationMode="Recycling"
                  MouseDoubleClick="OnDoubleClick" PreviewKeyDown="OnListKeyDown"
                  SelectionChanged="OnSelectionChanged"
                  AutomationProperties.Name="{local:Loc command_results}" KeyboardNavigation.TabIndex="2">

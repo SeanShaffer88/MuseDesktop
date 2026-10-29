@@ -9,6 +9,8 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Windows;
+using Grid = System.Windows.Controls.Grid;
+using ScrollBarVisibility = System.Windows.Controls.ScrollBarVisibility;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media.Imaging;
@@ -27,14 +29,55 @@ public partial class MainWindow : Window
     private readonly DownloadTracker _downloads;
     private readonly TrayController _tray;
     private bool _reallyExit;
-    private bool _webReady;
 
-    // v0.5.0 (S1) — navigation history model, focus mode, find, auto-retry.
-    private readonly NavigationHistory _history = new();
+    // Each tab owns its live WebView2 and navigation state; the window
+    // exposes only one active page at a time.
+    private sealed class BrowserTabState
+    {
+        public BrowserTabState(
+            Microsoft.Web.WebView2.Wpf.WebView2 browser,
+            System.Windows.Controls.Border host)
+        {
+            Browser = browser;
+            Host = host;
+        }
+        public Microsoft.Web.WebView2.Wpf.WebView2 Browser { get; set; }
+        public System.Windows.Controls.Border Host { get; }
+        public NavigationHistory History { get; } = new();
+        public string PageTitle { get; set; } = "New tab";
+        public bool WebReady { get; set; }
+        public bool NeedsRecreate { get; set; }
+        public string Status { get; set; } = "Starting…";
+        public string? LastGoodUrl { get; set; }
+    }
+
+    private const int MaxOpenTabs = 10;
+    private readonly List<BrowserTabState> _tabs = new();
+    private BrowserTabState _activeTab = null!;
+    private bool _restoringSessionTabs;
+    private Task<CoreWebView2Environment>? _webEnvironmentTask;
+    private Microsoft.Web.WebView2.Wpf.WebView2 Browser => _activeTab.Browser;
+    private NavigationHistory _history => _activeTab.History;
+    private bool _webReady
+    {
+        get => _activeTab.WebReady;
+        set => _activeTab.WebReady = value;
+    }
+    private string _pageTitle
+    {
+        get => _activeTab.PageTitle;
+        set => _activeTab.PageTitle = value;
+    }
+    private string? _lastGoodUrl
+    {
+        get => _activeTab.LastGoodUrl;
+        set => _activeTab.LastGoodUrl = value;
+    }
+
+    // v0.5.0 (S1) — focus mode, find, auto-retry.
     private bool _focusMode;
     private bool _suppressNavClick;
     private DispatcherTimer? _navPressTimer;
-    private string _pageTitle = "";
     // R6 #154/#156: the mini window's state (open strip + a flag so
     // its Closed handler can tell "user closed the strip" from "the
     // app closed it"), the page favicon's PNG bytes mirrored for the
@@ -86,17 +129,20 @@ public partial class MainWindow : Window
     private TaskbarProgress? _taskbar;
     private bool _downloadError;
     private bool _retryWebReady;
+    private Microsoft.Web.WebView2.Wpf.WebView2? RetryBrowser;
 
     // v1.4.0 (R4) — downloads round 2: downloads held by the quiet-hours
     // gate (#132; URIs in memory only, the S2 #15 discipline — exiting
     // forgets them), the batch queue (#134), auto-retry attempt counts
     // per target path (#139), the bandwidth governor (#132), and the
-    // 5-second pump that services all of it.
+    // event-driven queues and their one-shot deadline wakeup.
     private readonly List<(string Uri, string FileName, DateTimeOffset NextChanceUtc)> _heldDownloads = new();
     private readonly Queue<BatchLink> _batchQueue = new();
     private readonly Dictionary<string, int> _autoRetryAttempts = new(StringComparer.OrdinalIgnoreCase);
+    private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly BandwidthGovernor _bandwidthGovernor = new();
-    private DispatcherTimer? _downloadPumpTimer;
+    private DispatcherTimer? _heldDownloadWakeTimer;
+    private DispatcherTimer? _bandwidthGovernorTimer;
     private bool _downloadPumpBusy;
 
     // v0.8.0 (S4) — attention signal from the page title (#31/#39) and
@@ -129,13 +175,14 @@ public partial class MainWindow : Window
     // R3 #122/#123 — the per-profile PIN gate for hidden launches
     // (App hands over the launch profile's record; the first real
     // show presents it, after the global lock) and the profile
-    // schedule's minute timer. The profile throttle is separate from
+    // schedule's one-shot timer. The profile throttle is separate from
     // the app lock's: they are different credentials.
     private AppLockRecord? _pendingProfileLockRecord;
     private readonly AppLockThrottle _profileLockThrottle = new();
     private LockWindow? _profileLockWindow;
     private DispatcherTimer? _scheduleTimer;
     private bool _schedulePromptOpen;
+    private bool _scheduleWaitingForDownloads;
 
     // v1.0.0 (S11) — the global show/hide hotkey (#96: its manager
     // owns the RegisterHotKey registration on this window's handle),
@@ -147,7 +194,7 @@ public partial class MainWindow : Window
 
     // v1.5.0 (R5) — focus & productivity (#141–#150): the focus timer
     // and the per-profile session timer (both Core state machines,
-    // ticked from _productivityTimer), the session-only window groups
+    // ticked only while a timer is active), the session-only window groups
     // (#144), the command scheduler's bookkeeping (#147: startup rules
     // stay pending until the first unlocked tick), and the quick-note
     // hotkey's manager (#148 — a second registration on this handle).
@@ -157,7 +204,6 @@ public partial class MainWindow : Window
     private GlobalHotkeyManager? _noteHotkeyManager;
     private DispatcherTimer? _productivityTimer;
     private bool _schedulerStartupPending = true;
-    private DateTimeOffset _lastSchedulerCheckUtc = DateTimeOffset.MinValue;
     private int _focusMinutesDrained;
     private int _sessionMinutesDrained;
     private WindowState _focusPrevState = WindowState.Normal;
@@ -195,11 +241,9 @@ public partial class MainWindow : Window
     private AnnouncementHistory _announcementHistory = new();
     private readonly RecoveryCoordinator _recovery = new();
     private readonly WatchdogPolicy _watchdog = new();
-    private DispatcherTimer? _watchdogTimer;
     private readonly bool _safeMode;
     private readonly StartupClock? _startupClock;
     private bool _firstNavigationRecorded;
-    private string? _lastGoodUrl;
     private MemorySnapshot? _memBeforeSuspend;
     private MemorySnapshot? _memAfterResume;
     private RuntimeHealthResult? _runtimeHealth;
@@ -222,6 +266,11 @@ public partial class MainWindow : Window
         _isLocked = lockedAtStart && AppLock.IsLockActive(settings);
         _profileDir = AppPaths.ProfileDir(settings.ActiveProfileId);
         InitializeComponent();
+        _activeTab = new BrowserTabState(InitialBrowser, WebFocusRing);
+        _tabs.Add(_activeTab);
+        InitialBrowser.GotKeyboardFocus += OnBrowserGotKeyboardFocus;
+        InitialBrowser.LostKeyboardFocus += OnBrowserLostKeyboardFocus;
+        RefreshTabStrip();
 
         // v0.9.0 (S5): the web view's pre-load background follows the
         // shell palette (App applied the theme before constructing us),
@@ -268,21 +317,40 @@ public partial class MainWindow : Window
         _downloads.Started += () => { _downloadError = false; UpdateTaskbarProgress(); };
         _downloads.Failed += () => { _downloadError = true; UpdateTaskbarProgress(); };
         _downloads.Changed += UpdateTaskbarProgress;
-        // R4: failures feed the bounded auto-retry (#139); completions
-        // and failures both free room under the batch cap (#134); the
-        // pump timer services held downloads (#132), the batch queue,
-        // and the bandwidth governor.
+        // R4: queue work follows tracker lifecycle events; quiet-hours
+        // holds use one one-shot wakeup for their earliest deadline. The
+        // governor has its own active-transfer-only sampling wakeup.
         _downloads.Failed += OnDownloadFailedAutoRetry;
         _downloads.Completed += PumpBatchQueue;
         _downloads.Failed += PumpBatchQueue;
-        _downloadPumpTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
-        _downloadPumpTimer.Tick += (_, _) =>
+        _downloads.CapacityChanged += PumpBatchQueue;
+        _downloads.Started += PumpBatchQueue;
+        _downloads.Started += ScheduleBandwidthGovernor;
+        _downloads.Changed += ScheduleBandwidthGovernor;
+        _downloads.ActiveChanged += active =>
         {
-            PumpHeldDownloads();
-            PumpBatchQueue();
-            ApplyBandwidthGovernor();
+            if (!active)
+            {
+                _bandwidthGovernorTimer?.Stop();
+                PumpHeldDownloads();
+                PumpBatchQueue();
+                Dispatcher.BeginInvoke(new Action(ReevaluateSchedules));
+            }
         };
-        _downloadPumpTimer.Start();
+        _heldDownloadWakeTimer = new DispatcherTimer { IsEnabled = false };
+        _heldDownloadWakeTimer.Tick += (_, _) =>
+        {
+            _heldDownloadWakeTimer.Stop();
+            PumpHeldDownloads();
+        };
+        _bandwidthGovernorTimer = new DispatcherTimer { IsEnabled = false };
+        _bandwidthGovernorTimer.Tick += (_, _) =>
+        {
+            _bandwidthGovernorTimer.Stop();
+            ApplyBandwidthGovernor();
+            if (_downloads.IsTransferring || _bandwidthGovernor.GovernorPausedIds.Count > 0)
+                ScheduleBandwidthGovernor();
+        };
 
         _tray = new TrayController(
             _log, Dispatcher,
@@ -316,7 +384,12 @@ public partial class MainWindow : Window
             applyWorkspace: id => ApplyWorkspaceById(id),
             profileGroups: () => _settings.ProfileGroups,
             trayIconStyle: () => _settings.TrayIconStyle,
-            trayOverlayStyle: () => _settings.TrayCountOverlay);
+            trayOverlayStyle: () => _settings.TrayCountOverlay,
+            openActivityCenter: OpenActivityCenter);
+        _downloads.Started += _tray.OnActivityChanged;
+        _downloads.CapacityChanged += _tray.OnActivityChanged;
+        _downloads.TransferStateChanged += _tray.OnActivityChanged;
+
 
         // S6 #54: live regions for assistive-tech announcements, and
         // the download events that feed them (the wording is Core's).
@@ -370,19 +443,22 @@ public partial class MainWindow : Window
         // R5B #206: the ⋯ menu's snippet list, from the active profile's store.
         RebuildSnippetsMenu();
         ApplyWorkspaceAccent();
-        // R3 #123: the profile schedule is re-checked once a minute
-        // while the app runs — Core decides, this window only asks
-        // (or, in auto mode, switches). While the app isn't running
-        // nothing is evaluated; the next launch's first minute covers it.
-        _scheduleTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
-        _scheduleTimer.Tick += (_, _) => EvaluateSchedule();
-        _scheduleTimer.Start();
+        // Schedule scans are replaced by one wakeup at the nearest actual
+        // rule boundary (or command deadline); time changes, resume,
+        // unlock, settings edits, and relevant lifecycle events re-evaluate.
+        _scheduleTimer = new DispatcherTimer { IsEnabled = false };
+        _scheduleTimer.Tick += (_, _) =>
+        {
+            _scheduleTimer.Stop();
+            ReevaluateSchedules();
+        };
 
-        // R5: the one-second productivity tick — both Core timers and
-        // (about every 15 s) the command scheduler ride it.
-        _productivityTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        // Countdown rendering runs at one-second resolution only while
+        // a focus/session countdown is active; it is stopped when idle.
+        _productivityTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1), IsEnabled = false };
         _productivityTimer.Tick += (_, _) => OnProductivityTick();
-        _productivityTimer.Start();
+        Microsoft.Win32.SystemEvents.TimeChanged += OnSystemTimeChanged;
+
 
         // R7B: the token ring re-reads on a slow tick (a conversation
         // grows while it sits open); event-driven refreshes (landing
@@ -401,6 +477,7 @@ public partial class MainWindow : Window
         Closing += OnClosing;
         Closed += (_, _) => _hotkeyManager?.Dispose();
         Closed += (_, _) => _noteHotkeyManager?.Dispose();
+        Closed += (_, _) => _lifetimeCancellation.Dispose();
         Closed += (_, _) => _approvalToastNotifier.Dispose();
         // R8: the toast identity errand — the Start Menu shortcut
         // stamped with the app's AppUserModelID, ensured off the UI
@@ -412,7 +489,11 @@ public partial class MainWindow : Window
         // R1 #103: the main window is the MRU list's permanent first
         // citizen — touched here so the switcher always knows it.
         _windowMru.Touch("main");
-        Activated += (_, _) => _windowMru.Touch("main");
+        Activated += (_, _) =>
+        {
+            _windowMru.Touch("main");
+            ReevaluateSchedules();
+        };
     }
 
     /// <summary>
@@ -460,9 +541,189 @@ public partial class MainWindow : Window
     }
 
     private void RefreshWebFocusRing() =>
-        WebFocusRing.BorderBrush = _dropHintOn || _browserFocused
+        _activeTab.Host.BorderBrush = _dropHintOn || _browserFocused
             ? (System.Windows.Media.Brush)FindResource("AccentBrush")
             : System.Windows.Media.Brushes.Transparent;
+
+    private void RefreshTabStrip()
+    {
+        TabButtonsPanel.Children.Clear();
+        foreach (var tab in _tabs)
+        {
+            var title = string.IsNullOrWhiteSpace(tab.PageTitle) ? "New tab" : tab.PageTitle;
+            var select = new System.Windows.Controls.Button
+            {
+                Content = new System.Windows.Controls.TextBlock
+                {
+                    Text = title,
+                    Width = 150,
+                    FontSize = 12 * _settings.ShellFontScale,
+                    TextTrimming = System.Windows.TextTrimming.CharacterEllipsis,
+                    VerticalAlignment = VerticalAlignment.Center,
+                },
+                Tag = tab,
+                ToolTip = $"{title} — {tab.Status}",
+                Padding = new Thickness(8, 2, 8, 2),
+                Style = (Style)FindResource("BarButton"),
+                Background = ReferenceEquals(tab, _activeTab)
+                    ? (System.Windows.Media.Brush)FindResource("BgBrush")
+                    : System.Windows.Media.Brushes.Transparent,
+            };
+            select.Click += (_, _) => ActivateTab(tab);
+            System.Windows.Automation.AutomationProperties.SetName(select,
+                $"Tab: {title}, {tab.Status}{(ReferenceEquals(tab, _activeTab) ? ", active" : "")}");
+
+            var close = new System.Windows.Controls.Button
+            {
+                Content = "×",
+                Tag = tab,
+                Width = 24,
+                FontSize = 12 * _settings.ShellFontScale,
+                Padding = new Thickness(0),
+                Style = (Style)FindResource("BarButton"),
+                ToolTip = $"Close {title}",
+            };
+            close.Click += (_, _) => CloseTab(tab);
+            System.Windows.Automation.AutomationProperties.SetName(close, $"Close tab: {title}");
+
+            var content = new System.Windows.Controls.StackPanel
+            {
+                Orientation = System.Windows.Controls.Orientation.Horizontal,
+            };
+            content.Children.Add(select);
+            content.Children.Add(close);
+            TabButtonsPanel.Children.Add(new System.Windows.Controls.Border
+            {
+                BorderBrush = (System.Windows.Media.Brush)FindResource("HairlineBrush"),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(3),
+                Margin = new Thickness(2, 0, 2, 0),
+                Child = content,
+            });
+        }
+
+        PageActivityText.Text = _activeTab.Status;
+        PageActivityText.ToolTip = Strings.Get("pr20.shows_browser_activity_such_as_loading_and_errors_conversation_te");
+        NewTabButton.IsEnabled = !_isLocked && _tabs.Count < MaxOpenTabs;
+    }
+
+    private void ActivateTab(BrowserTabState tab)
+    {
+        if (ReferenceEquals(tab, _activeTab) || !_tabs.Contains(tab))
+            return;
+        try { if (_webReady) Browser.CoreWebView2.Find.Stop(); } catch { }
+        _activeTab.Host.Visibility = Visibility.Collapsed;
+        _browserFocused = false;
+        _activeTab = tab;
+        tab.Host.Visibility = Visibility.Visible;
+        TitleText.Text = string.IsNullOrWhiteSpace(tab.PageTitle) ? "Muse" : tab.PageTitle;
+        var source = tab.Browser.Source?.ToString() ?? "";
+        AddressText.Text = Uri.TryCreate(source, UriKind.Absolute, out var uri) ? uri.Host : source;
+        ZoomLabel.Text = tab.WebReady ? ZoomMath.FormatPercent(tab.Browser.ZoomFactor) : "100%";
+        ApplyWindowTitle();
+        if (tab.Status == "Load failed")
+            ShowOverlay("Muse couldn't be reached", "This tab couldn't be reached. Retry when you're ready.", "Retry", null);
+        else if (tab.WebReady)
+            Overlay.Visibility = Visibility.Collapsed;
+        WatchdogBanner.Visibility = Visibility.Collapsed;
+        UpdateNavButtons();
+        UpdateFindCount();
+        OnAttentionSignal(AttentionSignal.Parse(tab.PageTitle));
+        RefreshWebFocusRing();
+        RefreshTabStrip();
+        if (tab.WebReady)
+            _ = PushPageStateAsync();
+        if (FindBar.Visibility == Visibility.Visible)
+        {
+            FindTextBox.Focus();
+            if (!string.IsNullOrEmpty(FindTextBox.Text))
+                _ = StartFindAsync();
+        }
+        else if (tab.NeedsRecreate)
+        {
+            _ = RecreateWebViewAsync();
+        }
+        else if (tab.WebReady)
+        {
+            tab.Browser.Focus();
+        }
+        RecordTabSessionChange();
+    }
+
+    private void OnNewTab(object sender, RoutedEventArgs e)
+    {
+        if (_isLocked)
+            return;
+        if (_tabs.Count >= MaxOpenTabs)
+        {
+            SetStatus($"You can have up to {MaxOpenTabs} tabs open");
+            return;
+        }
+        CreateTab(UrlPolicy.HomeUrl, activate: true);
+    }
+
+    private BrowserTabState CreateTab(string url, bool activate)
+    {
+        if (_tabs.Count >= MaxOpenTabs)
+            throw new InvalidOperationException("The tab limit was reached");
+        var browser = new Microsoft.Web.WebView2.Wpf.WebView2
+        {
+            DefaultBackgroundColor = ThemeManager.BrowserBackground,
+        };
+        System.Windows.Automation.AutomationProperties.SetName(browser, "Muse web content");
+        browser.GotKeyboardFocus += OnBrowserGotKeyboardFocus;
+        browser.LostKeyboardFocus += OnBrowserLostKeyboardFocus;
+        var host = new System.Windows.Controls.Border
+        {
+            BorderThickness = new Thickness(2),
+            BorderBrush = System.Windows.Media.Brushes.Transparent,
+            Child = browser,
+            Visibility = Visibility.Collapsed,
+        };
+        var tab = new BrowserTabState(browser, host);
+        BrowserHost.Children.Add(host);
+        _tabs.Add(tab);
+        if (activate)
+            ActivateTab(tab);
+        RefreshTabStrip();
+        RecordTabSessionChange();
+        _ = InitWebViewAsync(url, tab);
+        return tab;
+    }
+
+    private void SelectAdjacentTab(int direction)
+    {
+        if (_tabs.Count < 2)
+            return;
+        var index = _tabs.IndexOf(_activeTab);
+        ActivateTab(_tabs[(index + direction + _tabs.Count) % _tabs.Count]);
+    }
+
+    private void OnNextTab(object sender, RoutedEventArgs e) => SelectAdjacentTab(1);
+
+    private void OnCloseActiveTab(object sender, RoutedEventArgs e) => CloseTab(_activeTab);
+
+    private void CloseTab(BrowserTabState tab, bool rememberClosed = true)
+    {
+        if (_tabs.Count == 1)
+        {
+            SetStatus("At least one tab must remain open");
+            return;
+        }
+        var index = _tabs.IndexOf(tab);
+        if (index < 0)
+            return;
+        var closedUrl = tab.LastGoodUrl;
+        if (ReferenceEquals(tab, _activeTab))
+            ActivateTab(_tabs[index == _tabs.Count - 1 ? index - 1 : index + 1]);
+        if (rememberClosed && closedUrl is not null)
+            _history.NoteClosedPage(closedUrl);
+        _tabs.Remove(tab);
+        BrowserHost.Children.Remove(tab.Host);
+        try { tab.Browser.Dispose(); } catch { }
+        RefreshTabStrip();
+        RecordTabSessionChange();
+    }
 
     /// <summary>
     /// Rebuild the toolbar button strips from the saved layout (S5 #45):
@@ -744,6 +1005,7 @@ public partial class MainWindow : Window
             return;
         }
         await InitWebViewAsync();
+        ReevaluateSchedules();
         // S8 #72: safe mode skips the automatic update check.
         MaybeAutoCheckForUpdates();
     }
@@ -942,8 +1204,6 @@ public partial class MainWindow : Window
 
     private void OnClosing(object? sender, CancelEventArgs e)
     {
-        Microsoft.Win32.SystemEvents.PowerModeChanged -= OnPowerModeChanged;
-        _watchdogTimer?.Stop();
         SaveSettings();
         if (!_reallyExit && _settings.CloseToTray)
         {
@@ -951,6 +1211,16 @@ public partial class MainWindow : Window
             HideToTray(showBalloon: true);
             return;
         }
+        // A true exit (unlike a close-to-tray hide) ends delayed shell
+        // work as well; no retry should start while the app is closing.
+        Microsoft.Win32.SystemEvents.PowerModeChanged -= OnPowerModeChanged;
+        Microsoft.Win32.SystemEvents.TimeChanged -= OnSystemTimeChanged;
+        _scheduleTimer?.Stop();
+        _heldDownloadWakeTimer?.Stop();
+        _bandwidthGovernorTimer?.Stop();
+        _productivityTimer?.Stop();
+        _lifetimeCancellation.Cancel();
+
         // R2 #117/#118: a graceful exit marks the journal clean — the
         // next launch tells it apart from a crash by this flag alone.
         // (A hide-to-tray above is not an exit: the app is still
@@ -1075,41 +1345,63 @@ public partial class MainWindow : Window
     /// <paramref name="restoreUrl"/> is the recovery path's last page —
     /// when given, it wins over the start-page resolution.
     /// </summary>
-    private async Task InitWebViewAsync(string? restoreUrl = null)
+    private async Task InitWebViewAsync(string? restoreUrl = null, BrowserTabState? tab = null)
     {
+        var targetTab = tab ?? _activeTab;
+        var browser = targetTab.Browser;
         _webInitFailed = false;
         try
         {
             Directory.CreateDirectory(_profileDir);
-            var env = await CoreWebView2Environment.CreateAsync(
+            var environmentTask = _webEnvironmentTask ??= CoreWebView2Environment.CreateAsync(
                 browserExecutableFolder: null,
                 userDataFolder: _profileDir);
-            await Browser.EnsureCoreWebView2Async(env);
+            var env = await environmentTask;
+            await browser.EnsureCoreWebView2Async(env);
         }
         catch (WebView2RuntimeNotFoundException)
         {
             _webInitFailed = true;
+            targetTab.WebReady = false;
+            targetTab.Status = "WebView2 unavailable";
+            if (_webEnvironmentTask?.IsFaulted == true)
+                _webEnvironmentTask = null;
             _log.Error("WebView2 Runtime not found");
-            ShowOverlay(
-                Strings.Get("main.webview2_missing_title"),
-                Strings.Get("main.webview2_missing_body"),
-                Strings.Get("main.webview2_download"),
-                () => OpenExternal(WebView2BootstrapperUrl));
-            SetStatus(Strings.Get("status.webview2_runtime_missing_see_the"));
+            if (ReferenceEquals(targetTab, _activeTab))
+            {
+                ShowOverlay(
+                    "The WebView2 Runtime is missing",
+                    "MuseDesktop displays Muse with Microsoft's WebView2 Runtime. " +
+                    "It ships with Windows 11 and most Windows 10 PCs, but this PC does not have it yet. " +
+                    "Download the small Evergreen installer from Microsoft, run it, then retry.",
+                    "Download WebView2 Runtime",
+                    () => OpenExternal(WebView2BootstrapperUrl));
+                SetStatus("WebView2 Runtime missing — see the message above");
+            }
+            RefreshTabStrip();
             return;
         }
         catch (Exception ex)
         {
             _webInitFailed = true;
+            targetTab.WebReady = false;
+            targetTab.Status = "Couldn't start";
+            if (_webEnvironmentTask?.IsFaulted == true)
+                _webEnvironmentTask = null;
             _log.Error($"WebView2 init failed: {ex.GetType().Name}: {ex.Message}");
-            ShowOverlay(
-                Strings.Get("main.could_not_start"),
-                Strings.Format("main.start_failed_body", ex.Message, AppPaths.LogPath),
-                Strings.Get("retry"), null);
+            if (ReferenceEquals(targetTab, _activeTab))
+            {
+                ShowOverlay(
+                    "Muse could not start",
+                    $"Something went wrong starting the web view ({ex.Message}). " +
+                    $"The log at {AppPaths.LogPath} has the details.",
+                    "Retry", null);
+            }
+            RefreshTabStrip();
             return;
         }
 
-        var core = Browser.CoreWebView2;
+        var core = browser.CoreWebView2;
 #if DEBUG
         core.Settings.AreDevToolsEnabled = true;
 #else
@@ -1143,14 +1435,14 @@ public partial class MainWindow : Window
         // R6 #154: the mini strip mirrors the page's favicon.
         core.FaviconChanged += OnFaviconChanged;
         core.SourceChanged += OnSourceChanged;
-        core.HistoryChanged += (_, _) => UpdateNavButtons();
+        core.HistoryChanged += OnHistoryChanged;
         try
         {
             // Find in page (v0.5.0, S1 #1): CoreWebView2.Find exists in the
             // pinned SDK 1.0.4258.31 (StartAsync/FindNext/FindPrevious/Stop,
             // MatchCount / ActiveMatchIndex + change events).
-            core.Find.MatchCountChanged += (_, _) => UpdateFindCount();
-            core.Find.ActiveMatchIndexChanged += (_, _) => UpdateFindCount();
+            core.Find.MatchCountChanged += (_, _) => UpdateFindCountFor(core);
+            core.Find.ActiveMatchIndexChanged += (_, _) => UpdateFindCountFor(core);
         }
         catch (Exception ex) { _log.Warn($"Find wiring failed: {ex.Message}"); }
         core.ContainsFullScreenElementChanged += OnFullScreenElementChanged;
@@ -1166,15 +1458,17 @@ public partial class MainWindow : Window
             await core.AddScriptToExecuteOnDocumentCreatedAsync(PageScripts.DocumentScript);
         }
         catch (Exception ex) { _log.Warn($"Page bridge install failed: {ex.Message}"); }
-        Browser.ZoomFactorChanged += (_, _) =>
-        {
-            ZoomLabel.Text = ZoomMath.FormatPercent(Browser.ZoomFactor);
-        };
+        browser.ZoomFactorChanged += OnZoomFactorChanged;
 
-        Browser.ZoomFactor = EffectiveZoom();
-        _webReady = true;
-        // S8 #73: the second startup milestone.
-        _startupClock?.MarkWebViewReady();
+        browser.ZoomFactor = EffectiveZoom();
+        targetTab.WebReady = true;
+        targetTab.NeedsRecreate = false;
+        targetTab.Status = "Loading Muse…";
+        RefreshTabStrip();
+        PumpBatchQueue();
+        // S8 #73: the second startup milestone belongs to the first tab only.
+        if (ReferenceEquals(targetTab, _tabs[0]))
+            _startupClock?.MarkWebViewReady();
         // S8 #78: runtime health — version + channel facts, a warning
         // when the runtime is missing/ancient, and the fixed-version
         // folder note. Evergreen is what CreateAsync resolves with
@@ -1197,11 +1491,18 @@ public partial class MainWindow : Window
         // S8 #72: safe mode ignores the start-page resolution entirely
         // and lands on Home; #71 recovery restores the crashed page.
         var navigateTo = restoreUrl ?? SafeModePolicy.StartupUrl(_safeMode, startupUrl);
+        if (UrlPolicy.ClassifyNavigation(navigateTo) == LinkDisposition.InApp)
+            targetTab.LastGoodUrl = navigateTo;
+        RecordTabSessionChange();
         if (_safeMode && restoreUrl is null)
             _log.Info("Safe mode: starting at the Muse home page (no last-page restore, update check skipped)");
+        targetTab.Status = _safeMode && ReferenceEquals(targetTab, _tabs[0])
+            ? "Safe mode — Loading Muse…"
+            : "Loading Muse…";
         core.Navigate(navigateTo);
-        SetStatus(_safeMode ? Strings.Get("status.safe_mode_loading_claude") : Strings.Get("status.loading_claude"));
-        StartWatchdog();
+        RefreshTabStrip();
+        if (ReferenceEquals(targetTab, _activeTab))
+            SetStatus(targetTab.Status);
         // R2: the startup arrangement (pending workspace apply /
         // crash-journal restore / startup workspace), once, on the
         // first real init — the recovery recreate passes a restore
@@ -1209,7 +1510,7 @@ public partial class MainWindow : Window
         // before anything opens windows or asks a question; a hidden
         // (tray) start defers it to the first real show, so nothing
         // pops at sign-in (the S7/S11 hidden-start contract).
-        if (restoreUrl is null && !_startupArrangementHandled)
+        if (restoreUrl is null && ReferenceEquals(targetTab, _tabs[0]) && !_startupArrangementHandled)
         {
             if (IsVisible)
                 _ = Dispatcher.BeginInvoke(new Action(RunStartupArrangement));
@@ -1245,48 +1546,107 @@ public partial class MainWindow : Window
         return false;
     }
 
+    private BrowserTabState? FindTabForWebViewEvent(object? sender)
+    {
+        if (sender is not CoreWebView2 source)
+            return null;
+        return _tabs.FirstOrDefault(tab => ReferenceEquals(tab.Browser.CoreWebView2, source));
+    }
+
+    private bool IsKnownWebViewEvent(object? sender, bool includeRetryView = false) =>
+        FindTabForWebViewEvent(sender) is not null
+        || includeRetryView
+            && sender is CoreWebView2 source
+            && RetryBrowser?.CoreWebView2 is { } retry
+            && ReferenceEquals(source, retry);
+
+    private bool IsCurrentWebViewEvent(object? sender) =>
+        ReferenceEquals(FindTabForWebViewEvent(sender), _activeTab);
+
+    private void OnHistoryChanged(object? sender, object e)
+    {
+        if (IsCurrentWebViewEvent(sender))
+            UpdateNavButtons();
+    }
+
+    private void UpdateFindCountFor(CoreWebView2 source)
+    {
+        if (ReferenceEquals(source, Browser?.CoreWebView2))
+            UpdateFindCount();
+    }
+
+    private void OnZoomFactorChanged(object? sender, object e)
+    {
+        if (ReferenceEquals(sender, Browser))
+            ZoomLabel.Text = ZoomMath.FormatPercent(Browser.ZoomFactor);
+    }
+
     private void OnNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs e)
     {
+        var tab = FindTabForWebViewEvent(sender);
+        if (tab is null)
+        {
+            e.Cancel = true;
+            return;
+        }
         if (UrlPolicy.ClassifyNavigation(e.Uri) == LinkDisposition.Block)
         {
             e.Cancel = true;
             _log.Warn($"Blocked navigation: {UrlPolicy.RedactForLog(e.Uri)}");
             RecordPrivacy(PrivacyEventCategory.BlockedNavigation, SchemeOf(e.Uri), HostOf(e.Uri));
-            SetStatus(Strings.Get("status.that_link_can_t_open_inside_musedesktop"));
+            tab.Status = "Navigation blocked";
+            if (ReferenceEquals(tab, _activeTab))
+                SetStatus("That link can't open inside MuseDesktop");
         }
+        else
+        {
+            tab.Status = "Loading…";
+            if (ReferenceEquals(tab, _activeTab))
+                SetStatus("Loading Muse…");
+        }
+        RefreshTabStrip();
     }
 
     private void OnNavigationCompleted(object? sender, CoreWebView2NavigationCompletedEventArgs e)
     {
-        RecordFirstNavigation();
+        var tab = FindTabForWebViewEvent(sender);
+        if (tab is null)
+            return;
+        var src = tab.Browser.Source?.ToString();
         if (e.IsSuccess)
         {
+            tab.Status = "Ready";
+            tab.PageTitle = tab.Browser.CoreWebView2.DocumentTitle ?? "Muse";
+            if (src is not null)
+            {
+                tab.LastGoodUrl = src;
+                tab.History.Record(src, tab.PageTitle);
+            }
+            if (ReferenceEquals(tab, _tabs[0]))
+                RecordFirstNavigation();
+            RefreshTabStrip();
+            if (!ReferenceEquals(tab, _activeTab))
+            {
+                RecordTabSessionChange();
+                return;
+            }
+
             Overlay.Visibility = Visibility.Collapsed;
             SetStatus(Strings.Get("status.ready"));
             // S8 #71/#76: a successful load closes the recovery
             // incident and refills both automatic budgets.
             _recovery.OnPageLoaded();
-            // R2 #117: the first successful load makes this session
-            // "healthy" in the journal — the fact that keeps a later
-            // crash restore from being suppressed as a restore loop.
+            if (_watchdog.OnPageLoaded() == WatchdogDecision.HideHungPrompt)
+                WatchdogBanner.Visibility = Visibility.Collapsed;
             if (_journal is { BecameHealthy: false })
             {
                 _journal.BecameHealthy = true;
                 UpdateSessionJournal();
             }
-            var src = Browser.Source?.ToString();
-            if (src is not null)
-                _lastGoodUrl = src;
-            // S4 #35: a new document ends whatever media capture the
-            // old one held, so the microphone-grant heuristic resets.
+            _lastGoodUrl = src;
             _micGrantedThisSession = false;
-            if (src is not null)
-                _history.Record(src, Browser.CoreWebView2.DocumentTitle);
+            _tray.OnActivityChanged();
             SaveSettings();
-            // R5B: re-assert the profile's page style on the new
-            // document (the bridge's ready message is the primary
-            // path; this covers a missed one), and land a pending
-            // bookmark jump now that its conversation is in.
             _ = ApplyPageStyleAsync();
             // R7B: a landed page is a fresh conversation (or the
             // same one reloaded) — re-read the token ring once the
@@ -1301,18 +1661,23 @@ public partial class MainWindow : Window
         }
         else
         {
-            // S8 #76: the coordinator now owns the failed state the
-            // connectivity retry keys on (S1 #10 used a local flag).
+            tab.Status = "Load failed";
+            if (src is not null)
+                tab.History.NoteClosedPage(src);
+            RefreshTabStrip();
+            if (!ReferenceEquals(tab, _activeTab))
+            {
+                RecordTabSessionChange();
+                return;
+            }
             _recovery.OnLoadFailed();
-            // Smarter load-failure overlay (v0.5.0, S1 #10): Core classifies
-            // the WebErrorStatus into a plain-language category.
-            _log.Warn($"Navigation failed: {e.WebErrorStatus} for {UrlPolicy.RedactForLog(Browser.Source?.ToString())}");
-            _history.NoteClosedPage(Browser.Source?.ToString());
+            _log.Warn($"Navigation failed: {e.WebErrorStatus} for {UrlPolicy.RedactForLog(src)}");
             ShowOverlay(
                 Strings.Get("main.couldnt_be_reached"),
                 LoadFailureClassifier.MessageFor(e.WebErrorStatus.ToString()),
-                Strings.Get("retry"), null);
-            SetStatus(Strings.Format("status.load_failed", e.WebErrorStatus));
+                "Retry", null);
+            SetStatus($"Load failed: {e.WebErrorStatus}");
+            RecordTabSessionChange();
         }
         UpdateNavButtons();
     }
@@ -1353,7 +1718,14 @@ public partial class MainWindow : Window
     private void OnPowerModeChanged(object sender, Microsoft.Win32.PowerModeChangedEventArgs e)
     {
         if (e.Mode == Microsoft.Win32.PowerModes.Resume)
+        {
             OnConnectivitySignal("PC resumed from sleep");
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                WakeHeldDownloads();
+                ReevaluateSchedules();
+            }));
+        }
     }
 
     private void OnConnectivitySignal(string source)
@@ -1373,6 +1745,12 @@ public partial class MainWindow : Window
 
     private void OnNewWindowRequested(object? sender, CoreWebView2NewWindowRequestedEventArgs e)
     {
+        var sourceTab = FindTabForWebViewEvent(sender);
+        if (sourceTab is null)
+        {
+            e.Handled = true;
+            return;
+        }
         // Audit (v0.5.0, S1 #11): middle-click and Ctrl+click on a link surface
         // here exactly like target=_blank / window.open — WebView2 exposes no
         // separate gesture path — so they inherit this same UrlPolicy routing.
@@ -1382,22 +1760,30 @@ public partial class MainWindow : Window
         switch (UrlPolicy.ClassifyNewWindow(e.Uri))
         {
             case LinkDisposition.InApp:
-                Browser.CoreWebView2.Navigate(e.Uri);
+                sourceTab.Browser.CoreWebView2.Navigate(e.Uri);
                 break;
             case LinkDisposition.ExternalBrowser:
                 OpenExternal(e.Uri);
-                SetStatus(Strings.Get("status.opened_link_in_your_browser"));
+                if (ReferenceEquals(sourceTab, _activeTab))
+                    SetStatus("Opened link in your browser");
                 break;
             default:
                 _log.Warn($"Blocked new-window request: {UrlPolicy.RedactForLog(e.Uri)}");
                 RecordPrivacy(PrivacyEventCategory.BlockedNewWindow, SchemeOf(e.Uri), HostOf(e.Uri));
-                SetStatus(Strings.Get("status.that_link_was_blocked"));
+                if (ReferenceEquals(sourceTab, _activeTab))
+                    SetStatus("That link was blocked");
                 break;
         }
     }
 
     private void OnPermissionRequested(object? sender, CoreWebView2PermissionRequestedEventArgs e)
     {
+        if (FindTabForWebViewEvent(sender) is null)
+        {
+            e.State = CoreWebView2PermissionState.Deny;
+            e.Handled = true;
+            return;
+        }
         var kind = e.PermissionKind switch
         {
             CoreWebView2PermissionKind.Notifications => "notifications",
@@ -1416,6 +1802,7 @@ public partial class MainWindow : Window
                 // suspend treats this as "voice may be live" until the
                 // page navigates (which ends any capture it held).
                 _micGrantedThisSession = true;
+                _tray.OnActivityChanged();
                 _log.Info("Microphone granted this session; tray suspend will stay out of the way until the page navigates");
             }
         }
@@ -1440,8 +1827,19 @@ public partial class MainWindow : Window
         return dialog.ShowDialog(this) == true ? dialog.FileName : null;
     }
 
+    private bool IsDownloadPathInFlight(string path) =>
+        _downloads.Snapshot().Any(download =>
+            !string.IsNullOrWhiteSpace(download.FullPath) &&
+            string.Equals(download.FullPath, path, StringComparison.OrdinalIgnoreCase));
+
     private void OnDownloadStarting(object? sender, CoreWebView2DownloadStartingEventArgs e)
     {
+        if (!IsKnownWebViewEvent(sender, includeRetryView: true))
+        {
+            e.Cancel = true;
+            e.Handled = true;
+            return;
+        }
         // We report progress in the status bar, so suppress WebView2's own
         // download flyout and follow the operation ourselves. This handler
         // serves BOTH the main web view and the hidden retry view (S2 #15):
@@ -1471,6 +1869,7 @@ public partial class MainWindow : Window
             {
                 _heldDownloads.Add((heldUri, suggestedName,
                     schedule.NextChance ?? DateTimeOffset.UtcNow.AddMinutes(5)));
+                ArmHeldDownloadWakeup();
                 _log.Info($"Download held by quiet hours until {schedule.NextChance?.ToLocalTime():HH:mm}: {suggestedName}");
                 SetStatus(Strings.Format("status.download_held_until", schedule.NextChance?.ToLocalTime(), suggestedName));
             }
@@ -1490,6 +1889,13 @@ public partial class MainWindow : Window
         {
             // v0.2.0: ask where to save every download.
             var chosen = ShowSaveDownloadDialog(suggestedName, effectiveFolder ?? AppPaths.DownloadsHint);
+            if (chosen is not null && IsDownloadPathInFlight(chosen))
+            {
+                e.Cancel = true;
+                _log.Warn($"Download cancelled because the chosen path is already in use: {Path.GetFileName(chosen)}");
+                SetStatus($"Download cancelled — another download is using {Path.GetFileName(chosen)}");
+                return;
+            }
             if (chosen is not null)
             {
                 e.ResultFilePath = chosen;
@@ -1521,7 +1927,7 @@ public partial class MainWindow : Window
             // S2 #21: filename-collision policy when the target exists.
             try
             {
-                if (File.Exists(candidate))
+                if (File.Exists(candidate) || IsDownloadPathInFlight(candidate))
                 {
                     if (_settings.CollisionPolicy == DownloadCollisionPolicy.AskWhereToSave)
                     {
@@ -1534,17 +1940,30 @@ public partial class MainWindow : Window
                             SetStatus(Strings.Get("status.download_cancelled"));
                             return;
                         }
+                        if (IsDownloadPathInFlight(chosen))
+                        {
+                            e.Cancel = true;
+                            _log.Warn($"Download cancelled because the chosen path is already in use: {Path.GetFileName(chosen)}");
+                            SetStatus($"Download cancelled — another download is using {Path.GetFileName(chosen)}");
+                            return;
+                        }
                         candidate = chosen;
                     }
                     else
                     {
-                        candidate = UniqueFileName.ForPath(candidate);
+                        candidate = UniqueFileName.ForPath(candidate,
+                            path => File.Exists(path) || IsDownloadPathInFlight(path));
                     }
                 }
             }
             catch (Exception ex)
             {
-                _log.Warn($"Collision handling failed, keeping the original target: {ex.Message}");
+                // A failed collision check must never fall back to a path
+                // that may already exist; cancel rather than risk replacing it.
+                e.Cancel = true;
+                _log.Warn($"Collision handling failed; download cancelled to protect the existing file: {ex.Message}");
+                SetStatus($"Download cancelled — couldn't choose a safe filename for {suggestedName}");
+                return;
             }
 
             // R4 #133: duplicate guard — a completed history entry with
@@ -1574,7 +1993,20 @@ public partial class MainWindow : Window
                             return;
                         }
                         if (string.Equals(candidate, dupe.FullPath, StringComparison.OrdinalIgnoreCase))
-                            candidate = UniqueFileName.ForPath(candidate);
+                        {
+                            try
+                            {
+                                candidate = UniqueFileName.ForPath(candidate,
+                                    path => File.Exists(path) || IsDownloadPathInFlight(path));
+                            }
+                            catch (Exception ex)
+                            {
+                                e.Cancel = true;
+                                _log.Warn($"Duplicate download couldn't be assigned a safe filename; cancelled to protect the existing file: {ex.Message}");
+                                SetStatus($"Download cancelled — couldn't choose a safe filename for {suggestedName}");
+                                return;
+                            }
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -1629,15 +2061,31 @@ public partial class MainWindow : Window
         }
         try
         {
+            var retryBrowser = RetryBrowser;
+            if (retryBrowser is null)
+            {
+                retryBrowser = new Microsoft.Web.WebView2.Wpf.WebView2
+                {
+                    Width = 1,
+                    Height = 1,
+                    Visibility = Visibility.Hidden,
+                    IsHitTestVisible = false,
+                    DefaultBackgroundColor = ThemeManager.BrowserBackground,
+                };
+                RetryBrowser = retryBrowser;
+                ContentGrid.Children.Add(retryBrowser);
+            }
             if (!_retryWebReady)
             {
-                await RetryBrowser.EnsureCoreWebView2Async(Browser.CoreWebView2.Environment);
-                RetryBrowser.CoreWebView2.DownloadStarting += OnDownloadStarting;
+                await retryBrowser.EnsureCoreWebView2Async(Browser.CoreWebView2.Environment);
+                if (!ReferenceEquals(retryBrowser, RetryBrowser))
+                    return false;
+                retryBrowser.CoreWebView2.DownloadStarting += OnDownloadStarting;
                 _retryWebReady = true;
             }
             _log.Info($"{verb} download: {fileName} from {UrlPolicy.RedactForLog(uri)}");
-            SetStatus(Strings.Format("status.verb_download", verb, fileName));
-            RetryBrowser.CoreWebView2.Navigate(uri);
+            SetStatus($"{verb} download: {fileName}…");
+            retryBrowser.CoreWebView2.Navigate(uri);
             return true;
         }
         catch (Exception ex)
@@ -1646,6 +2094,44 @@ public partial class MainWindow : Window
             SetStatus(Strings.Format("status.couldnt_start", fileName));
             return false;
         }
+    }
+
+    /// <summary>Arm the sole one-shot wakeup for held quiet-hours downloads.</summary>
+    private void ArmHeldDownloadWakeup()
+    {
+        if (_heldDownloadWakeTimer is null)
+            return;
+        _heldDownloadWakeTimer.Stop();
+        if (_heldDownloads.Count == 0)
+            return;
+        var next = _heldDownloads.Min(h => h.NextChanceUtc);
+        var delay = next - DateTimeOffset.UtcNow;
+        _heldDownloadWakeTimer.Interval = delay <= TimeSpan.Zero ? TimeSpan.FromMilliseconds(1) : delay;
+        _heldDownloadWakeTimer.Start();
+    }
+
+    /// <summary>Coalesce tracker events into an active-only governor sample.</summary>
+    private void ScheduleBandwidthGovernor()
+    {
+        if (_bandwidthGovernorTimer is null || _bandwidthGovernorTimer.IsEnabled || !_downloads.IsActive)
+            return;
+        if (_settings.DownloadBandwidthLimitKBps <= 0 && _bandwidthGovernor.GovernorPausedIds.Count == 0)
+            return;
+        _bandwidthGovernorTimer.Interval = TimeSpan.FromSeconds(5);
+        _bandwidthGovernorTimer.Start();
+    }
+
+    private void WakeHeldDownloads()
+    {
+        if (_heldDownloads.Count == 0)
+            return;
+        for (var i = 0; i < _heldDownloads.Count; i++)
+        {
+            var held = _heldDownloads[i];
+            _heldDownloads[i] = (held.Uri, held.FileName, DateTimeOffset.UtcNow);
+        }
+        _heldDownloadWakeTimer?.Stop();
+        PumpHeldDownloads();
     }
 
     /// <summary>
@@ -1685,6 +2171,8 @@ public partial class MainWindow : Window
         finally
         {
             _downloadPumpBusy = false;
+            ArmHeldDownloadWakeup();
+            PumpBatchQueue();
         }
     }
 
@@ -1726,6 +2214,7 @@ public partial class MainWindow : Window
         finally
         {
             _downloadPumpBusy = false;
+            PumpHeldDownloads();
         }
     }
 
@@ -1771,7 +2260,13 @@ public partial class MainWindow : Window
         var failed = _downloads.SessionFailed.LastOrDefault(f => f.FileName == name);
         if (failed is null)
             return;
-        var attempts = _autoRetryAttempts.TryGetValue(failed.FullPath, out var soFar) ? soFar : 0;
+        var hasPriorAttempts = _autoRetryAttempts.TryGetValue(failed.FullPath, out var attempts);
+        if (!hasPriorAttempts && _autoRetryAttempts.Count >= DownloadRetryPolicy.MaxSessionFailures)
+        {
+            _log.Warn("Automatic retries paused for this session because the retry-tracking limit was reached");
+            SetStatus($"Automatic retry unavailable for {name} — retry it from Downloads");
+            return;
+        }
         if (!DownloadRetryPolicy.ShouldRetry(
                 _settings.DownloadAutoRetryEnabled, reason, attempts, _settings.DownloadAutoRetryMaxAttempts))
             return;
@@ -1782,9 +2277,36 @@ public partial class MainWindow : Window
         _log.Info($"Auto-retry {attempts} of {max} in {delay.TotalSeconds:0}s: {name} ({reason})");
         SetStatus(Strings.Format("status.download_failed_retrying", name, delay.TotalSeconds, attempts, max));
         var id = failed.Id;
-        await Task.Delay(delay);
-        if (_downloads.SessionFailed.Any(f => f.Id == id))
-            await RetryFailedDownloadAsync(id);
+        try
+        {
+            await Task.Delay(delay, _lifetimeCancellation.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            return; // The window is really exiting; close-to-tray does not cancel this token.
+        }
+
+        // Settings or retry eligibility may have changed while waiting.
+        // Re-read the live failed entry and policy before issuing the URI;
+        // a hand retry removes the entry, and disabling auto-retry or
+        // lowering its limit takes effect immediately.
+        var stillFailed = _downloads.SessionFailed.FirstOrDefault(f => f.Id == id);
+        if (stillFailed is null)
+            return;
+        var attemptsNow = _autoRetryAttempts.TryGetValue(stillFailed.FullPath, out var currentAttempts)
+            ? currentAttempts
+            : 0;
+        if (!DownloadRetryPolicy.ShouldRetry(
+                _settings.DownloadAutoRetryEnabled,
+                reason,
+                attemptsNow,
+                _settings.DownloadAutoRetryMaxAttempts))
+        {
+            _log.Info($"Auto-retry no longer eligible; skipped: {stillFailed.FileName}");
+            return;
+        }
+
+        await RetryFailedDownloadAsync(id);
     }
 
     /// <summary>
@@ -1916,10 +2438,16 @@ public partial class MainWindow : Window
 
     private void OnTitleChanged(object? sender, object e)
     {
-        _pageTitle = Browser.CoreWebView2.DocumentTitle ?? "";
-        TitleText.Text = string.IsNullOrWhiteSpace(_pageTitle) ? "Muse" : _pageTitle;
+        var tab = FindTabForWebViewEvent(sender);
+        if (tab is null)
+            return;
+        tab.PageTitle = tab.Browser.CoreWebView2.DocumentTitle ?? "Muse";
+        RefreshTabStrip();
+        if (!ReferenceEquals(tab, _activeTab))
+            return;
+        TitleText.Text = tab.PageTitle;
         ApplyWindowTitle();
-        OnAttentionSignal(AttentionSignal.Parse(_pageTitle));
+        OnAttentionSignal(AttentionSignal.Parse(tab.PageTitle));
     }
 
     /// <summary>
@@ -2069,35 +2597,75 @@ public partial class MainWindow : Window
 
     private void OnSourceChanged(object? sender, CoreWebView2SourceChangedEventArgs e)
     {
-        var src = Browser.Source?.ToString() ?? "";
-        AddressText.Text = Uri.TryCreate(src, UriKind.Absolute, out var u) ? u.Host : src;
-        // S8 #71: the freshest in-app page is what crash recovery
-        // restores — kept current here so it survives the web view.
+        var tab = FindTabForWebViewEvent(sender);
+        if (tab is null)
+            return;
+        var src = tab.Browser.Source?.ToString() ?? "";
         if (src.Length > 0 && UrlPolicy.ClassifyNavigation(src) == LinkDisposition.InApp)
-            _lastGoodUrl = src;
+            tab.LastGoodUrl = src;
+        if (!ReferenceEquals(tab, _activeTab))
+            return;
+        AddressText.Text = Uri.TryCreate(src, UriKind.Absolute, out var u) ? u.Host : src;
         UpdateNavButtons();
     }
 
     private void OnFullScreenElementChanged(object? sender, object e)
     {
+        if (!IsCurrentWebViewEvent(sender))
+            return;
         // Page content (e.g. a video) asked for full screen.
         SetFullScreen(Browser.CoreWebView2.ContainsFullScreenElement);
     }
 
     /// <summary>
-    /// Process failures (S8 #71): the recovery coordinator decides —
+    /// Process failures (S8 #71/#80): the recovery coordinator decides —
     /// one automatic recovery per incident (reload the page for a
     /// renderer exit, recreate the web view for a browser exit), then
     /// the overlay. Non-fatal kinds (GPU, utility…) are WebView2's own
-    /// to restart and only get logged; RenderProcessUnresponsive is
-    /// the watchdog's (#80) case, not an automatic reload's.
+    /// to restart and only get logged; unresponsive renderers get the
+    /// native Reload/Wait prompt instead of an automatic reload.
     /// </summary>
     private async void OnProcessFailed(object? sender, CoreWebView2ProcessFailedEventArgs e)
     {
+        var tab = FindTabForWebViewEvent(sender);
+        if (tab is null)
+            return;
+        if (!ReferenceEquals(tab, _activeTab))
+        {
+            if (e.ProcessFailedKind is CoreWebView2ProcessFailedKind.BrowserProcessExited
+                or CoreWebView2ProcessFailedKind.RenderProcessExited)
+            {
+                tab.WebReady = false;
+                        tab.NeedsRecreate = true;
+                tab.Status = "Renderer stopped — reload when selected";
+            }
+            else
+            {
+                tab.Status = e.ProcessFailedKind == CoreWebView2ProcessFailedKind.RenderProcessUnresponsive
+                    ? "Page not responding"
+                    : $"WebView issue: {e.ProcessFailedKind}";
+            }
+            RefreshTabStrip();
+            return;
+        }
+        if (e.ProcessFailedKind == CoreWebView2ProcessFailedKind.RenderProcessUnresponsive)
+        {
+            if (_isLocked || _tray.IsSuspended)
+                return;
+            var watchdogDecision = _watchdog.OnRendererUnresponsive(DateTimeOffset.UtcNow);
+            if (watchdogDecision == WatchdogDecision.ShowHungPrompt)
+            {
+                _log.Warn("WebView2 reported an unresponsive renderer — offering Reload / Wait (nothing is reloaded automatically)");
+                WatchdogBanner.Visibility = Visibility.Visible;
+                _activeTab.Status = "Page not responding";
+                RefreshTabStrip();
+            }
+            return; // the runtime reports this native condition until the renderer recovers
+        }
+        _log.Error($"WebView2 process failed: {e.ProcessFailedKind} ({e.Reason})");
         var kind = Enum.TryParse<ProcessFailureKind>(e.ProcessFailedKind.ToString(), out var mapped)
             ? mapped
             : ProcessFailureKind.Other;
-        _log.Error($"WebView2 process failed: {e.ProcessFailedKind} ({e.Reason})");
         var decision = _recovery.OnProcessFailed(kind, DateTimeOffset.UtcNow);
         switch (decision)
         {
@@ -2139,20 +2707,19 @@ public partial class MainWindow : Window
     /// <summary>
     /// Recreate the web view after a browser-process exit (S8 #71):
     /// the WPF controls bound to the dead environment are disposed and
-    /// replaced with fresh ones (the XAML fields are reassigned — the
-    /// rest of the window only ever talks to the fields), then the
-    /// normal init runs against a new environment and restores the
-    /// last page. The hidden retry view belonged to the dead
-    /// environment too and is replaced alongside.
+    /// replaced with a fresh control in the same shared environment;
+    /// the rest of the window talks through the active tab state. The
+    /// normal init then restores the last page. If a retry view exists,
+    /// it is disposed too; a new
+    /// hidden retry view is created only if a later retry needs it.
     /// </summary>
     private async Task RecreateWebViewAsync()
     {
         var restoreUrl = _lastGoodUrl ?? UrlPolicy.HomeUrl;
         try
         {
-            _watchdogTimer?.Stop();
             var oldBrowser = Browser;
-            WebFocusRing.Child = null;
+            _activeTab.Host.Child = null;
             try { oldBrowser.Dispose(); } catch { /* already dead — that's why we're here */ }
             var fresh = new Microsoft.Web.WebView2.Wpf.WebView2
             {
@@ -2161,26 +2728,22 @@ public partial class MainWindow : Window
             System.Windows.Automation.AutomationProperties.SetName(fresh, Strings.Get("muse_web_content"));
             fresh.GotKeyboardFocus += OnBrowserGotKeyboardFocus;
             fresh.LostKeyboardFocus += OnBrowserLostKeyboardFocus;
-            Browser = fresh;
-            WebFocusRing.Child = fresh;
+            _activeTab.Browser = fresh;
+            _activeTab.Host.Child = fresh;
 
             var oldRetry = RetryBrowser;
-            ContentGrid.Children.Remove(oldRetry);
-            try { oldRetry.Dispose(); } catch { /* same dead environment */ }
-            var freshRetry = new Microsoft.Web.WebView2.Wpf.WebView2
+            if (oldRetry is not null)
             {
-                Width = 1,
-                Height = 1,
-                Visibility = Visibility.Hidden,
-                IsHitTestVisible = false,
-                DefaultBackgroundColor = ThemeManager.BrowserBackground,
-            };
-            RetryBrowser = freshRetry;
-            ContentGrid.Children.Add(freshRetry);
+                ContentGrid.Children.Remove(oldRetry);
+                try { oldRetry.Dispose(); } catch { /* same dead environment */ }
+            }
+            RetryBrowser = null; // recreate lazily only if a retry is requested
 
-            _webReady = false;
+            _activeTab.WebReady = false;
+            _activeTab.Status = "Recovering…";
             _retryWebReady = false;
-            await InitWebViewAsync(restoreUrl);
+            RefreshTabStrip();
+            await InitWebViewAsync(restoreUrl, _activeTab);
             _log.Info($"Web view recreated; restored {UrlPolicy.RedactForLog(restoreUrl)}");
         }
         catch (Exception ex)
@@ -2192,56 +2755,8 @@ public partial class MainWindow : Window
 
     // ───────────────────── hung-page watchdog (S8 #80) ─────────────────────
 
-    /// <summary>
-    /// The watchdog timer (S8 #80): every 15 s a trivial script ping
-    /// with a 5 s timeout, decided by Core's WatchdogPolicy. It never
-    /// runs while the web view is suspended (a sleeping renderer
-    /// can't answer — that's not a hang), while locked, or after the
-    /// mic was granted this session / while the page plays audio — a
-    /// busy voice page must not be misjudged. Two consecutive misses
-    /// show the Reload/Wait banner; nothing is ever auto-reloaded.
-    /// </summary>
-    private void StartWatchdog()
-    {
-        _watchdogTimer?.Stop();
-        _watchdogTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
-        _watchdogTimer.Tick += OnWatchdogTick;
-        _watchdogTimer.Start();
-    }
-
-    private async void OnWatchdogTick(object? sender, EventArgs e)
-    {
-        if (!_webReady || _isLocked || _tray.IsSuspended)
-            return;
-        if (_micGrantedThisSession)
-            return; // S4 #35's heuristic: a voice session may be live
-        bool alive;
-        try
-        {
-            if (Browser.CoreWebView2.IsDocumentPlayingAudio)
-                return; // streaming/voice playback — not evidence of a hang
-            var ping = Browser.CoreWebView2.ExecuteScriptAsync("1");
-            var finished = await Task.WhenAny(ping, Task.Delay(TimeSpan.FromSeconds(5)));
-            alive = finished == ping && ping.IsCompletedSuccessfully;
-        }
-        catch
-        {
-            alive = false;
-        }
-        var decision = alive
-            ? _watchdog.OnPingSucceeded(DateTimeOffset.UtcNow)
-            : _watchdog.OnPingMissed(DateTimeOffset.UtcNow);
-        if (decision == WatchdogDecision.ShowHungPrompt)
-        {
-            _log.Warn("Watchdog: the page hasn't answered two checks in a row — offering Reload / Wait (nothing is reloaded automatically)");
-            WatchdogBanner.Visibility = Visibility.Visible;
-        }
-        else if (decision == WatchdogDecision.HideHungPrompt)
-        {
-            _log.Info("Watchdog: the page is answering again — banner hidden");
-            WatchdogBanner.Visibility = Visibility.Collapsed;
-        }
-    }
+    // WebView2's ProcessFailed event reports RenderProcessUnresponsive
+    // natively. No periodic script execution or timeout timer is needed.
 
     private void OnWatchdogReload(object sender, RoutedEventArgs e)
     {
@@ -2255,17 +2770,18 @@ public partial class MainWindow : Window
     {
         _watchdog.Snooze(DateTimeOffset.UtcNow);
         WatchdogBanner.Visibility = Visibility.Collapsed;
-        _log.Info("Watchdog: user chose Wait — quiet for 2 minutes");
-        SetStatus(Strings.Get("status.page_left_as_is_the_responsiveness"));
+        _log.Info("Watchdog: user chose Wait — native unresponsive notifications are snoozed for 2 minutes");
+        _activeTab.Status = "Waiting — page not responding";
+        RefreshTabStrip();
+        SetStatus("Page left as-is — unresponsive notifications are snoozed for 2 minutes");
     }
 
     // ───────────────────────── UI actions ─────────────────────────
 
     private void UpdateNavButtons()
     {
-        if (!_webReady) return;
-        BackButton.IsEnabled = Browser.CanGoBack;
-        ForwardButton.IsEnabled = Browser.CanGoForward;
+        BackButton.IsEnabled = _webReady && Browser.CanGoBack;
+        ForwardButton.IsEnabled = _webReady && Browser.CanGoForward;
     }
 
     private void SetStatus(string text, string? right = null)
@@ -2307,8 +2823,12 @@ public partial class MainWindow : Window
             return;
         }
         Overlay.Visibility = Visibility.Collapsed;
-        if (_webReady) Browser.Reload();
-        else _ = InitWebViewAsync();
+        if (_activeTab.NeedsRecreate)
+            _ = RecreateWebViewAsync();
+        else if (_webReady)
+            Browser.Reload();
+        else
+            _ = InitWebViewAsync(tab: _activeTab);
     }
 
     private void OnHome(object sender, RoutedEventArgs e)
@@ -2374,13 +2894,14 @@ public partial class MainWindow : Window
         if (sectionId is not null && SettingsSearch.IsKnownSection(sectionId))
             clone.SettingsLastSection = sectionId;
         var dialog = new SettingsWindow(clone, _log, _privacyGateway,
-            (workingClone, id) => SwitchToProfile(workingClone, id),
+            (workingClone, id) => SwitchToProfile(workingClone, id, activeDownloadsConfirmed: true),
             notificationTest: RunTestNotification,
             globalHotkeyStatus: () => _hotkeyManager?.StatusText ?? "",
             applyWorkspace: ApplyWorkspaceFromSettings,
             quickNoteHotkeyStatus: () => _noteHotkeyManager?.StatusText ?? "",
             openWeeklyDigest: () => OpenProductivity(showStats: false),
-            openStatsDashboard: () => OpenProductivity(showStats: true)) { Owner = this };
+            openStatsDashboard: () => OpenProductivity(showStats: true),
+            activeDownloadCount: () => _downloads.Snapshot().Count) { Owner = this };
         // S6 #56: closing Settings returns focus to whatever invoked it
         // (usually the page itself).
         var settingsAccepted = FocusReturn.ShowDialog(dialog) == true;
@@ -2520,6 +3041,9 @@ public partial class MainWindow : Window
         if (!_settings.SuspendWhenInTray)
             _tray.CancelPendingSuspend();
         SaveSettings();
+        WakeHeldDownloads();
+        ScheduleBandwidthGovernor();
+        ReevaluateSchedules();
         RefreshProfileIndicator();
         // R2 #115: the workspace accent override re-applies over the
         // (possibly new) settings accent, and the ⋯ menu's list
@@ -2527,6 +3051,7 @@ public partial class MainWindow : Window
         _workspaceAccentKey = null;
         ApplyWorkspaceAccent();
         RebuildWorkspacesMenu();
+        RebuildSnippetsMenu();
         // R5B #201/#205 live apply: the page takes the (possibly
         // changed) profile's CSS right away.
         _ = ApplyPageStyleAsync();
@@ -2596,8 +3121,19 @@ public partial class MainWindow : Window
     /// profile state, relaunches detached after a short delay (the single-
     /// instance mutex frees as this process exits), and exits.
     /// </summary>
-    private void SwitchToProfile(AppSettings workingClone, string targetProfileId, bool fromSchedule = false)
+    private void SwitchToProfile(
+        AppSettings workingClone, string targetProfileId, bool fromSchedule = false,
+        bool activeDownloadsConfirmed = false)
     {
+        if (!fromSchedule && !activeDownloadsConfirmed && _downloads.IsActive)
+        {
+            var activeDownloadCount = _downloads.Snapshot().Count;
+            var answer = System.Windows.MessageBox.Show(this,
+                Strings.Format("pr20.switch_profiles_and_restart_musedesktop_0_active_download_s_will", activeDownloadCount),
+                Strings.Get("active_downloads"), MessageBoxButton.YesNo, MessageBoxImage.Warning);
+            if (answer != MessageBoxResult.Yes)
+                return;
+        }
         _settings.Profiles = workingClone.Profiles;
         // R3 #123/#127: a switch launched from the Settings dialog
         // also adopts its group + schedule edits (for menu/tray/palette
@@ -2657,23 +3193,95 @@ public partial class MainWindow : Window
             return;
         }
         var invoker = FocusReturn.Capture();
+        var activeDownloadCount = _downloads.Snapshot().Count;
+        var downloadWarning = activeDownloadCount == 0
+            ? ""
+            : $"\n\n{activeDownloadCount} active download(s) will stop during restart; check Downloads before retrying any partial file.";
         var confirm = System.Windows.MessageBox.Show(this,
-            Strings.Format("msg.switch_profile_body", target.Name),
+            Strings.Format("pr20.switch_to_profile_0", target.Name) +
+            Strings.Get("pr20.musedesktop_restarts_now_with_that_profile_s_sign_in") + downloadWarning,
             Strings.Get("msg.switch_profile"), MessageBoxButton.YesNo, MessageBoxImage.Question);
         if (confirm != MessageBoxResult.Yes)
         {
             FocusReturn.Restore(invoker);
             return;
         }
-        SwitchToProfile(_settings, targetProfileId);
+        SwitchToProfile(_settings, targetProfileId, activeDownloadsConfirmed: activeDownloadCount > 0);
+    }
+
+    private void OnSystemTimeChanged(object? sender, EventArgs e) =>
+        Dispatcher.BeginInvoke(new Action(ReevaluateSchedules));
+
+    /// <summary>Evaluate deadlines after a lifecycle/settings/time event and arm only the next real deadline.</summary>
+    private void ReevaluateSchedules()
+    {
+        if (!IsLoaded)
+            return;
+        if (_isLocked)
+        {
+            _scheduleTimer?.Stop();
+            return;
+        }
+        _scheduleTimer?.Stop();
+        var now = DateTimeOffset.Now;
+        if (!RunDueSchedules(now))
+        {
+            // A failed policy evaluation gets one delayed retry, not an
+            // immediate rearm loop and not a permanent startup loss.
+            if (_scheduleTimer is not null)
+            {
+                _scheduleTimer.Interval = TimeSpan.FromSeconds(15);
+                _scheduleTimer.Start();
+            }
+            return;
+        }
+        EvaluateSchedule();
+        ArmScheduleWakeup(now);
+    }
+
+    private void ArmScheduleWakeup(DateTimeOffset now)
+    {
+        if (_scheduleTimer is null)
+            return;
+        _scheduleTimer.Stop();
+        if (_isLocked)
+            return;
+
+        DateTimeOffset? next = CommandScheduler.NextDue(
+            _settings.CommandSchedules, now, _schedulerStartupPending);
+        void Consider(DateTimeOffset? candidate)
+        {
+            if (candidate is not null && candidate.Value > now
+                && (next is null || candidate.Value < next.Value))
+                next = candidate;
+        }
+
+        if (_settings.ScheduleHoldUntilUtc is { } holdUntil)
+            Consider(holdUntil.ToLocalTime());
+
+        foreach (var rule in _settings.ProfileSwitchRules)
+        {
+            if (!ProfileSchedule.IsValid(rule)
+                || _settings.Profiles.All(p => p.Id != rule.ProfileId || p.Archived))
+                continue;
+            Consider(ProfileSchedule.NextWindowStart(rule, now));
+            if (ProfileSchedule.Contains(rule, now))
+                Consider(ProfileSchedule.WindowEnd(rule, now));
+        }
+
+        if (next is null)
+            return;
+        var delay = next.Value - DateTimeOffset.Now;
+        _scheduleTimer.Interval = delay <= TimeSpan.Zero ? TimeSpan.FromMilliseconds(1) : delay;
+        _scheduleTimer.Start();
     }
 
     /// <summary>
-    /// One schedule tick (R3 #123): Core's verdict for right now. Ask
+    /// One event-triggered schedule evaluation (R3 #123): Core's verdict for right now. Ask
     /// first (the default) proposes the switch in a dialog and records
     /// the manual hold on No; auto mode switches straight away.
     /// Locked, safe-mode, a dialog already open, or a prompt already
-    /// showing all skip the tick — the next minute asks again.
+    /// showing skip this evaluation; lifecycle events retry when clear.
     /// </summary>
     private void EvaluateSchedule()
     {
@@ -2686,6 +3294,14 @@ public partial class MainWindow : Window
         if (System.Windows.Application.Current.Windows.OfType<Window>()
                 .Any(w => w != this && w is not LockWindow && w.IsVisible))
             return; // a dialog or second window is up; don't stack a prompt on it
+        if (_downloads.IsActive)
+        {
+            if (!_scheduleWaitingForDownloads)
+                _log.Info("Scheduled profile switch is waiting for active downloads to finish or be cancelled");
+            _scheduleWaitingForDownloads = true;
+            return;
+        }
+        _scheduleWaitingForDownloads = false;
         var decision = ProfileSchedule.Evaluate(_settings, DateTimeOffset.Now, _settings.ActiveProfileId);
         if (!decision.ShouldSwitch || decision.ProfileId is not { } targetId)
             return;
@@ -2844,6 +3460,8 @@ public partial class MainWindow : Window
     /// </summary>
     private void OnContextMenuRequested(object? sender, CoreWebView2ContextMenuRequestedEventArgs e)
     {
+        if (!IsCurrentWebViewEvent(sender))
+            return;
         try
         {
             var target = e.ContextMenuTarget;
@@ -2909,10 +3527,11 @@ public partial class MainWindow : Window
     /// </summary>
     private void OnActiveProfileCleared(ClearDataChoice choice)
     {
-        if (choice == ClearDataChoice.Cache || !_webReady)
+        if (choice == ClearDataChoice.Cache)
             return;
-        Browser.CoreWebView2.Navigate(UrlPolicy.HomeUrl);
-        SetStatus(Strings.Get("status.browsing_data_cleared_sign_in_to_muse"));
+        foreach (var tab in _tabs.Where(tab => tab.WebReady))
+            tab.Browser.CoreWebView2.Navigate(UrlPolicy.HomeUrl);
+        SetStatus("Browsing data cleared — sign in to Muse to continue");
     }
 
     /// <summary>
@@ -2925,6 +3544,11 @@ public partial class MainWindow : Window
     private void OnServerCertificateErrorDetected(
         object? sender, CoreWebView2ServerCertificateErrorDetectedEventArgs e)
     {
+        if (!IsKnownWebViewEvent(sender))
+        {
+            e.Action = CoreWebView2ServerCertificateErrorAction.Cancel;
+            return;
+        }
         var deferral = e.GetDeferral();
         try
         {
@@ -3045,6 +3669,7 @@ public partial class MainWindow : Window
         if (_isLocked)
             return;
         _isLocked = true;
+        RefreshTabStrip();
         _log.Info("App locked");
         // R6 #156: a locked window is never see-through — the policy
         // forces full opacity from the moment the lock engages (the
@@ -3081,6 +3706,7 @@ public partial class MainWindow : Window
             // running): fail open rather than strand the user.
             _log.Warn("App lock record missing while locked — unlocking (fail-open)");
             _isLocked = false;
+            RefreshTabStrip();
             _tray.SetLocked(false);
             ShowFromTray();
             return;
@@ -3105,6 +3731,7 @@ public partial class MainWindow : Window
     {
         _isLocked = false;
         _tray.SetLocked(false);
+        RefreshTabStrip();
         // R6 #156: the window's chosen opacity may render again.
         ApplyWindowOpacity();
         _log.Info("App unlocked");
@@ -3114,6 +3741,7 @@ public partial class MainWindow : Window
             await InitWebViewAsync();
             MaybeAutoCheckForUpdates();
         }
+        ReevaluateSchedules();
         // ShowFromTray drains whatever queued behind the lock (S11
         // #99/#100) — one intent, the newest: the queue is last-wins
         // by design, so an unlock never replays a backlog.
@@ -3674,6 +4302,7 @@ public partial class MainWindow : Window
         _focusMode = on;
         FocusItem.IsChecked = on;
         Toolbar.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
+        TabStrip.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
         StatusBar.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
         if (on)
         {
@@ -3698,6 +4327,7 @@ public partial class MainWindow : Window
             {
                 _focusTimer.Stop(DateTimeOffset.Now);
                 DrainTimerMinutes();
+                UpdateProductivityTimer();
             }
             if (!_isFullScreen && _focusPrevState != WindowState.Maximized
                 && WindowState == WindowState.Maximized)
@@ -3713,6 +4343,7 @@ public partial class MainWindow : Window
         if (!_focusMode)
             SetFocusMode(true);
         _focusTimer.Start(DateTimeOffset.Now, _settings.FocusTimerMinutes);
+        UpdateProductivityTimer();
         SetStatus(Strings.Format("status.timer_started", TimerLines.Focus(_focusTimer, DateTimeOffset.Now)));
     }
 
@@ -3726,6 +4357,7 @@ public partial class MainWindow : Window
             DrainTimerMinutes();
             _sessionTimer = null;
             _tray.SetTimerText(null);
+            UpdateProductivityTimer();
             SetStatus(Strings.Get("status.session_timer_stopped"));
             return;
         }
@@ -3734,19 +4366,15 @@ public partial class MainWindow : Window
             _settings.SessionLongBreakMinutes, _settings.SessionCyclesBeforeLongBreak));
         _sessionMinutesDrained = 0;
         _sessionTimer.Start(now);
+        UpdateProductivityTimer();
         SetStatus(Strings.Format("status.session_timer_prefix", TimerLines.Session(_sessionTimer, now)));
     }
 
     /// <summary>
-    /// The one-second productivity tick (R5): advance both Core
-    /// timers, surface their events (the break reminder is a tray
-    /// balloon + status line — gentle, dismissible, quiet-hours
-    /// gated by the tray's own policy, never a dialog), keep the tray
-    /// tooltip's countdown current, drain banked focus minutes into
-    /// the weekly stats, and run the command scheduler (R5 #147)
-    /// about every 15 seconds. While the app is locked nothing fires
-    /// and the startup rules stay pending: a locked app runs no
-    /// commands.
+    /// The active countdown tick (R5): advance Core timers, surface
+    /// phase events, update the tray countdown, and drain completed
+    /// focus minutes. It is stopped whenever no countdown is active;
+    /// command schedules use their own one-shot deadline wakeup.
     /// </summary>
     private void OnProductivityTick()
     {
@@ -3793,11 +4421,16 @@ public partial class MainWindow : Window
         DrainTimerMinutes();
         UpdateTimerTrayText(now);
 
-        if (!_isLocked && now - _lastSchedulerCheckUtc >= TimeSpan.FromSeconds(15))
-        {
-            _lastSchedulerCheckUtc = now;
-            RunDueSchedules(now);
-        }
+        if (!_focusTimer.IsRunning && _sessionTimer is not { IsRunning: true })
+            _productivityTimer?.Stop();
+    }
+
+    private void UpdateProductivityTimer()
+    {
+        if (_focusTimer.IsRunning || _sessionTimer is { IsRunning: true })
+            _productivityTimer?.Start();
+        else
+            _productivityTimer?.Stop();
     }
 
     /// <summary>The tray tooltip's countdown (R5 #141/#142): the session timer wins when both run — it's the one with cycles to report.</summary>
@@ -3838,7 +4471,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>Run the scheduled commands that are due (R5 #147). Core stamps each due rule before it runs, so the settings are saved FIRST — a command that fails can't refire in a loop.</summary>
-    private void RunDueSchedules(DateTimeOffset now)
+    private bool RunDueSchedules(DateTimeOffset now)
     {
         List<ScheduledCommand> due;
         try
@@ -3848,17 +4481,18 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             _log.Warn($"Command schedule check failed: {ex.Message}");
-            return;
+            return false;
         }
         _schedulerStartupPending = false;
         if (due.Count == 0)
-            return;
+            return true;
         SaveSettings();
         foreach (var rule in due)
         {
             _log.Info($"Scheduled command running: {rule.CommandId} ({rule.Trigger})");
             ExecutePaletteAction(rule.CommandId);
         }
+        return true;
     }
 
     /// <summary>Take the suggested break (R5 #141): offered when a focus block has just finished; the break counts down in the status bar and the tray.</summary>
@@ -3866,7 +4500,10 @@ public partial class MainWindow : Window
     {
         var now = DateTimeOffset.Now;
         if (_focusTimer.StartBreak(now, _settings.FocusBreakMinutes))
+        {
+            UpdateProductivityTimer();
             SetStatus(TimerLines.Focus(_focusTimer, now));
+        }
         else
             SetStatus(Strings.Get("status.no_break_is_waiting_one_is_offered_when"));
     }
@@ -3940,6 +4577,8 @@ public partial class MainWindow : Window
     /// </summary>
     private async void OnPageWebMessage(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
     {
+        if (!IsCurrentWebViewEvent(sender))
+            return;
         string json;
         try { json = e.WebMessageAsJson; }
         catch { return; }
@@ -4572,7 +5211,7 @@ public partial class MainWindow : Window
     }
 
     /// <summary>The notebook window (R5 #148): the active profile's notes, with capture and delete riding delegates.</summary>
-    private void OpenNotes()
+    private void OpenNotes(string? selectedNoteId = null)
     {
         if (_isLocked)
         {
@@ -4588,9 +5227,28 @@ public partial class MainWindow : Window
                 var notes = ProfileNotesStore.Load(AppPaths.NotesPath);
                 if (notes.Delete(profileId, id))
                     ProfileNotesStore.Save(AppPaths.NotesPath, notes);
-            })
+            },
+            selectedNoteId: selectedNoteId)
             { Owner = this };
         dialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(dialog);
+        ShellTextScaling.Apply(dialog, _settings.ShellFontScale);
+        FocusReturn.ShowDialog(dialog);
+    }
+
+    private void OnActivityCenter(object sender, RoutedEventArgs e) => OpenActivityCenter();
+
+    private void OpenActivityCenter()
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        if (!IsVisible)
+            ShowFromTray();
+        if (!IsVisible)
+            return;
+        var dialog = new ActivityWindow { Owner = this };
         ShellTextScaling.Apply(dialog, _settings.ShellFontScale);
         FocusReturn.ShowDialog(dialog);
     }
@@ -4816,6 +5474,9 @@ public partial class MainWindow : Window
         IReadOnlyList<PromptSnippet> snippets;
         try { snippets = PromptSnippetStore.Load(AppPaths.SnippetsPath).EntriesFor(_settings.ActiveProfileId); }
         catch { snippets = Array.Empty<PromptSnippet>(); }
+        IReadOnlyList<NoteEntry> notes;
+        try { notes = ProfileNotesStore.Load(AppPaths.NotesPath).NotesFor(_settings.ActiveProfileId); }
+        catch { notes = Array.Empty<NoteEntry>(); }
         return CommandRegistry.CreateDefault(
             Profiles.VisibleProfiles(_settings), _settings.ActiveProfileId, downloads, CurrentWindowDescriptors(),
             _settings.Workspaces, _settings.ActiveWorkspaceId, _settings.StartupWorkspaceId,
@@ -4823,7 +5484,8 @@ public partial class MainWindow : Window
             readingEntries: reading,
             historyEntries: _history.Entries,
             bookmarks: bookmarks,
-            snippets: snippets);
+            snippets: snippets,
+            noteEntries: notes);
     }
 
     /// <summary>
@@ -5018,6 +5680,10 @@ public partial class MainWindow : Window
                         .Find(_settings.ActiveProfileId, snippetId) is { } snippet)
                     InsertSnippetIntoComposer(snippet);
                 break;
+            case PaletteCommandSource.Note:
+                if (command.Payload is { } noteId)
+                    OpenNotes(noteId);
+                break;
         }
     }
 
@@ -5032,6 +5698,7 @@ public partial class MainWindow : Window
             case "action.restore-session": RestoreSessionSnapshot(); break;
             case "action.settings": OpenSettings(); break;
             case "action.downloads": OnDownloads(this, new RoutedEventArgs()); break;
+            case "action.activity-center": OpenActivityCenter(); break;
             case "action.home": OnHome(this, new RoutedEventArgs()); break;
             case "action.reload": OnReload(this, new RoutedEventArgs()); break;
             case "action.find": ShowFindBar(); break;
@@ -5538,7 +6205,26 @@ public partial class MainWindow : Window
     private void OnTakeSessionSnapshot(object sender, RoutedEventArgs e) => TakeSessionSnapshot();
     private void OnRestoreSessionSnapshot(object sender, RoutedEventArgs e) => RestoreSessionSnapshot();
 
-    /// <summary>Take the one-off session snapshot (#114): the open windows, routes only, in their own file — deliberately not the journal's.</summary>
+    private (List<string> Routes, int ActiveIndex) CurrentMainTabRoutes()
+    {
+        var routes = new List<string>();
+        var activeIndex = 0;
+        foreach (var tab in _tabs)
+        {
+            var route = AppRoute.FromUrl(tab.Browser.Source?.ToString())
+                        ?? AppRoute.FromUrl(tab.LastGoodUrl);
+            if (route is null)
+                continue;
+            if (ReferenceEquals(tab, _activeTab))
+                activeIndex = routes.Count;
+            routes.Add(route);
+        }
+        if (routes.Count == 0)
+            routes.Add(AppRoute.Home);
+        return (routes, activeIndex);
+    }
+
+    /// <summary>Take the one-off session snapshot (#114): sanitized main-tab routes and open windows, separate from the crash journal.</summary>
     public void TakeSessionSnapshot()
     {
         if (_isLocked)
@@ -5546,7 +6232,9 @@ public partial class MainWindow : Window
             PresentLockWindow();
             return;
         }
-        var snapshot = SessionSnapshot.Capture(CurrentWorkspaceWindows(), DateTimeOffset.UtcNow);
+        var (routes, activeIndex) = CurrentMainTabRoutes();
+        var snapshot = SessionSnapshot.Capture(
+            CurrentWorkspaceWindows(), DateTimeOffset.UtcNow, routes, activeIndex);
         try
         {
             SessionSnapshotStore.Save(AppPaths.SessionSnapshotPath, snapshot);
@@ -5557,11 +6245,11 @@ public partial class MainWindow : Window
             SetStatus(Strings.Get("status.couldn_t_save_the_session_snapshot"));
             return;
         }
-        _log.Info($"Session snapshot taken ({snapshot.Windows.Count} window(s), routes only)");
-        SetStatus(Strings.Format("status.session_snapshot_saved", snapshot.Windows.Count));
+        _log.Info($"Session snapshot taken ({snapshot.MainTabRoutes.Count} tab(s), {snapshot.Windows.Count} window(s), routes only)");
+        SetStatus($"Session snapshot saved — {snapshot.MainTabRoutes.Count} tab(s), {snapshot.Windows.Count} window(s)");
     }
 
-    /// <summary>Restore the session snapshot (#114) through the same planner as a workspace apply, download guard included.</summary>
+    /// <summary>Preview and confirm the tab paths and windows before restoring the saved session.</summary>
     public void RestoreSessionSnapshot()
     {
         if (_isLocked)
@@ -5581,11 +6269,175 @@ public partial class MainWindow : Window
             SetStatus(Strings.Get("status.that_snapshot_s_windows_belong_to"));
             return;
         }
-        if (TryApplyArrangement(clean.Windows, Strings.Get("main.session_snapshot"), asWorkspace: null)
-                == ArrangementOutcome.Applied)
+
+        if (!ConfirmSessionRestore(clean, "Snapshot from"))
         {
-            SaveSettings();
-            UpdateSessionJournal();
+            SetStatus("Session restore cancelled");
+            return;
+        }
+
+        var arrangement = clean.Windows.Select(window => window.Clone()).ToList();
+        if (arrangement.FirstOrDefault(window => window.IsMain) is { } main)
+            main.Route = clean.MainTabRoutes[0];
+        var wasRestoring = _restoringSessionTabs;
+        _restoringSessionTabs = true;
+        try
+        {
+            if (TryApplyArrangement(arrangement, "Session snapshot", asWorkspace: null)
+                    == ArrangementOutcome.Applied)
+            {
+                RestoreSnapshotTabs(clean);
+                SaveSettings();
+                UpdateSessionJournal();
+            }
+        }
+        finally
+        {
+            _restoringSessionTabs = wasRestoring;
+        }
+    }
+
+    private bool ConfirmSessionRestore(SessionSnapshot snapshot, string sourceLabel)
+    {
+        var window = new Window
+        {
+            Title = "Preview session restore",
+            Width = 680,
+            Height = 540,
+            MinWidth = 520,
+            MinHeight = 360,
+            Owner = this,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ResizeMode = ResizeMode.CanResize,
+            ShowInTaskbar = false,
+            Background = (System.Windows.Media.Brush)FindResource("BgBrush"),
+            Foreground = (System.Windows.Media.Brush)FindResource("TextBrush"),
+        };
+        var layout = new System.Windows.Controls.Grid { Margin = new Thickness(16) };
+        layout.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = GridLength.Auto });
+        layout.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        layout.RowDefinitions.Add(new System.Windows.Controls.RowDefinition { Height = GridLength.Auto });
+        var taken = snapshot.TakenUtc == default
+            ? "an unknown time"
+            : snapshot.TakenUtc.ToLocalTime().ToString("g");
+        var intro = new System.Windows.Controls.TextBlock
+        {
+            Text = $"{sourceLabel} {taken}. Review the paths and windows below; restoring replaces the current main-window tabs.",
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 12),
+        };
+        layout.Children.Add(intro);
+
+        var list = new System.Windows.Controls.StackPanel();
+        list.Children.Add(new System.Windows.Controls.TextBlock
+        {
+            Text = $"Main window — {snapshot.MainTabRoutes.Count} tab(s)",
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 0, 0, 4),
+        });
+        for (var i = 0; i < snapshot.MainTabRoutes.Count; i++)
+            list.Children.Add(new System.Windows.Controls.TextBlock
+            {
+                Text = $"{(i == snapshot.ActiveMainTabIndex ? "● Active" : $"Tab {i + 1}")}: {snapshot.MainTabRoutes[i]}",
+                TextWrapping = TextWrapping.NoWrap,
+                Margin = new Thickness(8, 2, 0, 2),
+            });
+        var secondaries = snapshot.Windows.Where(item => !item.IsMain).ToList();
+        list.Children.Add(new System.Windows.Controls.TextBlock
+        {
+            Text = $"Secondary windows — {secondaries.Count}",
+            FontWeight = FontWeights.SemiBold,
+            Margin = new Thickness(0, 12, 0, 4),
+        });
+        if (secondaries.Count == 0)
+            list.Children.Add(new System.Windows.Controls.TextBlock { Text = "None" });
+        else
+            for (var i = 0; i < secondaries.Count; i++)
+                list.Children.Add(new System.Windows.Controls.TextBlock
+                {
+                    Text = $"Window {i + 1}: {AppRoute.Sanitize(secondaries[i].Route) ?? AppRoute.Home}",
+                    TextWrapping = TextWrapping.NoWrap,
+                    Margin = new Thickness(8, 2, 0, 2),
+                });
+        var scroll = new System.Windows.Controls.ScrollViewer
+        {
+            Content = list,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Margin = new Thickness(0, 0, 0, 10),
+        };
+        Grid.SetRow(scroll, 1);
+        layout.Children.Add(scroll);
+
+        var footer = new System.Windows.Controls.Grid();
+        footer.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition
+            { Width = new GridLength(1, GridUnitType.Star) });
+        footer.ColumnDefinitions.Add(new System.Windows.Controls.ColumnDefinition
+            { Width = GridLength.Auto });
+        var privacy = new System.Windows.Controls.TextBlock
+        {
+            Text = "Only sanitized Muse paths are stored. Sign-in/provider pages, titles, and query strings are omitted.",
+            TextWrapping = TextWrapping.Wrap,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 12, 0),
+        };
+        footer.Children.Add(privacy);
+        var buttons = new System.Windows.Controls.StackPanel
+        {
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+        };
+        var restore = new System.Windows.Controls.Button
+        {
+            Content = "Restore",
+            MinWidth = 90,
+            Margin = new Thickness(4, 0, 0, 0),
+            Padding = new Thickness(12, 6, 12, 6),
+            IsDefault = true,
+            Style = (Style)FindResource("BarButton"),
+        };
+        restore.Click += (_, _) => window.DialogResult = true;
+        var cancel = new System.Windows.Controls.Button
+        {
+            Content = "Cancel",
+            MinWidth = 90,
+            Margin = new Thickness(4, 0, 0, 0),
+            Padding = new Thickness(12, 6, 12, 6),
+            IsCancel = true,
+            Style = (Style)FindResource("BarButton"),
+        };
+        buttons.Children.Add(restore);
+        buttons.Children.Add(cancel);
+        Grid.SetColumn(buttons, 1);
+        footer.Children.Add(buttons);
+        Grid.SetRow(footer, 2);
+        layout.Children.Add(footer);
+
+        window.Content = layout;
+        window.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(window);
+        ShellTextScaling.Apply(window, _settings.ShellFontScale);
+        return FocusReturn.ShowDialog(window) == true;
+    }
+
+    private void RestoreSnapshotTabs(SessionSnapshot snapshot)
+    {
+        var wasRestoring = _restoringSessionTabs;
+        _restoringSessionTabs = true;
+        try
+        {
+            foreach (var tab in _tabs.Where(tab => !ReferenceEquals(tab, _activeTab)).ToList())
+                CloseTab(tab, rememberClosed: false);
+            var firstRoute = snapshot.MainTabRoutes[0];
+            if (AppRoute.FromUrl(Browser.Source?.ToString()) != firstRoute)
+                Browser.CoreWebView2.Navigate(AppRoute.ToUrl(firstRoute));
+            for (var i = 1; i < snapshot.MainTabRoutes.Count; i++)
+                CreateTab(AppRoute.ToUrl(snapshot.MainTabRoutes[i]), activate: false);
+            if (snapshot.ActiveMainTabIndex > 0)
+                ActivateTab(_tabs[snapshot.ActiveMainTabIndex]);
+        }
+        finally
+        {
+            _restoringSessionTabs = wasRestoring;
         }
     }
 
@@ -5604,6 +6456,9 @@ public partial class MainWindow : Window
         {
             _journal ??= new SessionJournal();
             _journal.Windows = CurrentWorkspaceWindows();
+            var (routes, activeIndex) = CurrentMainTabRoutes();
+            _journal.MainTabRoutes = routes;
+            _journal.ActiveMainTabIndex = activeIndex;
             _journal.CleanExit = cleanExit;
             _journal.UpdatedUtc = DateTimeOffset.UtcNow;
             SessionJournalStore.Save(AppPaths.SessionJournalPath, _journal);
@@ -5612,6 +6467,12 @@ public partial class MainWindow : Window
         {
             _log.Warn($"Session journal save failed: {ex.Message}");
         }
+    }
+
+    private void RecordTabSessionChange()
+    {
+        if (_startupArrangementHandled && !_restoringSessionTabs)
+            UpdateSessionJournal();
     }
 
     /// <summary>
@@ -5653,18 +6514,29 @@ public partial class MainWindow : Window
             case CrashRestoreDecision.RestoreSilently:
                 restored = TryRestoreJournalWindows(journal!);
                 if (restored)
-                    _log.Info("Session windows restored from the journal (auto-save or post-crash)");
+                    _log.Info("Session tabs and windows restored silently from the journal (auto-save enabled)");
                 break;
             case CrashRestoreDecision.OfferRestore:
-                var count = journal!.Windows.Count;
-                var answer = System.Windows.MessageBox.Show(this,
-                    Strings.Format("msg.crash_restore_body", count),
-                    Strings.Get("msg.restore_previous_windows"), MessageBoxButton.YesNo, MessageBoxImage.Question);
-                if (answer == MessageBoxResult.Yes)
-                    restored = TryRestoreJournalWindows(journal);
+            {
+                var safeJournal = journal!.Sanitized(_settings.Profiles.Select(p => p.Id).ToList());
+                if (safeJournal.Windows.Count == 0)
+                {
+                    _log.Info("Crash-session restore skipped: no saved windows belong to profiles that still exist");
+                    break;
+                }
+                var preview = new SessionSnapshot
+                {
+                    TakenUtc = safeJournal.UpdatedUtc,
+                    Windows = safeJournal.Windows,
+                    MainTabRoutes = safeJournal.MainTabRoutes,
+                    ActiveMainTabIndex = safeJournal.ActiveMainTabIndex,
+                };
+                if (ConfirmSessionRestore(preview, "Previous session; MuseDesktop didn't shut down cleanly. Last saved"))
+                    restored = TryRestoreJournalWindows(safeJournal);
                 else
                     _log.Info("Crash-session restore offered once and declined");
                 break;
+            }
             case CrashRestoreDecision.SuppressRestoreLoop:
                 _log.Warn("Crash-session restore skipped: the previous session was itself a restore " +
                           "and never loaded a page — starting fresh so it can't loop");
@@ -5684,22 +6556,40 @@ public partial class MainWindow : Window
         UpdateSessionJournal();
     }
 
-    /// <summary>Restore a journal's windows through the planner; a journal from another profile is skipped (the windows belong to that profile's session, not this one).</summary>
+    /// <summary>Restore a journal's windows and tabs through the existing arrangement planner.</summary>
     private bool TryRestoreJournalWindows(SessionJournal journal)
     {
-        var windows = Workspaces.SanitizeWindows(
-            journal.Windows, _settings.Profiles.Select(p => p.Id).ToList());
-        if (windows.Count == 0)
-            return false;
-        var plan = WorkspaceApplyPlanner.Plan(
-            windows, CurrentOpenWindowStates(), _settings.ActiveProfileId, downloadsInFlight: false);
-        if (plan.Kind != WorkspaceApplyKind.Apply)
+        var wasRestoring = _restoringSessionTabs;
+        _restoringSessionTabs = true;
+        try
         {
-            _log.Info("Session restore skipped: the saved windows belong to another profile");
-            return false;
+            var clean = journal.Sanitized(_settings.Profiles.Select(p => p.Id).ToList());
+            if (clean.Windows.Count == 0)
+                return false;
+            var arrangement = clean.Windows.Select(window => window.Clone()).ToList();
+            if (arrangement.FirstOrDefault(window => window.IsMain) is { } main)
+                main.Route = clean.MainTabRoutes[0];
+            var plan = WorkspaceApplyPlanner.Plan(
+                arrangement, CurrentOpenWindowStates(), _settings.ActiveProfileId, downloadsInFlight: false);
+            if (plan.Kind != WorkspaceApplyKind.Apply)
+            {
+                _log.Info("Session restore skipped: the saved windows belong to another profile");
+                return false;
+            }
+            ExecuteApplyPlan(plan);
+            RestoreSnapshotTabs(new SessionSnapshot
+            {
+                TakenUtc = clean.UpdatedUtc,
+                Windows = clean.Windows,
+                MainTabRoutes = clean.MainTabRoutes,
+                ActiveMainTabIndex = clean.ActiveMainTabIndex,
+            });
+            return true;
         }
-        ExecuteApplyPlan(plan);
-        return true;
+        finally
+        {
+            _restoringSessionTabs = wasRestoring;
+        }
     }
 
     /// <summary>Show a downloaded file in Explorer — the Downloads window's own reveal behavior, for the palette's download commands (#102).</summary>
@@ -5786,7 +6676,7 @@ public partial class MainWindow : Window
             : null;
         DiagnosticsWindow window = null!;
         window = new DiagnosticsWindow(
-            () => DiagnosticsReport.Compose(BuildDiagnosticsData()),
+            BuildDiagnosticsReportAsync,
             rollbackLabel,
             rollbackPath is not null
                 ? () => ReinstallPreviousVersion(rollbackPath, _settings.PreviousInstaller!.Version)
@@ -5833,7 +6723,23 @@ public partial class MainWindow : Window
         ExitApp();
     }
 
-    private DiagnosticsData BuildDiagnosticsData()
+    private Task<string> BuildDiagnosticsReportAsync() => BuildDiagnosticsReportAsync(redactLocalPaths: false);
+
+    private async Task<string> BuildDiagnosticsReportAsync(bool redactLocalPaths)
+    {
+        var profileDir = _profileDir;
+        var appDataDir = AppPaths.RootDir;
+        var sizes = await Task.Run(() => new (string Label, long? Bytes)[]
+        {
+            ("Active profile data", ProfileDataInfo.MeasureFolderBytes(profileDir)),
+            ("Settings & app data", ProfileDataInfo.MeasureFolderBytes(appDataDir)),
+        });
+        return DiagnosticsReport.Compose(BuildDiagnosticsData(sizes, redactLocalPaths));
+    }
+
+    private DiagnosticsData BuildDiagnosticsData(
+        IReadOnlyList<(string Label, long? Bytes)> dataSizes,
+        bool redactLocalPaths = false)
     {
         MemorySnapshot? currentMemory = null;
         if (_webReady)
@@ -5852,6 +6758,8 @@ public partial class MainWindow : Window
             SettingsPath = AppPaths.SettingsPath,
             LogPath = AppPaths.LogPath,
             ProfileDir = _profileDir,
+            RedactLocalPaths = redactLocalPaths,
+            RedactProfileName = redactLocalPaths,
             Runtime = _runtimeHealth ?? RuntimeHealthCheck.EvaluateCurrent(),
             Proxy = ProxyReader.Read(),
             Memory = currentMemory,
@@ -5866,12 +6774,10 @@ public partial class MainWindow : Window
                                 ?? _settings.ActiveProfileId,
             UpdateChannelLabel = UpdateChannelText.Label(_settings.UpdateChannel),
             AppLockOn = AppLock.IsLockActive(_settings),
-            DataSizes = new (string, long?)[]
-            {
-                (Strings.Get("main.diag_active_profile"), ProfileDataInfo.MeasureFolderBytes(_profileDir)),
-                (Strings.Get("main.diag_settings_data"), ProfileDataInfo.MeasureFolderBytes(AppPaths.RootDir)),
-            },
-            RecentErrors = LogReading.RecentErrors(logText, 5),
+            DataSizes = dataSizes,
+            RecentErrors = redactLocalPaths
+                ? LogReading.RecentErrors(logText, 5).Select(SupportBundle.RedactLocalPaths).ToList()
+                : LogReading.RecentErrors(logText, 5),
             // R7 #164/#169: the language coverage report and the
             // announcement history, composed by Core from the merged
             // catalog and the recorded history.
@@ -5896,7 +6802,7 @@ public partial class MainWindow : Window
     /// no full URLs), and download history. Nothing is uploaded; the
     /// file lands where the user saves it.
     /// </summary>
-    private void StartSupportBundleExport(Window owner)
+    private async void StartSupportBundleExport(Window owner)
     {
         // The screenshot renders THIS window's own visual tree, so it
         // needs the window visible and unlocked — a locked window's
@@ -5926,33 +6832,45 @@ public partial class MainWindow : Window
             return;
 
         var includeScreenshot = preview.IncludeScreenshot;
+        var screenshot = includeScreenshot ? preview.ScreenshotPng : null;
+        var destinationPath = save.FileName;
+        var temporaryBundlePath = destinationPath + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {
+            SetStatus("Preparing support bundle…");
             var version = $"{typeof(App).Assembly.GetName().Version}";
-            var downloadsJson = File.Exists(AppPaths.DownloadsHistoryPath)
-                ? File.ReadAllText(AppPaths.DownloadsHistoryPath)
-                : "[]";
-            using (var stream = new FileStream(save.FileName, FileMode.Create, FileAccess.Write))
-            using (var zip = new System.IO.Compression.ZipArchive(stream, System.IO.Compression.ZipArchiveMode.Create))
+            var downloadsJson = DownloadHistoryStore.ExportJson(
+                AppPaths.DownloadsHistoryPath, _settings.DownloadHistoryCap);
+            var diagnosticsText = await BuildDiagnosticsReportAsync(redactLocalPaths: true);
+            var logText = SupportBundle.LogExcerpt(ReadLogText());
+            var settingsText = SupportBundle.SettingsJson(_settings);
+            var manifestText = SupportBundle.ComposeManifest(version, DateTimeOffset.Now, includeScreenshot);
+
+            await Task.Run(() =>
             {
-                WriteBundleEntry(zip, SupportBundle.ManifestFile,
-                    SupportBundle.ComposeManifest(version, DateTimeOffset.Now, includeScreenshot));
-                WriteBundleEntry(zip, SupportBundle.DiagnosticsFile,
-                    DiagnosticsReport.Compose(BuildDiagnosticsData()));
-                WriteBundleEntry(zip, SupportBundle.LogFile,
-                    SupportBundle.LogExcerpt(ReadLogText()));
-                WriteBundleEntry(zip, SupportBundle.SettingsFile,
-                    SupportBundle.SettingsJson(_settings));
-                WriteBundleEntry(zip, SupportBundle.DownloadsFile, downloadsJson);
-                if (includeScreenshot && preview.ScreenshotPng is { } png)
+                using (var stream = new FileStream(temporaryBundlePath, FileMode.CreateNew, FileAccess.Write))
+                using (var zip = new System.IO.Compression.ZipArchive(stream, System.IO.Compression.ZipArchiveMode.Create))
                 {
-                    var entry = zip.CreateEntry(SupportBundle.ScreenshotFile);
-                    using var entryStream = entry.Open();
-                    entryStream.Write(png, 0, png.Length);
+                    WriteBundleEntry(zip, SupportBundle.ManifestFile, manifestText);
+                    WriteBundleEntry(zip, SupportBundle.DiagnosticsFile, diagnosticsText);
+                    WriteBundleEntry(zip, SupportBundle.LogFile, logText);
+                    WriteBundleEntry(zip, SupportBundle.SettingsFile, settingsText);
+                    WriteBundleEntry(zip, SupportBundle.DownloadsFile, downloadsJson);
+                    if (screenshot is { } png)
+                    {
+                        var entry = zip.CreateEntry(SupportBundle.ScreenshotFile);
+                        using var entryStream = entry.Open();
+                        entryStream.Write(png, 0, png.Length);
+                    }
                 }
-            }
+                var archiveBytes = new FileInfo(temporaryBundlePath).Length;
+                if (archiveBytes > SupportBundle.MaxArchiveBytes)
+                    throw new InvalidDataException("The support bundle exceeds the 64 MB size limit.");
+                File.Move(temporaryBundlePath, destinationPath, overwrite: true);
+            });
+
             var fileCount = SupportBundle.Contents(includeScreenshot).Count;
-            _log.Info($"Support bundle exported: {Path.GetFileName(save.FileName)} ({fileCount} files, screenshot {(includeScreenshot ? "included" : "not included")})");
+            _log.Info($"Support bundle exported: {Path.GetFileName(destinationPath)} ({fileCount} files, screenshot {(includeScreenshot ? "included" : "not included")})");
             SetStatus(Strings.Get("status.support_bundle_saved"));
             Announcer.Polite(Strings.Get("ui.support_bundle_saved"));
         }
@@ -5960,8 +6878,17 @@ public partial class MainWindow : Window
         {
             _log.Error($"Support bundle export failed: {ex.Message}");
             System.Windows.MessageBox.Show(owner,
-                Strings.Get("msg.bundle_write_failed_body"),
-                Strings.Get("msg.export_support_bundle"), MessageBoxButton.OK, MessageBoxImage.Warning);
+                Strings.Get("pr20.the_support_bundle_couldn_t_be_written_it_must_be_smaller_than_64"),
+                Strings.Get("export_support_bundle_2"), MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(temporaryBundlePath))
+                    File.Delete(temporaryBundlePath);
+            }
+            catch { /* best-effort cleanup; the target bundle is never a partial archive */ }
         }
     }
 
@@ -5986,6 +6913,11 @@ public partial class MainWindow : Window
             var height = (int)Math.Ceiling(ActualHeight);
             if (width <= 0 || height <= 0)
                 return null;
+            if ((long)width * height > SupportBundle.MaxScreenshotPixels)
+            {
+                _log.Warn("Support screenshot declined because the window exceeds the 8-megapixel capture limit");
+                return null;
+            }
             var bitmap = new System.Windows.Media.Imaging.RenderTargetBitmap(
                 width, height, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
             bitmap.Render(this);
@@ -5993,6 +6925,11 @@ public partial class MainWindow : Window
             encoder.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(bitmap));
             using var stream = new MemoryStream();
             encoder.Save(stream);
+            if (stream.Length > SupportBundle.MaxScreenshotBytes)
+            {
+                _log.Warn("Support screenshot declined because its PNG exceeds the 32 MB capture limit");
+                return null;
+            }
             return stream.ToArray();
         }
         catch (Exception ex)
@@ -6056,6 +6993,26 @@ public partial class MainWindow : Window
         if (key == Key.K && modifiers == ModifierKeys.Control)
         {
             OpenPalette();
+            e.Handled = true;
+            return;
+        }
+        if (key == Key.T && modifiers == ModifierKeys.Control)
+        {
+            OnNewTab(this, new RoutedEventArgs());
+            e.Handled = true;
+            return;
+        }
+        if (key == Key.W && modifiers == ModifierKeys.Control)
+        {
+            CloseTab(_activeTab);
+            e.Handled = true;
+            return;
+        }
+        if (key == Key.Tab
+            && (modifiers == ModifierKeys.Control
+                || modifiers == (ModifierKeys.Control | ModifierKeys.Shift)))
+        {
+            SelectAdjacentTab(modifiers.HasFlag(ModifierKeys.Shift) ? -1 : 1);
             e.Handled = true;
             return;
         }

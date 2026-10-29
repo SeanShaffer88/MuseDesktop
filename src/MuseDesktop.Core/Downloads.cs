@@ -50,6 +50,9 @@ public sealed class DownloadRecord
 /// newest first, capped so it can never grow without bound. Loading a
 /// missing or corrupt file yields an empty history — this is a
 /// convenience record, not user data worth preserving heroics for.
+/// Read-modify-write operations are serialized per path within this
+/// process; AtomicFile still provides the final atomic replacement.
+/// Cross-process coordination is not provided by this store.
 /// The cap is configurable since v0.6.0 (S2 #16): 50 (the historical
 /// default), 200, or 1000 — see <see cref="AppSettings.DownloadHistoryCap"/>.
 /// Existing callers that omit the cap keep the old 50-entry behavior.
@@ -69,20 +72,40 @@ public static class DownloadHistoryStore
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
+    // Serialize each history-file transaction, not merely its final atomic
+    // replacement. Fixed stripes bound lock memory; collisions only cause
+    // harmless extra serialization between unrelated paths.
+    private static readonly StringComparer HistoryPathComparer = OperatingSystem.IsWindows()
+        ? StringComparer.OrdinalIgnoreCase
+        : StringComparer.Ordinal;
+    private static readonly SemaphoreSlim[] TransactionGates = CreateTransactionGates();
+
+    private static SemaphoreSlim[] CreateTransactionGates()
+    {
+        var gates = new SemaphoreSlim[64];
+        for (var i = 0; i < gates.Length; i++)
+            gates[i] = new SemaphoreSlim(1, 1);
+        return gates;
+    }
+
+    private static string NormalizePath(string path) => Path.GetFullPath(path);
+
+    private static SemaphoreSlim GetTransactionGate(string fullPath)
+    {
+        var hash = HistoryPathComparer.GetHashCode(fullPath) & int.MaxValue;
+        return TransactionGates[hash % TransactionGates.Length];
+    }
+
     public static List<DownloadRecord> Load(string path, int cap = MaxEntries)
     {
         cap = Math.Max(1, cap);
         try
         {
-            if (!File.Exists(path))
-                return new List<DownloadRecord>();
-            var records = JsonSerializer.Deserialize<List<DownloadRecord>>(File.ReadAllText(path), Options)
-                          ?? new List<DownloadRecord>();
-            records.RemoveAll(r => r is null || string.IsNullOrWhiteSpace(r.FullPath));
-            return records
-                .OrderByDescending(r => r.CompletedUtc)
-                .Take(cap)
-                .ToList();
+            var fullPath = NormalizePath(path);
+            var gate = GetTransactionGate(fullPath);
+            gate.Wait();
+            try { return LoadUnderGate(fullPath, cap); }
+            finally { gate.Release(); }
         }
         catch (Exception)
         {
@@ -90,35 +113,179 @@ public static class DownloadHistoryStore
         }
     }
 
+    /// <summary>Serialize the validated full download history while holding the same transaction gate as mutations.</summary>
+    public static string ExportFullJson(string path, int cap = MaxEntries)
+    {
+        var fullPath = NormalizePath(path);
+        var gate = GetTransactionGate(fullPath);
+        gate.Wait();
+        try { return JsonSerializer.Serialize(LoadUnderGate(fullPath, cap), Options); }
+        finally { gate.Release(); }
+    }
+
+    /// <summary>Parse and validate a portable download-history snapshot without writing it.</summary>
+    public static bool TryParseJson(string json, out List<DownloadRecord>? records, out string? error)
+    {
+        error = null;
+        List<DownloadRecord>? imported;
+        try
+        {
+            imported = JsonSerializer.Deserialize<List<DownloadRecord>>(json, Options);
+        }
+        catch (Exception)
+        {
+            imported = null;
+        }
+        if (imported is null || imported.Any(record => !IsValidRecord(record)))
+        {
+            records = null;
+            error = "The download history is damaged or contains an invalid record.";
+            return false;
+        }
+        records = SanitizeRecords(imported, MaxEntries);
+        return true;
+    }
+
+    /// <summary>Replace the history from a validated backup through the ordinary path transaction gate.</summary>
+    public static bool TryReplaceFromJson(string path, string json, int cap, out string? error)
+    {
+        if (!TryParseJson(json, out var imported, out error) || imported is null)
+            return false;
+        try
+        {
+            Save(path, imported, cap);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+            return false;
+        }
+    }
+
+    // Caller owns the matching transaction gate. Do not call public Load
+    // from a transaction: SemaphoreSlim is deliberately non-reentrant.
+    private static List<DownloadRecord> LoadUnderGate(string path, int cap)
+    {
+        try
+        {
+            if (!File.Exists(path))
+                return new List<DownloadRecord>();
+            var records = JsonSerializer.Deserialize<List<DownloadRecord>>(File.ReadAllText(path), Options)
+                          ?? new List<DownloadRecord>();
+            return SanitizeRecords(records, cap);
+        }
+        catch (Exception)
+        {
+            return new List<DownloadRecord>();
+        }
+    }
+
+    private static List<DownloadRecord> SanitizeRecords(IEnumerable<DownloadRecord?> records, int cap)
+    {
+        var valid = records.Where(IsValidRecord).Cast<DownloadRecord>().ToList();
+        foreach (var record in valid)
+        {
+            if (record.Note is { } note)
+            {
+                note = note.Trim();
+                record.Note = note.Length > 200 ? note[..200] : note;
+            }
+            if (record.FailureReason is { } reason &&
+                (reason.Length > 64 || reason.Any(c => !char.IsAsciiLetterOrDigit(c) && c != '_')))
+                record.FailureReason = null;
+        }
+        return valid.OrderByDescending(r => r.CompletedUtc).Take(Math.Max(1, cap)).ToList();
+    }
+
+    private static bool IsValidRecord(DownloadRecord? record)
+    {
+        if (record is null || string.IsNullOrWhiteSpace(record.FileName) ||
+            record.FileName.Length > 255 || record.FileName is "." or ".." ||
+            record.FileName.IndexOfAny(new[] { '/', '\\' }) >= 0 ||
+            record.FileName.Any(char.IsControl) ||
+            string.IsNullOrWhiteSpace(record.FullPath) || record.FullPath.Length > 32_767 ||
+            record.FullPath.Any(char.IsControl) || record.SizeBytes < 0 ||
+            record.CompletedUtc == default || !Enum.IsDefined(record.State))
+            return false;
+
+        var pathLeaf = record.FullPath.TrimEnd('/', '\\').Split('/', '\\').LastOrDefault();
+        return string.Equals(pathLeaf, record.FileName, StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// Diagnostics-safe history export, built from the validated, capped
+    /// history rather than copying the raw file. Preserve useful metadata,
+    /// but never include the local destination path in a support bundle.
+    /// This is intentionally not a round-trip backup format.
+    /// </summary>
+    public static string ExportJson(string path, int cap = MaxEntries)
+    {
+        var export = Load(path, cap).Select(record => new
+        {
+            record.FileName,
+            record.SizeBytes,
+            record.CompletedUtc,
+            record.State,
+            record.FailureReason,
+            record.Note,
+            record.HashVerified,
+        });
+        return JsonSerializer.Serialize(export, Options);
+    }
+
     public static void Save(string path, List<DownloadRecord> records, int cap = MaxEntries)
     {
         cap = Math.Max(1, cap);
-        var dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-        var tmp = path + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(records.Take(cap).ToList(), Options));
-        File.Move(tmp, path, overwrite: true);
+        var fullPath = NormalizePath(path);
+        var gate = GetTransactionGate(fullPath);
+        gate.Wait();
+        try { SaveUnderGate(fullPath, records, cap); }
+        finally { gate.Release(); }
+    }
+
+    private static void SaveUnderGate(string fullPath, List<DownloadRecord> records, int cap)
+    {
+        cap = Math.Max(1, cap);
+        AtomicFile.WriteAllText(fullPath, JsonSerializer.Serialize(records.Take(cap).ToList(), Options));
     }
 
     /// <summary>Prepend a finished download and persist, keeping the cap.</summary>
     public static void Add(string path, DownloadRecord record, int cap = MaxEntries)
     {
-        var records = Load(path, cap);
-        records.Insert(0, record);
-        Save(path, records, cap);
+        cap = Math.Max(1, cap);
+        var fullPath = NormalizePath(path);
+        var gate = GetTransactionGate(fullPath);
+        gate.Wait();
+        try
+        {
+            var records = LoadUnderGate(fullPath, cap);
+            records.Insert(0, record);
+            SaveUnderGate(fullPath, records, cap);
+        }
+        finally { gate.Release(); }
     }
 
     /// <summary>Remove one entry (the Downloads window's Delete-file action, S2 #17). Returns true when an entry was removed.</summary>
     public static bool Remove(string path, DownloadRecord record, int cap = MaxEntries)
     {
-        var records = Load(path, cap);
-        var removed = records.RemoveAll(r =>
-            string.Equals(r.FullPath, record.FullPath, StringComparison.OrdinalIgnoreCase)
-            && r.CompletedUtc == record.CompletedUtc) > 0;
-        if (removed)
-            Save(path, records, cap);
-        return removed;
+        cap = Math.Max(1, cap);
+        string fullPath;
+        try { fullPath = NormalizePath(path); }
+        catch { return false; }
+        var gate = GetTransactionGate(fullPath);
+        gate.Wait();
+        try
+        {
+            var records = LoadUnderGate(fullPath, cap);
+            var removed = records.RemoveAll(r =>
+                string.Equals(r.FullPath, record.FullPath, StringComparison.OrdinalIgnoreCase)
+                && r.CompletedUtc == record.CompletedUtc) > 0;
+            if (removed)
+                SaveUnderGate(fullPath, records, cap);
+            return removed;
+        }
+        finally { gate.Release(); }
     }
 
     public static void Clear(string path) => Save(path, new List<DownloadRecord>());
@@ -131,15 +298,52 @@ public static class DownloadHistoryStore
     /// </summary>
     public static bool UpdateRecord(string path, DownloadRecord record, Action<DownloadRecord> mutate, int cap = MaxEntries)
     {
-        var records = Load(path, cap);
-        var match = records.FirstOrDefault(r =>
-            string.Equals(r.FullPath, record.FullPath, StringComparison.OrdinalIgnoreCase)
-            && r.CompletedUtc == record.CompletedUtc);
-        if (match is null)
-            return false;
-        mutate(match);
-        Save(path, records, cap);
-        return true;
+        cap = Math.Max(1, cap);
+        string fullPath;
+        try { fullPath = NormalizePath(path); }
+        catch { return false; }
+        var gate = GetTransactionGate(fullPath);
+        gate.Wait();
+        try
+        {
+            var records = LoadUnderGate(fullPath, cap);
+            var match = records.FirstOrDefault(r =>
+                string.Equals(r.FullPath, record.FullPath, StringComparison.OrdinalIgnoreCase)
+                && r.CompletedUtc == record.CompletedUtc);
+            if (match is null)
+                return false;
+            mutate(match);
+            SaveUnderGate(fullPath, records, cap);
+            return true;
+        }
+        finally { gate.Release(); }
+    }
+
+    /// <summary>Update one history record using async atomic persistence.</summary>
+    public static async Task<bool> UpdateRecordAsync(
+        string path, DownloadRecord record, Action<DownloadRecord> mutate, int cap = MaxEntries,
+        CancellationToken cancellationToken = default)
+    {
+        cap = Math.Max(1, cap);
+        string fullPath;
+        try { fullPath = NormalizePath(path); }
+        catch { return false; }
+        var gate = GetTransactionGate(fullPath);
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            var records = LoadUnderGate(fullPath, cap);
+            var match = records.FirstOrDefault(r =>
+                string.Equals(r.FullPath, record.FullPath, StringComparison.OrdinalIgnoreCase)
+                && r.CompletedUtc == record.CompletedUtc);
+            if (match is null)
+                return false;
+            mutate(match);
+            await AtomicFile.WriteAllTextAsync(
+                fullPath, JsonSerializer.Serialize(records, Options), cancellationToken).ConfigureAwait(false);
+            return true;
+        }
+        finally { gate.Release(); }
     }
 
     /// <summary>Attach (or clear) a note on one entry (R4 #137). Notes are trimmed and capped at 200 characters.</summary>
@@ -151,9 +355,26 @@ public static class DownloadHistoryStore
         return UpdateRecord(path, record, r => r.Note = cleaned, cap);
     }
 
+    /// <summary>Attach (or clear) a note using async atomic persistence.</summary>
+    public static Task<bool> SetNoteAsync(
+        string path, DownloadRecord record, string? note, int cap = MaxEntries,
+        CancellationToken cancellationToken = default)
+    {
+        var cleaned = string.IsNullOrWhiteSpace(note) ? null : note.Trim();
+        if (cleaned is { Length: > 200 })
+            cleaned = cleaned[..200];
+        return UpdateRecordAsync(path, record, r => r.Note = cleaned, cap, cancellationToken);
+    }
+
     /// <summary>Record a verify-after-download verdict on one entry (R4 #136); null clears it.</summary>
     public static bool SetHashVerified(string path, DownloadRecord record, bool? verified, int cap = MaxEntries) =>
         UpdateRecord(path, record, r => r.HashVerified = verified, cap);
+
+    /// <summary>Record a verify-after-download verdict using async atomic persistence.</summary>
+    public static Task<bool> SetHashVerifiedAsync(
+        string path, DownloadRecord record, bool? verified, int cap = MaxEntries,
+        CancellationToken cancellationToken = default) =>
+        UpdateRecordAsync(path, record, r => r.HashVerified = verified, cap, cancellationToken);
 
     /// <summary>
     /// Point history entries at their files' new locations after a sort
@@ -165,22 +386,32 @@ public static class DownloadHistoryStore
     {
         if (newPathByOld.Count == 0)
             return 0;
-        var lookup = new Dictionary<string, string>(newPathByOld, StringComparer.OrdinalIgnoreCase);
-        var records = Load(path, cap);
-        var changed = 0;
-        foreach (var record in records)
+        cap = Math.Max(1, cap);
+        string fullPath;
+        try { fullPath = NormalizePath(path); }
+        catch { return 0; }
+        var gate = GetTransactionGate(fullPath);
+        gate.Wait();
+        try
         {
-            if (lookup.TryGetValue(record.FullPath, out var newPath) &&
-                !string.Equals(newPath, record.FullPath, StringComparison.OrdinalIgnoreCase))
+            var lookup = new Dictionary<string, string>(newPathByOld, StringComparer.OrdinalIgnoreCase);
+            var records = LoadUnderGate(fullPath, cap);
+            var changed = 0;
+            foreach (var record in records)
             {
-                record.FullPath = newPath;
-                record.FileName = Path.GetFileName(newPath);
-                changed++;
+                if (lookup.TryGetValue(record.FullPath, out var newPath) &&
+                    !string.Equals(newPath, record.FullPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    record.FullPath = newPath;
+                    record.FileName = Path.GetFileName(newPath);
+                    changed++;
+                }
             }
+            if (changed > 0)
+                SaveUnderGate(fullPath, records, cap);
+            return changed;
         }
-        if (changed > 0)
-            Save(path, records, cap);
-        return changed;
+        finally { gate.Release(); }
     }
 }
 
@@ -285,7 +516,12 @@ public static class UniqueFileName
             if (!exists(candidate))
                 return candidate;
         }
-        return fullPath;
+
+        // Returning fullPath here would silently re-select the occupied
+        // destination after exhausting the collision range. Callers must
+        // treat exhaustion as a failure rather than risk overwriting data.
+        throw new InvalidOperationException(
+            $"Unable to find an unused filename for '{Path.GetFileName(fullPath)}'.");
     }
 }
 

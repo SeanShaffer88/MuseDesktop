@@ -162,6 +162,22 @@ public class R5BTests
     }
 
     [Fact]
+    public void Bookmarks_TextCleaningCapsOutputDuringWhitespaceNormalization()
+    {
+        var oversized = new string('x', 1_000_000);
+        Assert.Equal(MessageBookmarks.MaxNicknameLength,
+            MessageBookmarks.CleanNickname(oversized)!.Length);
+        Assert.Equal(MessageBookmarks.MaxSnippetLength,
+            MessageBookmarks.CleanSnippet(oversized).Length);
+
+        var bookmark = new MessageBookmarks().Add(
+            "p1", "name", oversized, ChatUrl, oversized, Now);
+        Assert.NotNull(bookmark);
+        Assert.Equal(MessageBookmarks.MaxTitleLength, bookmark!.ConversationTitle.Length);
+        Assert.Equal(MessageBookmarks.MaxSnippetLength, bookmark.Snippet.Length);
+    }
+
+    [Fact]
     public void Bookmarks_StoreRoutesOnly_AndCleanTheirText()
     {
         var bookmarks = new MessageBookmarks();
@@ -431,9 +447,9 @@ public class R5BTests
     public void Palette_CreateDefault_IncludesBookmarksAndSnippetsWhenGiven()
     {
         var bookmarks = new MessageBookmarks();
-        bookmarks.Add("p1", "Mark", "Chat", ChatUrl, "s", Now);
+        bookmarks.Add("p1", "Mark", "Chat", ChatUrl, "bookmark-quartz-content", Now);
         var snippets = new PromptSnippets();
-        snippets.Add("p1", "Review", "body", Now);
+        snippets.Add("p1", "Review", "snippet-amethyst-content", Now);
 
         var palette = CommandRegistry.CreateDefault(
             Array.Empty<AccountProfile>(), "default",
@@ -443,6 +459,8 @@ public class R5BTests
         var all = palette.All();
         Assert.Contains(all, c => c.Source == PaletteCommandSource.Bookmark);
         Assert.Contains(all, c => c.Source == PaletteCommandSource.Snippet);
+        Assert.Contains(palette.Search("quartz", null), r => r.Command.Source == PaletteCommandSource.Bookmark);
+        Assert.Contains(palette.Search("amethyst", null), r => r.Command.Source == PaletteCommandSource.Snippet);
         Assert.Contains(all, c => c.Id == "action.bookmarks");
         Assert.Contains(all, c => c.Id == "action.export-conversation");
 

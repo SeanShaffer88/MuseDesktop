@@ -468,30 +468,74 @@ public static class WorkspaceApplyPlanner
 // ───────────────────── session snapshot (R2 #114) ─────────────────────
 
 /// <summary>
-/// A one-off snapshot of the open windows (R2 #114): profile + app
-/// route + placement per window — the same shape a workspace holds,
-/// without the name/glyph/accent. Deliberately separate from the
-/// crash journal: a snapshot is the user's deliberate save, the
-/// journal is the app's own bookkeeping, and neither overwrites the
-/// other.
+/// A one-off snapshot of the open windows and main-window tabs (R2 #114):
+/// profile + app route + placement per window, plus sanitized routes and
+/// the selected index for the live tabs. Deliberately separate from the
+/// crash journal: a snapshot is the user's deliberate save, the journal
+/// is the app's own bookkeeping, and neither overwrites the other.
 /// </summary>
 public sealed class SessionSnapshot
 {
+    public const int MaxMainTabs = 10;
     public DateTimeOffset TakenUtc { get; set; }
     public List<WorkspaceWindow> Windows { get; set; } = new();
+    public List<string> MainTabRoutes { get; set; } = new();
+    public int ActiveMainTabIndex { get; set; }
 
-    public static SessionSnapshot Capture(IEnumerable<WorkspaceWindow> windows, DateTimeOffset now) => new()
+    public static SessionSnapshot Capture(
+        IEnumerable<WorkspaceWindow> windows,
+        DateTimeOffset now,
+        IEnumerable<string>? mainTabRoutes = null,
+        int activeMainTabIndex = 0)
     {
-        TakenUtc = now,
-        Windows = windows.Select(w => w.Clone()).ToList(),
-    };
+        var copiedWindows = windows.Select(w => w.Clone()).ToList();
+        var routes = new List<string>();
+        var activeIndex = 0;
+        var sourceRoutes = mainTabRoutes?.ToList() ?? new List<string>();
+        for (var i = 0; i < sourceRoutes.Count && routes.Count < MaxMainTabs; i++)
+        {
+            if (AppRoute.Sanitize(sourceRoutes[i]) is not { } route)
+                continue;
+            if (i == activeMainTabIndex)
+                activeIndex = routes.Count;
+            routes.Add(route);
+        }
+        if (routes.Count == 0)
+            routes.Add(AppRoute.Sanitize(copiedWindows.FirstOrDefault(w => w.IsMain)?.Route) ?? AppRoute.Home);
+        return new SessionSnapshot
+        {
+            TakenUtc = now,
+            Windows = copiedWindows,
+            MainTabRoutes = routes,
+            ActiveMainTabIndex = activeIndex,
+        };
+    }
 
-    /// <summary>Repair against the profiles that exist now (same rules as a workspace's windows).</summary>
-    public SessionSnapshot Sanitized(IReadOnlyCollection<string> validProfileIds) => new()
+    /// <summary>Repair routes and profile references; older snapshots fall back to their saved main-window route.</summary>
+    public SessionSnapshot Sanitized(IReadOnlyCollection<string> validProfileIds)
     {
-        TakenUtc = TakenUtc,
-        Windows = Workspaces.SanitizeWindows(Windows, validProfileIds),
-    };
+        var windows = Workspaces.SanitizeWindows(Windows, validProfileIds);
+        var routes = new List<string>();
+        var activeIndex = 0;
+        var sourceRoutes = MainTabRoutes ?? new List<string>();
+        for (var i = 0; i < sourceRoutes.Count && routes.Count < MaxMainTabs; i++)
+        {
+            if (AppRoute.Sanitize(sourceRoutes[i]) is not { } route)
+                continue;
+            if (i == ActiveMainTabIndex)
+                activeIndex = routes.Count;
+            routes.Add(route);
+        }
+        if (routes.Count == 0)
+            routes.Add(AppRoute.Sanitize(windows.FirstOrDefault(w => w.IsMain)?.Route) ?? AppRoute.Home);
+        return new SessionSnapshot
+        {
+            TakenUtc = TakenUtc,
+            Windows = windows,
+            MainTabRoutes = routes,
+            ActiveMainTabIndex = activeIndex,
+        };
+    }
 }
 
 /// <summary>The snapshot file: a small JSON beside the settings, written atomically like the other stores. A missing or corrupt file is "no snapshot", never an error.</summary>
@@ -519,12 +563,7 @@ public static class SessionSnapshotStore
 
     public static void Save(string path, SessionSnapshot snapshot)
     {
-        var dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-        var tmp = path + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(snapshot, Options));
-        File.Move(tmp, path, overwrite: true);
+        AtomicFile.WriteAllText(path, JsonSerializer.Serialize(snapshot, Options));
     }
 }
 
@@ -532,14 +571,14 @@ public static class SessionSnapshotStore
 
 /// <summary>
 /// The session journal (R2 #117/#118): the running app's own record
-/// of the windows it has open, rewritten as the arrangement changes.
-/// It exists so the NEXT launch can tell a clean exit from a crash
-/// and — when auto-save is on, or once after a crash — offer the
-/// windows back. Routes only, like everything in this file.
+/// of its open windows and main-window tabs, rewritten as the session
+/// changes. It exists so the NEXT launch can tell a clean exit from a
+/// crash and restore the saved arrangement. It stores sanitized app
+/// routes only, like everything in this file.
 ///
 /// Lifecycle: a launch writes a fresh journal early
 /// (<see cref="CleanExit"/> false, <see cref="WasRestored"/> saying
-/// whether this session's windows came from a restore); the first
+/// whether this session's windows and tabs came from a restore); the first
 /// successful page load sets <see cref="BecameHealthy"/>; a graceful
 /// exit rewrites it with <see cref="CleanExit"/> true. A crash leaves
 /// CleanExit false — which is the whole detection mechanism.
@@ -547,10 +586,41 @@ public static class SessionSnapshotStore
 public sealed class SessionJournal
 {
     public List<WorkspaceWindow> Windows { get; set; } = new();
+    public List<string> MainTabRoutes { get; set; } = new();
+    public int ActiveMainTabIndex { get; set; }
     public bool CleanExit { get; set; }
     public bool BecameHealthy { get; set; }
     public bool WasRestored { get; set; }
     public DateTimeOffset UpdatedUtc { get; set; }
+
+    /// <summary>Repair profile references and tab routes; older journals fall back to their saved main route.</summary>
+    public SessionJournal Sanitized(IReadOnlyCollection<string> validProfileIds)
+    {
+        var windows = Workspaces.SanitizeWindows(Windows, validProfileIds);
+        var routes = new List<string>();
+        var activeIndex = 0;
+        var sourceRoutes = MainTabRoutes ?? new List<string>();
+        for (var i = 0; i < sourceRoutes.Count && routes.Count < SessionSnapshot.MaxMainTabs; i++)
+        {
+            if (AppRoute.Sanitize(sourceRoutes[i]) is not { } route)
+                continue;
+            if (i == ActiveMainTabIndex)
+                activeIndex = routes.Count;
+            routes.Add(route);
+        }
+        if (routes.Count == 0)
+            routes.Add(AppRoute.Sanitize(windows.FirstOrDefault(w => w.IsMain)?.Route) ?? AppRoute.Home);
+        return new SessionJournal
+        {
+            Windows = windows,
+            MainTabRoutes = routes,
+            ActiveMainTabIndex = activeIndex,
+            CleanExit = CleanExit,
+            BecameHealthy = BecameHealthy,
+            WasRestored = WasRestored,
+            UpdatedUtc = UpdatedUtc,
+        };
+    }
 }
 
 /// <summary>What the next launch should do with the previous session's windows (R2 #117).</summary>
@@ -627,11 +697,6 @@ public static class SessionJournalStore
 
     public static void Save(string path, SessionJournal journal)
     {
-        var dir = Path.GetDirectoryName(path);
-        if (!string.IsNullOrEmpty(dir))
-            Directory.CreateDirectory(dir);
-        var tmp = path + ".tmp";
-        File.WriteAllText(tmp, JsonSerializer.Serialize(journal, Options));
-        File.Move(tmp, path, overwrite: true);
+        AtomicFile.WriteAllText(path, JsonSerializer.Serialize(journal, Options));
     }
 }

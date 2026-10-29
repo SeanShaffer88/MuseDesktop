@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Threading;
 using MuseDesktop.Core;
 using Brush = System.Windows.Media.Brush;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
@@ -47,8 +48,9 @@ public sealed class PaletteRow
 /// <summary>
 /// The command palette (R1 #101): Ctrl+K, keyboard-first. The search
 /// box owns the keyboard — arrows move the selection without leaving
-/// it, Enter runs, Esc closes — and every keystroke re-ranks through
-/// Core's one fuzzy matcher. Recent actions pin to the top on an
+/// it, Enter runs, Esc closes — and search edits are briefly debounced
+/// before reranking through Core's one fuzzy matcher. Recent actions pin
+/// to the top on an
 /// empty query (the "Recent" group). Accessibility (#107): every
 /// control and row carries a screen-reader name (#107), selection
 /// changes are announced through the app's live regions with Core's
@@ -65,6 +67,7 @@ public partial class PaletteWindow : Window
     private readonly ActionHistory _history;
     private readonly Action<PaletteCommand> _execute;
     private readonly Func<PaletteCommand, string?> _colorFor;
+    private readonly DispatcherTimer _searchTimer;
 
     public PaletteWindow(
         CommandPalette palette,
@@ -77,7 +80,10 @@ public partial class PaletteWindow : Window
         _history = history;
         _execute = execute;
         _colorFor = colorFor ?? (_ => null);
+        _searchTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
+        _searchTimer.Tick += (_, _) => Refill();
         InitializeComponent();
+        Closed += (_, _) => _searchTimer.Stop();
         if (compact)
         {
             Width = 500;
@@ -93,6 +99,7 @@ public partial class PaletteWindow : Window
 
     private void Refill()
     {
+        _searchTimer.Stop();
         var results = _palette.Search(SearchText.Text, _history);
         var rows = results.Select(r => new PaletteRow(r, _colorFor(r.Command))).ToList();
         var view = CollectionViewSource.GetDefaultView(rows);
@@ -104,10 +111,19 @@ public partial class PaletteWindow : Window
             ResultList.SelectedIndex = 0;
     }
 
-    private void OnSearchChanged(object sender, TextChangedEventArgs e) => Refill();
+    private void OnSearchChanged(object sender, TextChangedEventArgs e)
+    {
+        _searchTimer.Stop();
+        _searchTimer.Start();
+    }
 
     private void OnSearchKeyDown(object sender, KeyEventArgs e)
     {
+        // Keyboard actions always operate on the latest query, even if the
+        // user presses Enter or an arrow before the debounce interval ends.
+        if (_searchTimer.IsEnabled &&
+            (e.Key is Key.Down or Key.Up or Key.PageDown or Key.PageUp or Key.Enter))
+            Refill();
         switch (e.Key)
         {
             case Key.Down:

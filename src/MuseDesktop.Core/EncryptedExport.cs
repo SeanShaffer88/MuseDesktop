@@ -24,8 +24,10 @@ public enum EncryptedExportError
 }
 
 /// <summary>
-/// Password-encrypted settings export (S7 #65), built only on .NET's
-/// standard cryptography — no new dependencies. Format:
+/// Password-encrypted JSON export (S7 #65), built only on .NET's
+/// standard cryptography — no new dependencies. It carries settings JSON
+/// or a versioned local-data backup; the original magic line is retained
+/// so earlier settings exports remain recognizable. Format:
 ///
 ///   line 1:  MUSEDESKTOP-SETTINGS-ENCRYPTED
 ///   rest:    a JSON envelope { version, iterations, salt, nonce, tag,

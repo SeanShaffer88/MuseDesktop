@@ -200,6 +200,38 @@ public class S4Tests
     private static DateTimeOffset At(int hour) => new(2026, 10, 24, hour, 0, 0, TimeSpan.Zero);
 
     [Fact]
+    public void ActivityHistory_IsBoundedAndStoresOnlyGenericNotificationKinds()
+    {
+        var start = new DateTimeOffset(2026, 10, 24, 12, 0, 0, TimeSpan.Zero);
+        var history = new ActivityHistory();
+        for (var i = 0; i < ActivityHistory.MaxEntries + 20; i++)
+            history.Add(ActivityKind.DownloadComplete, start.AddMinutes(i));
+
+        Assert.Equal(ActivityHistory.MaxEntries, history.Entries.Count);
+        Assert.Equal(start.AddMinutes(ActivityHistory.MaxEntries + 19), history.Entries[0].AtUtc);
+        Assert.Equal("A download finished.", history.Entries[0].Message);
+        Assert.DoesNotContain("C:\\private\\report.pdf", history.Entries[0].Message);
+        var serialized = System.Text.Json.JsonSerializer.Serialize(history);
+        Assert.DoesNotContain("Message", serialized);
+        Assert.DoesNotContain("Category", serialized);
+        Assert.DoesNotContain("When", serialized);
+
+        var path = Path.Combine(Path.GetTempPath(), $"muse-activity-{Guid.NewGuid():N}.json");
+        try
+        {
+            Assert.True(ActivityHistoryStore.Record(path, ActivityKind.Reminder, start));
+            Assert.Equal("A focus or session reminder was shown.",
+                Assert.Single(ActivityHistoryStore.Load(path).Entries).Message);
+            Assert.True(ActivityHistoryStore.Clear(path));
+            Assert.Empty(ActivityHistoryStore.Load(path).Entries);
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
     public void NotificationPolicy_WindowsDndWinsFirst()
     {
         // Even with quiet hours also active, the reason reported is Windows'.

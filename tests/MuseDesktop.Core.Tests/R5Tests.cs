@@ -638,6 +638,45 @@ public class R5Tests
     }
 
     [Fact]
+    public void Scheduler_NextDueFindsNearestActualDeadline()
+    {
+        var rules = new List<ScheduledCommand>
+        {
+            new() { Id = "daily", CommandId = "action.settings", Trigger = ScheduleTriggerKind.DailyAt, DailyMinutes = 13 * 60, Enabled = true },
+            new() { Id = "once", CommandId = "action.help", Trigger = ScheduleTriggerKind.OnceAt, OnceAtUtc = Now.AddMinutes(20), Enabled = true },
+            new() { Id = "startup", CommandId = "action.about", Trigger = ScheduleTriggerKind.OnStartup, Enabled = true },
+        };
+        Assert.Equal(Now, CommandScheduler.NextDue(rules, Now, startupPending: true));
+        Assert.Equal(Now.AddMinutes(20), CommandScheduler.NextDue(rules, Now, startupPending: false));
+        Assert.Equal(new DateTimeOffset(2026, 10, 27, 13, 0, 0, TimeSpan.FromHours(-5)),
+            CommandScheduler.NextDue(rules, Now.AddHours(2), startupPending: false));
+
+        rules[1].HasFired = true;
+        Assert.Equal(new DateTimeOffset(2026, 10, 26, 13, 0, 0, TimeSpan.FromHours(-5)),
+            CommandScheduler.NextDue(rules, Now, startupPending: false));
+    }
+
+    [Fact]
+    public void Palette_SearchFindsFullNoteTextAndReturnsNoteIdOnlyAsPayload()
+    {
+        var notes = new ProfileNotes();
+        var note = notes.Add("p1", "Remember this unusual quasar detail", Now)!;
+        var palette = CommandRegistry.CreateDefault(
+            Array.Empty<AccountProfile>(), "p1",
+            Array.Empty<DownloadRecord>(), Array.Empty<WindowDescriptor>(),
+            noteEntries: notes.NotesFor("p1"));
+
+        var results = palette.Search("quasar", new ActionHistory());
+        var result = Assert.Single(results, item => item.Command.Source == PaletteCommandSource.Note);
+        Assert.Same(result, results[0]); // The full-text hit outranks incidental fuzzy keyword matches.
+        Assert.Equal(PaletteCommandSource.Note, result.Command.Source);
+        Assert.Equal($"note.open.{note.Id}", result.Command.Id);
+        Assert.Equal(note.Id, result.Command.Payload);
+        Assert.Contains("Remember this unusual quasar detail", result.Command.Title);
+        Assert.False(new ActionHistory().Record(result.Command));
+    }
+
+    [Fact]
     public void Scheduler_SanitizeAndTryCreate()
     {
         Assert.Null(CommandScheduler.Sanitize(new ScheduledCommand { CommandId = "action.nope" }));

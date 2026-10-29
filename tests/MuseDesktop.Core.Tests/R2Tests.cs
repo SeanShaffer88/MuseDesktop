@@ -434,13 +434,15 @@ public class R2Tests
             {
                 Win("default", "/chat", main: true),
                 Win("work", "/projects"),
-            }, DateTimeOffset.UtcNow);
+            }, DateTimeOffset.UtcNow, new[] { "/chat", "/projects" }, activeMainTabIndex: 1);
             SessionSnapshotStore.Save(path, snapshot);
             var loaded = SessionSnapshotStore.Load(path);
             Assert.NotNull(loaded);
             Assert.Equal(2, loaded!.Windows.Count);
             Assert.Equal("/chat", loaded.Windows[0].Route);
             Assert.True(loaded.Windows[0].IsMain);
+            Assert.Equal(new[] { "/chat", "/projects" }, loaded.MainTabRoutes);
+            Assert.Equal(1, loaded.ActiveMainTabIndex);
         }
         finally { try { File.Delete(path); } catch { } }
     }
@@ -472,6 +474,38 @@ public class R2Tests
         Assert.Single(clean.Windows);
         Assert.Equal(AppRoute.Home, clean.Windows[0].Route);
         Assert.True(clean.Windows[0].IsMain);
+        Assert.Equal(new[] { AppRoute.Home }, clean.MainTabRoutes);
+    }
+
+    [Fact]
+    public void Snapshot_SanitizesAndBoundsTabRoutesAndRepairsActiveIndex()
+    {
+        var snapshot = new SessionSnapshot
+        {
+            Windows = new List<WorkspaceWindow> { Win("default", "/home", main: true) },
+            MainTabRoutes = new List<string> { "/bad?token=secret", "//evil", "/tab0" }
+                .Concat(Enumerable.Range(1, 12).Select(i => $"/tab{i}"))
+                .ToList(),
+            ActiveMainTabIndex = 2,
+        };
+        var clean = snapshot.Sanitized(BothProfiles);
+        Assert.Equal(SessionSnapshot.MaxMainTabs, clean.MainTabRoutes.Count);
+        Assert.Equal("/tab0", clean.MainTabRoutes[0]);
+        Assert.Equal("/tab9", clean.MainTabRoutes[^1]);
+        Assert.Equal(0, clean.ActiveMainTabIndex);
+        Assert.DoesNotContain(clean.MainTabRoutes, route => route.Contains('?') || route.StartsWith("//"));
+    }
+
+    [Fact]
+    public void Snapshot_OlderFileFallsBackToItsMainRoute()
+    {
+        var snapshot = new SessionSnapshot
+        {
+            Windows = new List<WorkspaceWindow> { Win("default", "/chat", main: true) },
+        };
+        var clean = snapshot.Sanitized(BothProfiles);
+        Assert.Equal(new[] { "/chat" }, clean.MainTabRoutes);
+        Assert.Equal(0, clean.ActiveMainTabIndex);
     }
 
     // ──────────────────────── #117/#118 crash journal ────────────────────────
@@ -483,6 +517,10 @@ public class R2Tests
         BecameHealthy = healthy,
         Windows = Enumerable.Range(0, windows)
             .Select(i => Win("default", i == 0 ? "/" : $"/w{i}", main: i == 0)).ToList(),
+        MainTabRoutes = windows > 0
+            ? Enumerable.Range(0, Math.Min(windows, 2)).Select(i => i == 0 ? "/" : $"/w{i}").ToList()
+            : new List<string>(),
+        ActiveMainTabIndex = windows > 1 ? 1 : 0,
     };
 
     [Theory]
@@ -543,10 +581,33 @@ public class R2Tests
             Assert.False(loaded!.CleanExit);
             Assert.True(loaded.WasRestored);
             Assert.Equal(2, loaded.Windows.Count);
+            Assert.Equal(new[] { "/", "/w1" }, loaded.MainTabRoutes);
+            Assert.Equal(1, loaded.ActiveMainTabIndex);
             File.WriteAllText(path, "garbage{");
             Assert.Null(SessionJournalStore.Load(path));
         }
         finally { try { File.Delete(path); } catch { } }
+    }
+
+    [Fact]
+    public void Journal_SanitizesRoutesAndFallsBackForOlderFiles()
+    {
+        var journal = new SessionJournal
+        {
+            Windows = new List<WorkspaceWindow> { Win("default", "/main", main: true) },
+            MainTabRoutes = new List<string> { "//bad", "/chat?token=secret", "/tab" },
+            ActiveMainTabIndex = 2,
+        };
+        var clean = journal.Sanitized(BothProfiles);
+        Assert.Equal(new[] { "/tab" }, clean.MainTabRoutes);
+        Assert.Equal(0, clean.ActiveMainTabIndex);
+
+        var older = new SessionJournal
+        {
+            Windows = new List<WorkspaceWindow> { Win("default", "/main", main: true) },
+        }.Sanitized(BothProfiles);
+        Assert.Equal(new[] { "/main" }, older.MainTabRoutes);
+        Assert.Equal(0, older.ActiveMainTabIndex);
     }
 
     // ──────────────────────── #116 portable workspaces ────────────────────────
