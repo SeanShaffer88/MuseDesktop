@@ -538,17 +538,6 @@
                         </StackPanel>
                         <TextBlock Style="{StaticResource Note}"
                                    Text="{local:Loc back_always_stays_the_toolbar_must_always}"/>
-                        <!-- R7B: the token ring's estimated limit. Used
-                             ONLY when the Muse page reports no token
-                             count of its own; the note says so. -->
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,12,0,0">
-                            <TextBlock Text="{local:Loc token.estimated_limit_label}" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                            <TextBox x:Name="EstimatedLimitText" Width="90"
-                                     AutomationProperties.Name="{local:Loc token.estimated_limit_label}"
-                                     ToolTip="{local:Loc token.estimated_limit_tooltip}" KeyboardNavigation.TabIndex="106"/>
-                        </StackPanel>
-                        <TextBlock Style="{StaticResource Note}"
-                                   Text="{local:Loc token.estimated_limit_note}"/>
                     </StackPanel>
                 </Border>
                 <Border x:Name="CardZoom" Style="{StaticResource SettingsCard}">

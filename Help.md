@@ -155,7 +155,6 @@ Try this:
 3. Snippets: save the prompts you reuse in Settings → Account profiles (a name and the text), then insert one from Ctrl+K ("Insert snippet: …") or the ⋯ menu's Snippets list. The text lands in the message box for you to edit before sending — nothing is ever sent for you.
 4. Export: ⋯ menu → "Export conversation as Markdown…" saves the chat as a tidy text file (your messages and Muse's, code blocks intact) wherever you choose. "Export conversation as PDF…" prints the conversation page to a PDF as it appears on screen.
 5. Reading comfort: Settings → Account profiles holds, per profile, the always-visible conversation scrollbar (on by default), the chat text size, the reading-column width, and the line spacing. Changes apply when you press OK in Settings.
-6. Token ring: the small ring at the upper right, between Bookmarks and the zoom controls, shows how full the current conversation's context is. If the Muse page itself displays a usage count, the ring reads that; if not, it estimates from the conversation's length — estimates wear a "~" and say so. Click the ring for the numbers, the source, and a Refresh button. The limit the estimate is measured against lives in Settings → Appearance & toolbar ("Estimated context limit") — set it to your plan's context window if that differs from 200,000.
 
 ## Backdrop, title bar tint, custom accent, theme schedule & mini mode
 

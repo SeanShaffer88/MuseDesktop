@@ -396,7 +396,6 @@ public partial class SettingsWindow : Window
         TrayOverlayCombo.SelectedIndex = (int)_working.TrayCountOverlay;
         // R7B: the token ring's estimated limit (sanitized on the way
         // in, so the box always shows the effective value).
-        EstimatedLimitText.Text = _working.EstimatedContextLimitTokens.ToString();
         RebuildToolbarEditor();
         PortableNote.Text = AppPaths.IsPortable
             ? Strings.Format("set.portable_on", AppPaths.RootDir)
@@ -609,11 +608,6 @@ public partial class SettingsWindow : Window
         {
             _working.ShellFontScale = scaleValue / 100.0;
         }
-        // R7B: the token ring's estimated limit — lenient like the
-        // other numeric fields: junk keeps the previous value, and
-        // Sanitized() (on adoption) clamps whatever parses.
-        if (int.TryParse(EstimatedLimitText.Text, out var estimatedLimit))
-            _working.EstimatedContextLimitTokens = estimatedLimit;
         // S7: the autofill toggle (#68) and the app lock's tray-hide
         // switch (#64). The lock's on/off comes from its checkbox too,
         // but the credential fields are write-through from the lock

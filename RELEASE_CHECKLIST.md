@@ -335,6 +335,11 @@ Updates are the one feature that needs a *newer release* to fully exist. This se
 
 ## v1.8.2 — R7B (token-usage ring) on-machine items
 
+> **Superseded:** the token-usage ring was removed in v1.9.0 at the
+> owner's direction (the page never reported a usage figure, so the
+> ring only ever showed a rough estimate). The ring items below no
+> longer apply; the Bookmarks placement items still do.
+
 - [ ] **R7B placement:** the token ring sits in the toolbar's upper right, immediately LEFT of the − zoom button, with the 🔖 Bookmarks button immediately left of the ring; the LEFT RAIL IS GONE and the conversation uses the full window width; focus mode (F8) hides the whole toolbar including the cluster; compact density and shell text sizes don't clip or overlap the ring
 - [ ] **R7B Bookmarks from the new spot:** click 🔖 in its new home — the Bookmarks window opens as before; a bookmark jump still lands in its conversation with the message highlighted; Ctrl+K still lists bookmarks; the ⋯ menu's Bookmarks item still works
 - [ ] **R7B estimate mode:** open a conversation — within a few seconds the ring shows a ~ percent in its center; hover it — the tooltip reads "Tokens: ~X of Y (~Z%) — estimate"; send a few messages — the percent climbs on the 45-second tick (and shortly after a send); start a new empty conversation — the ring drops to ~0%

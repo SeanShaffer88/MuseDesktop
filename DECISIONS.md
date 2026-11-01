@@ -1,5 +1,19 @@
 # Decisions
 
+## 2026-11-01 — Token-usage ring removed (owner direction)
+
+- **SEAN directed the removal:** the ring "doesn't work" and he
+  doesn't want it anymore. In practice it never could work as a
+  meter: the hosted Muse page exposes no usage figure, so the
+  ring only ever ran in estimate mode (conversation length ÷ 4).
+  The whole feature comes out — toolbar ring, breakdown panel,
+  page usage probe, Core TokenUsage model, and the "Estimated
+  context limit" setting — rather than leaving dead code behind
+  a hidden control. The Bookmarks button, which shared the
+  upper-right cluster, stays exactly where it was. Token-related
+  entries below (2026-10-27, R7B) are history: they describe the
+  feature as built, not the app as it stands.
+
 A living log of significant architecture, UX, security, and dependency decisions.
 
 ## 2026-11-01 — Shell layout: Compact Focus (SEAN's confirmed mockup B)
