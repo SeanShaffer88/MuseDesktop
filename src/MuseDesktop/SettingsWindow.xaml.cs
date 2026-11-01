@@ -136,6 +136,8 @@ public partial class SettingsWindow : Window
         BackdropCombo.Items.Add(Strings.Get("ui.acrylic"));
         DensityCombo.Items.Add(Strings.Get("ui.comfortable"));
         DensityCombo.Items.Add(Strings.Get("ui.compact"));
+        LayoutCombo.Items.Add(Strings.Get("ui.standard"));
+        LayoutCombo.Items.Add(Strings.Get("ui.compact_focus"));
         TrayStyleCombo.Items.Add(Strings.Get("ui.color"));
         TrayStyleCombo.Items.Add(Strings.Get("ui.monochrome"));
         TrayStyleCombo.Items.Add(Strings.Get("ui.profile_colored"));
@@ -389,6 +391,7 @@ public partial class SettingsWindow : Window
         BackdropCombo.SelectedIndex = (int)_working.Backdrop;
         TitleBarTintCheck.IsChecked = _working.TitleBarProfileTint;
         DensityCombo.SelectedIndex = (int)_working.Density;
+        LayoutCombo.SelectedIndex = (int)_working.ShellLayout;
         TrayStyleCombo.SelectedIndex = (int)_working.TrayIconStyle;
         TrayOverlayCombo.SelectedIndex = (int)_working.TrayCountOverlay;
         // R7B: the token ring's estimated limit (sanitized on the way
@@ -593,6 +596,8 @@ public partial class SettingsWindow : Window
         _working.TitleBarProfileTint = TitleBarTintCheck.IsChecked == true;
         if (DensityCombo.SelectedIndex >= 0)
             _working.Density = (Core.ShellDensity)DensityCombo.SelectedIndex;
+        if (LayoutCombo.SelectedIndex >= 0)
+            _working.ShellLayout = (Core.ShellLayout)LayoutCombo.SelectedIndex;
         if (TrayStyleCombo.SelectedIndex >= 0)
             _working.TrayIconStyle = (Core.TrayIconStyle)TrayStyleCombo.SelectedIndex;
         if (TrayOverlayCombo.SelectedIndex >= 0)
@@ -3537,6 +3542,7 @@ public partial class SettingsWindow : Window
         target.Backdrop = source.Backdrop;
         target.TitleBarProfileTint = source.TitleBarProfileTint;
         target.Density = source.Density;
+        target.ShellLayout = source.ShellLayout;
         target.TrayIconStyle = source.TrayIconStyle;
         target.TrayCountOverlay = source.TrayCountOverlay;
         target.ThemeLightStartMinutes = source.ThemeLightStartMinutes;

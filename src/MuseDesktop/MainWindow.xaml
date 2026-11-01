@@ -132,32 +132,34 @@
                                           ToolTip="{local:Loc keep_musedesktop_above_other_windows}" KeyboardNavigation.TabIndex="46"/>
                                 <MenuItem x:Name="FocusItem" Header="{local:Loc focus_mode}" IsCheckable="True" Click="OnToggleFocusMode"
                                           InputGestureText="F8" ToolTip="{local:Loc hide_the_toolbar_and_status_bar_f8_or_esc}" KeyboardNavigation.TabIndex="47"/>
+                                <MenuItem x:Name="CompactFocusItem" Header="{local:Loc compact_focus_layout}" IsCheckable="True" Click="OnToggleCompactFocusLayout"
+                                          ToolTip="{local:Loc slim_toolbar_status_pill_instead_of_the_status_bar}" KeyboardNavigation.TabIndex="48"/>
                                 <MenuItem Header="{local:Loc mini_mode}" Click="OnToggleMiniMode"
-                                          ToolTip="{local:Loc shrink_to_a_small_always_on_top_strip}" KeyboardNavigation.TabIndex="48"/>
+                                          ToolTip="{local:Loc shrink_to_a_small_always_on_top_strip}" KeyboardNavigation.TabIndex="49"/>
                                 <MenuItem Header="{local:Loc window_opacity}" StaysOpenOnClick="True"
-                                          ToolTip="{local:Loc how_see_through_this_window_is_it_cannot_go}" KeyboardNavigation.TabIndex="49">
+                                          ToolTip="{local:Loc how_see_through_this_window_is_it_cannot_go}" KeyboardNavigation.TabIndex="50">
                                     <StackPanel Orientation="Horizontal" Margin="4,2">
                                         <Slider x:Name="OpacitySlider" Width="110" Minimum="60" Maximum="100" Value="100"
-                                                ValueChanged="OnOpacityChanged" ToolTip="{local:Loc window_opacity}" AutomationProperties.Name="{local:Loc window_opacity}" KeyboardNavigation.TabIndex="50"/>
+                                                ValueChanged="OnOpacityChanged" ToolTip="{local:Loc window_opacity}" AutomationProperties.Name="{local:Loc window_opacity}" KeyboardNavigation.TabIndex="51"/>
                                         <TextBlock x:Name="OpacityLabel" Text="100%" Width="38" Margin="8,0,0,0" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </MenuItem>
-                                <MenuItem Header="{local:Loc restore_last_closed_page}" Click="OnRestoreClosedPage" InputGestureText="Ctrl+Shift+T" KeyboardNavigation.TabIndex="51"/>
+                                <MenuItem Header="{local:Loc restore_last_closed_page}" Click="OnRestoreClosedPage" InputGestureText="Ctrl+Shift+T" KeyboardNavigation.TabIndex="52"/>
                                 <Separator/>
                                 <MenuItem Header="{local:Loc connection_security}" Click="OnConnectionSecurity"
-                                          ToolTip="{local:Loc the_current_site_s_connection_address}" KeyboardNavigation.TabIndex="52"/>
+                                          ToolTip="{local:Loc the_current_site_s_connection_address}" KeyboardNavigation.TabIndex="53"/>
                                 <MenuItem x:Name="LockNowItem" Header="{local:Loc lock_now}" Click="OnLockNow" Visibility="Collapsed"
-                                          ToolTip="{local:Loc lock_musedesktop_with_your_app_password}" KeyboardNavigation.TabIndex="53"/>
+                                          ToolTip="{local:Loc lock_musedesktop_with_your_app_password}" KeyboardNavigation.TabIndex="54"/>
                                 <MenuItem Header="{local:Loc view_log}" Click="OnViewLog"
-                                          ToolTip="{local:Loc read_the_diagnostic_log_in_the_app_with_its}" KeyboardNavigation.TabIndex="54"/>
-                                <MenuItem Header="{local:Loc open_log_folder}" Click="OnOpenLogFolder" KeyboardNavigation.TabIndex="55"/>
+                                          ToolTip="{local:Loc read_the_diagnostic_log_in_the_app_with_its}" KeyboardNavigation.TabIndex="55"/>
+                                <MenuItem Header="{local:Loc open_log_folder}" Click="OnOpenLogFolder" KeyboardNavigation.TabIndex="56"/>
                                 <MenuItem Header="{local:Loc diagnostics_2}" Click="OnDiagnostics"
-                                          ToolTip="{local:Loc versions_runtime_health_proxy_memory}" KeyboardNavigation.TabIndex="56"/>
+                                          ToolTip="{local:Loc versions_runtime_health_proxy_memory}" KeyboardNavigation.TabIndex="57"/>
                                 <MenuItem Header="{local:Loc help_troubleshooting_2}" Click="OnHelp"
-                                          ToolTip="{local:Loc offline_pages_for_the_common_problems_sign}" KeyboardNavigation.TabIndex="57"/>
+                                          ToolTip="{local:Loc offline_pages_for_the_common_problems_sign}" KeyboardNavigation.TabIndex="58"/>
                                 <MenuItem Header="{local:Loc export_support_bundle}" Click="OnExportSupportBundle"
-                                          ToolTip="{local:Loc one_zip_with_the_diagnostics_report_the}" KeyboardNavigation.TabIndex="58"/>
-                                <MenuItem Header="{local:Loc about_musedesktop}" Click="OnAbout" KeyboardNavigation.TabIndex="59"/>
+                                          ToolTip="{local:Loc one_zip_with_the_diagnostics_report_the}" KeyboardNavigation.TabIndex="59"/>
+                                <MenuItem Header="{local:Loc about_musedesktop}" Click="OnAbout" KeyboardNavigation.TabIndex="60"/>
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>
@@ -176,11 +178,11 @@
                     <Button x:Name="BookmarksButton" Style="{StaticResource BarButton}" Content="&#x1F516;"
                             Width="34" Height="34" Click="OnBookmarks"
                             ToolTip="{local:Loc bookmarks_messages_you_marked_in}"
-                            AutomationProperties.Name="{local:Loc bookmarks}" KeyboardNavigation.TabIndex="60"/>
+                            AutomationProperties.Name="{local:Loc bookmarks}" KeyboardNavigation.TabIndex="61"/>
                     <Button x:Name="TokenRingButton" Style="{StaticResource BarButton}" Width="34" Height="34" Margin="2,0,0,0"
                             Click="OnTokenRing"
                             ToolTip="{local:Loc token.usage}"
-                            AutomationProperties.Name="{local:Loc token.usage}" KeyboardNavigation.TabIndex="61">
+                            AutomationProperties.Name="{local:Loc token.usage}" KeyboardNavigation.TabIndex="62">
                         <Grid Width="26" Height="26" IsHitTestVisible="False">
                             <Ellipse Stroke="{StaticResource FaintBrush}" StrokeThickness="3" Opacity="0.45"/>
                             <Path x:Name="TokenRingArc" Stroke="{StaticResource AccentBrush}" StrokeThickness="3"
@@ -210,7 +212,7 @@
             <DockPanel LastChildFill="True" Margin="6,2">
                 <Button x:Name="NewTabButton" DockPanel.Dock="Right" Content="+" Width="30" Margin="4,0,0,0"
                         Style="{StaticResource BarButton}" ToolTip="{local:Loc pr20.new_tab_ctrl_t}" Click="OnNewTab"
-                        AutomationProperties.Name="{local:Loc pr20.new_tab}" KeyboardNavigation.TabIndex="62"/>
+                        AutomationProperties.Name="{local:Loc pr20.new_tab}" KeyboardNavigation.TabIndex="63"/>
                 <TextBlock x:Name="PageActivityText" DockPanel.Dock="Right" Width="190" Margin="8,0"
                            VerticalAlignment="Center" TextAlignment="Right" TextTrimming="CharacterEllipsis" FontSize="11"
                            Foreground="{StaticResource MutedBrush}" AutomationProperties.Name="{local:Loc pr20.page_activity}"
@@ -230,15 +232,15 @@
                          Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}"
                          BorderBrush="{StaticResource HairlineBrush}"
                          KeyDown="OnFindTextKeyDown" TextChanged="OnFindTextChanged"
-                         AutomationProperties.Name="{local:Loc find_in_page_2}" KeyboardNavigation.TabIndex="63"/>
+                         AutomationProperties.Name="{local:Loc find_in_page_2}" KeyboardNavigation.TabIndex="64"/>
                 <TextBlock x:Name="FindCountText" Text="" Margin="8,0" VerticalAlignment="Center"
                            Foreground="{StaticResource MutedBrush}" FontSize="12"/>
                 <Button Style="{StaticResource BarButton}" Content="&#x2191;" Width="28"
-                        ToolTip="{local:Loc previous_match_shift_enter}" Click="OnFindPrevious" AutomationProperties.Name="{local:Loc previous_match}" KeyboardNavigation.TabIndex="64"/>
+                        ToolTip="{local:Loc previous_match_shift_enter}" Click="OnFindPrevious" AutomationProperties.Name="{local:Loc previous_match}" KeyboardNavigation.TabIndex="65"/>
                 <Button Style="{StaticResource BarButton}" Content="&#x2193;" Width="28"
-                        ToolTip="{local:Loc next_match_enter}" Click="OnFindNext" AutomationProperties.Name="{local:Loc next_match}" KeyboardNavigation.TabIndex="65"/>
+                        ToolTip="{local:Loc next_match_enter}" Click="OnFindNext" AutomationProperties.Name="{local:Loc next_match}" KeyboardNavigation.TabIndex="66"/>
                 <Button Style="{StaticResource BarButton}" Content="&#x2715;" Width="28"
-                        ToolTip="{local:Loc close_find_esc}" Click="OnFindClose" AutomationProperties.Name="{local:Loc close_find}" KeyboardNavigation.TabIndex="66"/>
+                        ToolTip="{local:Loc close_find_esc}" Click="OnFindClose" AutomationProperties.Name="{local:Loc close_find}" KeyboardNavigation.TabIndex="67"/>
             </StackPanel>
         </Border>
 
@@ -257,6 +259,21 @@
                                   AutomationProperties.Name="{local:Loc muse_web_content}"/>
                 </Border>
             </Grid>
+            <!-- Shell layout (2026-11-01): the Compact Focus status
+                 pill. Shown only in that layout, where it replaces the
+                 status bar: same status text, floating over the page's
+                 bottom-right corner. Display-only — it never takes
+                 clicks away from the page beyond its own small bounds,
+                 and its tooltip carries the full status line. -->
+            <Border x:Name="StatusPill" Visibility="Collapsed"
+                    HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,12,12"
+                    Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource HairlineBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="10,5" MaxWidth="520"
+                    AutomationProperties.Name="{local:Loc status_pill}">
+                <TextBlock x:Name="StatusPillText" Text="" FontSize="11"
+                           Foreground="{StaticResource MutedBrush}"
+                           TextTrimming="CharacterEllipsis"/>
+            </Border>
             <!-- S8 #80: the hung-page banner. Non-modal on purpose —
                  the user may be mid-voice-call; the page is never
                  reloaded without their say-so. -->
@@ -270,9 +287,9 @@
                                TextWrapping="Wrap"
                                Text="{local:Loc the_page_hasn_t_answered_musedesktop_s_last}"/>
                     <Button Content="{local:Loc reload_the_page}" Margin="12,0,0,0" Padding="10,4" Click="OnWatchdogReload"
-                            ToolTip="{local:Loc reload_now_chat_drafts_and_scroll_position}" KeyboardNavigation.TabIndex="67"/>
+                            ToolTip="{local:Loc reload_now_chat_drafts_and_scroll_position}" KeyboardNavigation.TabIndex="68"/>
                     <Button Content="{local:Loc wait}" Margin="8,0,0,0" Padding="10,4" Click="OnWatchdogWait"
-                            ToolTip="{local:Loc leave_the_page_exactly_as_it_is_don_t_check}" KeyboardNavigation.TabIndex="68"/>
+                            ToolTip="{local:Loc leave_the_page_exactly_as_it_is_don_t_check}" KeyboardNavigation.TabIndex="69"/>
                 </StackPanel>
             </Border>
             <Border x:Name="Overlay" Background="{StaticResource BgBrush}" Visibility="Visible">
@@ -283,7 +300,7 @@
                                Foreground="{StaticResource MutedBrush}" TextAlignment="Center" TextWrapping="Wrap"/>
                     <Button x:Name="OverlayButton" Content="{local:Loc retry}" Width="110" Height="32" Margin="0,18,0,0"
                             Visibility="Collapsed" Click="OnReload" HorizontalAlignment="Center"
-                            Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0" KeyboardNavigation.TabIndex="69"/>
+                            Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0" KeyboardNavigation.TabIndex="70"/>
                 </StackPanel>
             </Border>
         </Grid>
@@ -295,7 +312,7 @@
                 <Button x:Name="CancelDownloadButton" DockPanel.Dock="Right" Content="&#x2715;" Width="22" Height="18"
                         Visibility="Collapsed" ToolTip="{local:Loc cancel_the_most_recent_download_downloads}" Click="OnCancelDownload"
                         Background="Transparent" Foreground="{StaticResource MutedBrush}" BorderThickness="0"
-                        AutomationProperties.Name="{local:Loc cancel_download}" KeyboardNavigation.TabIndex="70"/>
+                        AutomationProperties.Name="{local:Loc cancel_download}" KeyboardNavigation.TabIndex="71"/>
                 <!-- Live regions (S6 #54): zero-width, invisible, not
                      hit-testable — present in the UIA tree only, so
                      screen readers speak download/update events. -->

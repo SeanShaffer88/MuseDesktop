@@ -2,6 +2,14 @@
 
 A living log of significant architecture, UX, security, and dependency decisions.
 
+## 2026-11-01 — Shell layout: Compact Focus (SEAN's confirmed mockup B)
+
+- **The decision was SEAN's, from image mockups, before any code:** three shell-only layouts were mocked (Standard / Compact Focus / Left Rail); he picked Compact Focus. The layout changes only the shell's own chrome — the Muse page is never restyled, moved, or hidden, the standing rule since v0.1.0.
+- **What Compact Focus is:** a persisted `ShellLayout` setting (Standard / CompactFocus) resolved by Core `ShellLayoutMetrics` against the existing density: Standard returns the density's long-standing numbers untouched; Compact Focus pins the toolbar to 30px and replaces the status bar with a floating status pill over the page's bottom-right. The pill is fed by the same `SetStatus` line (plus the bar's right-hand segment), so downloads, timers, and state all read identically in both layouts; its tooltip carries the full untruncated line.
+- **Every surface, per the standing rules:** Settings → Appearance picker (beside density), a checkable ⋯-menu item, and a command-palette action all switch the same setting; it survives sanitize (undefined values repair to Standard), settings clone/export, and restart. Focus mode (F8) composes with it: entering hides the pill too, leaving restores the layout's chrome rather than always restoring the bar.
+- **Found while building, fixed in the same slice:** the tab strip's arrival had grown the root grid from 4 rows to 5, and `ApplyDensity`'s fixed row-3 status index had silently stopped resizing the toolbar/status rows on main (only the insets still applied). The layout pass now indexes the toolbar as row 0 and the status bar as the last row, which restores density resizing and is covered by the same change.
+- **Unverified until SEAN's field pass:** the pill's readability over real page content, the 30px toolbar's hit targets at high DPI, and the layout flip live from each of the three surfaces. The metrics, the gain arithmetic (34px comfortable / 22px compact), and the setting repairs are pinned by the Core suite (ShellLayoutTests).
+
 ## 2026-10-29 — PR #20 compile and regression verification
 
 The integration with current main preserves R6–R8 appearance, localization, approval notifications, and the upper-right Bookmarks/token controls while adding PR #20's tabs and reliability work. New UI strings use the existing English/Spanish catalogs, and added controls retain explicit keyboard order. The full integrated Core suite contains 1,264 tests. The original left bookmark rail is not restored because current main deliberately moved that control to the toolbar; the tab row is retained. Both architecture build lanes remain verification gates; native arm64 runtime behavior is delegated to its CI runner.
