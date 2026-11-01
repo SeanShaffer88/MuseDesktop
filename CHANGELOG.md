@@ -35,6 +35,16 @@ Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhanc
   notification identity, which is what Windows needs to
   deliver them.
 
+### Removed
+
+- **The token-usage ring is gone.** The circle counter that sat
+  in the toolbar beside the zoom controls (added in v1.8.2) is
+  removed, along with its breakdown panel and the "Estimated
+  context limit" setting. The Muse page never reported a usage
+  figure for it to show, so in practice it only ever displayed a
+  rough estimate — an estimate dressed as a meter helps nobody.
+  The Bookmarks button keeps its place in the same corner.
+
 ## [1.8.8] — Unreleased
 
 Two changes ship together in v1.8.8 (grouped release):

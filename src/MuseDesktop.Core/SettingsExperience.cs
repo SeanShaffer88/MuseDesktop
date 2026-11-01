@@ -192,7 +192,6 @@ public static class SettingsReset
         target.ShellTextSpacingScale = fresh.ShellTextSpacingScale;
         // R7B field (v1.8.2): the token ring's estimated limit is a
         // preference and resets to the default window.
-        target.EstimatedContextLimitTokens = fresh.EstimatedContextLimitTokens;
         // R7C field (v1.8.3): the approval beep returns to on.
         target.ApprovalBeepEnabled = fresh.ApprovalBeepEnabled;
         // R8 field: the approval toast returns to on, with the beep.
