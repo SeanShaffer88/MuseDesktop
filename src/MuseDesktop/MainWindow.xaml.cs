@@ -279,6 +279,7 @@ public partial class MainWindow : Window
         // the title bar + web background.
         Browser.DefaultBackgroundColor = ThemeManager.BrowserBackground;
         ApplyToolbarLayout();
+        ApplyDensity();
         ShellTextScaling.Apply(this, _settings.ShellFontScale);
         // R6 #153: chrome density rides with the text scale (Core's
         // DensityMetrics owns the numbers).
@@ -783,16 +784,26 @@ public partial class MainWindow : Window
     /// </summary>
     private void ApplyDensity()
     {
-        var metrics = DensityMetrics.For(_settings.Density);
-        if (Content is System.Windows.Controls.Grid root && root.RowDefinitions.Count == 4)
+        var metrics = ShellLayoutMetrics.For(_settings.ShellLayout, _settings.Density);
+        var density = DensityMetrics.For(_settings.Density);
+        if (Content is System.Windows.Controls.Grid root && root.RowDefinitions.Count >= 2)
         {
+            // Rows: 0 = toolbar, last = status bar. (The tab strip's
+            // arrival made the grid 5 rows; indexing the last row is
+            // what keeps this working — a fixed row-3 index silently
+            // stopped resizing the status row when tabs landed.)
             root.RowDefinitions[0].Height = new GridLength(metrics.ToolbarHeight);
-            root.RowDefinitions[3].Height = new GridLength(metrics.StatusBarHeight);
+            root.RowDefinitions[root.RowDefinitions.Count - 1].Height = new GridLength(metrics.StatusBarHeight);
         }
+        StatusBar.Visibility = metrics.StatusBarVisible && !_focusMode
+            ? Visibility.Visible : Visibility.Collapsed;
+        StatusPill.Visibility = metrics.StatusPillVisible && !_focusMode
+            ? Visibility.Visible : Visibility.Collapsed;
+        CompactFocusItem.IsChecked = _settings.ShellLayout == ShellLayout.CompactFocus;
         if (Toolbar.Child is System.Windows.Controls.DockPanel toolbarPanel)
-            toolbarPanel.Margin = new Thickness(metrics.ToolbarInset, 0, metrics.ToolbarInset, 0);
+            toolbarPanel.Margin = new Thickness(density.ToolbarInset, 0, density.ToolbarInset, 0);
         if (StatusBar.Child is System.Windows.Controls.DockPanel statusPanel)
-            statusPanel.Margin = new Thickness(metrics.StatusInset, 0, metrics.StatusInset, 0);
+            statusPanel.Margin = new Thickness(density.StatusInset, 0, density.StatusInset, 0);
     }
 
     /// <summary>
@@ -2788,6 +2799,13 @@ public partial class MainWindow : Window
     {
         StatusText.Text = text;
         StatusRight.Text = right ?? "";
+        // Shell layout (2026-11-01): in Compact Focus the pill IS the
+        // status bar — it carries the same line (plus the right-hand
+        // segment the bar would show), and its tooltip keeps the
+        // full untruncated text one hover away.
+        var pill = string.IsNullOrEmpty(right) ? text : $"{text}  \u2022  {right}";
+        StatusPillText.Text = pill;
+        StatusPill.ToolTip = pill;
     }
 
     private void ShowOverlay(string title, string body, string buttonText, Action? buttonOverride)
@@ -2964,6 +2982,7 @@ public partial class MainWindow : Window
         _settings.DraftsAutosaveEnabled = clone.DraftsAutosaveEnabled;
         _settings.AlwaysOnTop = clone.AlwaysOnTop;
         // S5: appearance + Settings-window memory ride the same adoption.
+        _settings.ShellLayout = clone.ShellLayout;
         _settings.Theme = clone.Theme;
         _settings.AccentColor = clone.AccentColor;
         _settings.ShellFontScale = clone.ShellFontScale;
@@ -4294,6 +4313,18 @@ public partial class MainWindow : Window
     }
 
     // #6 Focus / compact mode (F8). Session-only, never persisted.
+
+    /// <summary>Shell layout toggle (2026-11-01, the More-menu twin of the Settings Appearance picker): switch between Standard and the confirmed Compact Focus layout, persisted at once like the pin toggle.</summary>
+    private void OnToggleCompactFocusLayout(object sender, RoutedEventArgs e)
+    {
+        _settings.ShellLayout = CompactFocusItem.IsChecked ? ShellLayout.CompactFocus : ShellLayout.Standard;
+        ApplyDensity();
+        SaveSettings();
+        SetStatus(_settings.ShellLayout == ShellLayout.CompactFocus
+            ? Strings.Get("status.compact_focus_layout_on")
+            : Strings.Get("status.standard_layout_on"));
+    }
+
     private void OnToggleFocusMode(object sender, RoutedEventArgs e) =>
         SetFocusMode(sender is MenuItem ? FocusItem.IsChecked : !_focusMode);
 
@@ -4303,7 +4334,13 @@ public partial class MainWindow : Window
         FocusItem.IsChecked = on;
         Toolbar.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
         TabStrip.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
-        StatusBar.Visibility = on ? Visibility.Collapsed : Visibility.Visible;
+        // Leaving focus mode restores the chrome the LAYOUT wants:
+        // the status bar in Standard, the pill in Compact Focus.
+        var layoutMetrics = ShellLayoutMetrics.For(_settings.ShellLayout, _settings.Density);
+        StatusBar.Visibility = !on && layoutMetrics.StatusBarVisible
+            ? Visibility.Visible : Visibility.Collapsed;
+        StatusPill.Visibility = !on && layoutMetrics.StatusPillVisible
+            ? Visibility.Visible : Visibility.Collapsed;
         if (on)
         {
             // R5 #141: focus mode fills the screen — the window
@@ -5708,6 +5745,11 @@ public partial class MainWindow : Window
             case "action.open-in-browser": OnOpenInBrowser(this, new RoutedEventArgs()); break;
             case "action.new-window": OnOpenInNewWindow(this, new RoutedEventArgs()); break;
             case "action.focus-mode": SetFocusMode(!_focusMode); break;
+            case "action.shell-layout":
+                _settings.ShellLayout = _settings.ShellLayout == ShellLayout.CompactFocus ? ShellLayout.Standard : ShellLayout.CompactFocus;
+                ApplyDensity();
+                SaveSettings();
+                break;
             case "action.mini-mode": ToggleMiniMode(); break;
             case "action.fullscreen": SetFullScreen(!_isFullScreen); break;
             case "action.always-on-top": SetAlwaysOnTop(!_settings.AlwaysOnTop); break;

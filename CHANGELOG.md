@@ -8,6 +8,18 @@ Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhanc
 
 ### Added
 
+- **Compact Focus shell layout.** Settings → Appearance gains a
+  **Shell layout** picker: **Standard** (the classic toolbar and
+  full status bar) or **Compact Focus** — a slim 30px toolbar, and
+  the status bar replaced by a small floating pill in the page's
+  bottom-right corner carrying the same status line, so the page
+  gains 34px of height at comfortable density (22px at compact).
+  The same switch lives in the ⋯ menu ("Compact Focus layout") and
+  the command palette ("Toggle Compact Focus layout"), the choice
+  is remembered, and focus mode (F8) still hides all chrome and
+  restores the layout's own chrome on exit. Shell only, as always:
+  the Muse page is never restyled.
+
 - **Approval alerts can pop a toast as well as beep.** When
   Muse shows an approval card while the MuseDesktop window
   isn't the active one, the alert can now also appear as a

@@ -53,7 +53,7 @@ public static class SettingsSearch
         new SettingsSectionInfo(WorkspacesId, "Workspaces & sessions",
             "workspace workspaces session sessions layout windows arrangement save apply startup launch auto-save restore snapshot crash glyph icon accent duplicate rename delete"),
         new SettingsSectionInfo(AppearanceId, "Appearance & toolbar",
-            "theme dark light follow windows system accent color shell text size font scale toolbar customize reorder hide show buttons layout reset appearance mica acrylic backdrop material titlebar tint title bar profile color density compact spacing monochrome grayscale overlay badge custom picker hex opacity schedule time of day mini"),
+            "theme dark light follow windows system accent color shell text size font scale toolbar customize reorder hide show buttons layout reset appearance mica acrylic backdrop material titlebar tint title bar profile color density compact spacing monochrome grayscale overlay badge custom picker hex opacity schedule time of day mini shell layout compact focus pill status bar slim"),
         new SettingsSectionInfo(ZoomId, "Zoom",
             "zoom default percent bigger smaller text size page extended range low vision 500"),
         new SettingsSectionInfo(AccessibilityId, "Keyboard & accessibility",
