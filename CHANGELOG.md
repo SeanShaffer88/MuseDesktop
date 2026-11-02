@@ -49,7 +49,7 @@ Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhanc
   notification identity, which is what Windows needs to
   deliver them.
 
-## [1.8.8] — Unreleased
+## [1.8.8] — 2026-10-28
 
 Two changes ship together in v1.8.8 (grouped release):
 hotfix R7E2 (directed 2026-10-27) — the Settings topics
@@ -94,7 +94,7 @@ slice R7F: the browser password hardening.
   clear-data control; and nothing sent anywhere by the
   app itself.
 
-## [1.8.7] — Unreleased
+## [1.8.7] — 2026-10-28
 
 Follow-on slice R7C2 (directed 2026-10-27): the approval beep,
 fixed — from SEAN's field test of v1.8.3.
@@ -123,7 +123,7 @@ fixed — from SEAN's field test of v1.8.3.
   app log — which rule matched and the reason, never anything
   the card itself said.
 
-## [1.8.6] — Unreleased
+## [1.8.6] — 2026-10-28
 
 Follow-on slice R7E (directed 2026-10-27): the Settings window,
 reorganized.
@@ -142,7 +142,7 @@ reorganized.
   changed. The search box still jumps straight to a setting,
   Settings still reopens where you left it, and links that open
   Settings at a particular section land on the right topic.
-## [1.8.5] — Unreleased
+## [1.8.5] — 2026-10-28
 
 Hotfix R7D1 (directed 2026-10-27): the installer close/relaunch
 fix for R7D, from SEAN's field test of v1.8.4.
@@ -163,7 +163,7 @@ fix for R7D, from SEAN's field test of v1.8.4.
   unchanged: no installer window appears, and the app
   closes, updates, and reopens by itself.
 
-## [1.8.4] — Unreleased
+## [1.8.4] — 2026-10-27
 
 Follow-on slice R7D (directed 2026-10-27): seamless updates.
 
@@ -183,7 +183,7 @@ Follow-on slice R7D (directed 2026-10-27): seamless updates.
   version from Diagnostics keeps the classic installer
   wizard and doesn't reopen the app for you.
 
-## [1.8.3] — Unreleased
+## [1.8.3] — 2026-10-27
 
 Follow-on slice R7C (directed 2026-10-27): a beep when an
 approval card needs attention.
@@ -206,7 +206,7 @@ approval card needs attention.
   the page changes its cards, the beep can quietly stop
   (see Known limitations).
 
-## [1.8.2] — Unreleased
+## [1.8.2] — 2026-10-27
 
 Follow-on slice R7B (directed 2026-10-27): a token-usage ring
 in the main window, and the Bookmarks button's move to the
@@ -244,7 +244,7 @@ upper-right corner.
   window is instantly recognizable in the taskbar and task
   switcher. (Secondary windows keep their conversation
   titles, so they stay tellable apart.)
-## [1.8.1] — Unreleased
+## [1.8.1] — 2026-10-27
 
 Hotfix for the Settings crash found in the v1.7.0 field pass.
 
@@ -259,7 +259,7 @@ Hotfix for the Settings crash found in the v1.7.0 field pass.
   combination the Windows UI framework refuses; a guard test
   now fails the build if it ever recurs.)
 
-## [1.8.0] — Unreleased
+## [1.8.0] — 2026-10-27
 
 Round 2 Slice R7 (items 161–170): accessibility & language
 round 2. The whole shell — every menu, dialog, Settings page,
@@ -345,7 +345,7 @@ RELEASE_CHECKLIST).
   name), and a new test fails the build if any templated control
   ever gets a DisplayMemberPath again.
 
-## [1.7.0] — Unreleased
+## [1.7.0] — 2026-10-27
 
 Round 2 Slice R6 (items 151–160): appearance round 2. The shell
 gets its Windows 11 face — backdrop materials, a title bar that can
@@ -413,7 +413,7 @@ Core test suite grows by 65 cases (916 → 981); everything above is
 **Unverified** on a real machine until the on-machine pass (see
 RELEASE_CHECKLIST).
 
-## [1.6.0] — Unreleased
+## [1.6.0] — 2026-10-26
 
 Round 2 Slice R5B (the follow-on six, items 201–206): conversation
 tools. This slice deliberately reaches one step further than every
@@ -470,7 +470,7 @@ Core test suite grows by 21 cases (895 → 916); everything above is
 **Unverified** on a real machine until SEAN's on-machine pass (see
 RELEASE_CHECKLIST).
 
-## [1.5.0] — Unreleased
+## [1.5.0] — 2026-10-26
 
 Round 2, Slice R5 (items 141–150) of the enhancement program: focus & productivity — the final slice of the +50 programme. Everything in this slice is local-only: the timers count minutes on this PC, the lists and tallies live in small files beside your settings, and nothing is ever sent anywhere.
 
@@ -491,7 +491,7 @@ Round 2, Slice R5 (items 141–150) of the enhancement program: focus & producti
 
 - Core test suite grows by 38 cases (857 → 895). All v1.5.0 runtime behavior is **Unverified** on a real Windows machine pending the `RELEASE_CHECKLIST.md` R5 pass.
 
-## [1.4.0] — Unreleased
+## [1.4.0] — 2026-10-26 (shipped in v1.5.0)
 
 Round 2, Slice R4 (items 131–140) of the enhancement program: downloads round 2.
 
@@ -512,7 +512,7 @@ Round 2, Slice R4 (items 131–140) of the enhancement program: downloads round 
 
 - Core test suite grows by 97 cases (760 → 857). All v1.4.0 runtime behavior is **Unverified** on a real Windows machine pending the `RELEASE_CHECKLIST.md` R4 pass.
 
-## [1.3.0] — Unreleased
+## [1.3.0] — 2026-10-26 (shipped in v1.5.0)
 
 Round 2, Slice R3 (items 121–130) of the enhancement program: profiles round 2.
 
@@ -533,7 +533,7 @@ Round 2, Slice R3 (items 121–130) of the enhancement program: profiles round 2
 
 - Core test suite grows by 43 cases (717 → 760). All v1.3.0 runtime behavior is **Unverified** on a real Windows machine pending the `RELEASE_CHECKLIST.md` R3 pass.
 
-## [1.2.0] — Unreleased
+## [1.2.0] — 2026-10-26 (shipped in v1.5.0)
 
 Round 2, Slice R2 (items 111–120) of the enhancement program: workspaces & sessions.
 
@@ -554,7 +554,7 @@ Round 2, Slice R2 (items 111–120) of the enhancement program: workspaces & ses
 
 - Core test suite grows by 42 cases (675 → 717). All v1.2.0 runtime behavior is **Unverified** on a real Windows machine pending the `RELEASE_CHECKLIST.md` R2 pass.
 
-## [1.1.0] — Unreleased
+## [1.1.0] — 2026-10-26 (shipped in v1.5.0)
 
 Round 2, Slice R1 (items 101–110) of the enhancement program: the command palette and the window command surface.
 
