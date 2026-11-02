@@ -45,6 +45,21 @@ Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhanc
   page's shape changes and a feature would quietly stop working,
   the check says so instead.
 
+- **Guided field pass in Diagnostics.** A "Field pass" section
+  in Diagnostics (and a ⋯ menu entry) opens a guided checklist
+  of nine checks that prove the app on a real PC: the shell
+  layouts, the page health check, the approval alert,
+  conversation tools, downloads, the tray and hotkey, the app
+  lock, Settings search, and the update check. Each check says
+  what to do and what working looks like, with a button that
+  opens the feature where one exists; you mark each Pass, It
+  has a problem, or Skip for now, with an optional note. The
+  window stays open alongside the app while you work, answers
+  save as you go on this PC — closing the window loses
+  nothing — and Copy summary puts the verdicts and notes on
+  the clipboard for a bug report. The pass records your own
+  verdicts; it does not run the checks for you.
+
 ### Changed
 
 - **Compact Focus is the default shell layout for new
