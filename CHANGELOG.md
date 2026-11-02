@@ -34,6 +34,17 @@ Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhanc
   the chrome and restores it on exit. Shell only, as always:
   the Muse page is never restyled.
 
+- **Page health check in Diagnostics.** A "Run page check"
+  button probes the loaded Muse page for the markers the
+  page-based features rely on and lists a verdict for each:
+  message bookmarks, drafts, conversation export, and approval
+  alerts. The probe runs the same detectors the features
+  themselves use and reports only whether each marker is there —
+  never any page content — and an approval watcher with no card
+  to watch is reported as exactly that, not as a failure. If the
+  page's shape changes and a feature would quietly stop working,
+  the check says so instead.
+
 ### Changed
 
 - **Compact Focus is the default shell layout for new

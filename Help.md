@@ -155,6 +155,7 @@ Try this:
 3. Snippets: save the prompts you reuse in Settings → Account profiles (a name and the text), then insert one from Ctrl+K ("Insert snippet: …") or the ⋯ menu's Snippets list. The text lands in the message box for you to edit before sending — nothing is ever sent for you.
 4. Export: ⋯ menu → "Export conversation as Markdown…" saves the chat as a tidy text file (your messages and Muse's, code blocks intact) wherever you choose. "Export conversation as PDF…" prints the conversation page to a PDF as it appears on screen.
 5. Reading comfort: Settings → Account profiles holds, per profile, the always-visible conversation scrollbar (on by default), the chat text size, the reading-column width, and the line spacing. Changes apply when you press OK in Settings.
+6. If a conversation tool quietly stops working: open Diagnostics and press "Run page check" in the Page health section. It probes the open page for the markers bookmarks, drafts, export and the approval alerts rely on, and tells you per feature whether they were recognised — only whether each marker is there is checked; nothing from the page is read out or stored. "Not applicable" just means no conversation is open; for approval alerts, "No card showing" is the healthy result whenever no approval is waiting.
 
 ## Backdrop, title bar tint, custom accent, theme schedule & mini mode
 
