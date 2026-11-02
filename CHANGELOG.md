@@ -4,7 +4,7 @@ All notable changes to MuseDesktop. Format follows Keep a Changelog; versions us
 
 Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhancement program; they were never published as releases. Everything in them shipped together as **1.0.0** (2026-10-24).
 
-## [1.9.0] — Unreleased
+## [2.0.0] — Unreleased
 
 ### Added
 
@@ -20,6 +20,20 @@ Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhanc
   restores the layout's own chrome on exit. Shell only, as always:
   the Muse page is never restyled.
 
+### Removed
+
+- **The token-usage ring is gone.** The circle counter that sat
+  in the toolbar beside the zoom controls (added in v1.8.2) is
+  removed, along with its breakdown panel and the "Estimated
+  context limit" setting. The Muse page never reported a usage
+  figure for it to show, so in practice it only ever displayed a
+  rough estimate — an estimate dressed as a meter helps nobody.
+  The Bookmarks button keeps its place in the same corner.
+
+## [1.9.0] — 2026-10-28
+
+### Added
+
 - **Approval alerts can pop a toast as well as beep.** When
   Muse shows an approval card while the MuseDesktop window
   isn't the active one, the alert can now also appear as a
@@ -34,16 +48,6 @@ Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhanc
   Start Menu shortcut named "MuseDesktop" that carries its
   notification identity, which is what Windows needs to
   deliver them.
-
-### Removed
-
-- **The token-usage ring is gone.** The circle counter that sat
-  in the toolbar beside the zoom controls (added in v1.8.2) is
-  removed, along with its breakdown panel and the "Estimated
-  context limit" setting. The Muse page never reported a usage
-  figure for it to show, so in practice it only ever displayed a
-  rough estimate — an estimate dressed as a meter helps nobody.
-  The Bookmarks button keeps its place in the same corner.
 
 ## [1.8.8] — Unreleased
 
