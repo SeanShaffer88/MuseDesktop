@@ -166,6 +166,12 @@ public partial class MainWindow : Window
     private readonly AppLockThrottle _lockThrottle = new();
     private LockWindow? _lockWindow;
 
+    // The guided field pass (Diagnostics): one modeless window,
+    // created on first open and reactivated after — its checks are
+    // done in this window (or with it closed to the tray), so it
+    // must never be a second instance or a modal block.
+    private FieldPassWindow? _fieldPassWindow;
+
     // R3 #122/#123 — the per-profile PIN gate for hidden launches
     // (App hands over the launch profile's record; the first real
     // show presents it, after the global lock) and the profile
@@ -6634,12 +6640,68 @@ public partial class MainWindow : Window
             onExportBundle: () => StartSupportBundleExport(window),
             onOpenLog: OpenTodaysLog,
             lastErrorProvider: () => LogReading.LastError(ReadLogText()),
-            pageHealthProvider: RunPageHealthCheckAsync)
+            pageHealthProvider: RunPageHealthCheckAsync,
+            onOpenFieldPass: () => OpenFieldPass(window))
         { Owner = this };
         ThemeManager.ApplyTitleBar(window);
         ShellTextScaling.Apply(window, _settings.ShellFontScale);
         window.ShowDialog();
         FocusReturn.Restore(invoker);
+    }
+
+    private void OnFieldPass(object sender, RoutedEventArgs e) => OpenFieldPass(this);
+
+    /// <summary>
+    /// The guided field pass (Diagnostics): one modeless window,
+    /// owned by whoever opened it (the main window from the ⋯ menu,
+    /// the Diagnostics window from its Field pass section). Modeless
+    /// on purpose — the checks are performed in the main window, in
+    /// Settings, or with the app closed to the tray, none of which a
+    /// modal checklist could allow. Reopening reactivates the
+    /// existing window; the session itself lives in Core's store
+    /// (AppPaths.FieldPassPath), saved on every answer.
+    /// </summary>
+    private void OpenFieldPass(Window owner)
+    {
+        if (_fieldPassWindow is not null)
+        {
+            _fieldPassWindow.Activate();
+            return;
+        }
+        var window = new FieldPassWindow(
+            AppPaths.FieldPassPath,
+            $"{typeof(App).Assembly.GetName().Version}",
+            _log,
+            OpenFieldPassTarget)
+        { Owner = owner };
+        _fieldPassWindow = window;
+        window.Closed += (_, _) => _fieldPassWindow = null;
+        ThemeManager.ApplyTitleBar(window);
+        ShellTextScaling.Apply(window, _settings.ShellFontScale);
+        window.Show();
+        window.Activate();
+    }
+
+    /// <summary>
+    /// A field-pass check's "Open the feature": dispatch the app's
+    /// own open commands — Settings (the update check lands on the
+    /// Behavior section, where its controls live), Diagnostics, or
+    /// the Downloads window. Nothing is re-implemented for the pass.
+    /// </summary>
+    private void OpenFieldPassTarget(FieldPassStep step)
+    {
+        switch (step.OpenTarget)
+        {
+            case FieldPassOpenTarget.Settings:
+                OpenSettings(step.Id == "update-check" ? SettingsSearch.BehaviorId : null);
+                break;
+            case FieldPassOpenTarget.Diagnostics:
+                OnDiagnostics(this, new RoutedEventArgs());
+                break;
+            case FieldPassOpenTarget.Downloads:
+                OnDownloads(this, new RoutedEventArgs());
+                break;
+        }
     }
 
     /// <summary>

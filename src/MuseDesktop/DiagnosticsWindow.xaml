@@ -34,24 +34,33 @@
                      AutomationProperties.Name="{local:Loc page_health}" KeyboardNavigation.TabIndex="2"/>
         </StackPanel>
 
+        <StackPanel x:Name="FieldPassPanel" DockPanel.Dock="Top" Margin="0,12,0,0" Visibility="Collapsed">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="{local:Loc field_pass}" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                <Button x:Name="OpenFieldPassButton" Content="{local:Loc fieldpass.open}" Width="150" Height="26" Margin="10,0,0,0" Click="OnOpenFieldPass" KeyboardNavigation.TabIndex="3"
+                        ToolTip="{local:Loc fieldpass.menu_tooltip}"/>
+            </StackPanel>
+            <TextBlock Style="{StaticResource Note}" Text="{local:Loc fieldpass.hint}"/>
+        </StackPanel>
+
         <StackPanel DockPanel.Dock="Bottom">
             <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                 <Button x:Name="ExportBundleButton" Content="{local:Loc export_support_bundle}" Width="170" Height="30" Click="OnExportBundle" Visibility="Collapsed"
-                        ToolTip="{local:Loc save_one_zip_with_this_report_the_redacted}" KeyboardNavigation.TabIndex="3"/>
+                        ToolTip="{local:Loc save_one_zip_with_this_report_the_redacted}" KeyboardNavigation.TabIndex="4"/>
                 <Button x:Name="OpenLogButton" Content="{local:Loc open_today_s_log}" Width="130" Height="30" Margin="8,0,0,0" Click="OnOpenLog" Visibility="Collapsed"
-                        ToolTip="{local:Loc open_the_log_file_itself_in_your_default}" KeyboardNavigation.TabIndex="4"/>
+                        ToolTip="{local:Loc open_the_log_file_itself_in_your_default}" KeyboardNavigation.TabIndex="5"/>
                 <Button x:Name="CopyLastErrorButton" Content="{local:Loc copy_last_error}" Width="120" Height="30" Margin="8,0,0,0" Click="OnCopyLastError" Visibility="Collapsed"
-                        ToolTip="{local:Loc copy_just_the_most_recent_error_line_from}" KeyboardNavigation.TabIndex="5"/>
+                        ToolTip="{local:Loc copy_just_the_most_recent_error_line_from}" KeyboardNavigation.TabIndex="6"/>
             </StackPanel>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,8,0,0">
                 <TextBlock x:Name="CopyNote" Style="{StaticResource Note}" Margin="0,4,10,0"/>
                 <Button x:Name="RollbackButton" Width="230" Height="30" Click="OnRollback" Visibility="Collapsed"
-                        ToolTip="{local:Loc run_the_previous_version_s_installer_kept}" KeyboardNavigation.TabIndex="6"/>
+                        ToolTip="{local:Loc run_the_previous_version_s_installer_kept}" KeyboardNavigation.TabIndex="7"/>
                 <Button Content="{local:Loc copy_report}" Width="110" Height="30" Margin="8,0,0,0" Click="OnCopy"
-                        ToolTip="{local:Loc copy_this_report_to_the_clipboard_it}" KeyboardNavigation.TabIndex="7"/>
+                        ToolTip="{local:Loc copy_this_report_to_the_clipboard_it}" KeyboardNavigation.TabIndex="8"/>
                 <Button Content="{local:Loc refresh}" Width="86" Height="30" Margin="8,0,0,0" Click="OnRefresh"
-                        ToolTip="{local:Loc collect_the_figures_again}" KeyboardNavigation.TabIndex="8"/>
-                <Button Content="{local:Loc close}" Width="86" Height="30" Margin="8,0,0,0" IsCancel="True" KeyboardNavigation.TabIndex="9"/>
+                        ToolTip="{local:Loc collect_the_figures_again}" KeyboardNavigation.TabIndex="9"/>
+                <Button Content="{local:Loc close}" Width="86" Height="30" Margin="8,0,0,0" IsCancel="True" KeyboardNavigation.TabIndex="10"/>
             </StackPanel>
         </StackPanel>
 
@@ -61,6 +70,6 @@
                  BorderBrush="{StaticResource HairlineBrush}"
                  VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
                  TextWrapping="NoWrap"
-                 AutomationProperties.Name="{local:Loc diagnostics_report}" KeyboardNavigation.TabIndex="10"/>
+                 AutomationProperties.Name="{local:Loc diagnostics_report}" KeyboardNavigation.TabIndex="11"/>
     </DockPanel>
 </Window>

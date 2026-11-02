@@ -13,7 +13,9 @@ namespace MuseDesktop;
 /// Page health section: a button that probes the loaded page through
 /// the main window's provider and lists Core's per-feature verdicts
 /// for the page-based features (bookmarks, drafts, export, approval
-/// alerts). Refresh re-asks the report
+/// alerts). Below that, the Field pass section opens the guided
+/// on-machine checklist (the user's own verdicts, kept on this PC)
+/// through an optional delegate. Refresh re-asks the report
 /// provider; Copy puts the report on the clipboard. The S10 actions
 /// (export support bundle, open today's log, copy last error) are
 /// optional delegates from the main window, shown only when supplied.
@@ -27,6 +29,7 @@ public partial class DiagnosticsWindow : Window
     private readonly Action? _onOpenLog;
     private readonly Func<string?>? _lastErrorProvider;
     private readonly Func<Task<IReadOnlyList<PageHealthFinding>?>>? _pageHealthProvider;
+    private readonly Action? _onOpenFieldPass;
 
     /// <summary>
     /// <paramref name="rollbackLabel"/> + <paramref name="onRollback"/>
@@ -41,7 +44,8 @@ public partial class DiagnosticsWindow : Window
         string? rollbackLabel = null, Action? onRollback = null,
         Action? onExportBundle = null, Action? onOpenLog = null,
         Func<string?>? lastErrorProvider = null,
-        Func<Task<IReadOnlyList<PageHealthFinding>?>>? pageHealthProvider = null)
+        Func<Task<IReadOnlyList<PageHealthFinding>?>>? pageHealthProvider = null,
+        Action? onOpenFieldPass = null)
     {
         _reportProvider = reportProvider;
         _onRollback = onRollback;
@@ -49,12 +53,15 @@ public partial class DiagnosticsWindow : Window
         _onOpenLog = onOpenLog;
         _lastErrorProvider = lastErrorProvider;
         _pageHealthProvider = pageHealthProvider;
+        _onOpenFieldPass = onOpenFieldPass;
         InitializeComponent();
         if (pageHealthProvider is not null)
         {
             PageHealthPanel.Visibility = Visibility.Visible;
             PageHealthText.Text = Strings.Get("page_health_not_run");
         }
+        if (onOpenFieldPass is not null)
+            FieldPassPanel.Visibility = Visibility.Visible;
         if (rollbackLabel is not null && onRollback is not null)
         {
             RollbackButton.Content = rollbackLabel;
@@ -97,6 +104,9 @@ public partial class DiagnosticsWindow : Window
             RunPageHealthButton.IsEnabled = true;
         }
     }
+
+    /// <summary>Open the guided field pass (the main window owns the window; it is modeless, so it floats alongside this dialog's owner chain).</summary>
+    private void OnOpenFieldPass(object sender, RoutedEventArgs e) => _onOpenFieldPass?.Invoke();
 
     private void OnRollback(object sender, RoutedEventArgs e) => _onRollback?.Invoke();
 
