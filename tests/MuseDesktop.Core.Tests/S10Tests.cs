@@ -248,10 +248,11 @@ public class S10Tests
         // page (R4), the focus & productivity page (R5), the
         // conversation tools page (R5B), the appearance
         // round-2 page (R6), the language & announcements
-        // page (R7), and the updating page (R7D).
-        Assert.Equal(14, HelpCatalog.Pages.Count);
-        Assert.Equal(14, HelpCatalog.Pages.Select(p => p.Id).Distinct().Count());
-        Assert.Equal(14, HelpCatalog.Pages.Select(p => p.Title).Distinct().Count());
+        // page (R7), the updating page (R7D), and the field
+        // pass page (Diagnostics' guided checklist).
+        Assert.Equal(15, HelpCatalog.Pages.Count);
+        Assert.Equal(15, HelpCatalog.Pages.Select(p => p.Id).Distinct().Count());
+        Assert.Equal(15, HelpCatalog.Pages.Select(p => p.Title).Distinct().Count());
         Assert.All(HelpCatalog.Pages, p =>
         {
             Assert.False(string.IsNullOrWhiteSpace(p.Keywords));
