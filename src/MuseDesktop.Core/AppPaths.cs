@@ -102,6 +102,9 @@ public static class AppPaths
     /// <summary>The announcement history (R7 #169): the bounded record Diagnostics reads.</summary>
     public static string AnnouncementHistoryPath => Path.Combine(RootDir, "announcements.json");
 
+    /// <summary>The guided field pass (Diagnostics): the user's own verdicts + notes for the nine on-machine checks — local-only, in their own file like the other small stores, and never part of a settings export.</summary>
+    public static string FieldPassPath => Path.Combine(RootDir, "field-pass.json");
+
     public static string LogDir => Path.Combine(RootDir, "logs");
     public static string LogPath => Path.Combine(LogDir, "musedesktop.log");
 

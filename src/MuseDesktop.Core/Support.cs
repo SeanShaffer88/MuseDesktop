@@ -374,6 +374,13 @@ public static class HelpCatalog
             "Updating to a new version",
             "update updating upgrade new version download install installer close app first running tray hidden locked reopen relaunch silent wizard snooze remind later check for updates rollback previous version hands-free automatic",
             HelpAction.OpenSettings, "Open Settings — behavior", SettingsSearch.BehaviorId),
+        // The field pass page, also listed last — it answers "how do
+        // I prove the app works on my PC / what is the checklist in
+        // Diagnostics", which no older page owned.
+        new HelpPage("field-pass",
+            "The field pass: proving MuseDesktop on this PC",
+            "field pass checks guided walkthrough prove proving verdict answered skipped checklist tour on-machine",
+            HelpAction.OpenDiagnostics, "Open Diagnostics", null),
     };
 
     public static HelpPage? ById(string? id) =>
