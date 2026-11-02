@@ -20,6 +20,28 @@ Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhanc
   restores the layout's own chrome on exit. Shell only, as always:
   the Muse page is never restyled.
 
+- **Left Rail shell layout.** A third choice for the
+  **Shell layout** picker (Settings → Appearance, the ⋯ menu, and
+  the command palette, which now cycles through all three): a
+  56px rail down the left edge carries Back, Forward, Reload,
+  Home, Downloads, the always-on-top pin and Open in browser,
+  with Settings and the ⋯ menu at the rail's foot. Across the
+  top sits a thin 30px title strip — page title and zoom
+  controls — and the status bar stays along the bottom, so the
+  status line keeps its full width. The rail's buttons do
+  exactly what their toolbar equivalents do, history menus
+  included, and focus mode (F8) hides the rail with the rest of
+  the chrome and restores it on exit. Shell only, as always:
+  the Muse page is never restyled.
+
+### Changed
+
+- **Compact Focus is the default shell layout for new
+  installs.** A first run with no saved layout starts in
+  Compact Focus. Nothing changes for existing installs: a
+  layout already picked — Standard included — is kept exactly
+  as saved.
+
 ### Removed
 
 - **The token-usage ring is gone.** The circle counter that sat

@@ -138,6 +138,7 @@ public partial class SettingsWindow : Window
         DensityCombo.Items.Add(Strings.Get("ui.compact"));
         LayoutCombo.Items.Add(Strings.Get("ui.standard"));
         LayoutCombo.Items.Add(Strings.Get("ui.compact_focus"));
+        LayoutCombo.Items.Add(Strings.Get("ui.left_rail"));
         TrayStyleCombo.Items.Add(Strings.Get("ui.color"));
         TrayStyleCombo.Items.Add(Strings.Get("ui.monochrome"));
         TrayStyleCombo.Items.Add(Strings.Get("ui.profile_colored"));

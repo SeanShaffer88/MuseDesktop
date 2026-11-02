@@ -786,11 +786,40 @@ public partial class MainWindow : Window
             ? Visibility.Visible : Visibility.Collapsed;
         StatusPill.Visibility = metrics.StatusPillVisible && !_focusMode
             ? Visibility.Visible : Visibility.Collapsed;
+        StandardLayoutItem.IsChecked = _settings.ShellLayout == ShellLayout.Standard;
         CompactFocusItem.IsChecked = _settings.ShellLayout == ShellLayout.CompactFocus;
+        LeftRailLayoutItem.IsChecked = _settings.ShellLayout == ShellLayout.LeftRail;
+        ApplyRailChrome(metrics);
+        // Left Rail (mockup C): the rail carries navigation, Downloads,
+        // the pin, the browser button and the ⋯ menu, so the top strip
+        // keeps only the title/address and the zoom cluster — the thin
+        // strip the mockup shows. Every other layout shows the full
+        // strips and the fixed Bookmarks cluster.
+        var rail = metrics.RailVisible;
+        LeftStrip.Visibility = rail ? Visibility.Collapsed : Visibility.Visible;
+        UpperRightCluster.Visibility = rail ? Visibility.Collapsed : Visibility.Visible;
+        PinButton.Visibility = rail ? Visibility.Collapsed : Visibility.Visible;
+        BrowserButton.Visibility = rail ? Visibility.Collapsed : Visibility.Visible;
+        MenuButton.Visibility = rail ? Visibility.Collapsed : Visibility.Visible;
         if (Toolbar.Child is System.Windows.Controls.DockPanel toolbarPanel)
             toolbarPanel.Margin = new Thickness(density.ToolbarInset, 0, density.ToolbarInset, 0);
         if (StatusBar.Child is System.Windows.Controls.DockPanel statusPanel)
             statusPanel.Margin = new Thickness(density.StatusInset, 0, density.StatusInset, 0);
+    }
+
+    /// <summary>
+    /// The Left Rail's column and visibility, resolved against the
+    /// window's transient states: focus mode and full screen hide ALL
+    /// chrome, the rail included, and leaving either restores the rail
+    /// when the active layout wants one. Called from ApplyDensity
+    /// (layout/density changes), SetFocusMode and SetFullScreen, so
+    /// every path that changes any of those inputs re-resolves it.
+    /// </summary>
+    private void ApplyRailChrome(ShellLayoutMetrics metrics)
+    {
+        var show = metrics.RailVisible && !_focusMode && !_isFullScreen;
+        LeftRail.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+        RailColumn.Width = new GridLength(show ? metrics.RailWidth : 0);
     }
 
     /// <summary>
@@ -2776,6 +2805,9 @@ public partial class MainWindow : Window
     {
         BackButton.IsEnabled = _webReady && Browser.CanGoBack;
         ForwardButton.IsEnabled = _webReady && Browser.CanGoForward;
+        // The Left Rail's twins mirror the same state.
+        RailBackButton.IsEnabled = BackButton.IsEnabled;
+        RailForwardButton.IsEnabled = ForwardButton.IsEnabled;
     }
 
     private void SetStatus(string text, string? right = null)
@@ -2853,7 +2885,12 @@ public partial class MainWindow : Window
         if (!string.IsNullOrEmpty(src)) OpenExternal(src);
     }
 
-    private void OnMenu(object sender, RoutedEventArgs e)
+    private void OnMenu(object sender, RoutedEventArgs e) => OpenMoreMenu(MenuButton);
+
+    /// <summary>The Left Rail's ⋯ button: the same More menu, anchored to the rail button — in that layout the toolbar's own ⋯ button is hidden.</summary>
+    private void OnRailMenu(object sender, RoutedEventArgs e) => OpenMoreMenu(RailMenuButton);
+
+    private void OpenMoreMenu(System.Windows.FrameworkElement target)
     {
         // Pop-up menus live outside the window's tree, so S5 #46 scales
         // this one explicitly each time it opens.
@@ -2863,7 +2900,7 @@ public partial class MainWindow : Window
         LockNowItem.Visibility = AppLock.IsLockActive(_settings) && !_isLocked
             ? Visibility.Visible
             : Visibility.Collapsed;
-        MoreMenu.PlacementTarget = MenuButton;
+        MoreMenu.PlacementTarget = target;
         MoreMenu.IsOpen = true;
     }
 
@@ -4295,15 +4332,25 @@ public partial class MainWindow : Window
 
     // #6 Focus / compact mode (F8). Session-only, never persisted.
 
-    /// <summary>Shell layout toggle (2026-11-01, the More-menu twin of the Settings Appearance picker): switch between Standard and the confirmed Compact Focus layout, persisted at once like the pin toggle.</summary>
-    private void OnToggleCompactFocusLayout(object sender, RoutedEventArgs e)
+    /// <summary>Shell layout choice (2026-11-01; three layouts from 2.0.0 — the More-menu twin of the Settings Appearance picker), persisted at once like the pin toggle. The Compact Focus item keeps its original toggle behaviour: unticking it returns to Standard. The other two items select their layout outright.</summary>
+    private void OnToggleCompactFocusLayout(object sender, RoutedEventArgs e) =>
+        SetShellLayout(CompactFocusItem.IsChecked ? ShellLayout.CompactFocus : ShellLayout.Standard);
+
+    private void OnSelectStandardLayout(object sender, RoutedEventArgs e) => SetShellLayout(ShellLayout.Standard);
+
+    private void OnSelectLeftRailLayout(object sender, RoutedEventArgs e) => SetShellLayout(ShellLayout.LeftRail);
+
+    private void SetShellLayout(ShellLayout layout)
     {
-        _settings.ShellLayout = CompactFocusItem.IsChecked ? ShellLayout.CompactFocus : ShellLayout.Standard;
+        _settings.ShellLayout = layout;
         ApplyDensity();
         SaveSettings();
-        SetStatus(_settings.ShellLayout == ShellLayout.CompactFocus
-            ? Strings.Get("status.compact_focus_layout_on")
-            : Strings.Get("status.standard_layout_on"));
+        SetStatus(Strings.Get(layout switch
+        {
+            ShellLayout.CompactFocus => "status.compact_focus_layout_on",
+            ShellLayout.LeftRail => "status.left_rail_layout_on",
+            _ => "status.standard_layout_on",
+        }));
     }
 
     private void OnToggleFocusMode(object sender, RoutedEventArgs e) =>
@@ -4322,6 +4369,9 @@ public partial class MainWindow : Window
             ? Visibility.Visible : Visibility.Collapsed;
         StatusPill.Visibility = !on && layoutMetrics.StatusPillVisible
             ? Visibility.Visible : Visibility.Collapsed;
+        // The rail is chrome too: focus mode hides it, and exiting
+        // restores it when the layout is Left Rail.
+        ApplyRailChrome(layoutMetrics);
         if (on)
         {
             // R5 #141: focus mode fills the screen — the window
@@ -5187,22 +5237,24 @@ public partial class MainWindow : Window
 
     // #3 Back/Forward history dropdowns (right-click or long-press).
     private void OnBackHistoryMenu(object sender, MouseButtonEventArgs e)
-    { ShowHistoryMenu(back: true, BackButton); e.Handled = true; }
+    { ShowHistoryMenu(back: true, sender as System.Windows.FrameworkElement ?? BackButton); e.Handled = true; }
 
     private void OnForwardHistoryMenu(object sender, MouseButtonEventArgs e)
-    { ShowHistoryMenu(back: false, ForwardButton); e.Handled = true; }
+    { ShowHistoryMenu(back: false, sender as System.Windows.FrameworkElement ?? ForwardButton); e.Handled = true; }
 
     private void OnNavButtonPress(object sender, MouseButtonEventArgs e)
     {
         if (e.ChangedButton != MouseButton.Left) return;
-        var back = sender == BackButton;
+        // The toolbar pair and the Left Rail pair share this press
+        // logic; the menu anchors to whichever button was pressed.
+        var back = sender == BackButton || sender == RailBackButton;
         _navPressTimer?.Stop();
         _navPressTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(550) };
         _navPressTimer.Tick += (_, _) =>
         {
             _navPressTimer?.Stop();
             _suppressNavClick = true;
-            ShowHistoryMenu(back, back ? BackButton : ForwardButton);
+            ShowHistoryMenu(back, (System.Windows.FrameworkElement)sender);
         };
         _navPressTimer.Start();
     }
@@ -5601,7 +5653,7 @@ public partial class MainWindow : Window
             case "action.new-window": OnOpenInNewWindow(this, new RoutedEventArgs()); break;
             case "action.focus-mode": SetFocusMode(!_focusMode); break;
             case "action.shell-layout":
-                _settings.ShellLayout = _settings.ShellLayout == ShellLayout.CompactFocus ? ShellLayout.Standard : ShellLayout.CompactFocus;
+                _settings.ShellLayout = ShellLayoutCycle.Next(_settings.ShellLayout);
                 ApplyDensity();
                 SaveSettings();
                 break;
@@ -6991,6 +7043,9 @@ public partial class MainWindow : Window
             Toolbar.Visibility = _focusMode ? Visibility.Collapsed : Visibility.Visible;
         }
         _isFullScreen = on;
+        // Full screen hides the rail with the rest of the chrome;
+        // leaving it restores the rail when the layout wants one.
+        ApplyRailChrome(ShellLayoutMetrics.For(_settings.ShellLayout, _settings.Density));
     }
 
     // ───────────────────────── title bar ─────────────────────────
