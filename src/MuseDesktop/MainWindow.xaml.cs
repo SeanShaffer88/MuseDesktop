@@ -6633,7 +6633,8 @@ public partial class MainWindow : Window
             // S10 #90/#93: the support actions.
             onExportBundle: () => StartSupportBundleExport(window),
             onOpenLog: OpenTodaysLog,
-            lastErrorProvider: () => LogReading.LastError(ReadLogText()))
+            lastErrorProvider: () => LogReading.LastError(ReadLogText()),
+            pageHealthProvider: RunPageHealthCheckAsync)
         { Owner = this };
         ThemeManager.ApplyTitleBar(window);
         ShellTextScaling.Apply(window, _settings.ShellFontScale);
@@ -6670,6 +6671,36 @@ public partial class MainWindow : Window
             return;
         }
         ExitApp();
+    }
+
+    /// <summary>
+    /// The Diagnostics Page health check: probe the main window's
+    /// page through the bridge (PageScripts.ProbePageHealth) and let
+    /// Core's PageHealth judge the markers. The probe only observes —
+    /// it reads no message, draft, or card text and changes nothing
+    /// on the page. Returns null when no page is loaded yet (the
+    /// Diagnostics window says so and offers a re-run); a page that
+    /// loads but whose bridge never answers yields the bridge-missing
+    /// findings, which is itself the diagnosis.
+    /// </summary>
+    private async Task<IReadOnlyList<PageHealthFinding>?> RunPageHealthCheckAsync()
+    {
+        if (!_webReady || Browser.CoreWebView2 is null)
+            return null;
+        string? probeJson = null;
+        try
+        {
+            var raw = await Browser.CoreWebView2.ExecuteScriptAsync(PageScripts.ProbePageHealth);
+            if (raw is not null && raw != "null")
+                probeJson = JsonSerializer.Deserialize<string>(raw);
+        }
+        catch (Exception ex) { _log.Warn($"Page health probe failed: {ex.Message}"); }
+        var findings = PageHealth.Evaluate(PageHealth.TryParseProbe(probeJson));
+        // Statuses only in the log — never the page's content (the
+        // probe carries none to begin with).
+        _log.Info("Page health: " + string.Join("; ",
+            findings.Select(f => $"{PageHealth.FeatureName(f.Feature)}={PageHealth.StatusWord(f.Status)}")));
+        return findings;
     }
 
     private Task<string> BuildDiagnosticsReportAsync() => BuildDiagnosticsReportAsync(redactLocalPaths: false);

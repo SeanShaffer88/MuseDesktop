@@ -504,6 +504,25 @@ public static class PageScripts
             } catch (e) { }
           }
 
+          // ── page health probe (Diagnostics): READ-ONLY. It runs
+          // the very detectors the features above use — the message
+          // finder, the composer finder, and detectApprovalSignal —
+          // and reports presence only: never text, never a label.
+          // Nothing here mutates the page (the bookmark check counts
+          // buttons the normal scan already added). Core's
+          // PageHealth turns the result into per-feature verdicts.
+          window.__mdProbePageHealth = function () {
+            try {
+              var msgs = messageElements();
+              return JSON.stringify({
+                messages: msgs.length > 0,
+                bookmarkButtons: document.querySelectorAll('.md-bookmark-btn').length > 0,
+                composer: !!findComposer(),
+                approval: detectApprovalSignal()
+              });
+            } catch (e) { return null; }
+          };
+
           // ── watch the page: conversations render and grow as the
           // user chats, so buttons/composer binding re-check on
           // mutation (debounced) rather than once.
@@ -544,6 +563,10 @@ public static class PageScripts
     /// <summary>Ask the page for the conversation's messages as a JSON string (the script result is that string, itself JSON-encoded).</summary>
     public const string ExtractConversation =
         "(window.__mdExtractConversation ? window.__mdExtractConversation() : null)";
+
+    /// <summary>Ask the page for its health probe (Diagnostics): a JSON string of presence flags — messages/bookmark buttons/composer found, and which approval rule matched, if a card is showing — that Core's <see cref="Core.PageHealth"/> parses. Presence only; no page content ever comes back.</summary>
+    public const string ProbePageHealth =
+        "(window.__mdProbePageHealth ? window.__mdProbePageHealth() : null)";
 
     /// <summary>Offer a saved draft back to the page's composer (it lands only when the composer is empty and present, or when it appears).</summary>
     public static string RestoreDraft(string text) =>

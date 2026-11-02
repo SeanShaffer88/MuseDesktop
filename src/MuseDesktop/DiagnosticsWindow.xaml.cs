@@ -9,7 +9,11 @@ namespace MuseDesktop;
 /// composes on demand (runtime health, proxy, memory, startup
 /// timings, file paths — and since S10 also architecture, Windows and
 /// .NET versions, the active profile, the update channel, data sizes,
-/// and the most recent errors, redacted). Refresh re-asks the
+/// and the most recent errors, redacted). Below the intro sits the
+/// Page health section: a button that probes the loaded page through
+/// the main window's provider and lists Core's per-feature verdicts
+/// for the page-based features (bookmarks, drafts, export, approval
+/// alerts). Refresh re-asks the report
 /// provider; Copy puts the report on the clipboard. The S10 actions
 /// (export support bundle, open today's log, copy last error) are
 /// optional delegates from the main window, shown only when supplied.
@@ -22,6 +26,7 @@ public partial class DiagnosticsWindow : Window
     private readonly Action? _onExportBundle;
     private readonly Action? _onOpenLog;
     private readonly Func<string?>? _lastErrorProvider;
+    private readonly Func<Task<IReadOnlyList<PageHealthFinding>?>>? _pageHealthProvider;
 
     /// <summary>
     /// <paramref name="rollbackLabel"/> + <paramref name="onRollback"/>
@@ -35,14 +40,21 @@ public partial class DiagnosticsWindow : Window
     public DiagnosticsWindow(Func<Task<string>> reportProvider,
         string? rollbackLabel = null, Action? onRollback = null,
         Action? onExportBundle = null, Action? onOpenLog = null,
-        Func<string?>? lastErrorProvider = null)
+        Func<string?>? lastErrorProvider = null,
+        Func<Task<IReadOnlyList<PageHealthFinding>?>>? pageHealthProvider = null)
     {
         _reportProvider = reportProvider;
         _onRollback = onRollback;
         _onExportBundle = onExportBundle;
         _onOpenLog = onOpenLog;
         _lastErrorProvider = lastErrorProvider;
+        _pageHealthProvider = pageHealthProvider;
         InitializeComponent();
+        if (pageHealthProvider is not null)
+        {
+            PageHealthPanel.Visibility = Visibility.Visible;
+            PageHealthText.Text = Strings.Get("page_health_not_run");
+        }
         if (rollbackLabel is not null && onRollback is not null)
         {
             RollbackButton.Content = rollbackLabel;
@@ -55,6 +67,35 @@ public partial class DiagnosticsWindow : Window
         if (lastErrorProvider is not null)
             CopyLastErrorButton.Visibility = Visibility.Visible;
         _ = RefreshReportAsync();
+    }
+
+    /// <summary>
+    /// Run the Page health check (Diagnostics): ask the main window
+    /// to probe the loaded page and list Core's per-feature verdicts.
+    /// A null result means no page is loaded yet — say so and leave
+    /// the button ready for another run.
+    /// </summary>
+    private async void OnRunPageHealth(object sender, RoutedEventArgs e)
+    {
+        if (_pageHealthProvider is null)
+            return;
+        RunPageHealthButton.IsEnabled = false;
+        PageHealthText.Text = Strings.Get("page_health_checking");
+        try
+        {
+            var findings = await _pageHealthProvider();
+            PageHealthText.Text = findings is null
+                ? Strings.Get("page_health_no_page")
+                : string.Join("\n", PageHealth.RenderLines(findings));
+        }
+        catch (Exception)
+        {
+            PageHealthText.Text = Strings.Get("page_health_failed");
+        }
+        finally
+        {
+            RunPageHealthButton.IsEnabled = true;
+        }
     }
 
     private void OnRollback(object sender, RoutedEventArgs e) => _onRollback?.Invoke();
