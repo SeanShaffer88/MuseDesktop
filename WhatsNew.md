@@ -2,21 +2,9 @@
 
 The release notes MuseDesktop shows on the first launch of a new version (S9 #82). This file is generated from CHANGELOG.md's current-version section at release time (see RELEASE_CHECKLIST.md) — do not edit it by hand; a test pins it to the changelog so the two can't drift.
 
-## [1.9.0] — Unreleased
+## [1.9.0] — 2026-10-28
 
 ### Added
-
-- **Compact Focus shell layout.** Settings → Appearance gains a
-  **Shell layout** picker: **Standard** (the classic toolbar and
-  full status bar) or **Compact Focus** — a slim 30px toolbar, and
-  the status bar replaced by a small floating pill in the page's
-  bottom-right corner carrying the same status line, so the page
-  gains 34px of height at comfortable density (22px at compact).
-  The same switch lives in the ⋯ menu ("Compact Focus layout") and
-  the command palette ("Toggle Compact Focus layout"), the choice
-  is remembered, and focus mode (F8) still hides all chrome and
-  restores the layout's own chrome on exit. Shell only, as always:
-  the Muse page is never restyled.
 
 - **Approval alerts can pop a toast as well as beep.** When
   Muse shows an approval card while the MuseDesktop window
@@ -32,13 +20,3 @@ The release notes MuseDesktop shows on the first launch of a new version (S9 #82
   Start Menu shortcut named "MuseDesktop" that carries its
   notification identity, which is what Windows needs to
   deliver them.
-
-### Removed
-
-- **The token-usage ring is gone.** The circle counter that sat
-  in the toolbar beside the zoom controls (added in v1.8.2) is
-  removed, along with its breakdown panel and the "Estimated
-  context limit" setting. The Muse page never reported a usage
-  figure for it to show, so in practice it only ever displayed a
-  rough estimate — an estimate dressed as a meter helps nobody.
-  The Bookmarks button keeps its place in the same corner.
