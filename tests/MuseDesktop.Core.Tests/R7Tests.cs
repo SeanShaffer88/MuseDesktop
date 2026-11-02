@@ -1031,7 +1031,7 @@ public class ShellLocalizationAndAuditTests
         "Muse", "MuseDesktop",                         // brand names are not translated
         "+", "−", "100%",                                // zoom controls + readout format
         "09:00",                                         // 24-hour time example (a format, not prose)
-        "←", "→", "↑", "↓", "↗", "⋯", "⌂", "✕", "⟳", "📌", "🔖", // icon glyphs
+        "←", "→", "↑", "↓", "↗", "⋯", "⌂", "✕", "⟳", "📌", "🔖", "⚙", // icon glyphs
     };
 
     private static readonly string[] UserFacingAttributes =
