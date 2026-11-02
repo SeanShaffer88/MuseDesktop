@@ -180,3 +180,11 @@ Try this:
 3. Spoken announcements: MuseDesktop can speak events through a screen reader (a download finishing, an update appearing, a timer ending, focus mode turning on). Turn any kind off here if it's noise; every announcement — spoken or not — is still recorded under Diagnostics → Recent announcements, so nothing is lost.
 4. Text spacing: Standard / Relaxed / Wide widens the space between lines of text in the app's own windows, for low-vision reading. (Windows' text controls don't offer letter spacing, so the control is line spacing — the spacing that matters most.) The Muse page has its own reading controls in Settings → Account profiles.
 5. Keyboard order: every window's controls follow a deliberate tab order — the order you'd read the screen — and every control has a spoken name. If you find one that doesn't, that's a bug worth reporting.
+
+## The field pass: proving MuseDesktop on this PC
+
+What it is: the field pass is a guided checklist of nine checks — the shell layouts, the page health check, the approval alert, conversation tools, downloads, the tray and hotkey, the app lock, Settings search, and the update check. These are the things only a person at this PC can prove; no automated test can hear the approval beep or watch a download land. Each check says what to do and what working looks like, and where a check has a feature to open, its button opens it. You mark each check Pass, It has a problem, or Skip for now, with an optional note.
+
+Where it opens: in Diagnostics, in the Field pass section ("Open field pass"), or from the ⋯ menu → Field pass…. The window stays open alongside the app while you work through the checks, and you can close it and come back — your answers are saved on this PC as you go, so you always pick up where you left off. Nothing is sent anywhere.
+
+When you're done (or part-way), "Copy summary" in the field pass window puts the verdicts and notes on the clipboard as plain text, ready to paste into a bug report. One honesty note: the pass records your own verdicts — it doesn't run the checks for you. The Page health check in Diagnostics is the automated counterpart: it probes the loaded page directly.
