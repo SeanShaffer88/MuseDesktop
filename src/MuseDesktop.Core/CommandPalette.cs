@@ -587,7 +587,7 @@ public static class CommandRegistry
         Action("open-in-browser", "Open page in browser", "browser external open default", detail: "Page"),
         Action("new-window", "Open page in new window", "second window new window another", detail: "Windows"),
         Action("focus-mode", "Toggle focus mode", "focus mode hide toolbar compact chrome", GestureOf("focus-mode")),
-        Action("shell-layout", "Toggle Compact Focus layout", "shell layout compact focus standard slim toolbar status pill", detail: "Window"),
+        Action("shell-layout", "Cycle shell layout", "shell layout compact focus left rail standard slim toolbar status pill vertical rail", detail: "Window"),
         Action("fullscreen", "Toggle full screen", "full screen fullscreen f11", GestureOf("fullscreen")),
         Action("always-on-top", "Toggle always on top", "pin always on top window stay", detail: "Window"),
         Action("mini-mode", "Toggle mini mode", "mini mode small window strip always on top compact downloads pause resume", detail: "Window"),

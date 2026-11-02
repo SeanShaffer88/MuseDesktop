@@ -265,8 +265,8 @@ public sealed class AppSettings
     /// <summary>Shell chrome density (R6 #153): Comfortable (the long-standing spacing) or Compact. Independent of ShellFontScale.</summary>
     public ShellDensity Density { get; set; } = ShellDensity.Comfortable;
 
-    /// <summary>Shell layout (2026-11-01, SEAN's confirmed mockup B): Standard (toolbar + full status bar) or CompactFocus (slim 30px toolbar, status bar replaced by a floating status pill, page gains the height). Shell chrome only — the Muse page is never restyled. Independent of Density: Compact Focus pins its own toolbar height and hides the bar whatever the density. Sanitized to a defined value.</summary>
-    public ShellLayout ShellLayout { get; set; } = ShellLayout.Standard;
+    /// <summary>Shell layout (2026-11-01, SEAN's confirmed mockups B + C): Standard (toolbar + full status bar), CompactFocus (slim 30px toolbar, status bar replaced by a floating status pill, page gains the height) or LeftRail (56px navigation rail on the left, 30px title strip, full status bar). Shell chrome only — the Muse page is never restyled. Independent of Density: Compact Focus and Left Rail pin their own strip height whatever the density. The DEFAULT is CompactFocus (2.0.0: SEAN's pick for new installs) — it only ever applies when no value was saved; a persisted value always wins, and Sanitized repairs an undefined value to that same default.</summary>
+    public ShellLayout ShellLayout { get; set; } = ShellLayout.CompactFocus;
 
     /// <summary>Tray icon painting style (R6 #155).</summary>
     public TrayIconStyle TrayIconStyle { get; set; } = TrayIconStyle.Color;
@@ -607,7 +607,7 @@ public sealed class AppSettings
         if (!Enum.IsDefined(Density))
             Density = ShellDensity.Comfortable;
         if (!Enum.IsDefined(ShellLayout))
-            ShellLayout = ShellLayout.Standard;
+            ShellLayout = ShellLayout.CompactFocus;
         if (!Enum.IsDefined(TrayIconStyle))
             TrayIconStyle = TrayIconStyle.Color;
         if (!Enum.IsDefined(TrayCountOverlay))
