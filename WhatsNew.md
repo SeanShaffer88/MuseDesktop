@@ -2,7 +2,7 @@
 
 The release notes MuseDesktop shows on the first launch of a new version (S9 #82). This file is generated from CHANGELOG.md's current-version section at release time (see RELEASE_CHECKLIST.md) — do not edit it by hand; a test pins it to the changelog so the two can't drift.
 
-## [2.0.0] — Unreleased
+## [2.0.0] — 2026-11-02
 
 ### Added
 
