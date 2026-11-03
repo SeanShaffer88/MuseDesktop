@@ -58,11 +58,18 @@ public static class MonitorRects
                     info.Monitor.Left, info.Monitor.Top,
                     info.Monitor.Right - info.Monitor.Left,
                     info.Monitor.Bottom - info.Monitor.Top);
+                var workPhysical = new ScreenRect(
+                    info.WorkArea.Left, info.WorkArea.Top,
+                    info.WorkArea.Right - info.WorkArea.Left,
+                    info.WorkArea.Bottom - info.WorkArea.Top);
                 monitors.Add(new MonitorGeometry(
                     physical,
                     DipMath.PhysicalToDip(physical, scale),
                     scale,
-                    (info.Flags & MonitorInfoPrimary) != 0));
+                    (info.Flags & MonitorInfoPrimary) != 0)
+                {
+                    WorkAreaDip = DipMath.PhysicalToDip(workPhysical, scale),
+                });
                 return true;
             }, IntPtr.Zero);
             if (ok && monitors.Count > 0)
@@ -75,7 +82,47 @@ public static class MonitorRects
             System.Windows.SystemParameters.VirtualScreenTop,
             System.Windows.SystemParameters.VirtualScreenWidth,
             System.Windows.SystemParameters.VirtualScreenHeight);
-        return new[] { new MonitorGeometry(fallback, fallback, 1.0, IsPrimary: true) };
+        return new[]
+        {
+            new MonitorGeometry(fallback, fallback, 1.0, IsPrimary: true)
+            {
+                WorkAreaDip = new ScreenRect(
+                    System.Windows.SystemParameters.WorkArea.Left,
+                    System.Windows.SystemParameters.WorkArea.Top,
+                    System.Windows.SystemParameters.WorkArea.Width,
+                    System.Windows.SystemParameters.WorkArea.Height),
+            },
+        };
+    }
+
+    /// <summary>
+    /// A monitor rectangle (a <see cref="ScreenRect"/> built from
+    /// whole physical pixels) as Core's integer
+    /// <see cref="PhysicalRect"/> — the shape captures and Core's
+    /// region maths speak. Rounds, so a rect that somehow carries
+    /// fractions lands on the nearest pixel.
+    /// </summary>
+    public static PhysicalRect PhysicalPixels(ScreenRect rect) => new(
+        (int)Math.Round(rect.Left), (int)Math.Round(rect.Top),
+        (int)Math.Round(rect.Width), (int)Math.Round(rect.Height));
+
+    /// <summary>
+    /// The cursor's position in PHYSICAL pixels (M3) — the space
+    /// <see cref="MonitorGeometry.Physical"/> lives in, so Core's
+    /// point-in-monitor choice can consume both directly. Null when
+    /// the position can't be read; the caller then docks wherever
+    /// it would have docked before (the primary monitor).
+    /// </summary>
+    public static (int X, int Y)? CursorPhysicalPoint()
+    {
+        try
+        {
+            return GetCursorPos(out var point) ? (point.X, point.Y) : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private static IReadOnlyList<ScreenRect> Enumerate(bool workArea)
@@ -163,6 +210,17 @@ public static class MonitorRects
 
     [DllImport("shcore.dll")]
     private static extern int GetDpiForMonitor(IntPtr hMonitor, MonitorDpiType dpiType, out uint dpiX, out uint dpiY);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct Point
+    {
+        public int X;
+        public int Y;
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetCursorPos(out Point point);
 }
 
 /// <summary>
@@ -177,4 +235,14 @@ public sealed record MonitorGeometry(
     ScreenRect Physical,
     ScreenRect Dip,
     double DpiScale,
-    bool IsPrimary);
+    bool IsPrimary)
+{
+    /// <summary>
+    /// This monitor's WORK AREA in DIPs (M3) — the full rect minus
+    /// the taskbar and other app bars, converted with this
+    /// monitor's own scale. Quick ask docks inside it on the
+    /// monitor under the cursor. Defaults to the full DIP rect
+    /// when no enumeration filled it in.
+    /// </summary>
+    public ScreenRect WorkAreaDip { get; init; } = Dip;
+}

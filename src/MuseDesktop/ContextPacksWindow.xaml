@@ -84,6 +84,7 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
                 <TextBlock Grid.Row="0" Style="{StaticResource PanelLabel}" Margin="0"
@@ -156,19 +157,38 @@
                     </StackPanel>
                 </Grid>
 
-                <StackPanel Grid.Row="4" Orientation="Horizontal" Margin="0,10,0,0">
+                <Grid x:Name="ReadingPickerPanel" Grid.Row="4" Margin="0,10,0,0" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Style="{StaticResource PanelLabel}" Margin="0"
+                               Text="{local:Loc context_pack.choose_reading}"/>
+                    <StackPanel Grid.Row="1" Orientation="Horizontal">
+                        <ComboBox x:Name="ReadingCombo" Width="360" Height="28" DisplayMemberPath="Title"
+                                  AutomationProperties.Name="{local:Loc context_pack.choose_reading}" KeyboardNavigation.TabIndex="13"/>
+                        <Button x:Name="AddReadingButton" Content="{local:Loc context_pack.add_chosen_reading}" Width="112" Height="28"
+                                Margin="8,0,0,0" Click="OnAddChosenReading" KeyboardNavigation.TabIndex="14"/>
+                        <Button Content="{local:Loc cancel}" Width="84" Height="28" Margin="8,0,0,0"
+                                Click="OnCancelReading" KeyboardNavigation.TabIndex="15"/>
+                    </StackPanel>
+                </Grid>
+
+                <StackPanel Grid.Row="5" Orientation="Horizontal" Margin="0,10,0,0">
                     <Button x:Name="AddFileButton" Content="{local:Loc context_pack.add_file}" Width="96" Height="28"
-                            Click="OnAddFile" KeyboardNavigation.TabIndex="13"/>
+                            Click="OnAddFile" KeyboardNavigation.TabIndex="16"/>
                     <Button x:Name="AddNoteButton" Content="{local:Loc context_pack.add_note}" Width="104" Height="28"
-                            Margin="8,0,0,0" Click="OnAddNote" KeyboardNavigation.TabIndex="14"/>
+                            Margin="8,0,0,0" Click="OnAddNote" KeyboardNavigation.TabIndex="17"/>
                     <Button x:Name="AddSnippetItemButton" Content="{local:Loc context_pack.add_snippet}" Width="116" Height="28"
-                            Margin="8,0,0,0" Click="OnAddSnippet" KeyboardNavigation.TabIndex="15"/>
+                            Margin="8,0,0,0" Click="OnAddSnippet" KeyboardNavigation.TabIndex="18"/>
+                    <Button x:Name="AddReadingItemButton" Content="{local:Loc context_pack.add_reading}" Width="132" Height="28"
+                            Margin="8,0,0,0" Click="OnAddReading" KeyboardNavigation.TabIndex="19"/>
                     <Button x:Name="RemoveItemButton" Content="{local:Loc context_pack.remove_item}" Width="104" Height="28"
-                            Margin="8,0,0,0" Click="OnRemoveItem" KeyboardNavigation.TabIndex="16"/>
+                            Margin="8,0,0,0" Click="OnRemoveItem" KeyboardNavigation.TabIndex="20"/>
                     <Button x:Name="StartButton" Content="{local:Loc context_pack.start_conversation}" Width="248" Height="28"
                             Margin="16,0,0,0" Click="OnStartConversation"
                             Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0"
-                            ToolTip="{local:Loc context_pack.start_tooltip}" KeyboardNavigation.TabIndex="17"/>
+                            ToolTip="{local:Loc context_pack.start_tooltip}" KeyboardNavigation.TabIndex="21"/>
                 </StackPanel>
             </Grid>
         </Grid>
@@ -176,9 +196,9 @@
         <DockPanel Grid.Row="2" Margin="0,10,0,0" LastChildFill="True">
             <Button x:Name="UndoDeleteButton" DockPanel.Dock="Right" Content="{local:Loc context_pack.undo_delete}"
                     Width="112" Height="28" Margin="8,0,0,0" Click="OnUndoDelete" Visibility="Collapsed"
-                    KeyboardNavigation.TabIndex="18"/>
+                    KeyboardNavigation.TabIndex="22"/>
             <Button DockPanel.Dock="Right" Content="{local:Loc close}" Width="84" Height="28"
-                    Margin="8,0,0,0" IsCancel="True" KeyboardNavigation.TabIndex="19"/>
+                    Margin="8,0,0,0" IsCancel="True" KeyboardNavigation.TabIndex="23"/>
             <TextBlock x:Name="StatusText" Style="{StaticResource Note}" Margin="0,4,0,0"/>
         </DockPanel>
     </Grid>

@@ -27,7 +27,10 @@ public sealed class ContextPackRow
 /// <summary>One context-pack item row: a kind label, the name the user will recognize in the composed block, and a one-line preview or location.</summary>
 public sealed class ContextPackItemRow
 {
-    public ContextPackItemRow(ContextPackItem item, IReadOnlyDictionary<string, PromptSnippet> snippets)
+    public ContextPackItemRow(
+        ContextPackItem item,
+        IReadOnlyDictionary<string, PromptSnippet> snippets,
+        IReadOnlyDictionary<string, ReadingListEntry> readingEntries)
     {
         Item = item;
         switch (item.Kind)
@@ -48,6 +51,19 @@ public sealed class ContextPackItemRow
                 {
                     Title = Strings.Get("context_pack.missing_snippet");
                     Detail = Strings.Get("context_pack.snippet_unavailable");
+                }
+                break;
+            case ContextPackItemKind.Reading:
+                KindLabel = Strings.Get("context_pack.reading_kind");
+                if (readingEntries.TryGetValue(item.ReadingEntryId, out var entry))
+                {
+                    Title = entry.Title;
+                    Detail = entry.Route;
+                }
+                else
+                {
+                    Title = Strings.Get("context_pack.missing_reading");
+                    Detail = Strings.Get("context_pack.reading_gone");
                 }
                 break;
             case ContextPackItemKind.File:
@@ -97,11 +113,14 @@ public partial class ContextPacksWindow : Window
     private readonly Func<ContextPackLibrary> _load;
     private readonly Action<ContextPackLibrary> _save;
     private readonly Func<IReadOnlyList<PromptSnippet>> _snippets;
+    private readonly Func<IReadOnlyList<ReadingListEntry>> _readingEntries;
     private readonly Func<ContextPack, Task<bool>> _startConversation;
 
     private ContextPackLibrary _library = new();
     private IReadOnlyDictionary<string, PromptSnippet> _snippetsById =
         new Dictionary<string, PromptSnippet>();
+    private IReadOnlyDictionary<string, ReadingListEntry> _readingById =
+        new Dictionary<string, ReadingListEntry>();
     private bool _reloading;
     private ContextPack? _deletedPack;
     private int _deletedPackIndex = -1;
@@ -111,11 +130,13 @@ public partial class ContextPacksWindow : Window
         Func<ContextPackLibrary> load,
         Action<ContextPackLibrary> save,
         Func<IReadOnlyList<PromptSnippet>> snippets,
+        Func<IReadOnlyList<ReadingListEntry>> readingEntries,
         Func<ContextPack, Task<bool>> startConversation)
     {
         _load = load;
         _save = save;
         _snippets = snippets;
+        _readingEntries = readingEntries;
         _startConversation = startConversation;
         InitializeComponent();
         SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(this);
@@ -138,6 +159,9 @@ public partial class ContextPacksWindow : Window
         _snippetsById = _snippets()
             .GroupBy(s => s.Id, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+        _readingById = _readingEntries()
+            .GroupBy(e => e.Id, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
         var packRows = _library.Packs.Select(p => new ContextPackRow(p)).ToList();
         PackList.ItemsSource = packRows;
         PackList.SelectedItem =
@@ -159,7 +183,7 @@ public partial class ContextPacksWindow : Window
         var pack = SelectedPack;
         var rows = pack is null
             ? new List<ContextPackItemRow>()
-            : pack.Items.Select(i => new ContextPackItemRow(i, _snippetsById)).ToList();
+            : pack.Items.Select(i => new ContextPackItemRow(i, _snippetsById, _readingById)).ToList();
         ItemList.ItemsSource = rows;
         ItemList.SelectedItem = rows.FirstOrDefault(r => r.Item.Id == keepItemId);
         UpdateControls();
@@ -176,6 +200,7 @@ public partial class ContextPacksWindow : Window
         AddFileButton.IsEnabled = canAdd;
         AddNoteButton.IsEnabled = canAdd;
         AddSnippetItemButton.IsEnabled = canAdd;
+        AddReadingItemButton.IsEnabled = canAdd;
         RemoveItemButton.IsEnabled = SelectedItem is not null;
         StartButton.IsEnabled = pack is not null && pack.Items.Count > 0;
         StartButton.ToolTip = pack is { Items.Count: 0 }
@@ -418,6 +443,7 @@ public partial class ContextPacksWindow : Window
             return;
         }
         SnippetPickerPanel.Visibility = Visibility.Collapsed;
+        ReadingPickerPanel.Visibility = Visibility.Collapsed;
         NoteEditorPanel.Visibility = Visibility.Visible;
         NoteTitleBox.Focus();
     }
@@ -466,6 +492,7 @@ public partial class ContextPacksWindow : Window
             return;
         }
         NoteEditorPanel.Visibility = Visibility.Collapsed;
+        ReadingPickerPanel.Visibility = Visibility.Collapsed;
         SnippetCombo.ItemsSource = snippets;
         SnippetCombo.SelectedIndex = 0;
         SnippetPickerPanel.Visibility = Visibility.Visible;
@@ -497,6 +524,54 @@ public partial class ContextPacksWindow : Window
     private void OnCancelSnippet(object sender, RoutedEventArgs e) =>
         SnippetPickerPanel.Visibility = Visibility.Collapsed;
 
+    private void OnAddReading(object sender, RoutedEventArgs e)
+    {
+        if (SelectedPack is not { } pack)
+            return;
+        if (pack.Items.Count >= ContextPackLibrary.MaxItemsPerPack)
+        {
+            StatusText.Text = Strings.Format("context_pack.item_cap", ContextPackLibrary.MaxItemsPerPack);
+            return;
+        }
+        var entries = _readingEntries();
+        if (entries.Count == 0)
+        {
+            StatusText.Text = Strings.Get("context_pack.no_reading");
+            return;
+        }
+        NoteEditorPanel.Visibility = Visibility.Collapsed;
+        SnippetPickerPanel.Visibility = Visibility.Collapsed;
+        ReadingCombo.ItemsSource = entries;
+        ReadingCombo.SelectedIndex = 0;
+        ReadingPickerPanel.Visibility = Visibility.Visible;
+        ReadingCombo.Focus();
+    }
+
+    private void OnAddChosenReading(object sender, RoutedEventArgs e)
+    {
+        if (SelectedPack is not { } pack)
+            return;
+        if (ReadingCombo.SelectedItem is not ReadingListEntry entry)
+        {
+            StatusText.Text = Strings.Get("context_pack.no_reading");
+            return;
+        }
+        var item = _library.AddReadingItem(pack.Id, entry.Id, DateTimeOffset.UtcNow);
+        if (item is null)
+        {
+            StatusText.Text = Strings.Format("context_pack.item_cap", ContextPackLibrary.MaxItemsPerPack);
+            return;
+        }
+        if (!TrySave())
+            return;
+        ClearUndo();
+        ReadingPickerPanel.Visibility = Visibility.Collapsed;
+        Reload(pack.Id, item.Id, "");
+    }
+
+    private void OnCancelReading(object sender, RoutedEventArgs e) =>
+        ReadingPickerPanel.Visibility = Visibility.Collapsed;
+
     private void OnRemoveItem(object sender, RoutedEventArgs e)
     {
         if (SelectedPack is not { } pack || SelectedItem is not { } item)
@@ -513,6 +588,7 @@ public partial class ContextPacksWindow : Window
     {
         NoteEditorPanel.Visibility = Visibility.Collapsed;
         SnippetPickerPanel.Visibility = Visibility.Collapsed;
+        ReadingPickerPanel.Visibility = Visibility.Collapsed;
     }
 
     // ─────────────────────────── start ───────────────────────────

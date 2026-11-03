@@ -133,7 +133,7 @@
                                           ToolTip="{local:Loc print_this_conversation_page_to_a_pdf_as_it}" KeyboardNavigation.TabIndex="43"/>
                                 <MenuItem x:Name="AskAboutPageItem" Header="{local:Loc ask_about_this_page}" Click="OnAskAboutPage"
                                           ToolTip="{local:Loc ask_about_this_page_tooltip}" KeyboardNavigation.TabIndex="44"/>
-                                <MenuItem x:Name="ScreenshotAskItem" Header="{local:Loc screenshot_to_conversation}" Click="OnScreenshotAsk"
+                                <MenuItem x:Name="ScreenshotAskItem" Header="{local:Loc screenshot_to_conversation}"
                                           ToolTip="{local:Loc screenshot_to_conversation_tooltip}" KeyboardNavigation.TabIndex="45"/>
                                 <MenuItem x:Name="DictateItem" Header="{local:Loc dictate_into_the_message_box}" Click="OnDictate"
                                           ToolTip="{local:Loc dictate_into_the_message_box_tooltip}" KeyboardNavigation.TabIndex="46"/>
@@ -437,31 +437,12 @@
                             ToolTip="{local:Loc ui.leave_it_tooltip}"
                             AutomationProperties.Name="{local:Loc ui.leave_it}" KeyboardNavigation.TabIndex="95"/>
                 </StackPanel>
-                <!-- Read-aloud controls (v2.1.0): shown only while
-                     the last answer is being read aloud — pause or
-                     resume, the speed (which applies from the next
-                     segment), and stop. Like the tidy offer they
-                     live only in the bar; Compact Focus's pill is
-                     display-only, so there the controls wait in the
-                     (hidden) bar. -->
-                <StackPanel x:Name="ReadAloudPanel" DockPanel.Dock="Right" Orientation="Horizontal"
-                            VerticalAlignment="Center" Margin="12,0,0,0" Visibility="Collapsed">
-                    <TextBlock FontSize="11" VerticalAlignment="Center"
-                               Foreground="{StaticResource MutedBrush}"
-                               Text="{local:Loc ui.reading_aloud}"/>
-                    <Button x:Name="ReadingPauseButton" Content="{local:Loc ui.reading_pause}" Height="18"
-                            Padding="8,0" Margin="8,0,0,0" FontSize="11" Click="OnReadingPauseResume"
-                            ToolTip="{local:Loc ui.reading_pause_tooltip}"
-                            AutomationProperties.Name="{local:Loc ui.reading_pause}" KeyboardNavigation.TabIndex="96"/>
-                    <Button x:Name="ReadingSpeedButton" Height="18"
-                            Padding="8,0" Margin="6,0,0,0" FontSize="11" Click="OnReadingSpeed"
-                            ToolTip="{local:Loc ui.reading_speed_tooltip}"
-                            AutomationProperties.Name="{local:Loc ui.reading_speed}" KeyboardNavigation.TabIndex="97"/>
-                    <Button x:Name="ReadingStopButton" Content="{local:Loc ui.reading_stop}" Height="18"
-                            Padding="8,0" Margin="6,0,0,0" FontSize="11" Click="OnReadingStop"
-                            ToolTip="{local:Loc ui.reading_stop_tooltip}"
-                            AutomationProperties.Name="{local:Loc ui.reading_stop}" KeyboardNavigation.TabIndex="98"/>
-                </StackPanel>
+                <!-- The read-aloud controls (v2.1.0) lived here
+                     until M5: they moved OUT of the status bar into
+                     the floating control bar (ReadAloudBarWindow,
+                     Concept A), so they float over every layout —
+                     Compact Focus included, where this bar is hidden
+                     and the controls used to wait out of reach. -->
                 <!-- Draft meter (v2.1.0): the current draft's rough
                      size, its own element so it never fights the
                      status line. Empty (and width 0) whenever the
