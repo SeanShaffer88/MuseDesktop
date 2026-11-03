@@ -28,6 +28,7 @@ namespace MuseDesktop;
 ///   {type:"md-bookmark", text}        — bookmark button clicked on a message
 ///   {type:"md-draft", text}           — composer text changed (debounced)
 ///   {type:"md-draft-sent"}            — a send was attempted (Enter / send button)
+///   {type:"md-long-paste", length}    — a paste over the tidy threshold landed in the composer (v2.1.0; the length only, never the pasted text)
 ///   {type:"md-approval-appeared", signal} — an approval card appeared (R7C; presence + which watcher rule matched, never any card content)
 ///   {type:"md-approval-gone"}         — that card went away (R7C)
 /// </summary>
@@ -324,6 +325,22 @@ public static class PageScripts
                   post({ type: 'md-draft-sent' });
                 }
               });
+              // Tidy paste (v2.1.0): a long paste is REPORTED, never
+              // intercepted — the paste lands exactly as the page
+              // handles it, and only its LENGTH crosses the bridge
+              // (2000 mirrors PasteTidier.LongPasteThreshold in
+              // Core; the shell re-checks the delivered draft
+              // against Core's rule before offering, so this number
+              // only decides when the hint fires). The pasted text
+              // itself reaches the shell afterwards through the
+              // ordinary debounced draft report, like any typing.
+              el.addEventListener('paste', function (ev) {
+                try {
+                  var pasted = '';
+                  if (ev.clipboardData) pasted = ev.clipboardData.getData('text/plain') || ev.clipboardData.getData('text') || '';
+                  if (pasted.length > 2000) post({ type: 'md-long-paste', length: pasted.length });
+                } catch (e) { }
+              });
             } catch (e) { }
           }
           window.__mdRestoreDraft = function (text) {
@@ -333,6 +350,20 @@ public static class PageScripts
                 if (!collapse(composerText(el))) { setComposerText(el, text); return true; }
                 return false;
               }
+              window.__mdPendingDraft = text;
+              return true;
+            } catch (e) { return false; }
+          };
+          // Tidy paste (v2.1.0): replace the composer's whole text
+          // with the tidied form of what is already there — the
+          // restore path's sibling, without the only-if-empty rule
+          // (the box is by definition full: the user just pasted
+          // into it). Setting the text fires 'input', so the draft
+          // channel reports the tidied draft right back.
+          window.__mdReplaceDraft = function (text) {
+            try {
+              var el = findComposer();
+              if (el) { setComposerText(el, text); return true; }
               window.__mdPendingDraft = text;
               return true;
             } catch (e) { return false; }
@@ -571,6 +602,10 @@ public static class PageScripts
     /// <summary>Offer a saved draft back to the page's composer (it lands only when the composer is empty and present, or when it appears).</summary>
     public static string RestoreDraft(string text) =>
         $"(window.__mdRestoreDraft ? window.__mdRestoreDraft({JsonSerializer.Serialize(text)}) : false)";
+
+    /// <summary>Replace the composer's whole text (the tidy-paste rewrite, v2.1.0); the script result is the JSON literal true/false.</summary>
+    public static string ReplaceDraft(string text) =>
+        $"(window.__mdReplaceDraft ? window.__mdReplaceDraft({JsonSerializer.Serialize(text)}) : false)";
 
     /// <summary>Insert a snippet's text into the composer (never sends); the script result is the JSON literal true/false.</summary>
     public static string InsertSnippet(string text) =>

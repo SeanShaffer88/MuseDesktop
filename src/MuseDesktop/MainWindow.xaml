@@ -362,6 +362,35 @@
                            IsHitTestVisible="False" AutomationProperties.LiveSetting="Assertive"/>
                 <TextBlock x:Name="StatusRight" DockPanel.Dock="Right" FontSize="11"
                            Foreground="{StaticResource FaintBrush}" VerticalAlignment="Center"/>
+                <!-- Tidy paste offer (v2.1.0): non-modal by design —
+                     it sits in the bar until the draft is sent, the
+                     route changes, or the user answers it; it never
+                     blocks or alters the paste itself. Only the bar
+                     hosts it: Compact Focus's pill is display-only,
+                     so there the offer waits in the (hidden) bar and
+                     the pill carries the meter text instead. -->
+                <StackPanel x:Name="TidyOfferPanel" DockPanel.Dock="Right" Orientation="Horizontal"
+                            VerticalAlignment="Center" Margin="12,0,0,0" Visibility="Collapsed">
+                    <TextBlock x:Name="TidyOfferText" FontSize="11" VerticalAlignment="Center"
+                               Foreground="{StaticResource MutedBrush}"
+                               Text="{local:Loc status.long_paste_offer}"/>
+                    <Button x:Name="TidyDraftButton" Content="{local:Loc ui.tidy_it}" Height="18"
+                            Padding="8,0" Margin="8,0,0,0" FontSize="11" Click="OnTidyDraft"
+                            ToolTip="{local:Loc ui.tidy_it_tooltip}"
+                            AutomationProperties.Name="{local:Loc ui.tidy_it}" KeyboardNavigation.TabIndex="83"/>
+                    <Button x:Name="LeaveDraftButton" Content="{local:Loc ui.leave_it}" Height="18"
+                            Padding="8,0" Margin="6,0,0,0" FontSize="11" Click="OnLeaveDraft"
+                            ToolTip="{local:Loc ui.leave_it_tooltip}"
+                            AutomationProperties.Name="{local:Loc ui.leave_it}" KeyboardNavigation.TabIndex="84"/>
+                </StackPanel>
+                <!-- Draft meter (v2.1.0): the current draft's rough
+                     size, its own element so it never fights the
+                     status line. Empty (and width 0) whenever the
+                     composer holds nothing meterable. -->
+                <TextBlock x:Name="DraftMeterText" DockPanel.Dock="Right" FontSize="11"
+                           Margin="12,0,0,0" VerticalAlignment="Center"
+                           Foreground="{StaticResource FaintBrush}" TextTrimming="CharacterEllipsis"
+                           AutomationProperties.Name="{local:Loc ui.draft_meter}"/>
                 <TextBlock x:Name="StatusText" Text="{local:Loc starting}" FontSize="11"
                            Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center"
                            TextTrimming="CharacterEllipsis" MouseLeftButtonUp="OnStatusTextClick"
