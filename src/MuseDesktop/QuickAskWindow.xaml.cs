@@ -63,13 +63,18 @@ public partial class QuickAskWindow : Window
         // Dock fresh, bottom-right of the primary monitor's work
         // area (DIPs from MonitorRects are per-monitor converted,
         // so the fixed DIP card size arrives DPI-scaled).
-        var placement = QuickAsk.DockPlacement(
-            MonitorRects.AllWorkAreasInDip().FirstOrDefault());
+        var workArea = MonitorRects.AllWorkAreasInDip().FirstOrDefault();
+        var placement = QuickAsk.DockPlacement(workArea);
         WindowStartupLocation = WindowStartupLocation.Manual;
-        Left = placement.Left;
-        Top = placement.Top;
         Width = Math.Max(placement.Width, MinWidth);
         Height = Math.Max(placement.Height, MinHeight);
+        // The window minimums can outgrow the shrunk placement on
+        // a small work area (a small screen at high scaling), so
+        // dock by the EFFECTIVE size: the card's bottom-right —
+        // the footer rides on it — stays on the work area's
+        // corner, and the top/left yield instead of the bottom.
+        Left = workArea.Right - QuickAsk.DockMarginDip - Width;
+        Top = workArea.Bottom - QuickAsk.DockMarginDip - Height;
         PreviewKeyDown += OnPreviewKeyDown;
         Loaded += OnLoaded;
         Closed += OnClosed;
