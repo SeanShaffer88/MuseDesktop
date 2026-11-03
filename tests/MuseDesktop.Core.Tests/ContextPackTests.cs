@@ -1,0 +1,327 @@
+using MuseDesktop.Core;
+using Xunit;
+
+namespace MuseDesktop.Core.Tests;
+
+// ───────────────────── Context packs: store, caps, compose ─────────────────────
+
+/// <summary>
+/// The context-pack rules (v2.1.0): the library round-trips through
+/// its JSON store in order; a damaged file is preserved as
+/// .corrupt-* and loads empty; the pack and item caps hold;
+/// composing produces one labelled block — file headings name the
+/// file only (never its path), each file is capped, the whole block
+/// is capped with a visible note, and a file or snippet that can't
+/// be produced becomes a placeholder section instead of failing
+/// the pack. An empty pack composes to null.
+/// </summary>
+public class ContextPackStoreTests
+{
+    private static readonly DateTimeOffset Now = new(2026, 11, 2, 12, 0, 0, TimeSpan.Zero);
+
+    private sealed class TempDir : IDisposable
+    {
+        public TempDir() =>
+            Path = System.IO.Path.Combine(
+                System.IO.Path.GetTempPath(), "musedesktop-tests", Guid.NewGuid().ToString("N"));
+
+        public string Path { get; }
+
+        public void Dispose()
+        {
+            try
+            {
+                if (Directory.Exists(Path))
+                    Directory.Delete(Path, recursive: true);
+            }
+            catch { /* a temp folder is not worth failing a test over */ }
+        }
+    }
+
+    [Fact]
+    public void Store_RoundTripsPacksAndItemsInOrder()
+    {
+        using var temp = new TempDir();
+        Directory.CreateDirectory(temp.Path);
+        var path = System.IO.Path.Combine(temp.Path, "context-packs.json");
+        var library = new ContextPackLibrary();
+        var first = library.AddPack("Book research", Now)!;
+        var second = library.AddPack("Taxes 2026", Now.AddMinutes(1))!;
+        library.AddFileItem(first.Id, @"C:\Users\Sean\Notes\chapter.txt", Now);
+        library.AddNoteItem(first.Id, "Angle", "Start with the river scene.", Now);
+        library.AddSnippetItem(first.Id, "snippet-1", Now);
+        library.AddNoteItem(second.Id, "Forms", "W-2 and 1099 are in the folder.", Now);
+        ContextPackStore.Save(path, library);
+
+        var loaded = ContextPackStore.Load(path);
+        Assert.Equal(new[] { "Book research", "Taxes 2026" }, loaded.Packs.Select(p => p.Name));
+        var loadedFirst = loaded.Packs[0];
+        Assert.Equal(first.Id, loadedFirst.Id);
+        Assert.Equal(Now, loadedFirst.CreatedUtc);
+        Assert.Equal(
+            new[] { ContextPackItemKind.File, ContextPackItemKind.Note, ContextPackItemKind.Snippet },
+            loadedFirst.Items.Select(i => i.Kind));
+        Assert.Equal(@"C:\Users\Sean\Notes\chapter.txt", loadedFirst.Items[0].Path);
+        Assert.Equal("Angle", loadedFirst.Items[1].Title);
+        Assert.Equal("Start with the river scene.", loadedFirst.Items[1].Text);
+        Assert.Equal("snippet-1", loadedFirst.Items[2].SnippetId);
+        Assert.Single(loaded.Packs[1].Items);
+    }
+
+    [Fact]
+    public void Store_MissingFile_IsAnEmptyLibrary()
+    {
+        using var temp = new TempDir();
+        var loaded = ContextPackStore.Load(System.IO.Path.Combine(temp.Path, "nope.json"));
+        Assert.Empty(loaded.Packs);
+    }
+
+    [Fact]
+    public void Store_CorruptFile_IsPreserved_AndAnEmptyLibraryLoads()
+    {
+        using var temp = new TempDir();
+        Directory.CreateDirectory(temp.Path);
+        var path = System.IO.Path.Combine(temp.Path, "context-packs.json");
+        File.WriteAllText(path, "{ this is not json");
+        var loaded = ContextPackStore.Load(path);
+        Assert.Empty(loaded.Packs);
+        var preserved = Directory.GetFiles(temp.Path, "context-packs.json.corrupt-*");
+        Assert.Single(preserved);
+        Assert.Equal("{ this is not json", File.ReadAllText(preserved[0]));
+    }
+
+    [Fact]
+    public void Library_EnforcesThePackCap()
+    {
+        var library = new ContextPackLibrary();
+        for (var i = 0; i < ContextPackLibrary.MaxPacks; i++)
+            Assert.NotNull(library.AddPack($"Pack {i}", Now));
+        Assert.Null(library.AddPack("One too many", Now));
+        Assert.Equal(ContextPackLibrary.MaxPacks, library.Packs.Count);
+    }
+
+    [Fact]
+    public void Library_EnforcesTheItemCap()
+    {
+        var library = new ContextPackLibrary();
+        var pack = library.AddPack("Full", Now)!;
+        for (var i = 0; i < ContextPackLibrary.MaxItemsPerPack; i++)
+            Assert.NotNull(library.AddNoteItem(pack.Id, $"Note {i}", "Text.", Now));
+        Assert.Null(library.AddNoteItem(pack.Id, "One too many", "Text.", Now));
+        Assert.Null(library.AddFileItem(pack.Id, @"C:\extra.txt", Now));
+        Assert.Null(library.AddSnippetItem(pack.Id, "snippet-1", Now));
+        Assert.Equal(ContextPackLibrary.MaxItemsPerPack, pack.Items.Count);
+    }
+
+    [Fact]
+    public void Library_RejectsUnusableNamesNotesPathsAndSnippetIds()
+    {
+        var library = new ContextPackLibrary();
+        Assert.Null(library.AddPack("   ", Now));
+        var pack = library.AddPack("  Many   spaces  ", Now)!;
+        Assert.Equal("Many spaces", pack.Name);
+        Assert.Null(library.AddNoteItem(pack.Id, "", "Text.", Now));
+        Assert.Null(library.AddNoteItem(pack.Id, "Title", "   ", Now));
+        Assert.Null(library.AddFileItem(pack.Id, " ", Now));
+        Assert.Null(library.AddSnippetItem(pack.Id, "has spaces", Now));
+        Assert.Empty(pack.Items);
+    }
+
+    [Fact]
+    public void Library_RenameRemoveAndRestore_KeepOrder()
+    {
+        var library = new ContextPackLibrary();
+        var a = library.AddPack("A", Now)!;
+        var b = library.AddPack("B", Now)!;
+        var c = library.AddPack("C", Now)!;
+        Assert.True(library.RenamePack(b.Id, "Bee", Now.AddMinutes(2)));
+        Assert.Equal("Bee", library.FindPack(b.Id)!.Name);
+        Assert.Equal(Now.AddMinutes(2), library.FindPack(b.Id)!.UpdatedUtc);
+        Assert.False(library.RenamePack(b.Id, " ", Now));
+
+        Assert.True(library.RemovePack(b.Id));
+        Assert.Equal(new[] { "A", "C" }, library.Packs.Select(p => p.Name));
+        Assert.True(library.RestorePack(b, 1));
+        Assert.Equal(new[] { "A", "Bee", "C" }, library.Packs.Select(p => p.Name));
+        Assert.False(library.RestorePack(b, 0));   // the id is present again
+        Assert.False(library.RemovePack("missing"));
+        Assert.NotNull(a);
+        Assert.NotNull(c);
+    }
+
+    [Fact]
+    public void Sanitize_DropsInvalidEntries_CapsInStoredOrder_AndClearsUnusedFields()
+    {
+        var library = new ContextPackLibrary
+        {
+            Packs = Enumerable.Range(0, ContextPackLibrary.MaxPacks + 5)
+                .Select(i => new ContextPack
+                {
+                    Id = $"pack-{i}",
+                    Name = $"Pack {i}",
+                    Items = new List<ContextPackItem>
+                    {
+                        new()
+                        {
+                            Id = $"item-{i}",
+                            Kind = ContextPackItemKind.Note,
+                            Title = "Kept",
+                            Text = "Kept text.",
+                            Path = @"C:\should-be-cleared.txt",
+                            SnippetId = "should-be-cleared",
+                        },
+                    },
+                })
+                .ToList(),
+        };
+        library.Packs.Add(new ContextPack { Id = "pack-0", Name = "Duplicate id" });
+        library.Packs.Add(new ContextPack { Id = "blank-name", Name = " " });
+        library.Sanitize();
+        Assert.Equal(ContextPackLibrary.MaxPacks, library.Packs.Count);
+        Assert.Equal("Pack 0", library.Packs[0].Name);
+        var item = library.Packs[0].Items.Single();
+        Assert.Equal("", item.Path);
+        Assert.Equal("", item.SnippetId);
+    }
+}
+
+public class ContextPackComposeTests
+{
+    private static readonly DateTimeOffset Now = new(2026, 11, 2, 12, 0, 0, TimeSpan.Zero);
+
+    private static readonly ContextPackComposeLabels Labels = new(
+        Header: "Context pack: {0}",
+        FileSection: "File: {0}",
+        NoteSection: "Note: {0}",
+        SnippetSection: "Snippet: {0}",
+        SnippetUnavailableSection: "Snippet: no longer in the library",
+        FileUnavailable: "(file {0} could not be read)",
+        SnippetUnavailable: "This snippet could not be included because it is no longer in the snippet library.",
+        ItemCutNote: "[…the rest of this item was left out]",
+        TotalCutNote: "[…the rest of the pack was left out — it was longer than fits here]");
+
+    private static ContextPackLibrary LibraryWithPack(out ContextPack pack)
+    {
+        var library = new ContextPackLibrary();
+        pack = library.AddPack("Book research", Now)!;
+        return library;
+    }
+
+    [Fact]
+    public void Compose_EmptyOrMissingPack_IsNull()
+    {
+        var library = LibraryWithPack(out var pack);
+        Assert.Null(ContextPackComposer.Compose(null, _ => null, _ => null, Labels));
+        Assert.Null(ContextPackComposer.Compose(pack, _ => null, _ => null, Labels));
+        Assert.NotNull(library);
+    }
+
+    [Fact]
+    public void Compose_LabelsEverySection_AndFileHeadingsUseTheFileNameOnly()
+    {
+        var library = LibraryWithPack(out var pack);
+        library.AddFileItem(pack.Id, @"C:\Users\Sean\Notes\chapter.txt", Now);
+        library.AddNoteItem(pack.Id, "Angle", "Start with the river scene.", Now);
+        library.AddSnippetItem(pack.Id, "snippet-1", Now);
+        var files = new Dictionary<string, string?> { [@"C:\Users\Sean\Notes\chapter.txt"] = "Chapter one text." };
+        var snippets = new Dictionary<string, PromptSnippet>
+        {
+            ["snippet-1"] = new() { Id = "snippet-1", Name = "Explain simply", Body = "Explain {{topic}} simply." },
+        };
+
+        var composed = ContextPackComposer.Compose(
+            pack,
+            path => files.TryGetValue(path, out var text) ? text : null,
+            id => snippets.TryGetValue(id, out var snippet) ? snippet : null,
+            Labels);
+
+        Assert.Equal(
+            "Context pack: Book research\n\n" +
+            "File: chapter.txt\n\nChapter one text.\n\n" +
+            "Note: Angle\n\nStart with the river scene.\n\n" +
+            "Snippet: Explain simply\n\nExplain {{topic}} simply.",
+            composed);
+        Assert.DoesNotContain(@"C:\Users\Sean", composed);
+    }
+
+    [Fact]
+    public void Compose_UnreadableOrUndecodableFiles_BecomePlaceholders_AndThePackStillComposes()
+    {
+        var library = LibraryWithPack(out var pack);
+        library.AddFileItem(pack.Id, @"D:\gone.txt", Now);
+        library.AddFileItem(pack.Id, @"D:\binary.dat", Now);
+        library.AddNoteItem(pack.Id, "Still here", "The note survives.", Now);
+
+        var composed = ContextPackComposer.Compose(
+            pack,
+            path => path.EndsWith("binary.dat") ? throw new InvalidOperationException("not text") : null,
+            _ => null,
+            Labels);
+
+        Assert.NotNull(composed);
+        Assert.Contains("File: gone.txt\n\n(file gone.txt could not be read)", composed);
+        Assert.Contains("File: binary.dat\n\n(file binary.dat could not be read)", composed);
+        Assert.Contains("Note: Still here\n\nThe note survives.", composed);
+    }
+
+    [Fact]
+    public void Compose_MissingSnippet_BecomesAPlaceholder()
+    {
+        var library = LibraryWithPack(out var pack);
+        library.AddSnippetItem(pack.Id, "deleted-snippet", Now);
+        var composed = ContextPackComposer.Compose(pack, _ => null, _ => null, Labels);
+        Assert.Equal(
+            "Context pack: Book research\n\n" +
+            "Snippet: no longer in the library\n\n" +
+            "This snippet could not be included because it is no longer in the snippet library.",
+            composed);
+        Assert.NotNull(library);
+    }
+
+    [Fact]
+    public void Compose_CapsAFileAtThePerFileCap_AndSaysSo()
+    {
+        var library = LibraryWithPack(out var pack);
+        library.AddFileItem(pack.Id, @"D:\long.txt", Now);
+        var text = new string('a', ContextPackComposer.MaxFileTextChars + 500);
+        var composed = ContextPackComposer.Compose(pack, _ => text, _ => null, Labels);
+        Assert.NotNull(composed);
+        Assert.Contains(new string('a', ContextPackComposer.MaxFileTextChars), composed);
+        Assert.DoesNotContain(new string('a', ContextPackComposer.MaxFileTextChars + 1), composed);
+        Assert.Contains(Labels.ItemCutNote, composed);
+        Assert.EndsWith(Labels.ItemCutNote, composed);
+        Assert.NotNull(library);
+    }
+
+    [Fact]
+    public void Compose_CapsTheWholeBlockAtTheTotalCap_AndSaysSo()
+    {
+        var library = LibraryWithPack(out var pack);
+        for (var i = 0; i < 5; i++)
+            library.AddNoteItem(pack.Id, $"Note {i}", new string('n', 6_000), Now);
+        var composed = ContextPackComposer.Compose(pack, _ => null, _ => null, Labels);
+        Assert.NotNull(composed);
+        Assert.True(composed.Length <= ContextPackComposer.MaxTotalChars,
+            $"Composed block was {composed.Length} characters.");
+        Assert.EndsWith(Labels.TotalCutNote, composed);
+        Assert.Contains("Note: Note 0", composed);
+        Assert.DoesNotContain("Note: Note 4", composed);
+        Assert.NotNull(library);
+    }
+
+    [Fact]
+    public void Compose_ExactlyAtTheTotalCap_IsNotMarkedCut()
+    {
+        var library = LibraryWithPack(out var pack);
+        // Header (27) + blank line (2) + section heading (7) +
+        // blank line (2) + body = the cap exactly.
+        var bodyLength = ContextPackComposer.MaxTotalChars - 38;
+        library.AddNoteItem(pack.Id, "T", "x", Now);
+        pack.Items[0].Text = new string('b', bodyLength);
+        var composed = ContextPackComposer.Compose(pack, _ => null, _ => null, Labels);
+        Assert.NotNull(composed);
+        Assert.Equal(ContextPackComposer.MaxTotalChars, composed.Length);
+        Assert.DoesNotContain(Labels.TotalCutNote, composed);
+        Assert.NotNull(library);
+    }
+}

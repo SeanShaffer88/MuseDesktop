@@ -87,6 +87,11 @@ public static class AppPaths
     /// <summary>The prompt snippets (R5B #206): per profile — the user's own reusable prompt text. Own file, never in settings, never logged.</summary>
     public static string SnippetsPath => Path.Combine(RootDir, "snippets.json");
 
+    /// <summary>The context packs (v2.1.0): named bundles of file references, notes, and snippet references. Own file, never in settings, never logged; the material a pack points at is read only when a conversation is started with it.</summary>
+    public static string ContextPacksPath => Path.Combine(RootDir, "context-packs.json");
+    /// <summary>The standing briefs (v2.1.0): per-project background cards (background, rules, preferences) the user starts conversations from. Own file, never in settings, never logged — a brief is the user's own words, like a snippet.</summary>
+    public static string BriefsPath => Path.Combine(RootDir, "briefs.json");
+
     /// <summary>Installers the in-app updater downloads + the kept current/previous slots (v0.13.0, S9 #81/#84). Beside the settings, so portable mode carries them too.</summary>
     public static string UpdatesDir => Path.Combine(RootDir, "updates");
 

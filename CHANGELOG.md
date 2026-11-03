@@ -100,6 +100,80 @@ Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhanc
   the answer is read from the page only at your click, spoken,
   and forgotten, never logged or stored.
 
+- **Context packs.** The ⋯ menu's **Context packs…** (or
+  Ctrl+K) opens a window where you can save a bundle of local
+  material under one name: files from this PC, notes you write
+  into the pack, and snippets from your library (added by
+  picking, typing, or dropping files onto the window).
+  **Start conversation with this pack** opens a new conversation
+  with the whole bundle in the message box as one organized
+  block — a heading naming the pack, then a labelled section
+  per item — still unsent, ready for your question. Files are
+  read as text only at that moment: each file can contribute
+  up to 8,000 characters and a whole pack up to 24,000, the
+  block itself says when something was cut down, and a file
+  that has moved, can't be read, or isn't text becomes a
+  one-line note in its section instead of stopping the rest.
+  A snippet that's no longer in the library gets the same
+  honest placeholder. Headings name files by their file name
+  only — never their folders — and pack contents are never
+  logged. Deleting a pack asks first and can be undone until
+  you close the window; the files and snippets themselves are
+  never touched.
+
+- **Standing briefs.** A brief is a long-form card for a project
+  or topic — **Background**, **Rules**, **Preferences** — kept on
+  this PC in its own file, so Muse can start every session
+  already knowing the situation. Briefs live in the new
+  **Library** window (Ctrl+K: "New conversation with a brief…"),
+  which gathers everything you keep into one place: the snippet
+  library and the reading list get tabs of their own there —
+  second doors onto the same stores, never copies — and the
+  **Briefs** tab holds the cards, with an editor for the name and
+  the three sections (each section can be left empty, but a brief
+  needs at least one section with words in it). **New conversation
+  with this brief** opens a fresh conversation with the brief
+  composed as one message in the message box — still unsent,
+  always: you read it and press Send yourself, and that send is
+  what makes it the conversation's first message. A brief's words
+  are never logged or sent anywhere else.
+
+- **Quick-attach strip.** A slim strip now sits above the
+  message box holding your recent files — the newest downloads
+  and screenshots (from Downloads and Pictures\Screenshots),
+  plus a **Pasted image** chip whenever the clipboard holds a
+  picture. Click a file to attach it to the conversation you're
+  in, or drag it onto the page; either way it goes in through
+  the page's own upload control, and if the page's shape won't
+  take it that way, the file is put on the clipboard instead
+  and the status bar tells you to paste it with Ctrl+V. An
+  **Add files…** button at the strip's end attaches any other
+  file the same way. The strip keeps itself current as files
+  arrive (no polling), shows only file types the page's upload
+  takes, and reads names and times only — never a file's
+  contents. Its ✕ hides it; the ⋯ menu's **Quick-attach strip**
+  item (or Settings → Account profiles) brings it back. It
+  appears in the Standard and Left Rail layouts; Compact Focus,
+  whose point is an uncluttered page, leaves it hidden until
+  you switch layouts.
+
+- **Compare mode.** The ⋯ menu's **Compare mode…** (or Ctrl+K)
+  opens a separate window holding two Muse panes side by
+  side, each signed in as a profile you pick — when you have
+  two profiles, the panes start on different ones. Both panes
+  open on a fresh conversation, and the window's one message
+  box sends the same prompt to both at once: type the question,
+  press **Send to both** (or Enter), and read the two answers
+  next to each other. Each pane reports its own result under
+  its profile picker — "Sent", "Couldn't find the message
+  box", or "Still loading — try again" — and the prompt stays
+  in the box unless both panes sent, so a half-sent question
+  is never lost. This is the one place the app sends for you,
+  and only because the button you pressed is the send itself.
+  The panes are plain pages for now: drafts, follow-up chips,
+  and the other conversation tools don't run inside them, and
+  the prompt and the answers are never logged or stored.
+
 ## [2.0.0] — 2026-11-02
 
 ### Added

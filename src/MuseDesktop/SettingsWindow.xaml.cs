@@ -299,6 +299,8 @@ public partial class SettingsWindow : Window
         DraftMeterCheck.IsChecked = _working.DraftMeterEnabled;
         // v2.1.0: the follow-up chips switch, under the meter one.
         FollowUpChipsCheck.IsChecked = _working.FollowUpChipsEnabled;
+        // v2.1.0: the quick-attach strip switch, under the chips one.
+        QuickAttachStripCheck.IsChecked = _working.QuickAttachStripEnabled;
         StartWithWindowsCheck.IsChecked = _working.StartWithWindows;
         StartMinimizedCheck.IsChecked = _working.StartMinimizedToTray;
         CloseToTrayCheck.IsChecked = _working.CloseToTray;
@@ -936,6 +938,10 @@ public partial class SettingsWindow : Window
     /// <summary>The follow-up chips switch (v2.1.0): write-through like the meter switch above it. Independent of it — this one governs only the chip bar the page offers after a long answer.</summary>
     private void OnFollowUpChipsChanged(object sender, RoutedEventArgs e) =>
         _working.FollowUpChipsEnabled = FollowUpChipsCheck.IsChecked == true;
+
+    /// <summary>The quick-attach strip switch (v2.1.0): write-through like the switches above it. The same one setting the ⋯ menu item and the strip's own ✕ drive — three doors, one switch.</summary>
+    private void OnQuickAttachStripChanged(object sender, RoutedEventArgs e) =>
+        _working.QuickAttachStripEnabled = QuickAttachStripCheck.IsChecked == true;
 
     // ── prompt snippets (R5B #206) ──────────────────────────────────
     // Snippets live in their OWN store (snippets.json), not in the

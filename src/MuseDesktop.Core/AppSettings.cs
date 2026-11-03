@@ -161,6 +161,9 @@ public sealed class AppSettings
     /// <summary>Follow-up chips (v2.1.0): after a long answer finishes, the page shows one small row of one-click follow-ups above the composer (Summarize, Give an example, …); choosing one drops its request into the composer, unsent. On by default; off means the page script is told not to offer the row at all. Independent of <see cref="DraftMeterEnabled"/> — the answer is only ever measured on the page, and a click reports only the chip's id.</summary>
     public bool FollowUpChipsEnabled { get; set; } = true;
 
+    /// <summary>Quick-attach strip (v2.1.0, Concept B): a slim strip in the shell above the message box holding recent files from Downloads and Pictures\Screenshots (plus a pasted image when the clipboard holds one); clicking a chip — or dragging it onto the page — attaches the file to the open conversation through the page's own upload. On by default; off (the strip's ✕, the ⋯ menu item, or the Settings switch — one setting, three doors) hides the strip entirely. The strip reads file names and metadata only, never contents, and remembers nothing.</summary>
+    public bool QuickAttachStripEnabled { get; set; } = true;
+
     /// <summary>Retry failed downloads automatically (R4 #139): network/server reasons only, bounded attempts, backing off. On by default.</summary>
     public bool DownloadAutoRetryEnabled { get; set; } = true;
 

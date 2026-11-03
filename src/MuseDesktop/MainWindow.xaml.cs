@@ -8,6 +8,7 @@ using MenuItem = System.Windows.Controls.MenuItem;
 using TextChangedEventArgs = System.Windows.Controls.TextChangedEventArgs;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Json;
 using System.Windows;
 using Grid = System.Windows.Controls.Grid;
@@ -108,6 +109,21 @@ public partial class MainWindow : Window
     // through them and are never logged.
     private readonly DictationEngine _dictation = new();
     private readonly ReadAloudEngine _readAloud = new();
+    // v2.1.0: the quick-attach strip's live bits — watchers on the
+    // two recent-file folders (events only, never polling), the
+    // debounce that turns a burst of folder events into one strip
+    // refresh, and the manual chip-drag state (see the quick-attach
+    // section below for why the drag is the shell's own tracking
+    // rather than OLE drag-and-drop).
+    private readonly List<System.IO.FileSystemWatcher> _quickAttachWatchers = new();
+    private System.Windows.Threading.DispatcherTimer? _quickAttachDebounce;
+    private bool _quickAttachSetupDone;
+    private bool _quickAttachHasContent;
+    private System.Windows.Controls.Button? _quickAttachDragChip;
+    private bool _quickAttachDragging;
+    private bool _quickAttachSuppressClick;
+    private System.Windows.Point _quickAttachDragStart;
+    private System.Windows.Media.Brush? _webFocusRingBrushBeforeDrag;
     // R7C: the approval-beep policy (Core) — fed by the bridge
     // watcher's appeared/gone reports; it decides, the shell sounds.
     // R7C2: a slow tick asks the policy for reminder beeps while a
@@ -189,6 +205,16 @@ public partial class MainWindow : Window
     // done in this window (or with it closed to the tray), so it
     // must never be a second instance or a modal block.
     private FieldPassWindow? _fieldPassWindow;
+
+    // The context packs manager (v2.1.0): one modeless window,
+    // created on first open and reactivated after — packs are
+    // edited alongside conversations, not behind a modal block.
+    private ContextPacksWindow? _contextPacksWindow;
+
+    // Compare mode (v2.1.0): one modeless window, reactivated on
+    // reopen like the field pass — the two panes are a working
+    // surface the user keeps beside the main window, not a dialog.
+    private CompareWindow? _compareWindow;
 
     // R3 #122/#123 — the per-profile PIN gate for hidden launches
     // (App hands over the launch profile's record; the first real
@@ -487,6 +513,13 @@ public partial class MainWindow : Window
         _approvalTimer.Start();
         Loaded += OnLoaded;
         Closing += OnClosing;
+        // v2.1.0: the quick-attach strip — folder watchers start
+        // here (the settings are loaded, the tree exists) and die
+        // with the window; activation refreshes the strip, since
+        // arriving back is when new files and a freshly copied
+        // image matter.
+        SetupQuickAttach();
+        Closed += (_, _) => DisposeQuickAttachWatchers();
         // v2.1.0: the voice engines' events — dictation results
         // arrive on engine threads (the handlers marshal), the
         // reader's arrive on this dispatcher by its own contract.
@@ -512,6 +545,7 @@ public partial class MainWindow : Window
         {
             _windowMru.Touch("main");
             ReevaluateSchedules();
+            RefreshQuickAttachStrip();
         };
     }
 
@@ -641,6 +675,9 @@ public partial class MainWindow : Window
         // v2.1.0: dictation and reading belong to the tab they
         // started in too — switching ends both, silently.
         StopVoiceFeatures();
+        // v2.1.0: the quick-attach strip re-reads its folders and
+        // the clipboard for the newly shown tab.
+        RefreshQuickAttachStrip();
         tab.Host.Visibility = Visibility.Visible;
         TitleText.Text = string.IsNullOrWhiteSpace(tab.PageTitle) ? "Muse" : tab.PageTitle;
         var source = tab.Browser.Source?.ToString() ?? "";
@@ -843,6 +880,10 @@ public partial class MainWindow : Window
             toolbarPanel.Margin = new Thickness(density.ToolbarInset, 0, density.ToolbarInset, 0);
         if (StatusBar.Child is System.Windows.Controls.DockPanel statusPanel)
             statusPanel.Margin = new Thickness(density.StatusInset, 0, density.StatusInset, 0);
+        // v2.1.0: the quick-attach strip's visibility rides the
+        // layout too (Compact Focus hides it) — re-resolve it with
+        // every density/layout application.
+        UpdateQuickAttachStripVisibility();
     }
 
     /// <summary>
@@ -2976,6 +3017,9 @@ public partial class MainWindow : Window
             ? "stop_dictation" : "dictate_into_the_message_box");
         ReadAloudItem.Header = Strings.Get(_readAloud.IsActive
             ? "stop_reading" : "read_the_last_answer_aloud");
+        // Quick-attach strip (v2.1.0): the check IS the setting —
+        // the same one the strip's ✕ and the Settings switch drive.
+        QuickAttachItem.IsChecked = _settings.QuickAttachStripEnabled;
         MoreMenu.PlacementTarget = target;
         MoreMenu.IsOpen = true;
     }
@@ -3084,6 +3128,10 @@ public partial class MainWindow : Window
         // page is re-configured either way (off retires any bar).
         _settings.FollowUpChipsEnabled = clone.FollowUpChipsEnabled;
         ApplyFollowUpChipsSetting();
+        // v2.1.0: the quick-attach strip switch rides along too;
+        // the strip re-resolves (and re-reads) immediately.
+        _settings.QuickAttachStripEnabled = clone.QuickAttachStripEnabled;
+        RefreshQuickAttachStrip();
         _settings.AlwaysOnTop = clone.AlwaysOnTop;
         // S5: appearance + Settings-window memory ride the same adoption.
         _settings.ShellLayout = clone.ShellLayout;
@@ -4459,6 +4507,9 @@ public partial class MainWindow : Window
         // The rail is chrome too: focus mode hides it, and exiting
         // restores it when the layout is Left Rail.
         ApplyRailChrome(layoutMetrics);
+        // v2.1.0: the quick-attach strip is chrome too — hidden in
+        // focus mode, restored on exit when the layout allows it.
+        UpdateQuickAttachStripVisibility();
         if (on)
         {
             // R5 #141: focus mode fills the screen — the window
@@ -5285,7 +5336,262 @@ public partial class MainWindow : Window
     /// is nothing to add to; if the box never appears, the status
     /// says so honestly rather than claiming the text landed.
     /// </summary>
-    private async Task InsertPageContextWhenReadyAsync(BrowserTabState tab, string context)
+    private async Task InsertPageContextWhenReadyAsync(BrowserTabState tab, string context) =>
+        await InsertContextWhenReadyAsync(
+            tab, context,
+            Strings.Get("status.ask_page_added"),
+            Strings.Get("status.ask_page_no_message_box"));
+
+    /// <summary>
+    /// The shared bounded-retry insert for a composed context block
+    /// (Ask about this page, and context packs starting a
+    /// conversation): land the text in the named tab's composer
+    /// when it appears, and report whether it landed. The insert
+    /// itself focuses the box; if the user closes the tab meanwhile
+    /// there is nothing to add to.
+    /// </summary>
+    private async Task<bool> InsertContextWhenReadyAsync(
+        BrowserTabState tab, string context, string successStatus, string failureStatus)
+    {
+        for (var attempt = 0; attempt < 45; attempt++)
+        {
+            if (!_tabs.Contains(tab))
+                return false;
+            if (tab.WebReady)
+            {
+                try
+                {
+                    if (await tab.Browser.CoreWebView2.ExecuteScriptAsync(
+                            PageScripts.InsertSnippet(context)) == "true")
+                    {
+                        if (ReferenceEquals(tab, _activeTab))
+                            SetStatus(successStatus);
+                        return true;
+                    }
+                }
+                catch (Exception)
+                {
+                    // The new tab's web view is still starting or
+                    // navigating — keep waiting for its composer.
+                }
+            }
+            await Task.Delay(350);
+        }
+        if (_tabs.Contains(tab) && ReferenceEquals(tab, _activeTab))
+            SetStatus(failureStatus);
+        return false;
+    }
+
+    private void OnContextPacks(object sender, RoutedEventArgs e) => OpenContextPacks();
+
+    /// <summary>
+    /// The context packs manager (v2.1.0, Concept A): one modeless
+    /// window, reactivated rather than duplicated. Store work rides
+    /// delegates (the reading-list/bookmarks pattern), and starting
+    /// a conversation rides one too — the window closes only when
+    /// the composed pack actually landed in a new conversation.
+    /// </summary>
+    private void OpenContextPacks()
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        if (_contextPacksWindow is not null)
+        {
+            _contextPacksWindow.Activate();
+            return;
+        }
+        if (!IsVisible)
+            ShowFromTray();
+        var profileId = _settings.ActiveProfileId;
+        var window = new ContextPacksWindow(
+            load: () => ContextPackStore.Load(AppPaths.ContextPacksPath),
+            save: library => ContextPackStore.Save(AppPaths.ContextPacksPath, library),
+            snippets: () =>
+            {
+                try { return PromptSnippetStore.Load(AppPaths.SnippetsPath).EntriesFor(profileId); }
+                catch (Exception) { return Array.Empty<PromptSnippet>(); }
+            },
+            startConversation: StartConversationWithContextPackAsync)
+            { Owner = this };
+        _contextPacksWindow = window;
+        window.Closed += (_, _) => _contextPacksWindow = null;
+        ShellTextScaling.Apply(window, _settings.ShellFontScale);
+        window.Show();
+        window.Activate();
+    }
+
+    /// <summary>
+    /// Start a conversation with a context pack (v2.1.0): compose
+    /// the pack HERE — file text is read now, at the user's Start
+    /// click, and only the composed block crosses into the new
+    /// conversation's composer, unsent. File contents, note text,
+    /// and snippet text are never logged; a failure is reported as
+    /// an outcome, never with the material attached.
+    /// </summary>
+    private async Task<bool> StartConversationWithContextPackAsync(ContextPack pack)
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return false;
+        }
+        if (_tabs.Count >= MaxOpenTabs)
+        {
+            SetStatus($"You can have up to {MaxOpenTabs} tabs open");
+            return false;
+        }
+        string? context;
+        try
+        {
+            var snippets = PromptSnippetStore.Load(AppPaths.SnippetsPath);
+            var profileId = _settings.ActiveProfileId;
+            context = ContextPackComposer.Compose(
+                pack,
+                ReadContextPackFileText,
+                snippetId => snippets.Find(profileId, snippetId),
+                new ContextPackComposeLabels(
+                    Strings.Get("context_pack.header"),
+                    Strings.Get("context_pack.file_section"),
+                    Strings.Get("context_pack.note_section"),
+                    Strings.Get("context_pack.snippet_section"),
+                    Strings.Get("context_pack.snippet_unavailable_section"),
+                    Strings.Get("context_pack.file_unavailable"),
+                    Strings.Get("context_pack.snippet_unavailable"),
+                    Strings.Get("context_pack.item_cut_note"),
+                    Strings.Get("context_pack.total_cut_note")));
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Context pack compose failed: {ex.Message}");
+            return false;
+        }
+        if (context is null)
+            return false;
+        if (!IsVisible)
+            ShowFromTray();
+        var tab = CreateTab(UrlPolicy.HomeUrl, activate: true);
+        return await InsertContextWhenReadyAsync(
+            tab, context,
+            Strings.Format("status.context_pack_added", pack.Name),
+            Strings.Get("status.context_pack_no_message_box"));
+    }
+
+    /// <summary>
+    /// Read a context-pack file as text for composing: strict
+    /// UTF-8 (a file that doesn't decode is not text, and Core
+    /// gives it the placeholder), byte-order marks honored, and
+    /// only a little past Core's per-file cap is read — a huge
+    /// file is context for one conversation, not something to load
+    /// whole. Any failure reads as null, which Core also turns
+    /// into the placeholder.
+    /// </summary>
+    private static string? ReadContextPackFileText(string path)
+    {
+        try
+        {
+            using var stream = new FileStream(
+                path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var reader = new StreamReader(
+                stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true),
+                detectEncodingFromByteOrderMarks: true);
+            var buffer = new char[ContextPackComposer.MaxFileTextChars + 1];
+            var read = reader.ReadBlock(buffer, 0, buffer.Length);
+            return new string(buffer, 0, read);
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// The Library window (v2.1.0, design Concept B): snippets,
+    /// standing briefs, and the reading list under one roof. The
+    /// snippets and reading-list tabs ride the same stores and
+    /// delegates as their first doors (the Settings editor, the
+    /// Reading list window) — one truth, two doors. The briefs tab
+    /// is its own store, opened here because starting a conversation
+    /// from a brief needs the main window's tabs.
+    /// </summary>
+    private void OpenLibrary(LibraryTab initialTab)
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        if (!IsVisible)
+            ShowFromTray();
+        var profileId = _settings.ActiveProfileId;
+        var dialog = new LibraryWindow(
+            profileId,
+            initialTab,
+            startConversationWithBrief: brief => _ = StartConversationWithBriefAsync(brief),
+            readingRefresh: () => ReadingListStore.Load(AppPaths.ReadingListPath).EntriesFor(profileId),
+            readingOpenRoute: route =>
+            {
+                if (_webReady)
+                    Browser.CoreWebView2.Navigate("https://muse.ai" + route);
+            },
+            readingSetRead: (id, read) =>
+            {
+                var lists = ReadingListStore.Load(AppPaths.ReadingListPath);
+                if (lists.SetRead(profileId, id, read))
+                    ReadingListStore.Save(AppPaths.ReadingListPath, lists);
+            },
+            readingRemove: id =>
+            {
+                var lists = ReadingListStore.Load(AppPaths.ReadingListPath);
+                if (lists.Remove(profileId, id))
+                    ReadingListStore.Save(AppPaths.ReadingListPath, lists);
+            })
+            { Owner = this };
+        dialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(dialog);
+        ShellTextScaling.Apply(dialog, _settings.ShellFontScale);
+        FocusReturn.ShowDialog(dialog);
+    }
+
+    /// <summary>
+    /// New conversation with a brief (v2.1.0): Core composes the
+    /// brief into one opening message and the shell lands it in a
+    /// fresh conversation's message box — UNSENT, always. The app
+    /// never sends on the user's behalf: the user reads the brief
+    /// in the box and presses Send themselves, which is what makes
+    /// it the conversation's first message. The brief's words are
+    /// never logged; they travel from the user's own file to the
+    /// user's own composer and nowhere else.
+    /// </summary>
+    private async Task StartConversationWithBriefAsync(StandingBrief brief)
+    {
+        var text = StandingBriefs.Compose(brief,
+            Strings.Get("brief.header"), Strings.Get("brief.background"),
+            Strings.Get("brief.rules"), Strings.Get("brief.preferences"));
+        if (text is null)
+            return; // an all-empty brief never reaches here (the window disables the button) — belt and braces
+        if (_tabs.Count >= MaxOpenTabs)
+        {
+            SetStatus($"You can have up to {MaxOpenTabs} tabs open");
+            return;
+        }
+        if (!IsVisible)
+            ShowFromTray();
+        var tab = CreateTab(UrlPolicy.HomeUrl, activate: true);
+        await InsertBriefWhenReadyAsync(tab, text);
+    }
+
+    /// <summary>
+    /// Land the composed brief in the new tab's composer (v2.1.0):
+    /// the same bounded-retry discipline as Ask about this page's
+    /// context insert (slice 4) — a fresh conversation's message
+    /// box exists only once the page has rendered, and the insert
+    /// itself focuses the box. If the user closes the tab meanwhile
+    /// there is nothing to add to; if the box never appears, the
+    /// status says so.
+    /// </summary>
+    private async Task InsertBriefWhenReadyAsync(BrowserTabState tab, string text)
     {
         for (var attempt = 0; attempt < 45; attempt++)
         {
@@ -5296,10 +5602,10 @@ public partial class MainWindow : Window
                 try
                 {
                     if (await tab.Browser.CoreWebView2.ExecuteScriptAsync(
-                            PageScripts.InsertSnippet(context)) == "true")
+                            PageScripts.InsertSnippet(text)) == "true")
                     {
                         if (ReferenceEquals(tab, _activeTab))
-                            SetStatus(Strings.Get("status.ask_page_added"));
+                            SetStatus(Strings.Get("status.brief_added"));
                         return;
                     }
                 }
@@ -5312,7 +5618,7 @@ public partial class MainWindow : Window
             await Task.Delay(350);
         }
         if (_tabs.Contains(tab) && ReferenceEquals(tab, _activeTab))
-            SetStatus(Strings.Get("status.ask_page_no_message_box"));
+            SetStatus(Strings.Get("status.brief_no_message_box"));
     }
 
     private void OnScreenshotAsk(object sender, RoutedEventArgs e) =>
@@ -5407,7 +5713,7 @@ public partial class MainWindow : Window
                 return;
             if (tab.WebReady)
             {
-                try { attached = await TryAttachScreenshotViaDevToolsAsync(tab, tempPath); }
+                try { attached = await TryAttachFileViaDevToolsAsync(tab, tempPath); }
                 catch (Exception) { /* the new tab is still starting or navigating */ }
                 if (attached)
                     break;
@@ -5445,20 +5751,24 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// Attach the PNG through the page's own file input (v2.1.0),
+    /// Attach a file through the page's own file input (v2.1.0),
     /// via the DevTools protocol: take the document, list its
     /// <c>input[type=file]</c> elements, prefer one that accepts
-    /// images, and set the temp file on it — the mechanism browser
+    /// this file, and set the file on it — the mechanism browser
     /// automation uses, which fires the page's own change handling,
-    /// so the picture becomes the conversation's attachment by the
-    /// page's own rules. Best-effort by design: no input, a
-    /// protocol error, or an unexpected response shape is a quiet
-    /// false and the clipboard takes over. Only node ids and
-    /// attribute names are read here — never page text, and the one
-    /// attribute value read (an input's <c>accept</c> list, the
-    /// control's own declaration) is never logged.
+    /// so the file becomes the conversation's attachment by the
+    /// page's own rules. This is THE attach path: screenshot → ask
+    /// (slice 5) and the quick-attach strip (slice 9) both call it,
+    /// so the two features can never drift into two implementations
+    /// of the same protocol dance. Best-effort by design: no input,
+    /// a protocol error, or an unexpected response shape is a quiet
+    /// false and the caller's clipboard fallback takes over. Only
+    /// node ids and attribute names are read here — never page
+    /// text, and the one attribute value read (an input's
+    /// <c>accept</c> list, the control's own declaration) is never
+    /// logged.
     /// </summary>
-    private async Task<bool> TryAttachScreenshotViaDevToolsAsync(BrowserTabState tab, string tempPath)
+    private async Task<bool> TryAttachFileViaDevToolsAsync(BrowserTabState tab, string filePath)
     {
         var core = tab.Browser.CoreWebView2;
         if (core is null)
@@ -5496,7 +5806,7 @@ public partial class MainWindow : Window
         var target = nodeIds[0];
         foreach (var id in nodeIds)
         {
-            if (await FileInputAcceptsImagesAsync(core, id))
+            if (await FileInputAcceptsAsync(core, id, filePath))
             {
                 target = id;
                 break;
@@ -5507,13 +5817,21 @@ public partial class MainWindow : Window
             JsonSerializer.Serialize(new Dictionary<string, object>
             {
                 ["nodeId"] = target,
-                ["files"] = new[] { tempPath },
+                ["files"] = new[] { filePath },
             }));
         return true;
     }
 
-    /// <summary>Whether one of the page's file inputs takes images: no <c>accept</c> attribute (anything goes) or an accept list naming images.</summary>
-    private async Task<bool> FileInputAcceptsImagesAsync(CoreWebView2 core, int nodeId)
+    /// <summary>
+    /// Whether one of the page's file inputs takes this file: no
+    /// <c>accept</c> attribute (anything goes), an accept list
+    /// naming the file's extension or its kind (images), or a
+    /// wildcard. Slice 5 asked only "accepts images" for its PNG;
+    /// the question is the file's own now that the quick-attach
+    /// strip sends documents through the same door — the image
+    /// answer for a PNG is unchanged.
+    /// </summary>
+    private async Task<bool> FileInputAcceptsAsync(CoreWebView2 core, int nodeId, string filePath)
     {
         try
         {
@@ -5532,8 +5850,14 @@ public partial class MainWindow : Window
                 if (pairs[i] == "accept")
                     accept = pairs[i + 1];
             }
-            return accept is null
-                || accept.Contains("image", StringComparison.OrdinalIgnoreCase);
+            if (accept is null)
+                return true;
+            var extension = RecentFiles.NormalizeExtension(filePath);
+            return accept.Contains("*/*", StringComparison.Ordinal)
+                || (extension.Length > 0
+                    && accept.Contains(extension, StringComparison.OrdinalIgnoreCase))
+                || (RecentFiles.KindOf(filePath) == RecentFileKind.Image
+                    && accept.Contains("image", StringComparison.OrdinalIgnoreCase));
         }
         catch (Exception)
         {
@@ -5586,6 +5910,512 @@ public partial class MainWindow : Window
         }
         image.Freeze();
         System.Windows.Clipboard.SetImage(image);
+    }
+
+    // ─────────────────── v2.1.0: quick-attach strip ───────────────────
+    //
+    // Concept B (SEAN delegated the pick, 2026-11-02): a slim shell
+    // strip directly above the status bar — which puts it right
+    // over the page's message box — holding the recent files Core's
+    // RecentFiles collects from Downloads and Pictures\Screenshots,
+    // plus a "Pasted image" chip when the clipboard holds a picture.
+    // Clicking a chip attaches its file to the ACTIVE conversation
+    // through the page's own upload (TryAttachFileViaDevToolsAsync —
+    // the one attach path, shared with screenshot → ask); dragging
+    // a chip onto the page does the same. The strip reads names and
+    // metadata only, never file contents, remembers nothing, and
+    // refreshes on events — window activation, tab switches, and
+    // FileSystemWatcher folder events (debounced) — never by
+    // polling. No path is ever logged.
+
+    /// <summary>Start the strip: the debounce timer, one watcher per source folder that exists today, and the first refresh. Called once from the constructor; the watchers die with the window (see the Closed hook beside the call).</summary>
+    private void SetupQuickAttach()
+    {
+        _quickAttachDebounce = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(600),
+        };
+        _quickAttachDebounce.Tick += (_, _) =>
+        {
+            _quickAttachDebounce.Stop();
+            RefreshQuickAttachStrip();
+        };
+        foreach (var folder in RecentFiles.DefaultSourceFolders())
+        {
+            try
+            {
+                if (!Directory.Exists(folder))
+                    continue;
+                var watcher = new System.IO.FileSystemWatcher(folder)
+                {
+                    NotifyFilter = System.IO.NotifyFilters.FileName
+                        | System.IO.NotifyFilters.LastWrite,
+                    EnableRaisingEvents = true,
+                };
+                watcher.Created += OnQuickAttachFolderChanged;
+                watcher.Deleted += OnQuickAttachFolderChanged;
+                watcher.Renamed += OnQuickAttachFolderChanged;
+                watcher.Changed += OnQuickAttachFolderChanged;
+                _quickAttachWatchers.Add(watcher);
+            }
+            catch (Exception ex)
+            {
+                _log.Warn($"Quick attach: a recent-files folder couldn't be watched: {ex.Message}");
+            }
+        }
+        _quickAttachSetupDone = true;
+        RefreshQuickAttachStrip();
+    }
+
+    /// <summary>A watched folder changed (a download landed, a screenshot was saved, a file went away): marshal to the UI thread — the refresh rebuilds chips and reads the clipboard — and debounce there, so a burst of events becomes one refresh.</summary>
+    private void OnQuickAttachFolderChanged(object sender, System.IO.FileSystemEventArgs e)
+    {
+        try
+        {
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (_quickAttachDebounce is null)
+                    return;
+                _quickAttachDebounce.Stop();
+                _quickAttachDebounce.Start();
+            }));
+        }
+        catch (Exception)
+        {
+            // The dispatcher is going away (the window is closing);
+            // the refresh simply never happens.
+        }
+    }
+
+    private void DisposeQuickAttachWatchers()
+    {
+        foreach (var watcher in _quickAttachWatchers)
+            watcher.Dispose();
+        _quickAttachWatchers.Clear();
+        _quickAttachDebounce?.Stop();
+    }
+
+    /// <summary>
+    /// Rebuild the strip's chips from the world as it is now: the
+    /// pasted image first (the freshest thing the user has), then
+    /// Core's recent files, newest first. Also the one place
+    /// _quickAttachHasContent is recomputed — visibility decisions
+    /// elsewhere (layout, focus mode, full screen) read it through
+    /// <see cref="UpdateQuickAttachStripVisibility"/>.
+    /// </summary>
+    private void RefreshQuickAttachStrip()
+    {
+        if (!_quickAttachSetupDone)
+            return;
+        QuickAttachChips.Children.Clear();
+        _quickAttachHasContent = false;
+        if (ClipboardHasImage())
+        {
+            QuickAttachChips.Children.Add(BuildPastedImageChip());
+            _quickAttachHasContent = true;
+        }
+        foreach (var entry in RecentFiles.Collect(RecentFiles.DefaultSourceFolders()))
+        {
+            QuickAttachChips.Children.Add(BuildFileChip(entry));
+            _quickAttachHasContent = true;
+        }
+        UpdateQuickAttachStripVisibility();
+    }
+
+    /// <summary>
+    /// Whether the strip shows at all: the setting is on, it has
+    /// something to show, and the window's arrangement has room for
+    /// it — Standard and Left Rail yes (in Left Rail the strip
+    /// spans column 1, the conversation column, like every other
+    /// row); Compact Focus no (that layout's whole point is the
+    /// page plus a pill — the strip returns with the layout); focus
+    /// mode and full screen no (they hide all chrome).
+    /// </summary>
+    private void UpdateQuickAttachStripVisibility()
+    {
+        if (!_quickAttachSetupDone)
+            return;
+        var pillLayout = ShellLayoutMetrics
+            .For(_settings.ShellLayout, _settings.Density).StatusPillVisible;
+        var visible = _settings.QuickAttachStripEnabled
+            && _quickAttachHasContent
+            && !pillLayout
+            && !_focusMode
+            && !_isFullScreen;
+        QuickAttachStrip.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private static bool ClipboardHasImage()
+    {
+        try { return System.Windows.Clipboard.ContainsImage(); }
+        catch (Exception) { return false; }
+    }
+
+    private System.Windows.Controls.Button BuildFileChip(RecentFileEntry entry)
+    {
+        var chip = BuildChipShell(
+            QuickAttachKindGlyph(entry.Kind), entry.Name,
+            QuickAttachAgeText(entry.ModifiedUtc),
+            Strings.Format("ui.quick_attach_chip_tooltip", entry.Name));
+        chip.Tag = entry.FullPath;
+        chip.Click += OnQuickAttachChipClick;
+        WireChipDrag(chip, entry.FullPath, isPastedImage: false);
+        return chip;
+    }
+
+    private System.Windows.Controls.Button BuildPastedImageChip()
+    {
+        var name = Strings.Get("ui.quick_attach_pasted_image");
+        var chip = BuildChipShell(
+            "🖼", name, "", Strings.Format("ui.quick_attach_chip_tooltip", name));
+        chip.Click += OnQuickAttachChipClick;
+        WireChipDrag(chip, path: null, isPastedImage: true);
+        return chip;
+    }
+
+    /// <summary>One chip's frame: kind glyph, the file's name (trimmed with an ellipsis past a sane width), and its age in Core's words. The tooltip doubles as the accessible name — it says the whole action.</summary>
+    private System.Windows.Controls.Button BuildChipShell(
+        string glyph, string name, string age, string toolTip)
+    {
+        var label = new System.Windows.Controls.StackPanel
+        {
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        label.Children.Add(new System.Windows.Controls.TextBlock
+        {
+            Text = glyph,
+            FontSize = 12 * _settings.ShellFontScale,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        label.Children.Add(new System.Windows.Controls.TextBlock
+        {
+            Text = name,
+            FontSize = 11 * _settings.ShellFontScale,
+            Margin = new Thickness(5, 0, 0, 0),
+            MaxWidth = 170,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        if (age.Length > 0)
+        {
+            label.Children.Add(new System.Windows.Controls.TextBlock
+            {
+                Text = age,
+                FontSize = 11 * _settings.ShellFontScale,
+                Margin = new Thickness(5, 0, 0, 0),
+                Foreground = (System.Windows.Media.Brush)FindResource("FaintBrush"),
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+        }
+        var chip = new System.Windows.Controls.Button
+        {
+            Content = label,
+            ToolTip = toolTip,
+            Padding = new Thickness(8, 2, 8, 2),
+            Margin = new Thickness(0, 0, 6, 0),
+            Style = (Style)FindResource("BarButton"),
+            Background = (System.Windows.Media.Brush)FindResource("BgBrush"),
+        };
+        System.Windows.Automation.AutomationProperties.SetName(chip, toolTip);
+        return chip;
+    }
+
+    private static string QuickAttachKindGlyph(RecentFileKind kind) => kind switch
+    {
+        RecentFileKind.Image => "🖼",
+        RecentFileKind.Document => "📄",
+        _ => "📎",
+    };
+
+    /// <summary>A chip's age in words: Core buckets it (now / minutes / hours / days), the catalog speaks it.</summary>
+    private static string QuickAttachAgeText(DateTimeOffset modifiedUtc)
+    {
+        var (unit, count) = RecentFiles.AgeParts(modifiedUtc, DateTimeOffset.UtcNow);
+        return unit switch
+        {
+            RecentFileAgeUnit.Now => Strings.Get("ui.quick_attach_now"),
+            RecentFileAgeUnit.Minutes => Strings.Format("ui.quick_attach_ago_minutes", count),
+            RecentFileAgeUnit.Hours => Strings.Format("ui.quick_attach_ago_hours", count),
+            _ => Strings.Format("ui.quick_attach_ago_days", count),
+        };
+    }
+
+    private async void OnQuickAttachChipClick(object sender, RoutedEventArgs e)
+    {
+        // A completed drag ends in a Click too (the button was
+        // pressed and released under capture) — the drag already
+        // ran the attach, so this one is swallowed.
+        if (_quickAttachSuppressClick)
+        {
+            _quickAttachSuppressClick = false;
+            return;
+        }
+        if (sender is not System.Windows.Controls.Button chip)
+            return;
+        if (chip.Tag is string path)
+            await AttachQuickFileAsync(path);
+        else
+            await AttachPastedImageAsync();
+    }
+
+    /// <summary>
+    /// The chip drag, tracked by the shell itself. OLE drag-and-drop
+    /// can't do this job: the WebView2 child window owns its own OLE
+    /// drop target, so a drag ending over the page would go to the
+    /// page (or nowhere) and the shell would never hear of it.
+    /// Instead the chip keeps the mouse captured — capture routes
+    /// every move to the chip wherever the pointer wanders — and the
+    /// shell judges the drop by position: released over the browser
+    /// host's rectangle, it attaches; released anywhere else, it
+    /// quietly cancels. While dragging, the page's focus ring lights
+    /// when the pointer is over the page, so the target is visible.
+    /// A press that never travels is not a drag at all — the Click
+    /// handles it.
+    /// </summary>
+    private void WireChipDrag(System.Windows.Controls.Button chip, string? path, bool isPastedImage)
+    {
+        chip.PreviewMouseLeftButtonDown += (_, e) =>
+        {
+            _quickAttachDragChip = chip;
+            _quickAttachDragStart = e.GetPosition(this);
+            _quickAttachDragging = false;
+        };
+        chip.MouseMove += (_, e) =>
+        {
+            if (!ReferenceEquals(_quickAttachDragChip, chip)
+                || e.LeftButton != MouseButtonState.Pressed)
+                return;
+            var now = e.GetPosition(this);
+            if (!_quickAttachDragging)
+            {
+                if (Math.Abs(now.X - _quickAttachDragStart.X) < 6
+                    && Math.Abs(now.Y - _quickAttachDragStart.Y) < 6)
+                    return;
+                _quickAttachDragging = true;
+                _webFocusRingBrushBeforeDrag = WebFocusRing.BorderBrush;
+                chip.CaptureMouse();
+            }
+            var over = IsOverBrowser(now);
+            WebFocusRing.BorderBrush = over
+                ? (System.Windows.Media.Brush)FindResource("AccentBrush")
+                : _webFocusRingBrushBeforeDrag;
+            Mouse.OverrideCursor = over ? System.Windows.Input.Cursors.Hand : System.Windows.Input.Cursors.Arrow;
+        };
+        chip.MouseLeftButtonUp += (_, e) =>
+        {
+            if (!ReferenceEquals(_quickAttachDragChip, chip))
+                return;
+            var wasDragging = _quickAttachDragging;
+            var over = wasDragging && IsOverBrowser(e.GetPosition(this));
+            EndQuickAttachDrag(chip);
+            if (!wasDragging)
+                return;
+            _quickAttachSuppressClick = true;
+            if (!over)
+                return;
+            if (isPastedImage)
+                _ = AttachPastedImageAsync();
+            else if (path is not null)
+                _ = AttachQuickFileAsync(path);
+        };
+    }
+
+    private bool IsOverBrowser(System.Windows.Point windowPoint)
+    {
+        var origin = BrowserHost.TranslatePoint(new System.Windows.Point(0, 0), this);
+        return windowPoint.X >= origin.X && windowPoint.Y >= origin.Y
+            && windowPoint.X <= origin.X + BrowserHost.ActualWidth
+            && windowPoint.Y <= origin.Y + BrowserHost.ActualHeight;
+    }
+
+    private void EndQuickAttachDrag(System.Windows.Controls.Button chip)
+    {
+        if (chip.IsMouseCaptured)
+            chip.ReleaseMouseCapture();
+        if (_webFocusRingBrushBeforeDrag is not null)
+        {
+            WebFocusRing.BorderBrush = _webFocusRingBrushBeforeDrag;
+            _webFocusRingBrushBeforeDrag = null;
+        }
+        Mouse.OverrideCursor = null;
+        _quickAttachDragChip = null;
+        _quickAttachDragging = false;
+    }
+
+    /// <summary>Attach one of the user's own files to the active conversation (quick-attach strip): every refusal is its own status line — the file went away, its type isn't one the page takes, the tab isn't a Muse page, the page is still loading — and success/failure come back from the one attach path.</summary>
+    private async Task AttachQuickFileAsync(string path)
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        if (!File.Exists(path))
+        {
+            SetStatus(Strings.Get("status.quick_attach_file_gone"));
+            RefreshQuickAttachStrip();
+            return;
+        }
+        var name = Path.GetFileName(path);
+        if (!RecentFiles.IsAttachable(path))
+        {
+            SetStatus(Strings.Format("status.quick_attach_failed", name));
+            return;
+        }
+        if (!QuickAttachTargetReady())
+            return;
+        await AttachFileToActiveConversationAsync(path, name);
+    }
+
+    /// <summary>
+    /// Attach the clipboard's picture (the strip's first chip): the
+    /// image becomes a temp PNG — slice 5's naming and deletion
+    /// discipline, in the app's temp folder — because the page's
+    /// upload control needs a file; the temp file is deleted at the
+    /// end of every path, and the conversation keeps its own copy.
+    /// </summary>
+    private async Task AttachPastedImageAsync()
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        if (!QuickAttachTargetReady())
+            return;
+        var name = Strings.Get("ui.quick_attach_pasted_image");
+        var tempPath = ScreenshotAsk.TempFilePath(AppPaths.TempDir, DateTimeOffset.Now);
+        try
+        {
+            var image = System.Windows.Clipboard.GetImage();
+            if (image is null)
+            {
+                // The clipboard changed under the chip — refresh
+                // the strip and say so plainly.
+                SetStatus(Strings.Get("status.quick_attach_file_gone"));
+                RefreshQuickAttachStrip();
+                return;
+            }
+            Directory.CreateDirectory(AppPaths.TempDir);
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(image));
+            using (var stream = File.Create(tempPath))
+                encoder.Save(stream);
+            await AttachFileToActiveConversationAsync(tempPath, name);
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Quick attach: the pasted image couldn't be attached: {ex.Message}");
+            SetStatus(Strings.Format("status.quick_attach_failed", name));
+        }
+        finally
+        {
+            if (!ScreenshotAsk.TryDeleteTempFile(tempPath) && File.Exists(tempPath))
+                _log.Warn("Quick attach: the temp pasted image could not be deleted");
+        }
+    }
+
+    /// <summary>
+    /// Whether the active tab can take an attachment right now: a
+    /// Muse page — the home page or a conversation, anywhere the
+    /// composer lives (an opened page on another host has no
+    /// composer of ours to attach to) — and loaded. The status
+    /// names the refusal.
+    /// </summary>
+    private bool QuickAttachTargetReady()
+    {
+        if (AppRoute.FromUrl(Browser.Source?.ToString()) is null)
+        {
+            SetStatus(Strings.Get("status.quick_attach_not_conversation"));
+            return false;
+        }
+        if (!_webReady)
+        {
+            SetStatus(Strings.Get("status.quick_attach_page_loading"));
+            return false;
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// The attach itself, shared by file chips, the pasted image
+    /// and Add files: a short bounded retry of the one attach path
+    /// (the composer may still be rendering after a navigation),
+    /// then slice 5's honest fallback — the file goes on the
+    /// clipboard (a picture as a picture, anything else as a file
+    /// drop list) and the status says to paste it. The status
+    /// always says which of the two really happened.
+    /// </summary>
+    private async Task AttachFileToActiveConversationAsync(string path, string displayName)
+    {
+        var tab = _activeTab;
+        var attached = false;
+        for (var attempt = 0; attempt < 8 && !attached; attempt++)
+        {
+            if (!ReferenceEquals(tab, _activeTab) || !_tabs.Contains(tab))
+                return;
+            try { attached = await TryAttachFileViaDevToolsAsync(tab, path); }
+            catch (Exception) { /* the page is still settling */ }
+            if (!attached)
+                await Task.Delay(350);
+        }
+        if (attached)
+        {
+            SetStatus(Strings.Format("status.quick_attach_attached", displayName));
+            return;
+        }
+        try
+        {
+            if (RecentFiles.KindOf(path) == RecentFileKind.Image)
+                SetClipboardImage(path);
+            else
+            {
+                System.Windows.Clipboard.SetFileDropList(
+                    new System.Collections.Specialized.StringCollection { path });
+            }
+            SetStatus(Strings.Format("status.quick_attach_clipboard", displayName));
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Quick attach: clipboard fallback failed: {ex.Message}");
+            SetStatus(Strings.Format("status.quick_attach_failed", displayName));
+        }
+    }
+
+    private async void OnQuickAttachAddFiles(object sender, RoutedEventArgs e)
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        var patterns = string.Join(";", RecentFiles.AttachableExtensionList.Select(ext => "*." + ext));
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = Strings.Get("ui.quick_attach_picker_title"),
+            Filter = $"{Strings.Get("ui.quick_attach_picker_filter")} ({patterns})|{patterns}",
+            Multiselect = false,
+            CheckFileExists = true,
+        };
+        if (dialog.ShowDialog(this) == true)
+            await AttachQuickFileAsync(dialog.FileName);
+    }
+
+    /// <summary>The strip's ✕: the setting goes off (the ⋯ menu item and the Settings switch will show it), the choice is saved, and the strip hides until one of those doors turns it back on.</summary>
+    private void OnQuickAttachClose(object sender, RoutedEventArgs e)
+    {
+        _settings.QuickAttachStripEnabled = false;
+        SaveSettings();
+        UpdateQuickAttachStripVisibility();
+    }
+
+    /// <summary>The ⋯ menu's checkable item: the same one setting the strip's ✕ and the Settings switch drive — three doors, one switch.</summary>
+    private void OnToggleQuickAttachStrip(object sender, RoutedEventArgs e)
+    {
+        _settings.QuickAttachStripEnabled = QuickAttachItem.IsChecked;
+        SaveSettings();
+        RefreshQuickAttachStrip();
     }
 
     // ─────────────────── v2.1.0: voice in, voice out ───────────────────
@@ -6553,6 +7383,9 @@ public partial class MainWindow : Window
             case "action.screenshot-ask": _ = ScreenshotAskAsync(); break;
             case "action.dictate": ToggleDictation(); break;
             case "action.read-aloud": _ = ToggleReadAloudAsync(); break;
+            case "action.context-packs": OpenContextPacks(); break;
+            case "action.brief-new-conversation": OpenLibrary(LibraryTab.Briefs); break;
+            case "action.compare-mode": OpenCompareMode(); break;
             case "action.exit": ExitApp(); break;
         }
     }
@@ -7504,6 +8337,38 @@ public partial class MainWindow : Window
 
     private void OnFieldPass(object sender, RoutedEventArgs e) => OpenFieldPass(this);
 
+    private void OnCompareMode(object sender, RoutedEventArgs e) => OpenCompareMode();
+
+    /// <summary>
+    /// Compare mode (v2.1.0): one modeless window, created on first
+    /// open and reactivated after — the two panes are a working
+    /// surface kept beside the main window while the answers come
+    /// in, so it must never be a second instance or a modal block.
+    /// The window owns its panes outright (one WebView2 per chosen
+    /// profile, on that profile's environment); from here it only
+    /// needs the settings and the log.
+    /// </summary>
+    private void OpenCompareMode()
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        if (_compareWindow is not null)
+        {
+            _compareWindow.Activate();
+            return;
+        }
+        var window = new CompareWindow(_settings, _log) { Owner = this };
+        _compareWindow = window;
+        window.Closed += (_, _) => _compareWindow = null;
+        ThemeManager.ApplyTitleBar(window);
+        ShellTextScaling.Apply(window, _settings.ShellFontScale);
+        window.Show();
+        window.Activate();
+    }
+
     /// <summary>
     /// The guided field pass (Diagnostics): one modeless window,
     /// owned by whoever opened it (the main window from the ⋯ menu,
@@ -7992,6 +8857,9 @@ public partial class MainWindow : Window
         // Full screen hides the rail with the rest of the chrome;
         // leaving it restores the rail when the layout wants one.
         ApplyRailChrome(ShellLayoutMetrics.For(_settings.ShellLayout, _settings.Density));
+        // v2.1.0: the quick-attach strip hides and returns with
+        // the rest of the chrome.
+        UpdateQuickAttachStripVisibility();
     }
 
     // ───────────────────────── title bar ─────────────────────────
