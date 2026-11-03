@@ -33,6 +33,13 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+    <!-- Voice in / voice out (v2.1.0): Windows' own speech engines —
+         System.Speech recognition for dictation, synthesis for
+         read-aloud. Both run on-device against recognizers/voices
+         Windows itself has installed; no audio or text leaves the
+         machine through this package. Pinned like every dependency
+         here; bump deliberately. -->
+    <PackageReference Include="System.Speech" Version="10.0.0" />
   </ItemGroup>
 
   <ItemGroup>
