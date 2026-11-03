@@ -49,6 +49,20 @@ Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhanc
   beside the draft meter's; it is on by default and independent
   of the meter and drafts switches.
 
+- **Ask about this page.** When a tab is showing a page you
+  opened — an article you followed from a conversation, say —
+  the ⋯ menu's **Ask about this page** (or Ctrl+K) starts a new
+  conversation with that page's readable text already in the
+  message box, labelled with the page's title and where it came
+  from, and the box focused ready for your question. Nothing is
+  sent; the question is yours to type. Navigation and page
+  furniture are stripped from the text, and a very long page is
+  cut down to fit — the text itself says so when that happens.
+  The command steps aside on a conversation (that's what export
+  is for), and the page's text is read only at your click: it is
+  never logged and never stored — it goes into that one message
+  box and nowhere else.
+
 ## [2.0.0] — 2026-11-02
 
 ### Added

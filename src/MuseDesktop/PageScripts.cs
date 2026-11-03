@@ -13,7 +13,8 @@ namespace MuseDesktop;
 /// (composer text for drafts, a click on the bookmark button the user
 /// asked for), and RUNS the user's own commands
 /// (find this bookmarked message, insert this snippet, read this
-/// conversation for export). It never sends anything, clicks Muse
+/// conversation for export, read an opened page's readable text for
+/// Ask about this page). It never sends anything, clicks Muse
 /// controls on the user's behalf, or navigates.
 ///
 /// Everything is defensive by contract: each feature is wrapped so a
@@ -270,6 +271,29 @@ public static class PageScripts
                 if (text) out.push({ role: role, text: text });
               }
               return JSON.stringify(out);
+            } catch (e) { return null; }
+          };
+
+          // ── readable-text extraction (v2.1.0, Ask about this
+          // page): runs ONLY when the shell calls it, after the
+          // user's own click — nothing is read in the background.
+          // The clone discipline is the conversation extractor's:
+          // work on a clone of the readable root (<article> or
+          // <main> when the page offers one, else the body), strip
+          // the chrome and interactive noise and MuseDesktop's own
+          // injected nodes, then read the text. The shell caps and
+          // labels it (Core's PageContext); it lands in a new
+          // conversation's composer and nowhere else.
+          window.__mdExtractReadableText = function () {
+            try {
+              if (!document.body) return null;
+              var root = document.querySelector('article') || document.querySelector('main') || document.body;
+              var clone = root.cloneNode(true);
+              var junk = clone.querySelectorAll('script, style, noscript, nav, aside, header, footer, form, button, iframe, svg, .md-bookmark-btn, .md-code-fold-btn, .md-followup-bar, [id^="musedesktop-"]');
+              for (var i = 0; i < junk.length; i++) junk[i].remove();
+              var text = (clone.innerText || clone.textContent || '').replace(/\r\n?/g, '\n');
+              text = text.replace(/\n{3,}/g, '\n\n').trim();
+              return JSON.stringify({ title: document.title || '', text: text });
             } catch (e) { return null; }
           };
 
@@ -736,6 +760,10 @@ public static class PageScripts
     /// <summary>Ask the page for the conversation's messages as a JSON string (the script result is that string, itself JSON-encoded).</summary>
     public const string ExtractConversation =
         "(window.__mdExtractConversation ? window.__mdExtractConversation() : null)";
+
+    /// <summary>Ask the page for its readable text as a JSON string {title, text} (Ask about this page, v2.1.0): called only at the user's click; the shell parses it with Core's <see cref="Core.PageContext"/> and the text lands in a new conversation's composer — never logged, never stored.</summary>
+    public const string ExtractReadableText =
+        "(window.__mdExtractReadableText ? window.__mdExtractReadableText() : null)";
 
     /// <summary>Ask the page for its health probe (Diagnostics): a JSON string of presence flags — messages/bookmark buttons/composer found, and which approval rule matched, if a card is showing — that Core's <see cref="Core.PageHealth"/> parses. Presence only; no page content ever comes back.</summary>
     public const string ProbePageHealth =
