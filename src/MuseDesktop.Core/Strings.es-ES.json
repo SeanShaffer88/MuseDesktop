@@ -1754,5 +1754,20 @@
   "compare.status_still_loading": "Todavía cargando — inténtalo de nuevo",
   "compare.window_title": "Comparar",
   "compare_mode": "Modo comparar…",
-  "compare_mode_tooltip": "Haz la misma pregunta en dos perfiles, uno junto al otro"
+  "compare_mode_tooltip": "Haz la misma pregunta en dos perfiles, uno junto al otro",
+  "hotkey.feature.quick_ask": "tecla rápida de pregunta rápida",
+  "quick_ask": "Pregunta rápida…",
+  "quickask.continue_in_main_window": "Continuar en la ventana principal",
+  "quickask.continue_tooltip": "Abrir esta conversación en la ventana principal y cerrar Pregunta rápida",
+  "quickask.esc_hint": "Esc para cerrar",
+  "quickask.failed_to_start": "No se pudo iniciar la página",
+  "quickask.hotkey_active": "Activa: {0} abre Pregunta rápida desde cualquier aplicación.",
+  "quickask.settings_note": "Pregunta rápida: una ventana pequeña de Muse anclada en la esquina inferior derecha de la pantalla, para una pregunta rápida con el perfil que estás usando — una conversación nueva cada vez. Ctrl+Mayús+Espacio la abre desde cualquier aplicación; el menú ⋯, el menú de la bandeja y Ctrl+K también la abren.",
+  "quickask.title_with_profile": "Pregunta rápida — {0}",
+  "quickask.window_title": "Pregunta rápida",
+  "quickask_tooltip": "Haz una pregunta rápida en una ventana pequeña anclada en la esquina de la pantalla",
+  "tray.quick_ask": "Pregunta rápida",
+  "ui.enable_quick_ask": "Activar Pregunta rápida y su tecla rápida global (Ctrl+Mayús+Espacio)",
+  "ui.quick_ask_settings_tooltip": "Activa o desactiva todas las puertas de Pregunta rápida a la vez: la tecla rápida global, el menú ⋯, el menú de la bandeja y la paleta de comandos",
+  "quickask.disabled_status": "Pregunta rápida está desactivada — actívala en Ajustes"
 }

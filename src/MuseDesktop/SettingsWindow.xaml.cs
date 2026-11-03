@@ -43,6 +43,7 @@ public partial class SettingsWindow : Window
     private readonly Func<string>? _globalHotkeyStatus;
     private readonly Action<AppSettings, string>? _applyWorkspace;
     private readonly Func<string>? _quickNoteHotkeyStatus;
+    private readonly Func<string>? _quickAskHotkeyStatus;
     private readonly Action? _openWeeklyDigest;
     private readonly Action? _openStatsDashboard;
     private readonly Func<int>? _activeDownloadCount;
@@ -61,6 +62,7 @@ public partial class SettingsWindow : Window
         Func<string>? globalHotkeyStatus = null,
         Action<AppSettings, string>? applyWorkspace = null,
         Func<string>? quickNoteHotkeyStatus = null,
+        Func<string>? quickAskHotkeyStatus = null,
         Action? openWeeklyDigest = null,
         Action? openStatsDashboard = null,
         Func<int>? activeDownloadCount = null)
@@ -73,6 +75,7 @@ public partial class SettingsWindow : Window
         _globalHotkeyStatus = globalHotkeyStatus;
         _applyWorkspace = applyWorkspace;
         _quickNoteHotkeyStatus = quickNoteHotkeyStatus;
+        _quickAskHotkeyStatus = quickAskHotkeyStatus;
         _openWeeklyDigest = openWeeklyDigest;
         _openStatsDashboard = openStatsDashboard;
         _activeDownloadCount = activeDownloadCount;
@@ -301,6 +304,11 @@ public partial class SettingsWindow : Window
         FollowUpChipsCheck.IsChecked = _working.FollowUpChipsEnabled;
         // v2.1.0: the quick-attach strip switch, under the chips one.
         QuickAttachStripCheck.IsChecked = _working.QuickAttachStripEnabled;
+        // Quick ask: the feature switch (in the Keyboard &
+        // accessibility card), with the live registration status
+        // the main window's manager reports, like the other hotkeys.
+        QuickAskCheck.IsChecked = _working.QuickAskEnabled;
+        QuickAskStatus.Text = _quickAskHotkeyStatus?.Invoke() ?? "";
         StartWithWindowsCheck.IsChecked = _working.StartWithWindows;
         StartMinimizedCheck.IsChecked = _working.StartMinimizedToTray;
         CloseToTrayCheck.IsChecked = _working.CloseToTray;
@@ -942,6 +950,10 @@ public partial class SettingsWindow : Window
     /// <summary>The quick-attach strip switch (v2.1.0): write-through like the switches above it. The same one setting the ⋯ menu item and the strip's own ✕ drive — three doors, one switch.</summary>
     private void OnQuickAttachStripChanged(object sender, RoutedEventArgs e) =>
         _working.QuickAttachStripEnabled = QuickAttachStripCheck.IsChecked == true;
+
+    /// <summary>The quick-ask switch: write-through like the switches above it. The same one setting the hotkey registration, the ⋯ item, the tray item, and the palette action all obey — off retires every door on OK.</summary>
+    private void OnQuickAskChanged(object sender, RoutedEventArgs e) =>
+        _working.QuickAskEnabled = QuickAskCheck.IsChecked == true;
 
     // ── prompt snippets (R5B #206) ──────────────────────────────────
     // Snippets live in their OWN store (snippets.json), not in the

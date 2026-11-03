@@ -164,6 +164,9 @@ public sealed class AppSettings
     /// <summary>Quick-attach strip (v2.1.0, Concept B): a slim strip in the shell above the message box holding recent files from Downloads and Pictures\Screenshots (plus a pasted image when the clipboard holds one); clicking a chip — or dragging it onto the page — attaches the file to the open conversation through the page's own upload. On by default; off (the strip's ✕, the ⋯ menu item, or the Settings switch — one setting, three doors) hides the strip entirely. The strip reads file names and metadata only, never contents, and remembers nothing.</summary>
     public bool QuickAttachStripEnabled { get; set; } = true;
 
+    /// <summary>Quick ask: a small Muse window docked at the screen's bottom-right corner for one quick question, on the active profile, always starting a fresh conversation. On by default; this ONE switch governs every door (the fixed Ctrl+Shift+Space global hotkey, the ⋯ menu, the tray menu, the command palette) — off retires the hotkey registration and hides the menu items. The popup itself keeps no state: nothing about it is persisted, and its placement is re-docked at every summon.</summary>
+    public bool QuickAskEnabled { get; set; } = true;
+
     /// <summary>Retry failed downloads automatically (R4 #139): network/server reasons only, bounded attempts, backing off. On by default.</summary>
     public bool DownloadAutoRetryEnabled { get; set; } = true;
 
