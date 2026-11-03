@@ -174,3 +174,86 @@ public class ScreenshotAskTests
         Assert.False(ScreenshotAsk.TryDeleteTempFile(path));
     }
 }
+
+// ───────────────────── One monitor's region (M1) ─────────────────────
+//
+// The single-monitor overlay drags in its own DIP space; these
+// tests pin the conversion to the physical rectangle the capture
+// takes: each edge scaled by the monitor's own factor, laid over
+// the monitor's physical origin, clamped at the monitor's edges,
+// and nothing (null) when the drag leaves the monitor entirely or
+// collapses to a line.
+
+public class ScreenshotRegionTests
+{
+    // A 2560×1440 physical monitor at the origin, 150% scaling
+    // (its DIP size is 1706.67 × 960).
+    private static readonly PhysicalRect Monitor150 = new(0, 0, 2560, 1440);
+
+    [Fact]
+    public void ToPhysicalRect_ScaleOne_IsTheIdentityInsideTheMonitor()
+    {
+        var monitor = new PhysicalRect(0, 0, 1920, 1080);
+        var rect = ScreenshotRegion.ToPhysicalRect(new ScreenRect(100, 50, 200, 150), monitor, 1.0);
+        Assert.Equal(new PhysicalRect(100, 50, 200, 150), rect);
+    }
+
+    [Fact]
+    public void ToPhysicalRect_ScalesEachEdgeByTheMonitorFactor()
+    {
+        var rect = ScreenshotRegion.ToPhysicalRect(new ScreenRect(100, 100, 200, 100), Monitor150, 1.5);
+        Assert.Equal(new PhysicalRect(150, 150, 300, 150), rect);
+    }
+
+    [Fact]
+    public void ToPhysicalRect_ReversedDrag_NormalizesFirst()
+    {
+        var forward = ScreenshotRegion.ToPhysicalRect(new ScreenRect(100, 100, 200, 100), Monitor150, 1.5);
+        var backward = ScreenshotRegion.ToPhysicalRect(new ScreenRect(300, 200, -200, -100), Monitor150, 1.5);
+        Assert.Equal(forward, backward);
+    }
+
+    [Fact]
+    public void ToPhysicalRect_NegativeOriginMonitor_OffsetsFromItsOwnCorner()
+    {
+        // A 150% monitor LEFT of the primary: physical X starts at
+        // −2560; a local DIP drag must land in negative space.
+        var monitor = new PhysicalRect(-2560, 0, 2560, 1440);
+        var rect = ScreenshotRegion.ToPhysicalRect(new ScreenRect(100, 0, 100, 100), monitor, 1.5);
+        Assert.Equal(new PhysicalRect(-2410, 0, 150, 150), rect);
+    }
+
+    [Fact]
+    public void ToPhysicalRect_DragPastTheEdges_ClampsToTheMonitor()
+    {
+        var rect = ScreenshotRegion.ToPhysicalRect(new ScreenRect(-50, -20, 4000, 2000), Monitor150, 1.5);
+        Assert.Equal(Monitor150, rect);
+    }
+
+    [Fact]
+    public void ToPhysicalRect_WhollyOutsideTheMonitor_IsNull()
+    {
+        // A DIP selection that starts past the monitor's DIP width
+        // (2560 / 1.5 ≈ 1707) names no pixel of this monitor.
+        Assert.Null(ScreenshotRegion.ToPhysicalRect(new ScreenRect(2000, 0, 100, 100), Monitor150, 1.5));
+        Assert.Null(ScreenshotRegion.ToPhysicalRect(new ScreenRect(-500, 0, 100, 100), Monitor150, 1.5));
+    }
+
+    [Fact]
+    public void ToPhysicalRect_ZeroAreaSelection_IsNull()
+    {
+        Assert.Null(ScreenshotRegion.ToPhysicalRect(new ScreenRect(10, 10, 0, 50), Monitor150, 1.5));
+        Assert.Null(ScreenshotRegion.ToPhysicalRect(new ScreenRect(10, 10, 50, 0), Monitor150, 1.5));
+    }
+
+    [Theory]
+    [InlineData(0.0)]
+    [InlineData(-1.5)]
+    [InlineData(double.NaN)]
+    public void ToPhysicalRect_UnusableScale_ReadsAsScaleOne(double scale)
+    {
+        var monitor = new PhysicalRect(0, 0, 1920, 1080);
+        var rect = ScreenshotRegion.ToPhysicalRect(new ScreenRect(10, 10, 100, 50), monitor, scale);
+        Assert.Equal(new PhysicalRect(10, 10, 100, 50), rect);
+    }
+}

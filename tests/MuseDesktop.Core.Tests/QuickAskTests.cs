@@ -194,3 +194,58 @@ public class QuickAskTests
         Assert.Equal("Quick ask…", action.Title);
     }
 }
+
+public class QuickAskMonitorChoiceTests
+{
+    // Primary first, then a monitor to its right, then one above
+    // it at negative Y — the mixed layout the choice exists for.
+    private static readonly ScreenRect[] Monitors =
+    {
+        new(0, 0, 1920, 1080),
+        new(1920, 0, 2560, 1440),
+        new(0, -1080, 1920, 1080),
+    };
+
+    [Fact]
+    public void MonitorIndexAt_PointInThePrimary_IsZero()
+    {
+        Assert.Equal(0, QuickAsk.MonitorIndexAt(Monitors, 100, 100));
+    }
+
+    [Fact]
+    public void MonitorIndexAt_PointOnTheSecondMonitor_IsItsIndex()
+    {
+        Assert.Equal(1, QuickAsk.MonitorIndexAt(Monitors, 2500, 700));
+    }
+
+    [Fact]
+    public void MonitorIndexAt_NegativeCoordinates_FindTheirMonitor()
+    {
+        Assert.Equal(2, QuickAsk.MonitorIndexAt(Monitors, 500, -500));
+    }
+
+    [Fact]
+    public void MonitorIndexAt_SharedEdge_BelongsToTheMonitorItStarts()
+    {
+        // The primary's right edge (x = 1920) is the second
+        // monitor's left edge: the point is the second monitor's.
+        Assert.Equal(1, QuickAsk.MonitorIndexAt(Monitors, 1920, 10));
+        Assert.Equal(0, QuickAsk.MonitorIndexAt(Monitors, 1919, 10));
+    }
+
+    [Fact]
+    public void MonitorIndexAt_PointInNoMonitor_IsMinusOne()
+    {
+        Assert.Equal(-1, QuickAsk.MonitorIndexAt(Monitors, 5000, 5000));
+        Assert.Equal(-1, QuickAsk.MonitorIndexAt(Array.Empty<ScreenRect>(), 0, 0));
+    }
+
+    [Fact]
+    public void ContinueRefusalStatusKey_EachReasonHasItsOwnLine()
+    {
+        Assert.Equal("quickask.continue_locked",
+            QuickAsk.ContinueRefusalStatusKey(QuickAskContinueRefusal.Locked));
+        Assert.Equal("quickask.continue_not_ready",
+            QuickAsk.ContinueRefusalStatusKey(QuickAskContinueRefusal.PageNotReady));
+    }
+}

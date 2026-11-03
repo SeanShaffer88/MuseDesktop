@@ -198,7 +198,11 @@ public class ContextPackComposeTests
         FileUnavailable: "(file {0} could not be read)",
         SnippetUnavailable: "This snippet could not be included because it is no longer in the snippet library.",
         ItemCutNote: "[…the rest of this item was left out]",
-        TotalCutNote: "[…the rest of the pack was left out — it was longer than fits here]");
+        TotalCutNote: "[…the rest of the pack was left out — it was longer than fits here]",
+        ReadingSection: "Saved page: {0}",
+        ReadingUnavailableSection: "Saved page: no longer in the reading list",
+        ReadingUnavailable: "(saved page {0} could not be read)",
+        ReadingMissing: "This saved page could not be included because it is no longer in the reading list.");
 
     private static ContextPackLibrary LibraryWithPack(out ContextPack pack)
     {
@@ -323,5 +327,183 @@ public class ContextPackComposeTests
         Assert.Equal(ContextPackComposer.MaxTotalChars, composed.Length);
         Assert.DoesNotContain(Labels.TotalCutNote, composed);
         Assert.NotNull(library);
+    }
+}
+
+// ───────────────────── Reading items in packs (M2) ─────────────────────
+//
+// The fourth kind: a reference to a reading-list entry, by id,
+// like the snippet kind. These tests pin the library half (add,
+// validation, sanitize clearing the other kinds' fields) and the
+// compose half (the entry's title heads the section; the resolved
+// text obeys the per-item cap; a gone entry and an unresolvable
+// page each become their one-line placeholder).
+
+public class ContextPackReadingItemTests
+{
+    private static readonly DateTimeOffset Now = new(2026, 11, 3, 12, 0, 0, TimeSpan.Zero);
+
+    private static readonly ContextPackComposeLabels Labels = new(
+        Header: "Context pack: {0}",
+        FileSection: "File: {0}",
+        NoteSection: "Note: {0}",
+        SnippetSection: "Snippet: {0}",
+        SnippetUnavailableSection: "Snippet: no longer in the library",
+        FileUnavailable: "(file {0} could not be read)",
+        SnippetUnavailable: "This snippet could not be included because it is no longer in the snippet library.",
+        ItemCutNote: "[…the rest of this item was left out]",
+        TotalCutNote: "[…the rest of the pack was left out — it was longer than fits here]",
+        ReadingSection: "Saved page: {0}",
+        ReadingUnavailableSection: "Saved page: no longer in the reading list",
+        ReadingUnavailable: "(saved page {0} could not be read)",
+        ReadingMissing: "This saved page could not be included because it is no longer in the reading list.");
+
+    private static ReadingListEntry Entry(string id, string title, string route = "/projects") =>
+        new() { Id = id, Title = title, Route = route, AddedUtc = Now };
+
+    [Fact]
+    public void AddReadingItem_StoresOnlyTheEntryId()
+    {
+        var library = new ContextPackLibrary();
+        var pack = library.AddPack("Research", Now)!;
+        var item = library.AddReadingItem(pack.Id, "entry-1", Now);
+        Assert.NotNull(item);
+        Assert.Equal(ContextPackItemKind.Reading, item!.Kind);
+        Assert.Equal("entry-1", item.ReadingEntryId);
+        Assert.Equal("", item.Path);
+        Assert.Equal("", item.SnippetId);
+    }
+
+    [Fact]
+    public void AddReadingItem_RejectsUnusableIds()
+    {
+        var library = new ContextPackLibrary();
+        var pack = library.AddPack("Research", Now)!;
+        Assert.Null(library.AddReadingItem(pack.Id, "  ", Now));
+        Assert.Null(library.AddReadingItem(pack.Id, "two words", Now));
+        Assert.Null(library.AddReadingItem("no-such-pack", "entry-1", Now));
+        Assert.Empty(pack.Items);
+    }
+
+    [Fact]
+    public void Sanitize_ReadingItem_KeepsTheIdAndClearsOtherKindsFields()
+    {
+        var library = new ContextPackLibrary();
+        var pack = library.AddPack("Research", Now)!;
+        pack.Items.Add(new ContextPackItem
+        {
+            Id = "item-1",
+            Kind = ContextPackItemKind.Reading,
+            ReadingEntryId = "entry-1",
+            Path = @"C:\smuggled.txt",
+            Title = "smuggled",
+            Text = "smuggled",
+            SnippetId = "smuggled",
+        });
+        pack.Items.Add(new ContextPackItem
+        {
+            Id = "item-2",
+            Kind = ContextPackItemKind.Reading,
+            ReadingEntryId = "not a valid id",
+        });
+        library.Sanitize();
+        var kept = Assert.Single(pack.Items);
+        Assert.Equal("entry-1", kept.ReadingEntryId);
+        Assert.Equal("", kept.Path);
+        Assert.Equal("", kept.Title);
+        Assert.Equal("", kept.Text);
+        Assert.Equal("", kept.SnippetId);
+    }
+
+    [Fact]
+    public void Compose_ReadingItem_ResolvesItsTextUnderTheEntrysTitle()
+    {
+        var library = new ContextPackLibrary();
+        var pack = library.AddPack("Research", Now)!;
+        library.AddReadingItem(pack.Id, "entry-1", Now);
+        var entry = Entry("entry-1", "Release notes");
+        var composed = ContextPackComposer.Compose(
+            pack, _ => null, _ => null, Labels,
+            id => id == "entry-1" ? entry : null,
+            _ => "The page's own words.");
+        Assert.Equal(
+            "Context pack: Research\n\nSaved page: Release notes\n\nThe page's own words.",
+            composed);
+    }
+
+    [Fact]
+    public void Compose_ReadingItem_TextIsCappedPerItemLikeAFile()
+    {
+        var library = new ContextPackLibrary();
+        var pack = library.AddPack("Research", Now)!;
+        library.AddReadingItem(pack.Id, "entry-1", Now);
+        var entry = Entry("entry-1", "Long page");
+        var longText = new string('a', ContextPackComposer.MaxFileTextChars + 500);
+        var composed = ContextPackComposer.Compose(
+            pack, _ => null, _ => null, Labels,
+            _ => entry, _ => longText);
+        Assert.NotNull(composed);
+        Assert.Contains(Labels.ItemCutNote, composed);
+        Assert.DoesNotContain(new string('a', ContextPackComposer.MaxFileTextChars + 1), composed);
+    }
+
+    [Fact]
+    public void Compose_ReadingItem_GoneEntry_BecomesTheMissingPlaceholder()
+    {
+        var library = new ContextPackLibrary();
+        var pack = library.AddPack("Research", Now)!;
+        library.AddReadingItem(pack.Id, "entry-gone", Now);
+        var composed = ContextPackComposer.Compose(
+            pack, _ => null, _ => null, Labels,
+            _ => null, _ => "text that must not be used");
+        Assert.Equal(
+            "Context pack: Research\n\n"
+            + "Saved page: no longer in the reading list\n\n"
+            + "This saved page could not be included because it is no longer in the reading list.",
+            composed);
+    }
+
+    [Fact]
+    public void Compose_ReadingItem_UnresolvableText_BecomesTheUnreadablePlaceholder()
+    {
+        var library = new ContextPackLibrary();
+        var pack = library.AddPack("Research", Now)!;
+        library.AddReadingItem(pack.Id, "entry-1", Now);
+        var entry = Entry("entry-1", "Release notes");
+        var composed = ContextPackComposer.Compose(
+            pack, _ => null, _ => null, Labels,
+            _ => entry, _ => null);
+        Assert.Equal(
+            "Context pack: Research\n\nSaved page: Release notes\n\n(saved page Release notes could not be read)",
+            composed);
+    }
+
+    [Fact]
+    public void Compose_ReadingItem_NoResolversSupplied_PlaceholdersInsteadOfFailing()
+    {
+        // A caller that knows nothing of reading items (an older
+        // compose path) still gets a composed pack, with the
+        // honest placeholder where the page would have been.
+        var library = new ContextPackLibrary();
+        var pack = library.AddPack("Research", Now)!;
+        library.AddReadingItem(pack.Id, "entry-1", Now);
+        var composed = ContextPackComposer.Compose(pack, _ => null, _ => null, Labels);
+        Assert.NotNull(composed);
+        Assert.Contains("no longer in the reading list", composed);
+    }
+
+    [Fact]
+    public void Compose_ReadingItem_ResolverThatThrows_PlaceholdersInsteadOfFailing()
+    {
+        var library = new ContextPackLibrary();
+        var pack = library.AddPack("Research", Now)!;
+        library.AddReadingItem(pack.Id, "entry-1", Now);
+        var entry = Entry("entry-1", "Release notes");
+        var composed = ContextPackComposer.Compose(
+            pack, _ => null, _ => null, Labels,
+            _ => entry,
+            _ => throw new InvalidOperationException("extraction failed"));
+        Assert.NotNull(composed);
+        Assert.Contains("(saved page Release notes could not be read)", composed);
     }
 }

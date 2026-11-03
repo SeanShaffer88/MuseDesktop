@@ -223,3 +223,62 @@ public class PinnedConversationsTests
         Assert.NotEqual(AppPaths.SettingsPath, AppPaths.PinsPath);
     }
 }
+
+public class PinnedConversationFilterTests
+{
+    private static PinnedConversation Pin(string title, string url) => new()
+    {
+        Id = Guid.NewGuid().ToString("N"),
+        Title = title,
+        Url = url,
+        PinnedUtc = DateTimeOffset.UtcNow,
+    };
+
+    private static readonly PinnedConversation[] Pins =
+    {
+        Pin("Quarterly planning", "https://muse.ai/chat/aaa"),
+        Pin("Release checklist", "https://muse.ai/chat/bbb"),
+        Pin("quarterly budget", "https://muse.ai/chat/ccc"),
+    };
+
+    [Fact]
+    public void Filter_MatchesTitleCaseInsensitively_KeepingOrder()
+    {
+        var matches = PinnedConversations.Filter(Pins, "QUARTERLY");
+        Assert.Equal(2, matches.Count);
+        Assert.Equal("Quarterly planning", matches[0].Title);
+        Assert.Equal("quarterly budget", matches[1].Title);
+    }
+
+    [Fact]
+    public void Filter_MatchesTheRouteForUntitledPins()
+    {
+        var untitled = new[] { Pin("", "https://muse.ai/chat/xyz-123") };
+        Assert.Single(PinnedConversations.Filter(untitled, "xyz-123"));
+        Assert.Empty(PinnedConversations.Filter(untitled, "something else"));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Filter_BlankQuery_IsNoFilter(string? query)
+    {
+        Assert.Equal(Pins.Length, PinnedConversations.Filter(Pins, query).Count);
+    }
+
+    [Fact]
+    public void Filter_NoMatches_IsEmpty_AndNullInputIsEmpty()
+    {
+        Assert.Empty(PinnedConversations.Filter(Pins, "no such words"));
+        Assert.Empty(PinnedConversations.Filter(null, "quarterly"));
+    }
+
+    [Fact]
+    public void Filter_DoesNotTouchTheListItself()
+    {
+        var before = Pins.ToList();
+        _ = PinnedConversations.Filter(Pins, "quarterly");
+        Assert.Equal(before, Pins);
+    }
+}
