@@ -133,6 +133,7 @@ public partial class MainWindow : Window
     private TaskbarProgress? _taskbar;
     private bool _downloadError;
     private bool _retryWebReady;
+    private bool _screenshotPicking;
     private Microsoft.Web.WebView2.Wpf.WebView2? RetryBrowser;
 
     // v1.4.0 (R4) — downloads round 2: downloads held by the quiet-hours
@@ -5282,6 +5283,279 @@ public partial class MainWindow : Window
             SetStatus(Strings.Get("status.ask_page_no_message_box"));
     }
 
+    private void OnScreenshotAsk(object sender, RoutedEventArgs e) =>
+        _ = ScreenshotAskAsync();
+
+    /// <summary>
+    /// Screenshot → ask (v2.1.0): the user drags a rectangle
+    /// anywhere on the screen (the main window stays put — they may
+    /// be capturing the app itself); the app copies that rectangle,
+    /// opens a NEW conversation, attaches the picture through the
+    /// page's own upload control, and leaves Core's starter line in
+    /// the message box, focused and unsent. If the page won't take
+    /// the file — its shape is the page's business and can change —
+    /// the picture goes on the clipboard instead and the status
+    /// says to paste it. The PNG is a vehicle only: it lives in the
+    /// app's temp folder between the capture and the attach attempt
+    /// and is deleted at the end of every path (Core
+    /// <see cref="ScreenshotAsk.TryDeleteTempFile"/>); the image
+    /// itself is never logged, measured, or kept.
+    /// </summary>
+    private async Task ScreenshotAskAsync()
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        if (_screenshotPicking)
+            return;
+        if (_tabs.Count >= MaxOpenTabs)
+        {
+            SetStatus($"You can have up to {MaxOpenTabs} tabs open");
+            return;
+        }
+        PhysicalRect? picked;
+        _screenshotPicking = true;
+        try { picked = RegionPicker.Pick(); }
+        finally { _screenshotPicking = false; }
+        if (picked is not { } rect)
+        {
+            SetStatus(Strings.Get(ScreenshotAsk.StatusKey(ScreenshotAskOutcome.Cancelled)));
+            return;
+        }
+        if (!IsVisible)
+            ShowFromTray();
+        var tempPath = ScreenshotAsk.TempFilePath(AppPaths.TempDir, DateTimeOffset.Now);
+        try
+        {
+            // A breath between the picker closing and the capture,
+            // so the dim is fully gone from the screen being copied.
+            await Task.Delay(120);
+            Directory.CreateDirectory(AppPaths.TempDir);
+            ScreenCapture.CapturePng(rect, tempPath);
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Screenshot → ask: capture failed: {ex.Message}");
+            ScreenshotAsk.TryDeleteTempFile(tempPath);
+            SetStatus(Strings.Get(ScreenshotAsk.StatusKey(ScreenshotAskOutcome.CaptureFailed)));
+            return;
+        }
+        try
+        {
+            var tab = CreateTab(UrlPolicy.HomeUrl, activate: true);
+            await AttachScreenshotAndStartAsync(tab, tempPath);
+        }
+        finally
+        {
+            if (!ScreenshotAsk.TryDeleteTempFile(tempPath) && File.Exists(tempPath))
+                _log.Warn("Screenshot → ask: the temp screenshot could not be deleted");
+        }
+    }
+
+    /// <summary>
+    /// Land the captured picture in the new tab (v2.1.0): try the
+    /// page's own upload control through the DevTools protocol
+    /// while the fresh conversation renders; once the document has
+    /// fully loaded with no usable file input — or the protocol
+    /// refuses — stop waiting and put the picture on the clipboard
+    /// instead. Then the starter line goes in through the snippet
+    /// insert path (which focuses the box), and the status reports
+    /// the outcome Core mapped. If the tab closes meanwhile there
+    /// is nothing to start; the temp file is deleted by the caller
+    /// either way.
+    /// </summary>
+    private async Task AttachScreenshotAndStartAsync(BrowserTabState tab, string tempPath)
+    {
+        var attached = false;
+        for (var attempt = 0; attempt < 30; attempt++)
+        {
+            if (!_tabs.Contains(tab))
+                return;
+            if (tab.WebReady)
+            {
+                try { attached = await TryAttachScreenshotViaDevToolsAsync(tab, tempPath); }
+                catch (Exception) { /* the new tab is still starting or navigating */ }
+                if (attached)
+                    break;
+                try
+                {
+                    // A finished document that offers no usable
+                    // input will not grow one by waiting.
+                    if (await tab.Browser.CoreWebView2.ExecuteScriptAsync("document.readyState")
+                        == "\"complete\"")
+                        break;
+                }
+                catch (Exception) { /* keep waiting for the page */ }
+            }
+            await Task.Delay(350);
+        }
+        var outcome = ScreenshotAskOutcome.Attached;
+        if (!attached)
+        {
+            outcome = ScreenshotAskOutcome.ClipboardFallback;
+            try
+            {
+                SetClipboardImage(tempPath);
+            }
+            catch (Exception ex)
+            {
+                _log.Warn($"Screenshot → ask: clipboard fallback failed: {ex.Message}");
+                outcome = ScreenshotAskOutcome.CaptureFailed;
+            }
+        }
+        var starter = ScreenshotAsk.ComposeStarterLine(Strings.Get("screenshot_ask.starter"));
+        if (!await InsertMessageBoxTextWhenReadyAsync(tab, starter))
+            outcome = ScreenshotAskOutcome.NoMessageBox;
+        if (_tabs.Contains(tab) && ReferenceEquals(tab, _activeTab))
+            SetStatus(Strings.Get(ScreenshotAsk.StatusKey(outcome)));
+    }
+
+    /// <summary>
+    /// Attach the PNG through the page's own file input (v2.1.0),
+    /// via the DevTools protocol: take the document, list its
+    /// <c>input[type=file]</c> elements, prefer one that accepts
+    /// images, and set the temp file on it — the mechanism browser
+    /// automation uses, which fires the page's own change handling,
+    /// so the picture becomes the conversation's attachment by the
+    /// page's own rules. Best-effort by design: no input, a
+    /// protocol error, or an unexpected response shape is a quiet
+    /// false and the clipboard takes over. Only node ids and
+    /// attribute names are read here — never page text, and the one
+    /// attribute value read (an input's <c>accept</c> list, the
+    /// control's own declaration) is never logged.
+    /// </summary>
+    private async Task<bool> TryAttachScreenshotViaDevToolsAsync(BrowserTabState tab, string tempPath)
+    {
+        var core = tab.Browser.CoreWebView2;
+        if (core is null)
+            return false;
+        var documentJson = await core.CallDevToolsProtocolMethodAsync(
+            "DOM.getDocument", "{\"depth\":-1}");
+        int rootId;
+        using (var document = JsonDocument.Parse(documentJson))
+        {
+            if (!document.RootElement.TryGetProperty("root", out var root)
+                || !root.TryGetProperty("nodeId", out var rootIdElement)
+                || !rootIdElement.TryGetInt32(out rootId))
+                return false;
+        }
+        var nodesJson = await core.CallDevToolsProtocolMethodAsync(
+            "DOM.querySelectorAll",
+            JsonSerializer.Serialize(new Dictionary<string, object>
+            {
+                ["nodeId"] = rootId,
+                ["selector"] = "input[type='file']",
+            }));
+        var nodeIds = new List<int>();
+        using (var nodes = JsonDocument.Parse(nodesJson))
+        {
+            if (!nodes.RootElement.TryGetProperty("nodeIds", out var ids))
+                return false;
+            foreach (var idElement in ids.EnumerateArray())
+            {
+                if (idElement.TryGetInt32(out var id) && id != 0)
+                    nodeIds.Add(id);
+            }
+        }
+        if (nodeIds.Count == 0)
+            return false;
+        var target = nodeIds[0];
+        foreach (var id in nodeIds)
+        {
+            if (await FileInputAcceptsImagesAsync(core, id))
+            {
+                target = id;
+                break;
+            }
+        }
+        await core.CallDevToolsProtocolMethodAsync(
+            "DOM.setFileInputFiles",
+            JsonSerializer.Serialize(new Dictionary<string, object>
+            {
+                ["nodeId"] = target,
+                ["files"] = new[] { tempPath },
+            }));
+        return true;
+    }
+
+    /// <summary>Whether one of the page's file inputs takes images: no <c>accept</c> attribute (anything goes) or an accept list naming images.</summary>
+    private async Task<bool> FileInputAcceptsImagesAsync(CoreWebView2 core, int nodeId)
+    {
+        try
+        {
+            var attributesJson = await core.CallDevToolsProtocolMethodAsync(
+                "DOM.getAttributes",
+                JsonSerializer.Serialize(new Dictionary<string, object> { ["nodeId"] = nodeId }));
+            using var attributes = JsonDocument.Parse(attributesJson);
+            if (!attributes.RootElement.TryGetProperty("attributes", out var flat))
+                return false;
+            // CDP returns attributes as a flat name, value, name,
+            // value… list.
+            var pairs = flat.EnumerateArray().Select(e => e.GetString()).ToList();
+            string? accept = null;
+            for (var i = 0; i + 1 < pairs.Count; i += 2)
+            {
+                if (pairs[i] == "accept")
+                    accept = pairs[i + 1];
+            }
+            return accept is null
+                || accept.Contains("image", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Land text in a fresh tab's message box once it exists
+    /// (v2.1.0) — the bounded retry of the page-context insert,
+    /// returning whether the text landed instead of reporting a
+    /// status: the caller owns the wording, because what the text
+    /// means depends on the feature. The insert focuses the box.
+    /// </summary>
+    private async Task<bool> InsertMessageBoxTextWhenReadyAsync(BrowserTabState tab, string text)
+    {
+        for (var attempt = 0; attempt < 45; attempt++)
+        {
+            if (!_tabs.Contains(tab))
+                return false;
+            if (tab.WebReady)
+            {
+                try
+                {
+                    if (await tab.Browser.CoreWebView2.ExecuteScriptAsync(
+                            PageScripts.InsertSnippet(text)) == "true")
+                        return true;
+                }
+                catch (Exception)
+                {
+                    // The new tab's web view is still starting or
+                    // navigating — keep waiting for its composer.
+                }
+            }
+            await Task.Delay(350);
+        }
+        return false;
+    }
+
+    /// <summary>The clipboard fallback's picture (v2.1.0): the captured PNG decoded from the temp file and frozen, so the file can be deleted the moment this returns and the clipboard keeps its own copy.</summary>
+    private static void SetClipboardImage(string path)
+    {
+        var image = new BitmapImage();
+        using (var stream = File.OpenRead(path))
+        {
+            image.BeginInit();
+            image.CacheOption = BitmapCacheOption.OnLoad;
+            image.StreamSource = stream;
+            image.EndInit();
+        }
+        image.Freeze();
+        System.Windows.Clipboard.SetImage(image);
+    }
+
     private void OnExportConversationMarkdown(object sender, RoutedEventArgs e) =>
         _ = ExportConversationAsync(pdf: false);
 
@@ -6010,6 +6284,7 @@ public partial class MainWindow : Window
             case "action.export-conversation": _ = ExportConversationAsync(pdf: false); break;
             case "action.export-conversation-pdf": _ = ExportConversationAsync(pdf: true); break;
             case "action.ask-about-page": _ = AskAboutPageAsync(); break;
+            case "action.screenshot-ask": _ = ScreenshotAskAsync(); break;
             case "action.exit": ExitApp(); break;
         }
     }
