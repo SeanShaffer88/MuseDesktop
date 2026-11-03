@@ -1,0 +1,84 @@
+<Window x:Class="MuseDesktop.CompareWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:MuseDesktop"
+        Title="{local:Loc compare.window_title}"
+        Width="1280" Height="800" MinWidth="760" MinHeight="480"
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}">
+    <Grid Margin="10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="8"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Left pane: a profile picker + status chip over its own web view. -->
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <DockPanel Grid.Row="0" LastChildFill="False" Margin="0,0,0,6">
+                    <TextBlock Text="{local:Loc compare.first_pane}" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                    <ComboBox x:Name="LeftProfileCombo" Margin="8,0,0,0" MinWidth="150"
+                              DisplayMemberPath="Label" SelectionChanged="OnLeftProfileChanged"
+                              ToolTip="{local:Loc compare.first_pane}"
+                              AutomationProperties.Name="{local:Loc compare.first_pane}"
+                              KeyboardNavigation.TabIndex="1"/>
+                    <TextBlock x:Name="LeftStatus" Margin="10,0,0,0" VerticalAlignment="Center"
+                               Foreground="{StaticResource MutedBrush}"/>
+                </DockPanel>
+                <Border Grid.Row="1" BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1">
+                    <Grid x:Name="LeftWebHost"/>
+                </Border>
+            </Grid>
+
+            <!-- Right pane: the same shape; the two start on different profiles when the user has two. -->
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <DockPanel Grid.Row="0" LastChildFill="False" Margin="0,0,0,6">
+                    <TextBlock Text="{local:Loc compare.second_pane}" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                    <ComboBox x:Name="RightProfileCombo" Margin="8,0,0,0" MinWidth="150"
+                              DisplayMemberPath="Label" SelectionChanged="OnRightProfileChanged"
+                              ToolTip="{local:Loc compare.second_pane}"
+                              AutomationProperties.Name="{local:Loc compare.second_pane}"
+                              KeyboardNavigation.TabIndex="2"/>
+                    <TextBlock x:Name="RightStatus" Margin="10,0,0,0" VerticalAlignment="Center"
+                               Foreground="{StaticResource MutedBrush}"/>
+                </DockPanel>
+                <Border Grid.Row="1" BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1">
+                    <Grid x:Name="RightWebHost"/>
+                </Border>
+            </Grid>
+        </Grid>
+
+        <!-- The shared prompt bar: one box, one send, both panes. -->
+        <Grid Grid.Row="1" Margin="0,10,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="PromptBox" Grid.Column="0" Height="54"
+                     AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                     Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
+                     BorderBrush="{StaticResource HairlineBrush}" Padding="6,4"
+                     ToolTip="{local:Loc compare.prompt_placeholder}"
+                     AutomationProperties.Name="{local:Loc compare.prompt_placeholder}"
+                     TextChanged="OnPromptChanged" PreviewKeyDown="OnPromptKeyDown"
+                     KeyboardNavigation.TabIndex="3"/>
+            <Button x:Name="SendButton" Grid.Column="1" Margin="8,0,0,0" Width="120"
+                    Content="{local:Loc compare.send_to_both}" IsEnabled="False" Click="OnSendToBoth"
+                    Background="{StaticResource AccentBrush}" Foreground="{StaticResource AccentTextBrush}"
+                    BorderThickness="0" KeyboardNavigation.TabIndex="4"/>
+        </Grid>
+    </Grid>
+</Window>

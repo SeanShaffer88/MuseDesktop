@@ -1,0 +1,174 @@
+<Window x:Class="MuseDesktop.LibraryWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="{local:Loc library.title}"
+        Width="780" Height="580" MinWidth="640" MinHeight="440"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}" xmlns:local="clr-namespace:MuseDesktop">
+    <Window.Resources>
+        <Style x:Key="Note" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,6,0,0"/>
+        </Style>
+        <Style x:Key="FieldLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Margin" Value="0,8,0,2"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="14,12,14,12">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <TextBlock Grid.Row="0" TextWrapping="Wrap"
+                   Text="{local:Loc library.intro}"/>
+        <TabControl x:Name="LibraryTabs" Grid.Row="1" Margin="0,10,0,0"
+                    Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}"
+                    BorderBrush="{StaticResource HairlineBrush}"
+                    AutomationProperties.Name="{local:Loc library.tabs_name}">
+            <TabItem Header="{local:Loc library.tab_snippets}">
+                <DockPanel Margin="10">
+                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource Note}" Margin="0,0,0,0"
+                               Text="{local:Loc library.snippets_note}"/>
+                    <TextBlock x:Name="SnippetStatus" DockPanel.Dock="Bottom" Style="{StaticResource Note}"
+                               Foreground="{StaticResource AccentBrush}"/>
+                    <Grid Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="200"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <ListBox x:Name="SnippetList" Grid.Column="0" SelectionChanged="OnSnippetSelectionChanged"
+                                 Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
+                                 BorderBrush="{StaticResource HairlineBrush}"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ScrollViewer.CanContentScroll="True"
+                                 VirtualizingPanel.IsVirtualizing="True"
+                                 VirtualizingPanel.VirtualizationMode="Recycling"
+                                 ToolTip="{local:Loc this_profile_s_saved_prompts_in_name_order}" KeyboardNavigation.TabIndex="1"/>
+                        <StackPanel Grid.Column="2">
+                            <TextBox x:Name="SnippetNameText"
+                                     ToolTip="{local:Loc library.snippet_name_tooltip}" KeyboardNavigation.TabIndex="2"/>
+                            <TextBox x:Name="SnippetBodyText" Margin="0,6,0,0" Height="150" AcceptsReturn="True"
+                                     TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                                     ToolTip="{local:Loc library.snippet_body_tooltip}" KeyboardNavigation.TabIndex="3"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <Button x:Name="SaveSnippetButton" Content="{local:Loc save_snippet}" Width="104" Height="28" Click="OnSaveSnippet"
+                                        KeyboardNavigation.TabIndex="4"/>
+                                <Button x:Name="NewSnippetButton" Content="{local:Loc new}" Width="64" Height="28" Margin="8,0,0,0" Click="OnNewSnippet"
+                                        KeyboardNavigation.TabIndex="5"/>
+                                <Button x:Name="DeleteSnippetButton" Content="{local:Loc delete}" Width="76" Height="28" Margin="8,0,0,0" Click="OnDeleteSnippet"
+                                        KeyboardNavigation.TabIndex="6"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                </DockPanel>
+            </TabItem>
+            <TabItem Header="{local:Loc library.tab_briefs}">
+                <DockPanel Margin="10">
+                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource Note}" Margin="0,0,0,0"
+                               Text="{local:Loc library.briefs_note}"/>
+                    <TextBlock x:Name="BriefStatus" DockPanel.Dock="Bottom" Style="{StaticResource Note}"
+                               Foreground="{StaticResource AccentBrush}"/>
+                    <Grid Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="200"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <DockPanel Grid.Column="0">
+                            <TextBlock x:Name="BriefEmptyText" DockPanel.Dock="Bottom" Style="{StaticResource Note}"
+                                       Text="{local:Loc library.brief_list_empty}" Visibility="Collapsed"/>
+                            <ListBox x:Name="BriefList" SelectionChanged="OnBriefSelectionChanged"
+                                     Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
+                                     BorderBrush="{StaticResource HairlineBrush}"
+                                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                     ScrollViewer.CanContentScroll="True"
+                                     VirtualizingPanel.IsVirtualizing="True"
+                                     VirtualizingPanel.VirtualizationMode="Recycling"
+                                     AutomationProperties.Name="{local:Loc library.brief_list_name}" KeyboardNavigation.TabIndex="7"/>
+                        </DockPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Style="{StaticResource FieldLabel}" Margin="0,0,0,2"
+                                       Text="{local:Loc library.brief_name_label}"/>
+                            <TextBox x:Name="BriefNameText"
+                                     ToolTip="{local:Loc library.brief_name_tooltip}" KeyboardNavigation.TabIndex="8"/>
+                            <TextBlock Style="{StaticResource FieldLabel}"
+                                       Text="{local:Loc brief.background}"/>
+                            <TextBox x:Name="BriefBackgroundText" Height="78" AcceptsReturn="True"
+                                     TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                                     ToolTip="{local:Loc library.brief_background_tooltip}" KeyboardNavigation.TabIndex="9"/>
+                            <TextBlock Style="{StaticResource FieldLabel}"
+                                       Text="{local:Loc brief.rules}"/>
+                            <TextBox x:Name="BriefRulesText" Height="78" AcceptsReturn="True"
+                                     TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                                     ToolTip="{local:Loc library.brief_rules_tooltip}" KeyboardNavigation.TabIndex="10"/>
+                            <TextBlock Style="{StaticResource FieldLabel}"
+                                       Text="{local:Loc brief.preferences}"/>
+                            <TextBox x:Name="BriefPreferencesText" Height="78" AcceptsReturn="True"
+                                     TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                                     ToolTip="{local:Loc library.brief_preferences_tooltip}" KeyboardNavigation.TabIndex="11"/>
+                            <Button x:Name="NewConversationButton" Content="{local:Loc library.new_conversation_with_brief}"
+                                    Width="250" Height="30" Margin="0,10,0,0" HorizontalAlignment="Left" Click="OnNewConversationWithBrief"
+                                    ToolTip="{local:Loc library.new_conversation_tooltip}" KeyboardNavigation.TabIndex="12"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <Button x:Name="SaveBriefButton" Content="{local:Loc library.brief_save}" Width="96" Height="28" Click="OnSaveBrief"
+                                        KeyboardNavigation.TabIndex="13"/>
+                                <Button x:Name="NewBriefButton" Content="{local:Loc library.brief_new}" Width="96" Height="28" Margin="8,0,0,0" Click="OnNewBrief"
+                                        KeyboardNavigation.TabIndex="14"/>
+                                <Button x:Name="DuplicateBriefButton" Content="{local:Loc library.brief_duplicate}" Width="116" Height="28" Margin="8,0,0,0" Click="OnDuplicateBrief"
+                                        KeyboardNavigation.TabIndex="15"/>
+                                <Button x:Name="DeleteBriefButton" Content="{local:Loc library.brief_delete}" Width="96" Height="28" Margin="8,0,0,0" Click="OnDeleteBrief"
+                                        KeyboardNavigation.TabIndex="16"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                </DockPanel>
+            </TabItem>
+            <TabItem Header="{local:Loc library.tab_reading_list}">
+                <DockPanel Margin="10">
+                    <TextBlock DockPanel.Dock="Top" Style="{StaticResource Note}" Margin="0,0,0,0"
+                               Text="{local:Loc library.reading_note}"/>
+                    <TextBlock x:Name="ReadingEmptyText" DockPanel.Dock="Bottom" Margin="0,10,0,0"
+                               Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Visibility="Collapsed"/>
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,10,0,0">
+                        <Button x:Name="ReadingOpenButton" Content="{local:Loc open}" Width="84" Height="28" Click="OnReadingOpen" KeyboardNavigation.TabIndex="17"/>
+                        <Button x:Name="ReadingReadButton" Content="{local:Loc mark_read}" Width="96" Height="28" Margin="8,0,0,0" Click="OnReadingToggleRead" KeyboardNavigation.TabIndex="18"/>
+                        <Button x:Name="ReadingRemoveButton" Content="{local:Loc remove}" Width="84" Height="28" Margin="8,0,0,0" Click="OnReadingRemove" KeyboardNavigation.TabIndex="19"/>
+                    </StackPanel>
+                    <ListBox x:Name="EntryList" Margin="0,10,0,0"
+                             Background="{StaticResource SurfaceBrush}" Foreground="{StaticResource TextBrush}"
+                             BorderBrush="{StaticResource HairlineBrush}"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.CanContentScroll="True"
+                             VirtualizingPanel.IsVirtualizing="True"
+                             VirtualizingPanel.VirtualizationMode="Recycling"
+                             MouseDoubleClick="OnReadingDoubleClick"
+                             AutomationProperties.Name="{local:Loc reading_list_entries}" KeyboardNavigation.TabIndex="20">
+                        <ListBox.ItemContainerStyle>
+                            <Style TargetType="ListBoxItem">
+                                <Setter Property="AutomationProperties.Name" Value="{Binding AutomationName}"/>
+                            </Style>
+                        </ListBox.ItemContainerStyle>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="4,3">
+                                    <TextBlock Text="{Binding Title}" FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                    <TextBlock Text="{Binding Detail}" FontSize="11"
+                                               Foreground="{StaticResource MutedBrush}" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </TabItem>
+        </TabControl>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,10,0,0">
+            <Button Content="{local:Loc close}" Width="84" Height="28" IsCancel="True" KeyboardNavigation.TabIndex="21"/>
+        </StackPanel>
+    </Grid>
+</Window>
