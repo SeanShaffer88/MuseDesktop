@@ -8,7 +8,9 @@ namespace MuseDesktop.Core;
 // A context pack is a named, local bundle of material that can be
 // placed into a fresh conversation in one action: files (whose text
 // is read only when a conversation is started), notes kept in the
-// pack itself, and references to prompt snippets. The library is a
+// pack itself, references to prompt snippets, and references to
+// reading-list entries (M2 — resolved at start from a page the
+// user has open, never stored). The library is a
 // small local store in the snippets store's style. Pack contents
 // are the user's own words and files: they are never logged, and a
 // file item contributes only its file NAME to headings — never its
@@ -25,6 +27,9 @@ public enum ContextPackItemKind
 
     /// <summary>A prompt snippet, referenced by id so an edited snippet is what a later start uses.</summary>
     Snippet,
+
+    /// <summary>A reading-list entry, referenced by id (M2); its text is resolved at compose time from the page the user has open, never stored in the pack.</summary>
+    Reading,
 }
 
 /// <summary>
@@ -48,6 +53,9 @@ public sealed class ContextPackItem
 
     /// <summary>The referenced snippet's id (Snippet items only).</summary>
     public string SnippetId { get; set; } = "";
+
+    /// <summary>The referenced reading-list entry's id (Reading items only).</summary>
+    public string ReadingEntryId { get; set; } = "";
 }
 
 /// <summary>One named context pack: its identity, its timestamps, and its items in the order the user added them.</summary>
@@ -113,6 +121,9 @@ public sealed class ContextPackLibrary
             ? clean
             : null;
     }
+
+    /// <summary>The cleaned reading-list entry id — a snippet id's shape exactly (one short token), because it names a store entry the same way.</summary>
+    public static string? CleanReadingEntryId(string? entryId) => CleanSnippetId(entryId);
 
     public ContextPack? FindPack(string? packId) =>
         string.IsNullOrWhiteSpace(packId)
@@ -222,6 +233,22 @@ public sealed class ContextPackLibrary
         return item;
     }
 
+    /// <summary>Add a reading-list reference to a pack; returns it, or null when the pack is missing/full or the id fails validation.</summary>
+    public ContextPackItem? AddReadingItem(string packId, string? entryId, DateTimeOffset now)
+    {
+        if (CleanReadingEntryId(entryId) is not { } cleanId || !CanAddItem(packId, out var pack))
+            return null;
+        var item = new ContextPackItem
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            Kind = ContextPackItemKind.Reading,
+            ReadingEntryId = cleanId,
+        };
+        pack!.Items.Add(item);
+        pack.UpdatedUtc = now;
+        return item;
+    }
+
     /// <summary>Remove one item from a pack; returns false when either isn't there.</summary>
     public bool RemoveItem(string packId, string itemId, DateTimeOffset now)
     {
@@ -268,6 +295,7 @@ public sealed class ContextPackLibrary
                         item.Title = "";
                         item.Text = "";
                         item.SnippetId = "";
+                        item.ReadingEntryId = "";
                         break;
                     case ContextPackItemKind.Note:
                         if (CleanNoteTitle(item.Title) is not { } cleanTitle
@@ -277,6 +305,7 @@ public sealed class ContextPackLibrary
                         item.Text = cleanText;
                         item.Path = "";
                         item.SnippetId = "";
+                        item.ReadingEntryId = "";
                         break;
                     case ContextPackItemKind.Snippet:
                         if (CleanSnippetId(item.SnippetId) is not { } cleanSnippetId)
@@ -285,6 +314,16 @@ public sealed class ContextPackLibrary
                         item.Path = "";
                         item.Title = "";
                         item.Text = "";
+                        item.ReadingEntryId = "";
+                        break;
+                    case ContextPackItemKind.Reading:
+                        if (CleanReadingEntryId(item.ReadingEntryId) is not { } cleanReadingId)
+                            continue;
+                        item.ReadingEntryId = cleanReadingId;
+                        item.Path = "";
+                        item.Title = "";
+                        item.Text = "";
+                        item.SnippetId = "";
                         break;
                     default:
                         continue;
@@ -371,7 +410,7 @@ public static class ContextPackStore
     }
 }
 
-/// <summary>The words a composed context block needs, resolved by the shell from the string catalog (the DraftMeter/PageContext split: Core composes, the catalog words). Header and section templates take {0} as the pack/file/note/snippet name; the file-unavailable template takes {0} as the file name.</summary>
+/// <summary>The words a composed context block needs, resolved by the shell from the string catalog (the DraftMeter/PageContext split: Core composes, the catalog words). Header and section templates take {0} as the pack/file/note/snippet/saved-page name; the file-unavailable and reading-unavailable templates take {0} as the file name / saved page's title.</summary>
 public sealed record ContextPackComposeLabels(
     string Header,
     string FileSection,
@@ -381,7 +420,11 @@ public sealed record ContextPackComposeLabels(
     string FileUnavailable,
     string SnippetUnavailable,
     string ItemCutNote,
-    string TotalCutNote);
+    string TotalCutNote,
+    string ReadingSection,
+    string ReadingUnavailableSection,
+    string ReadingUnavailable,
+    string ReadingMissing);
 
 /// <summary>
 /// Turns a pack into the one organized block that starts a
@@ -389,7 +432,13 @@ public sealed record ContextPackComposeLabels(
 /// compose time only; a file that cannot be read as text becomes a
 /// one-line placeholder section rather than failing the pack. A
 /// snippet that has left the library gets the same honest
-/// placeholder treatment. Nothing here logs or keeps the text.
+/// placeholder treatment, and so does a reading item (M2): the
+/// entry is looked up by id and its text comes from the caller's
+/// resolver — the shell resolves it at Start from a page the user
+/// has open, the ask-about-this-page channel — so an entry that's
+/// gone, or a page that isn't open, lands as a one-line placeholder
+/// naming what couldn't be included. Nothing here logs or keeps
+/// the text.
 /// </summary>
 public static class ContextPackComposer
 {
@@ -409,7 +458,9 @@ public static class ContextPackComposer
         ContextPack? pack,
         Func<string, string?>? fileReader,
         Func<string, PromptSnippet?>? snippetLookup,
-        ContextPackComposeLabels labels)
+        ContextPackComposeLabels labels,
+        Func<string, ReadingListEntry?>? readingLookup = null,
+        Func<ReadingListEntry, string?>? readingTextResolver = null)
     {
         ArgumentNullException.ThrowIfNull(labels);
         if (pack is null || pack.Items is null || pack.Items.Count == 0)
@@ -419,7 +470,7 @@ public static class ContextPackComposer
         foreach (var item in pack.Items)
         {
             if (item is not null)
-                sections.Add(RenderSection(item, fileReader, snippetLookup, labels));
+                sections.Add(RenderSection(item, fileReader, snippetLookup, labels, readingLookup, readingTextResolver));
         }
         if (sections.Count == 0)
             return null;
@@ -456,7 +507,9 @@ public static class ContextPackComposer
         ContextPackItem item,
         Func<string, string?>? fileReader,
         Func<string, PromptSnippet?>? snippetLookup,
-        ContextPackComposeLabels labels)
+        ContextPackComposeLabels labels,
+        Func<string, ReadingListEntry?>? readingLookup,
+        Func<ReadingListEntry, string?>? readingTextResolver)
     {
         switch (item.Kind)
         {
@@ -465,6 +518,25 @@ public static class ContextPackComposer
                 var title = ContextPackLibrary.CleanNoteTitle(item.Title) ?? "";
                 var text = NormalizeText(item.Text);
                 return string.Format(labels.NoteSection, title) + "\n\n" + text;
+            }
+            case ContextPackItemKind.Reading:
+            {
+                ReadingListEntry? entry = null;
+                try { entry = readingLookup?.Invoke(item.ReadingEntryId); }
+                catch (Exception) { entry = null; }
+                if (entry is null)
+                    return labels.ReadingUnavailableSection + "\n\n" + labels.ReadingMissing;
+                var title = string.IsNullOrWhiteSpace(entry.Title) ? entry.Route : entry.Title.Trim();
+                var heading = string.Format(labels.ReadingSection, title);
+                string? raw = null;
+                try { raw = readingTextResolver?.Invoke(entry); }
+                catch (Exception) { raw = null; }
+                var text = NormalizeText(raw);
+                if (text.Length == 0)
+                    return heading + "\n\n" + string.Format(labels.ReadingUnavailable, title);
+                if (text.Length > MaxFileTextChars)
+                    text = text[..MaxFileTextChars].TrimEnd() + "\n\n" + labels.ItemCutNote;
+                return heading + "\n\n" + text;
             }
             case ContextPackItemKind.Snippet:
             {

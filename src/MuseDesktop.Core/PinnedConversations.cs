@@ -150,6 +150,34 @@ public sealed class PinnedConversations
     public IReadOnlyList<PinnedConversation> EntriesFor(string profileId) =>
         ByProfile.TryGetValue(profileId, out var list) ? list : Array.Empty<PinnedConversation>();
 
+    /// <summary>
+    /// The Library's Pinned-tab search (M4): the pins whose title —
+    /// or whose conversation route, for the pins whose frozen title
+    /// says nothing — contains the query, case-insensitively, in
+    /// the list's own order. An empty or whitespace query is no
+    /// filter at all and returns the list as it stands. The list
+    /// itself is never touched: filtering is a view, and unpinning
+    /// from a filtered view must still find the real pin.
+    /// </summary>
+    public static IReadOnlyList<PinnedConversation> Filter(
+        IEnumerable<PinnedConversation>? pins, string? query)
+    {
+        if (pins is null)
+            return Array.Empty<PinnedConversation>();
+        var list = pins as IReadOnlyList<PinnedConversation> ?? pins.ToList();
+        var needle = query?.Trim();
+        if (string.IsNullOrEmpty(needle))
+            return list;
+        return list
+            .Where(pin => pin is not null
+                && (Contains(pin.Title, needle) || Contains(pin.Url, needle)))
+            .ToList();
+    }
+
+    private static bool Contains(string? text, string needle) =>
+        !string.IsNullOrEmpty(text)
+        && text.Contains(needle, StringComparison.OrdinalIgnoreCase);
+
     /// <summary>Repair pass after a load: drop unusable pins (no id, an address that is no longer a conversation), re-clean what survives, one pin per conversation (the newest wins), re-sort newest first, cap each list.</summary>
     public void Sanitize()
     {

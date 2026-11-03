@@ -3,7 +3,8 @@ namespace MuseDesktop.Core;
 // ─────────────────────── quick ask (post-v2.1.0) ───────────────────────
 //
 // A small Muse window docked at the bottom-right corner of the
-// primary monitor's work area, for one quick question without
+// work area of the monitor the cursor is on (M3; before that,
+// always the primary monitor's), for one quick question without
 // opening (or disturbing) the main window. The shell owns the
 // window — one WebView2 on the ACTIVE profile's environment,
 // opened on a fresh conversation; the page's own composer is the
@@ -33,7 +34,7 @@ public static class QuickAsk
 
     /// <summary>
     /// Where the card docks inside a work area (in DIPs — the
-    /// shell feeds the primary monitor's work area from
+    /// shell feeds the cursor monitor's work area from
     /// MonitorRects, which converts per-monitor, so the card is
     /// already DPI-scaled when it gets here). The card takes its
     /// fixed size unless the work area can't hold it plus a margin
@@ -57,6 +58,32 @@ public static class QuickAsk
     }
 
     /// <summary>
+    /// Which monitor a point belongs to (M3): the index of the
+    /// first rectangle in <paramref name="monitorRects"/> that
+    /// contains the point, or −1 when none does (or the list is
+    /// empty). The shell feeds the monitors' PHYSICAL rectangles
+    /// (primary first, MonitorRects' order) and the cursor's
+    /// physical position — one space, so a mixed-DPI desktop needs
+    /// no conversion to answer "which screen is the user looking
+    /// at". Edges follow the usual screen rule: the left and top
+    /// edges are inside, the right and bottom are the next
+    /// monitor's. The caller falls back to the primary (index 0)
+    /// on −1: a point in a gap between monitors still has to dock
+    /// the card somewhere.
+    /// </summary>
+    public static int MonitorIndexAt(IReadOnlyList<ScreenRect> monitorRects, double x, double y)
+    {
+        ArgumentNullException.ThrowIfNull(monitorRects);
+        for (var i = 0; i < monitorRects.Count; i++)
+        {
+            var rect = monitorRects[i];
+            if (x >= rect.Left && x < rect.Right && y >= rect.Top && y < rect.Bottom)
+                return i;
+        }
+        return -1;
+    }
+
+    /// <summary>
     /// The address "Continue in main window" navigates to: the
     /// popup page's current address when it is an https page on
     /// one of the in-app hosts (Muse itself or a sign-in
@@ -75,6 +102,30 @@ public static class QuickAsk
         && UrlPolicy.IsInAppHost(uri.Host)
             ? currentUrl!
             : UrlPolicy.HomeUrl;
+
+    /// <summary>The status-line string key for a refused hand-off — one line per reason, so the card's footer never fails silently (M3).</summary>
+    public static string ContinueRefusalStatusKey(QuickAskContinueRefusal refusal) => refusal switch
+    {
+        QuickAskContinueRefusal.Locked => "quickask.continue_locked",
+        _ => "quickask.continue_not_ready",
+    };
+}
+
+/// <summary>
+/// Why the main window refused the quick-ask hand-off (M3). A
+/// refusal used to be a bare false and the card's button appeared
+/// dead; now the reason crosses back with it and the card's footer
+/// says it. The lock is deliberately a reason of its own: the lock
+/// screen is the main answer there, and the footer's line is what
+/// remains visible in the card afterwards.
+/// </summary>
+public enum QuickAskContinueRefusal
+{
+    /// <summary>The app is locked; the lock screen answers instead of the hand-off.</summary>
+    Locked,
+
+    /// <summary>The main window can't take the conversation yet — hidden with no page ready, still loading, or the address wasn't one it may open.</summary>
+    PageNotReady,
 }
 
 /// <summary>
