@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.Net.NetworkInformation;
 using System.Windows.Threading;
 using ContextMenu = System.Windows.Controls.ContextMenu;
@@ -91,6 +92,15 @@ public partial class MainWindow : Window
     // R5B #202: the snippet a bookmark jump is hunting, set when the
     // jump navigates and consumed by the next completed navigation.
     private string? _pendingBookmarkSnippet;
+    // v2.1.0: the draft meter + tidy paste state. The tracked text is
+    // the latest the bridge's draft channel delivered (the user's own
+    // unsent words — held in memory only, never logged); the pending
+    // flag is the length-only long-paste report waiting for that
+    // draft to arrive; the meter line is what the status bar shows
+    // and the Compact Focus pill appends.
+    private string _currentDraftText = "";
+    private string _draftMeterText = "";
+    private bool _longPastePending;
     // R7C: the approval-beep policy (Core) — fed by the bridge
     // watcher's appeared/gone reports; it decides, the shell sounds.
     // R7C2: a slow tick asks the policy for reminder beeps while a
@@ -609,6 +619,10 @@ public partial class MainWindow : Window
         _activeTab.Host.Visibility = Visibility.Collapsed;
         _browserFocused = false;
         _activeTab = tab;
+        // v2.1.0: a tidy offer belongs to the tab it was made in —
+        // switching tabs retires it rather than letting it act on
+        // the newly shown tab's composer.
+        DismissTidyOffer();
         tab.Host.Visibility = Visibility.Visible;
         TitleText.Text = string.IsNullOrWhiteSpace(tab.PageTitle) ? "Muse" : tab.PageTitle;
         var source = tab.Browser.Source?.ToString() ?? "";
@@ -2636,6 +2650,9 @@ public partial class MainWindow : Window
             return;
         AddressText.Text = Uri.TryCreate(src, UriKind.Absolute, out var u) ? u.Host : src;
         UpdateNavButtons();
+        // v2.1.0: a route change retires a standing tidy offer —
+        // it was about the composer the user just left.
+        DismissTidyOffer();
     }
 
     private void OnFullScreenElementChanged(object? sender, object e)
@@ -2820,11 +2837,26 @@ public partial class MainWindow : Window
     {
         StatusText.Text = text;
         StatusRight.Text = right ?? "";
-        // Shell layout (2026-11-01): in Compact Focus the pill IS the
-        // status bar — it carries the same line (plus the right-hand
-        // segment the bar would show), and its tooltip keeps the
-        // full untruncated text one hover away.
+        RefreshStatusPill();
+    }
+
+    /// <summary>
+    /// Compose the Compact Focus pill's line (shell layout,
+    /// 2026-11-01): in that layout the pill IS the status bar, so it
+    /// carries the status text plus the right-hand segment the bar
+    /// would show, and its tooltip keeps the full untruncated text
+    /// one hover away. Since v2.1.0 the draft meter rides the same
+    /// line when a draft is being metered — the pill is display-only
+    /// with the one text element, so the meter appends rather than
+    /// taking a second element the design doesn't have.
+    /// </summary>
+    private void RefreshStatusPill()
+    {
+        var text = StatusText.Text ?? "";
+        var right = StatusRight.Text ?? "";
         var pill = string.IsNullOrEmpty(right) ? text : $"{text}  \u2022  {right}";
+        if (_draftMeterText.Length > 0)
+            pill = $"{pill}  \u2022  {_draftMeterText}";
         StatusPillText.Text = pill;
         StatusPill.ToolTip = pill;
     }
@@ -3006,6 +3038,10 @@ public partial class MainWindow : Window
         // R5B: the drafts switch (the per-profile conversation-view
         // fields ride the Profiles adoption above, like the zoom).
         _settings.DraftsAutosaveEnabled = clone.DraftsAutosaveEnabled;
+        // v2.1.0: the draft meter switch rides the same adoption,
+        // and turning it off retires the meter + offer immediately.
+        _settings.DraftMeterEnabled = clone.DraftMeterEnabled;
+        ApplyDraftMeterSetting();
         _settings.AlwaysOnTop = clone.AlwaysOnTop;
         // S5: appearance + Settings-window memory ride the same adoption.
         _settings.ShellLayout = clone.ShellLayout;
@@ -4673,6 +4709,9 @@ public partial class MainWindow : Window
             case PageBridgeKind.DraftSent:
                 OnPageDraftSent();
                 break;
+            case PageBridgeKind.LongPaste:
+                OnPageLongPaste();
+                break;
             case PageBridgeKind.ApprovalAppeared:
                 OnApprovalCardAppeared(message.Signal);
                 break;
@@ -4957,6 +4996,9 @@ public partial class MainWindow : Window
     /// <summary>A draft changed in the page (R5B #204): file it under the current conversation for the active profile. Empty text clears the draft — that IS the sent/cleared signal from the composer's side.</summary>
     private void OnPageDraftChanged(string text)
     {
+        // v2.1.0: the meter and the tidy offer read the same report
+        // first — they obey their own switch, not the autosave one.
+        UpdateDraftMeter(text);
         if (!_settings.DraftsAutosaveEnabled || _isLocked)
             return;
         var route = AppRoute.FromUrl(Browser.Source?.ToString());
@@ -4974,6 +5016,12 @@ public partial class MainWindow : Window
     /// <summary>A send was attempted in the page (R5B #204): the draft for this conversation has done its job — clear it.</summary>
     private void OnPageDraftSent()
     {
+        // v2.1.0: the meter empties with the composer, and a tidy
+        // offer about a sent draft is moot.
+        _currentDraftText = "";
+        _longPastePending = false;
+        DismissTidyOffer();
+        SetDraftMeterText("");
         var route = AppRoute.FromUrl(Browser.Source?.ToString());
         if (route is null)
             return;
@@ -4984,6 +5032,93 @@ public partial class MainWindow : Window
                 ConversationDraftStore.Save(AppPaths.DraftsPath, drafts);
         }
         catch (Exception ex) { _log.Warn($"Draft clear failed: {ex.Message}"); }
+    }
+
+    // ─────────────────── v2.1.0: draft meter + tidy paste ───────────────────
+
+    /// <summary>A long paste landed in the composer (v2.1.0): the report carries only its length, which the shell doesn't even need to keep — the draft channel delivers the text itself a moment later, and Core's rule judges THAT. All this does is arm the offer check for the next draft report.</summary>
+    private void OnPageLongPaste()
+    {
+        if (!_settings.DraftMeterEnabled || _isLocked)
+            return;
+        _longPastePending = true;
+    }
+
+    /// <summary>Read a fresh draft report for the meter and the tidy offer (v2.1.0): refresh the meter line, and — when a long paste is waiting on this very draft — offer the tidy form if Core says the draft needs it. Runs on every draft report, whatever the autosave switch says; the meter switch governs everything here.</summary>
+    private void UpdateDraftMeter(string text)
+    {
+        _currentDraftText = text;
+        if (_isLocked)
+            return;
+        SetDraftMeterText(_settings.DraftMeterEnabled
+            ? DraftMeter.Format(
+                DraftMeter.Measure(text),
+                Strings.Get("status.draft_meter"),
+                Strings.Get("status.draft_meter_long"),
+                Strings.Get("status.draft_meter_very_long"),
+                CultureInfo.GetCultureInfo(Strings.Current.Language))
+            : "");
+        if (_longPastePending)
+        {
+            _longPastePending = false;
+            if (_settings.DraftMeterEnabled && PasteTidier.NeedsTidying(text))
+                ShowTidyOffer();
+        }
+    }
+
+    /// <summary>Put a meter line in the bar (v2.1.0) and refresh the Compact Focus pill, which appends the same line to the status it mirrors (see SetStatus).</summary>
+    private void SetDraftMeterText(string text)
+    {
+        _draftMeterText = text;
+        DraftMeterText.Text = text;
+        RefreshStatusPill();
+    }
+
+    /// <summary>Show the tidy offer in the status bar (v2.1.0). Non-modal: it waits there until the draft is sent, the route or tab changes, the setting turns off, or the user answers it.</summary>
+    private void ShowTidyOffer()
+    {
+        TidyOfferPanel.Visibility = Visibility.Visible;
+    }
+
+    /// <summary>Retire the tidy offer (v2.1.0), whoever asked: answered, sent, navigated away, tab switched, or the feature switched off.</summary>
+    private void DismissTidyOffer()
+    {
+        _longPastePending = false;
+        if (TidyOfferPanel is not null)
+            TidyOfferPanel.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>"Tidy it" (v2.1.0): replace the composer's text with Core's tidied form of the tracked draft, through the bridge's replace path. The page reports the tidied draft straight back, which refreshes the meter and — carrying the tidied header — can never re-trigger the offer. Sending stays the user's act.</summary>
+    private async void OnTidyDraft(object sender, RoutedEventArgs e)
+    {
+        DismissTidyOffer();
+        if (!_webReady || !_settings.DraftMeterEnabled || _isLocked)
+            return;
+        var tidied = PasteTidier.Tidy(_currentDraftText);
+        if (tidied.Length == 0 || tidied == _currentDraftText)
+            return;
+        var replaced = false;
+        try
+        {
+            replaced = await Browser.CoreWebView2.ExecuteScriptAsync(
+                PageScripts.ReplaceDraft(tidied)) == "true";
+        }
+        catch (Exception ex) { _log.Warn($"Draft tidy failed: {ex.Message}"); }
+        SetStatus(replaced
+            ? Strings.Get("status.draft_tidied")
+            : Strings.Get("status.couldnt_find_message_box_tidy"));
+    }
+
+    /// <summary>"Leave it" (v2.1.0): the paste stays exactly as pasted; the offer just goes away.</summary>
+    private void OnLeaveDraft(object sender, RoutedEventArgs e) => DismissTidyOffer();
+
+    /// <summary>The meter switch changed in Settings (v2.1.0): off hides the meter and retires any standing offer at once; on lets the next draft report light the meter again.</summary>
+    private void ApplyDraftMeterSetting()
+    {
+        if (_settings.DraftMeterEnabled)
+            return;
+        DismissTidyOffer();
+        SetDraftMeterText("");
     }
 
     private void OnExportConversationMarkdown(object sender, RoutedEventArgs e) =>

@@ -155,6 +155,9 @@ public sealed class AppSettings
     /// <summary>Composer drafts autosave (R5B #204): keep each conversation's unsent text (per profile, in drafts.json) and offer it back when the user returns. On by default; off stops both saving and restoring — drafts already saved stay on disk until they age out of the store's cap or the file is deleted. Draft text itself never enters settings — only this switch does.</summary>
     public bool DraftsAutosaveEnabled { get; set; } = true;
 
+    /// <summary>Draft meter + tidy paste (v2.1.0): the status bar shows the current draft's rough size, and a long paste into the composer offers to wrap it as a quoted block. On by default; off hides the meter and silences the offer. Independent of <see cref="DraftsAutosaveEnabled"/> — this switch governs only the measuring and the offering, never the keeping of drafts.</summary>
+    public bool DraftMeterEnabled { get; set; } = true;
+
     /// <summary>Retry failed downloads automatically (R4 #139): network/server reasons only, bounded attempts, backing off. On by default.</summary>
     public bool DownloadAutoRetryEnabled { get; set; } = true;
 

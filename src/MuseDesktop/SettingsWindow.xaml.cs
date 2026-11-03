@@ -295,6 +295,8 @@ public partial class SettingsWindow : Window
         // R5B #204: the drafts switch (write-through; the handler is
         // the harvest for this one).
         DraftsAutosaveCheck.IsChecked = _working.DraftsAutosaveEnabled;
+        // v2.1.0: the draft meter switch, beside the drafts one.
+        DraftMeterCheck.IsChecked = _working.DraftMeterEnabled;
         StartWithWindowsCheck.IsChecked = _working.StartWithWindows;
         StartMinimizedCheck.IsChecked = _working.StartMinimizedToTray;
         CloseToTrayCheck.IsChecked = _working.CloseToTray;
@@ -924,6 +926,10 @@ public partial class SettingsWindow : Window
     /// <summary>The drafts switch (R5B #204): write-through to the working settings — Cancel in Settings still discards it, like every preference here.</summary>
     private void OnDraftsAutosaveChanged(object sender, RoutedEventArgs e) =>
         _working.DraftsAutosaveEnabled = DraftsAutosaveCheck.IsChecked == true;
+
+    /// <summary>The draft meter switch (v2.1.0): write-through like the drafts switch beside it. Independent of it — this one governs only the measuring and the tidy offer, never the keeping of drafts.</summary>
+    private void OnDraftMeterChanged(object sender, RoutedEventArgs e) =>
+        _working.DraftMeterEnabled = DraftMeterCheck.IsChecked == true;
 
     // ── prompt snippets (R5B #206) ──────────────────────────────────
     // Snippets live in their OWN store (snippets.json), not in the

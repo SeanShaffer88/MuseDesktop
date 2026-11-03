@@ -245,6 +245,8 @@ public static class SettingsReset
         // bookmarks / drafts / snippets stores are user data in
         // their own files — a preferences reset touches none of them.
         target.DraftsAutosaveEnabled = fresh.DraftsAutosaveEnabled;
+        // v2.1.0: the draft meter switch resets with the drafts switch it sits beside.
+        target.DraftMeterEnabled = fresh.DraftMeterEnabled;
         // S9 fields (v0.13.0): the update channel returns to stable
         // only, the check frequency to every launch, any snooze is
         // cleared, and What's New shows again. NOT preferences, so

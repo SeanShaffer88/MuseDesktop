@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 
@@ -123,7 +124,7 @@ public static class PageStyleCss
 
 // ─────────────────────── the page bridge protocol ───────────────────────
 
-/// <summary>What the injected page script can tell the shell (R5B). Deliberately tiny: a bookmark request (a message's text, nothing else), composer draft text, "the draft was sent", the ready handshake that asks the shell to push the current page style + any saved draft for this route, and (R7C) the two approval-card transitions — a card appeared / the card went away, carrying no card content at all. Since R7C2 the appearance also carries WHICH watcher rule matched (<see cref="ApprovalDetectionSignal"/>) — a rule name, never content.</summary>
+/// <summary>What the injected page script can tell the shell (R5B). Deliberately tiny: a bookmark request (a message's text, nothing else), composer draft text, "the draft was sent", the ready handshake that asks the shell to push the current page style + any saved draft for this route, and (R7C) the two approval-card transitions — a card appeared / the card went away, carrying no card content at all. Since R7C2 the appearance also carries WHICH watcher rule matched (<see cref="ApprovalDetectionSignal"/>) — a rule name, never content. Since v2.1.0 a long paste into the composer also reports itself (LongPaste) — carrying ONLY the pasted length, a count; the text itself arrives afterwards through the draft report, like every other draft.</summary>
 public enum PageBridgeKind
 {
     Ready,
@@ -132,9 +133,10 @@ public enum PageBridgeKind
     DraftSent,
     ApprovalAppeared,
     ApprovalGone,
+    LongPaste,
 }
 
-/// <summary>One parsed page-bridge message (R5B). <see cref="Text"/> is the message snippet (bookmark) or the composer text (draft) — capped at parse time, and never logged by anyone. <see cref="Signal"/> is set only on an approval appearance (R7C2): which watcher rule matched — a rule name from a fixed set, never page content.</summary>
+/// <summary>One parsed page-bridge message (R5B). <see cref="Text"/> is the message snippet (bookmark) or the composer text (draft) — capped at parse time, and never logged by anyone. For a long paste (v2.1.0) it is the pasted length as an invariant-culture integer string — a count, never any of the pasted text. <see cref="Signal"/> is set only on an approval appearance (R7C2): which watcher rule matched — a rule name from a fixed set, never page content.</summary>
 public sealed record PageBridgeMessage(
     PageBridgeKind Kind, string Text, ApprovalDetectionSignal Signal = ApprovalDetectionSignal.Unknown);
 
@@ -184,6 +186,21 @@ public static class PageBridge
                     return new PageBridgeMessage(PageBridgeKind.Draft, text);
                 case "md-draft-sent":
                     return new PageBridgeMessage(PageBridgeKind.DraftSent, "");
+                case "md-long-paste":
+                    // v2.1.0: the length of a long paste into the
+                    // composer, as a JSON number — and nothing else.
+                    // A missing, non-numeric, or negative length is
+                    // not a report at all; an over-large one is
+                    // clamped to the draft channel's own cap, the
+                    // most the shell can ever see of the draft.
+                    if (!root.TryGetProperty("length", out var lengthEl)
+                        || lengthEl.ValueKind != JsonValueKind.Number
+                        || !lengthEl.TryGetInt64(out var pastedLength)
+                        || pastedLength < 0)
+                        return null;
+                    var length = Math.Min(pastedLength, (long)MaxDraftLength);
+                    return new PageBridgeMessage(
+                        PageBridgeKind.LongPaste, length.ToString(CultureInfo.InvariantCulture));
                 case "md-approval-appeared":
                     // R7C2: which watcher rule matched. The page is
                     // untrusted, so the value is mapped through a
