@@ -2938,6 +2938,14 @@ public partial class MainWindow : Window
         LockNowItem.Visibility = AppLock.IsLockActive(_settings) && !_isLocked
             ? Visibility.Visible
             : Visibility.Collapsed;
+        // Ask about this page (v2.1.0): offered only while the
+        // active tab shows a page the user opened — on a
+        // conversation the item disables and its tooltip says why.
+        var onConversation = PageContext.IsConversationRoute(Browser.Source?.ToString());
+        AskAboutPageItem.IsEnabled = _webReady && !onConversation;
+        AskAboutPageItem.ToolTip = Strings.Get(onConversation
+            ? "ask_about_this_page_tooltip_conversation"
+            : "ask_about_this_page_tooltip");
         MoreMenu.PlacementTarget = target;
         MoreMenu.IsOpen = true;
     }
@@ -5175,6 +5183,105 @@ public partial class MainWindow : Window
             : Strings.Get("status.couldnt_find_message_box_followup"));
     }
 
+    private void OnAskAboutPage(object sender, RoutedEventArgs e) =>
+        _ = AskAboutPageAsync();
+
+    /// <summary>
+    /// Ask about this page (v2.1.0): pull the active tab's readable
+    /// text — only now, at the user's click, through the same
+    /// ExecuteScript channel export uses — and start a NEW
+    /// conversation with Core's labelled context block in its
+    /// message box, ready for the user's question. Offered on any
+    /// page that isn't a conversation (Core's route rule decides);
+    /// on a conversation it answers with the reason instead. The
+    /// extracted text goes only into that composer: never logged,
+    /// never stored, never sent.
+    /// </summary>
+    private async Task AskAboutPageAsync()
+    {
+        if (!_webReady)
+        {
+            SetStatus(Strings.Get("status.the_page_isn_t_ready_yet"));
+            return;
+        }
+        var sourceUrl = Browser.Source?.ToString();
+        if (PageContext.IsConversationRoute(sourceUrl))
+        {
+            SetStatus(Strings.Get("status.ask_page_is_a_conversation"));
+            return;
+        }
+        if (_tabs.Count >= MaxOpenTabs)
+        {
+            SetStatus($"You can have up to {MaxOpenTabs} tabs open");
+            return;
+        }
+        string? extractionJson = null;
+        try
+        {
+            var raw = await Browser.CoreWebView2.ExecuteScriptAsync(PageScripts.ExtractReadableText);
+            if (raw is not null && raw != "null")
+                extractionJson = JsonSerializer.Deserialize<string>(raw);
+        }
+        catch (Exception ex) { _log.Warn($"Ask about this page: extraction failed: {ex.Message}"); }
+        var page = PageContext.TryParseExtraction(extractionJson);
+        var host = Uri.TryCreate(sourceUrl, UriKind.Absolute, out var uri) ? uri.Host : "";
+        var context = page is null
+            ? null
+            : PageContext.Compose(page.Title, host, page.Text,
+                Strings.Get("page_context.header"),
+                Strings.Get("page_context.header_no_title"),
+                Strings.Get("page_context.cut_note"));
+        if (context is null)
+        {
+            SetStatus(Strings.Get("status.ask_page_nothing_readable"));
+            return;
+        }
+        if (!IsVisible)
+            ShowFromTray();
+        var tab = CreateTab(UrlPolicy.HomeUrl, activate: true);
+        await InsertPageContextWhenReadyAsync(tab, context);
+    }
+
+    /// <summary>
+    /// Land the composed context in the new tab's composer (v2.1.0).
+    /// A fresh conversation's message box exists only once the page
+    /// has rendered, so the insert is retried for a bounded while —
+    /// the draft-restore discipline (land when the composer is
+    /// there) applied from the shell side. The insert itself
+    /// focuses the box. If the user closes the tab meanwhile there
+    /// is nothing to add to; if the box never appears, the status
+    /// says so honestly rather than claiming the text landed.
+    /// </summary>
+    private async Task InsertPageContextWhenReadyAsync(BrowserTabState tab, string context)
+    {
+        for (var attempt = 0; attempt < 45; attempt++)
+        {
+            if (!_tabs.Contains(tab))
+                return;
+            if (tab.WebReady)
+            {
+                try
+                {
+                    if (await tab.Browser.CoreWebView2.ExecuteScriptAsync(
+                            PageScripts.InsertSnippet(context)) == "true")
+                    {
+                        if (ReferenceEquals(tab, _activeTab))
+                            SetStatus(Strings.Get("status.ask_page_added"));
+                        return;
+                    }
+                }
+                catch (Exception)
+                {
+                    // The new tab's web view is still starting or
+                    // navigating — keep waiting for its composer.
+                }
+            }
+            await Task.Delay(350);
+        }
+        if (_tabs.Contains(tab) && ReferenceEquals(tab, _activeTab))
+            SetStatus(Strings.Get("status.ask_page_no_message_box"));
+    }
+
     private void OnExportConversationMarkdown(object sender, RoutedEventArgs e) =>
         _ = ExportConversationAsync(pdf: false);
 
@@ -5902,6 +6009,7 @@ public partial class MainWindow : Window
             case "action.bookmarks": OpenBookmarks(); break;
             case "action.export-conversation": _ = ExportConversationAsync(pdf: false); break;
             case "action.export-conversation-pdf": _ = ExportConversationAsync(pdf: true); break;
+            case "action.ask-about-page": _ = AskAboutPageAsync(); break;
             case "action.exit": ExitApp(); break;
         }
     }
