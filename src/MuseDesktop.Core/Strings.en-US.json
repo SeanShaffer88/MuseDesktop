@@ -1769,5 +1769,22 @@
   "tray.quick_ask": "Quick ask",
   "ui.enable_quick_ask": "Enable Quick ask and its global hotkey (Ctrl+Shift+Space)",
   "ui.quick_ask_settings_tooltip": "Turns every Quick ask door on or off together: the global hotkey, the ⋯ menu, the tray menu, and the command palette",
-  "quickask.disabled_status": "Quick ask is off — turn it on in Settings"
+  "quickask.disabled_status": "Quick ask is off — turn it on in Settings",
+  "library.pinned_empty": "No pinned conversations yet — open a conversation and choose \"Pin this conversation\" from the ⋯ menu.",
+  "library.pinned_note": "The active profile's pinned conversations — the same list as the ⋯ menu's Pinned conversations.",
+  "library.tab_pinned": "Pinned",
+  "pin.detail": "{0} · pinned {1:yyyy-MM-dd}",
+  "pin.untitled": "Conversation pinned {0:yyyy-MM-dd}",
+  "pin_conversation": "Pin this conversation",
+  "pin_conversation_tooltip": "Keep this conversation one click away, in the ⋯ menu's Pinned conversations and the Library",
+  "pinned_conversations": "Pinned conversations",
+  "status.already_pinned": "That conversation is already pinned",
+  "status.couldnt_change_pins": "Couldn't change the pin list — see the log",
+  "status.pin_list_full": "The pin list is full — {0} pins is the most one profile holds. Unpin one first.",
+  "status.pinned_conversation": "Pinned — {0}",
+  "status.pins_only_on_conversations": "Pins work on conversations — open a conversation first",
+  "status.unpinned_conversation": "Unpinned — {0}",
+  "ui.no_pins_yet": "No pinned conversations yet",
+  "unpin": "Unpin",
+  "unpin_conversation": "Unpin this conversation"
 }

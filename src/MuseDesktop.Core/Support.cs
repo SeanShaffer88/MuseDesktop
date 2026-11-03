@@ -349,7 +349,7 @@ public static class HelpCatalog
         // snippets / reading comfort work", which no older page owned.
         new HelpPage("conversation-tools",
             "Bookmarks, drafts, snippets & reading comfort",
-            "bookmark marked message nickname scrollbars scrollbar visible wider draft unsent lost typed export conversation markdown pdf snippet prompt insert reuse reading comfort text size column width line spacing ask about this page readable article context question voice dictate dictation speech microphone speak listen read aloud hear answer talking recognition to standing brief briefs background rules preferences project card library compare mode side by two profiles same second take quick ask popup corner card docked one-off one off question ctrl shift space hotkey continue main window",
+            "bookmark marked message nickname scrollbars scrollbar visible wider draft unsent lost typed export conversation markdown pdf snippet prompt insert reuse reading comfort text size column width line spacing ask about this page readable article context question voice dictate dictation speech microphone speak listen read aloud hear answer talking recognition to standing brief briefs background rules preferences project card library compare mode side by two profiles same second take quick ask popup corner card docked one-off one off question ctrl shift space hotkey continue main window pinned conversations pin unpin keep list library",
             HelpAction.OpenSettings, "Open Settings — account profiles", SettingsSearch.ProfilesId),
         // R6 (#151–#160): the appearance round-2 how-to page, also
         // listed last — it answers "how do the backdrop / tint /
