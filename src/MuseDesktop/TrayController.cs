@@ -66,10 +66,16 @@ public sealed class TrayController : IDisposable
     // choices live; absent means the long-standing Color + badge face.
     private readonly Func<TrayIconStyle>? _trayIconStyle;
     private readonly Func<TrayOverlayStyle>? _trayOverlayStyle;
+    // Quick ask: optional like the dictate delegate — the item
+    // exists only when wired, and its visibility follows the
+    // feature switch (read live on every menu open).
+    private readonly Action? _quickAsk;
+    private readonly Func<bool>? _quickAskEnabled;
 
     private Forms.NotifyIcon? _icon;
     private Forms.ToolStripMenuItem? _openItem;
     private Forms.ToolStripMenuItem? _dictateItem;
+    private Forms.ToolStripMenuItem? _quickAskItem;
     private Forms.ToolStripMenuItem? _newWindowItem;
     private Forms.ToolStripMenuItem? _reloadItem;
     private Forms.ToolStripMenuItem? _settingsItem;
@@ -130,7 +136,9 @@ public sealed class TrayController : IDisposable
         Func<IReadOnlyList<ProfileGroup>>? profileGroups = null,
         Func<TrayIconStyle>? trayIconStyle = null,
         Func<TrayOverlayStyle>? trayOverlayStyle = null,
-        Action? openActivityCenter = null)
+        Action? openActivityCenter = null,
+        Action? quickAsk = null,
+        Func<bool>? quickAskEnabled = null)
     {
         _log = log;
         _dispatcher = dispatcher;
@@ -166,6 +174,8 @@ public sealed class TrayController : IDisposable
         _openActivityCenter = openActivityCenter;
         _trayIconStyle = trayIconStyle;
         _trayOverlayStyle = trayOverlayStyle;
+        _quickAsk = quickAsk;
+        _quickAskEnabled = quickAskEnabled;
     }
 
     public bool IsSuspended => _suspended;
@@ -197,6 +207,16 @@ public sealed class TrayController : IDisposable
                 _dictateItem = new Forms.ToolStripMenuItem(Strings.Get("tray.quick_dictate"));
                 _dictateItem.Click += (_, _) => _dispatcher.Invoke(_quickDictate);
                 menu.Items.Add(_dictateItem);
+            }
+            // Quick ask: one click to the corner card. Gated while
+            // locked like dictate (its handler answers with the lock
+            // screen too), and hidden entirely while the feature
+            // switch is off (refreshed on every open).
+            if (_quickAsk is not null)
+            {
+                _quickAskItem = new Forms.ToolStripMenuItem(Strings.Get("tray.quick_ask"));
+                _quickAskItem.Click += (_, _) => _dispatcher.Invoke(_quickAsk);
+                menu.Items.Add(_quickAskItem);
             }
             _newWindowItem = new Forms.ToolStripMenuItem(Strings.Get("tray.new_window"));
             _newWindowItem.Click += (_, _) => _dispatcher.Invoke(_openNewWindow);
@@ -336,6 +356,11 @@ public sealed class TrayController : IDisposable
         // except while locked, where it is forced off.
         if (_newWindowItem is not null) _newWindowItem.Enabled = !locked;
         if (_dictateItem is not null) _dictateItem.Enabled = !locked;
+        if (_quickAskItem is not null)
+        {
+            _quickAskItem.Enabled = !locked;
+            _quickAskItem.Visible = _quickAskEnabled?.Invoke() ?? true;
+        }
         if (_reloadItem is not null) _reloadItem.Enabled = !locked;
         if (_downloadsItem is not null) _downloadsItem.Enabled = !locked;
         if (_settingsItem is not null) _settingsItem.Enabled = !locked;

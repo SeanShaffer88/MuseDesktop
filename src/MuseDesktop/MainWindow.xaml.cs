@@ -216,6 +216,14 @@ public partial class MainWindow : Window
     // surface the user keeps beside the main window, not a dialog.
     private CompareWindow? _compareWindow;
 
+    // Quick ask: one modeless corner card, reactivated on re-summon
+    // while open; a fresh summon after it closed starts a fresh
+    // conversation (the one-off contract). Its global hotkey is a
+    // third RegisterHotKey on this handle, beside show/hide and
+    // quick note.
+    private QuickAskWindow? _quickAskWindow;
+    private GlobalHotkeyManager? _quickAskHotkeyManager;
+
     // R3 #122/#123 — the per-profile PIN gate for hidden launches
     // (App hands over the launch profile's record; the first real
     // show presents it, after the global lock) and the profile
@@ -430,7 +438,9 @@ public partial class MainWindow : Window
             profileGroups: () => _settings.ProfileGroups,
             trayIconStyle: () => _settings.TrayIconStyle,
             trayOverlayStyle: () => _settings.TrayCountOverlay,
-            openActivityCenter: OpenActivityCenter);
+            openActivityCenter: OpenActivityCenter,
+            quickAsk: OpenQuickAsk,
+            quickAskEnabled: () => _settings.QuickAskEnabled);
         _downloads.Started += _tray.OnActivityChanged;
         _downloads.CapacityChanged += _tray.OnActivityChanged;
         _downloads.TransferStateChanged += _tray.OnActivityChanged;
@@ -529,6 +539,7 @@ public partial class MainWindow : Window
         _readAloud.Failed += OnReadingFailed;
         Closed += (_, _) => _hotkeyManager?.Dispose();
         Closed += (_, _) => _noteHotkeyManager?.Dispose();
+        Closed += (_, _) => _quickAskHotkeyManager?.Dispose();
         Closed += (_, _) => _lifetimeCancellation.Dispose();
         Closed += (_, _) => _approvalToastNotifier.Dispose();
         // R8: the toast identity errand — the Start Menu shortcut
@@ -575,6 +586,20 @@ public partial class MainWindow : Window
             Strings.Get("hotkey.feature.quick_note"));
         _noteHotkeyManager.Attach(this);
         _noteHotkeyManager.Apply(_settings);
+        // Quick ask: a third registration on the same handle. Its
+        // gesture is FIXED (Ctrl+Shift+Space, Core's QuickAskHotkey)
+        // and its enable is the feature switch itself — off retires
+        // the registration along with the menu items.
+        _quickAskHotkeyManager = new GlobalHotkeyManager(_log, OnQuickAskHotkeyPressed,
+            HotkeyNative.RegistrationIdQuickAsk,
+            settings => QuickAskHotkey.Resolve(
+                settings.QuickAskEnabled, settings.ShortcutOverrides,
+                settings.GlobalHotkeyGesture,
+                settings.QuickNoteHotkeyEnabled, settings.QuickNoteHotkeyGesture),
+            gesture => Strings.Format("quickask.hotkey_active", gesture.DisplayText()),
+            Strings.Get("hotkey.feature.quick_ask"));
+        _quickAskHotkeyManager.Attach(this);
+        _quickAskHotkeyManager.Apply(_settings);
     }
 
     // S6 #58 focus-ring handlers (named so S8 #71's recreated web view
@@ -3020,6 +3045,10 @@ public partial class MainWindow : Window
         // Quick-attach strip (v2.1.0): the check IS the setting —
         // the same one the strip's ✕ and the Settings switch drive.
         QuickAttachItem.IsChecked = _settings.QuickAttachStripEnabled;
+        // Quick ask: the item exists only while the feature is on —
+        // the same switch the Settings checkbox and the hotkey obey.
+        QuickAskItem.Visibility = _settings.QuickAskEnabled
+            ? Visibility.Visible : Visibility.Collapsed;
         MoreMenu.PlacementTarget = target;
         MoreMenu.IsOpen = true;
     }
@@ -3057,6 +3086,7 @@ public partial class MainWindow : Window
             globalHotkeyStatus: () => _hotkeyManager?.StatusText ?? "",
             applyWorkspace: ApplyWorkspaceFromSettings,
             quickNoteHotkeyStatus: () => _noteHotkeyManager?.StatusText ?? "",
+            quickAskHotkeyStatus: () => _quickAskHotkeyManager?.StatusText ?? "",
             openWeeklyDigest: () => OpenProductivity(showStats: false),
             openStatsDashboard: () => OpenProductivity(showStats: true),
             activeDownloadCount: () => _downloads.Snapshot().Count) { Owner = this };
@@ -3132,6 +3162,11 @@ public partial class MainWindow : Window
         // the strip re-resolves (and re-reads) immediately.
         _settings.QuickAttachStripEnabled = clone.QuickAttachStripEnabled;
         RefreshQuickAttachStrip();
+        // Quick ask: the feature switch rides along too — off
+        // retires the hotkey registration on the Apply pass below
+        // and hides the menu items; an open popup is left alone
+        // (it is a live conversation, not chrome).
+        _settings.QuickAskEnabled = clone.QuickAskEnabled;
         _settings.AlwaysOnTop = clone.AlwaysOnTop;
         // S5: appearance + Settings-window memory ride the same adoption.
         _settings.ShellLayout = clone.ShellLayout;
@@ -3228,6 +3263,9 @@ public partial class MainWindow : Window
         _hotkeyManager?.Apply(_settings);
         // R5 #148: the quick-note hotkey re-registers on the same pass.
         _noteHotkeyManager?.Apply(_settings);
+        // Quick ask: its registration follows the feature switch on
+        // the same pass (off unregisters; on re-registers).
+        _quickAskHotkeyManager?.Apply(_settings);
         ProtocolRegistration.Sync(_settings, _log);
 
         // Delete the data folders of profiles removed in the dialog. When
@@ -7386,6 +7424,7 @@ public partial class MainWindow : Window
             case "action.context-packs": OpenContextPacks(); break;
             case "action.brief-new-conversation": OpenLibrary(LibraryTab.Briefs); break;
             case "action.compare-mode": OpenCompareMode(); break;
+            case "action.quick-ask": OpenQuickAsk(); break;
             case "action.exit": ExitApp(); break;
         }
     }
@@ -8367,6 +8406,76 @@ public partial class MainWindow : Window
         ShellTextScaling.Apply(window, _settings.ShellFontScale);
         window.Show();
         window.Activate();
+    }
+
+    private void OnQuickAsk(object sender, RoutedEventArgs e) => OpenQuickAsk();
+
+    /// <summary>
+    /// Quick ask (post-v2.1.0, Concept B — the corner card): one
+    /// modeless popup, created on first summon and reactivated
+    /// while it lives; once it has closed, the next summon builds
+    /// a new one on a FRESH conversation — the one-off contract,
+    /// stated in DECISIONS. Every door lands here (the ⋯ menu, the
+    /// tray item, the palette, the global hotkey), and every door
+    /// obeys the same two gates in the same order: the feature
+    /// switch (off = the door isn't offered; the palette's fixed
+    /// list can still name it, so it declines plainly) and the app
+    /// lock (locked = the lock screen, never the popup).
+    /// </summary>
+    private void OpenQuickAsk()
+    {
+        if (!_settings.QuickAskEnabled)
+        {
+            SetStatus(Strings.Get("quickask.disabled_status"));
+            return;
+        }
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        if (_quickAskWindow is not null)
+        {
+            _quickAskWindow.Activate();
+            return;
+        }
+        var window = new QuickAskWindow(_settings, _log, ContinueQuickAskInMainWindow) { Owner = this };
+        _quickAskWindow = window;
+        window.Closed += (_, _) => _quickAskWindow = null;
+        ThemeManager.ApplyTitleBar(window);
+        ShellTextScaling.Apply(window, _settings.ShellFontScale);
+        window.Show();
+        window.Activate();
+    }
+
+    /// <summary>The quick-ask hotkey press: the same door as the menu — while locked, the lock screen is the only answer, exactly like the other global hotkeys.</summary>
+    private void OnQuickAskHotkeyPressed() => OpenQuickAsk();
+
+    /// <summary>
+    /// The popup's "Continue in main window" hand-off: bring the
+    /// main window forward and navigate its current tab to the
+    /// address Core's <see cref="QuickAsk.ContinueTarget"/> allowed
+    /// (the popup's conversation, or Home). Returns whether the
+    /// hand-off happened — while locked the lock screen answers
+    /// instead and the popup stays open with its conversation.
+    /// </summary>
+    private bool ContinueQuickAskInMainWindow(string? url)
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return false;
+        }
+        if (url is null || UrlPolicy.ClassifyNavigation(url) != LinkDisposition.InApp)
+            return false;
+        if (!IsVisible)
+            ShowFromTray();
+        if (!IsVisible || !_webReady)
+            return false;
+        Browser.CoreWebView2.Navigate(url);
+        Activate();
+        _log.Info($"Quick ask continued in the main window: {UrlPolicy.RedactForLog(url)}");
+        return true;
     }
 
     /// <summary>
