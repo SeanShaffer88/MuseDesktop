@@ -158,6 +158,9 @@ public sealed class AppSettings
     /// <summary>Draft meter + tidy paste (v2.1.0): the status bar shows the current draft's rough size, and a long paste into the composer offers to wrap it as a quoted block. On by default; off hides the meter and silences the offer. Independent of <see cref="DraftsAutosaveEnabled"/> — this switch governs only the measuring and the offering, never the keeping of drafts.</summary>
     public bool DraftMeterEnabled { get; set; } = true;
 
+    /// <summary>Follow-up chips (v2.1.0): after a long answer finishes, the page shows one small row of one-click follow-ups above the composer (Summarize, Give an example, …); choosing one drops its request into the composer, unsent. On by default; off means the page script is told not to offer the row at all. Independent of <see cref="DraftMeterEnabled"/> — the answer is only ever measured on the page, and a click reports only the chip's id.</summary>
+    public bool FollowUpChipsEnabled { get; set; } = true;
+
     /// <summary>Retry failed downloads automatically (R4 #139): network/server reasons only, bounded attempts, backing off. On by default.</summary>
     public bool DownloadAutoRetryEnabled { get; set; } = true;
 
