@@ -101,6 +101,13 @@ public partial class MainWindow : Window
     private string _currentDraftText = "";
     private string _draftMeterText = "";
     private bool _longPastePending;
+    // v2.1.0: the app's own voice paths — Windows speech
+    // recognition dictating into the composer, Windows speech
+    // synthesis reading the last answer aloud. The engines live
+    // in VoiceEngines.cs; dictated words and answer text pass
+    // through them and are never logged.
+    private readonly DictationEngine _dictation = new();
+    private readonly ReadAloudEngine _readAloud = new();
     // R7C: the approval-beep policy (Core) — fed by the bridge
     // watcher's appeared/gone reports; it decides, the shell sounds.
     // R7C2: a slow tick asks the policy for reminder beeps while a
@@ -480,6 +487,13 @@ public partial class MainWindow : Window
         _approvalTimer.Start();
         Loaded += OnLoaded;
         Closing += OnClosing;
+        // v2.1.0: the voice engines' events — dictation results
+        // arrive on engine threads (the handlers marshal), the
+        // reader's arrive on this dispatcher by its own contract.
+        _dictation.Recognized += OnDictatedText;
+        _dictation.Ended += OnDictationEnded;
+        _readAloud.Finished += OnReadingFinished;
+        _readAloud.Failed += OnReadingFailed;
         Closed += (_, _) => _hotkeyManager?.Dispose();
         Closed += (_, _) => _noteHotkeyManager?.Dispose();
         Closed += (_, _) => _lifetimeCancellation.Dispose();
@@ -624,6 +638,9 @@ public partial class MainWindow : Window
         // switching tabs retires it rather than letting it act on
         // the newly shown tab's composer.
         DismissTidyOffer();
+        // v2.1.0: dictation and reading belong to the tab they
+        // started in too — switching ends both, silently.
+        StopVoiceFeatures();
         tab.Host.Visibility = Visibility.Visible;
         TitleText.Text = string.IsNullOrWhiteSpace(tab.PageTitle) ? "Muse" : tab.PageTitle;
         var source = tab.Browser.Source?.ToString() ?? "";
@@ -1252,6 +1269,9 @@ public partial class MainWindow : Window
 
     private void OnClosing(object? sender, CancelEventArgs e)
     {
+        // v2.1.0: any close — the tray hide included — ends
+        // dictation and reading; neither outlives its window.
+        StopVoiceFeatures();
         SaveSettings();
         if (!_reallyExit && _settings.CloseToTray)
         {
@@ -2654,6 +2674,9 @@ public partial class MainWindow : Window
         // v2.1.0: a route change retires a standing tidy offer —
         // it was about the composer the user just left.
         DismissTidyOffer();
+        // v2.1.0: and it ends dictation and reading the same way —
+        // they were about the conversation the user just left.
+        StopVoiceFeatures();
     }
 
     private void OnFullScreenElementChanged(object? sender, object e)
@@ -2947,6 +2970,12 @@ public partial class MainWindow : Window
         AskAboutPageItem.ToolTip = Strings.Get(onConversation
             ? "ask_about_this_page_tooltip_conversation"
             : "ask_about_this_page_tooltip");
+        // Voice in / voice out (v2.1.0): both items are toggles —
+        // while a feature runs, its item names the stop instead.
+        DictateItem.Header = Strings.Get(_dictation.IsListening
+            ? "stop_dictation" : "dictate_into_the_message_box");
+        ReadAloudItem.Header = Strings.Get(_readAloud.IsActive
+            ? "stop_reading" : "read_the_last_answer_aloud");
         MoreMenu.PlacementTarget = target;
         MoreMenu.IsOpen = true;
     }
@@ -3761,6 +3790,9 @@ public partial class MainWindow : Window
         if (_isLocked)
             return;
         _isLocked = true;
+        // v2.1.0: a locked window neither takes dictation nor
+        // reads answers aloud behind the lock.
+        StopVoiceFeatures();
         RefreshTabStrip();
         _log.Info("App locked");
         // R6 #156: a locked window is never see-through — the policy
@@ -5556,6 +5588,240 @@ public partial class MainWindow : Window
         System.Windows.Clipboard.SetImage(image);
     }
 
+    // ─────────────────── v2.1.0: voice in, voice out ───────────────────
+    //
+    // The app's OWN voice paths, beside quick dictate — which is
+    // untouched: it still only focuses the page and hands off to
+    // Muse's voice button. Dictation here is the app's own
+    // engine (Windows speech recognition, on-device) writing
+    // through the snippet insert path; read-aloud pulls the last
+    // answer through the export channel at the user's click and
+    // speaks Core's segments with Windows speech synthesis. No
+    // new Settings switches: the ⋯ menu and Ctrl+K are the doors,
+    // and both features are toggles on those same doors.
+
+    private void OnDictate(object sender, RoutedEventArgs e) => ToggleDictation();
+
+    /// <summary>Start or stop dictation (v2.1.0). Starting is honest about the machine it finds — no recognizer, no recognizer for this language (a fallback starts, and the status names it), or no microphone are distinct status lines, never a silent nothing.</summary>
+    private void ToggleDictation()
+    {
+        if (_dictation.IsListening)
+        {
+            _dictation.Stop();
+            SetStatus(Strings.Get("status.dictation_stopped"));
+            return;
+        }
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        if (!_webReady)
+        {
+            SetStatus(Strings.Get("status.the_page_isn_t_ready_yet"));
+            return;
+        }
+        var result = _dictation.Start(CultureInfo.GetCultureInfo(Strings.Current.Language));
+        switch (result.Outcome)
+        {
+            case DictationStartOutcome.Started:
+                SetStatus(Strings.Get("status.dictation_listening"));
+                break;
+            case DictationStartOutcome.StartedWithFallbackRecognizer:
+                SetStatus(Strings.Format("status.dictation_no_recognizer_language",
+                    result.RecognizerCultureName ?? ""));
+                break;
+            case DictationStartOutcome.NoRecognizerInstalled:
+                SetStatus(Strings.Get("status.dictation_no_recognizer"));
+                break;
+            case DictationStartOutcome.NoMicrophone:
+                SetStatus(Strings.Get("status.dictation_no_microphone"));
+                break;
+            default:
+                SetStatus(Strings.Get("status.dictation_failed"));
+                break;
+        }
+    }
+
+    /// <summary>A final dictation result (v2.1.0), arriving on an engine thread: marshal to the window, then append the words to the composer through the snippet insert path — unsent, exactly like a snippet, and kept by the ordinary draft channel from there. Interim hypotheses never reach this handler; the engine only reports finals.</summary>
+    private void OnDictatedText(string text)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(() => OnDictatedText(text));
+            return;
+        }
+        _ = InsertDictatedTextAsync(text);
+    }
+
+    private async Task InsertDictatedTextAsync(string text)
+    {
+        if (!_dictation.IsListening || _isLocked || !_webReady)
+        {
+            _dictation.Stop();
+            return;
+        }
+        var inserted = false;
+        try
+        {
+            inserted = await Browser.CoreWebView2.ExecuteScriptAsync(
+                PageScripts.InsertSnippet(text)) == "true";
+        }
+        catch (Exception ex) { _log.Warn($"Dictation insert failed: {ex.Message}"); }
+        if (!inserted)
+        {
+            // The message box this dictation was aimed at is gone
+            // (the page changed shape under it): stop rather than
+            // keep listening into the void, and say so.
+            _dictation.Stop();
+            SetStatus(Strings.Get("status.dictation_couldnt_find_message_box"));
+        }
+    }
+
+    /// <summary>The recognizer ended on its own (v2.1.0) — an audio problem the restart couldn't absorb. The status says dictation stopped; nothing pretends otherwise.</summary>
+    private void OnDictationEnded()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(OnDictationEnded);
+            return;
+        }
+        if (!_dictation.IsListening)
+            SetStatus(Strings.Get("status.dictation_stopped"));
+    }
+
+    private void OnReadAloud(object sender, RoutedEventArgs e) => _ = ToggleReadAloudAsync();
+
+    /// <summary>
+    /// Read the last answer aloud (v2.1.0): pull the conversation
+    /// through the same ExecuteScript channel export uses — only
+    /// now, at the user's click — take the newest assistant
+    /// message (Core's pick), segment it for the ear (Core's
+    /// <see cref="SpeechText.Segment"/>), and speak it segment by
+    /// segment with the status bar holding the controls. The text
+    /// is spoken and forgotten: never logged, never stored.
+    /// Running it again while reading stops the reading.
+    /// </summary>
+    private async Task ToggleReadAloudAsync()
+    {
+        if (_readAloud.IsActive)
+        {
+            StopReading();
+            SetStatus(Strings.Get("status.reading_stopped"));
+            return;
+        }
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        if (!_webReady)
+        {
+            SetStatus(Strings.Get("status.the_page_isn_t_ready_yet"));
+            return;
+        }
+        string? extractionJson = null;
+        try
+        {
+            var raw = await Browser.CoreWebView2.ExecuteScriptAsync(PageScripts.ExtractConversation);
+            if (raw is not null && raw != "null")
+                extractionJson = JsonSerializer.Deserialize<string>(raw);
+        }
+        catch (Exception ex) { _log.Warn($"Read aloud: extraction failed: {ex.Message}"); }
+        var messages = ConversationExport.TryParseExtraction(extractionJson);
+        if (messages is null)
+        {
+            SetStatus(Strings.Get("status.reading_failed"));
+            return;
+        }
+        var segments = SpeechText.Segment(
+            SpeechText.LastAssistantAnswer(messages), Strings.Get("speech.code_block"));
+        if (segments.Count == 0)
+        {
+            SetStatus(Strings.Get("status.reading_nothing"));
+            return;
+        }
+        _readAloud.Start(segments,
+            CultureInfo.GetCultureInfo(Strings.Current.Language), Dispatcher);
+        ShowReadAloudControls();
+        SetStatus(Strings.Get("status.reading_started"));
+    }
+
+    /// <summary>Show the reading controls (v2.1.0) with the pause button and the speed label set for a fresh reading at ordinary pace.</summary>
+    private void ShowReadAloudControls()
+    {
+        ReadingPauseButton.Content = Strings.Get("ui.reading_pause");
+        ReadingSpeedButton.Content = SpeechSpeed.Format(_readAloud.Speed,
+            CultureInfo.GetCultureInfo(Strings.Current.Language));
+        ReadAloudPanel.Visibility = Visibility.Visible;
+    }
+
+    private void HideReadAloudControls()
+    {
+        if (ReadAloudPanel is not null)
+            ReadAloudPanel.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>Stop the reading (v2.1.0) and retire its controls — whoever asked: the user, a tab or route change, the lock, or the window closing.</summary>
+    private void StopReading()
+    {
+        _readAloud.Stop();
+        HideReadAloudControls();
+    }
+
+    private void OnReadingPauseResume(object sender, RoutedEventArgs e)
+    {
+        if (!_readAloud.IsActive)
+            return;
+        var paused = _readAloud.TogglePause();
+        ReadingPauseButton.Content = Strings.Get(paused ? "ui.reading_resume" : "ui.reading_pause");
+        SetStatus(Strings.Get(paused ? "status.reading_paused" : "status.reading_resumed"));
+    }
+
+    /// <summary>The speed button (v2.1.0): cycle Core's five stops; the label updates at once, the pace itself from the next segment.</summary>
+    private void OnReadingSpeed(object sender, RoutedEventArgs e)
+    {
+        if (!_readAloud.IsActive)
+            return;
+        ReadingSpeedButton.Content = SpeechSpeed.Format(_readAloud.CycleSpeed(),
+            CultureInfo.GetCultureInfo(Strings.Current.Language));
+    }
+
+    private void OnReadingStop(object sender, RoutedEventArgs e)
+    {
+        StopReading();
+        SetStatus(Strings.Get("status.reading_stopped"));
+    }
+
+    /// <summary>The reading finished on its own (v2.1.0): retire the controls and say so.</summary>
+    private void OnReadingFinished()
+    {
+        HideReadAloudControls();
+        SetStatus(Strings.Get("status.reading_finished"));
+    }
+
+    /// <summary>The synthesizer failed mid-reading (v2.1.0): retire the controls and say so plainly.</summary>
+    private void OnReadingFailed()
+    {
+        HideReadAloudControls();
+        SetStatus(Strings.Get("status.reading_failed"));
+    }
+
+    /// <summary>
+    /// End both voice features without a word (v2.1.0): a tab
+    /// switch, a route change, the lock engaging, or the window
+    /// closing. Those changes are the user's own acts and the
+    /// status line has their news; the menu headers and the
+    /// reading controls follow the engines' state on their own.
+    /// </summary>
+    private void StopVoiceFeatures()
+    {
+        if (_dictation.IsListening)
+            _dictation.Stop();
+        if (_readAloud.IsActive)
+            StopReading();
+    }
+
     private void OnExportConversationMarkdown(object sender, RoutedEventArgs e) =>
         _ = ExportConversationAsync(pdf: false);
 
@@ -6285,6 +6551,8 @@ public partial class MainWindow : Window
             case "action.export-conversation-pdf": _ = ExportConversationAsync(pdf: true); break;
             case "action.ask-about-page": _ = AskAboutPageAsync(); break;
             case "action.screenshot-ask": _ = ScreenshotAskAsync(); break;
+            case "action.dictate": ToggleDictation(); break;
+            case "action.read-aloud": _ = ToggleReadAloudAsync(); break;
             case "action.exit": ExitApp(); break;
         }
     }

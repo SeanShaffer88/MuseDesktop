@@ -78,6 +78,28 @@ Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhanc
   exists as a file only between the grab and the attach — it is
   deleted immediately afterwards, whatever happened.
 
+- **Voice in, voice out.** The ⋯ menu (or Ctrl+K) gains the
+  app's own two voice paths — separate from quick dictate, which
+  still hands off to Muse's own voice button as always.
+  **Dictate into the message box** listens with Windows' speech
+  recognition and types what you say into the message box,
+  unsent, like a snippet you spoke; choose it again to stop.
+  It uses a recognizer for the app's language when Windows has
+  one, and the status bar says so plainly when it has to use
+  another language's recognizer, when no recognizer is
+  installed, or when no microphone can be found. **Read the
+  last answer aloud** reads the newest answer with Windows'
+  text-to-speech: headings and paragraphs become natural
+  pauses, code blocks are announced ("Code block.") rather
+  than read out, and the status bar holds Pause/Resume, Stop,
+  and a speed button (0.75×–2×, applying from the next
+  paragraph). Both stop when you switch tabs or conversations,
+  lock the app, or close the window. Everything happens on this
+  PC: dictation uses Windows' on-device recognition — your
+  voice is never recorded and never leaves the machine — and
+  the answer is read from the page only at your click, spoken,
+  and forgotten, never logged or stored.
+
 ## [2.0.0] — 2026-11-02
 
 ### Added
