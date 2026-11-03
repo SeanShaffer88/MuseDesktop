@@ -4,6 +4,20 @@ All notable changes to MuseDesktop. Format follows Keep a Changelog; versions us
 
 Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhancement program; they were never published as releases. Everything in them shipped together as **1.0.0** (2026-10-24).
 
+## [2.1.0] — Unreleased
+
+### Added
+
+- **Snippet templates with fill-in blanks.** A prompt snippet's
+  text can now contain blanks written as `{{name}}` — for example
+  `Explain {{topic}} to a {{audience}}`. When you insert a snippet
+  that has blanks (from Ctrl+K or the ⋯ menu), a small dialog asks
+  for each one first, and the finished text lands in the message
+  box, still unsent, exactly like a plain snippet. The same blank
+  used twice is asked once and filled in everywhere it appears;
+  cancelling the dialog inserts nothing. Snippets without blanks
+  insert exactly as before.
+
 ## [2.0.0] — 2026-11-02
 
 ### Added
