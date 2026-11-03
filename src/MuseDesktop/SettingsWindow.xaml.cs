@@ -297,6 +297,8 @@ public partial class SettingsWindow : Window
         DraftsAutosaveCheck.IsChecked = _working.DraftsAutosaveEnabled;
         // v2.1.0: the draft meter switch, beside the drafts one.
         DraftMeterCheck.IsChecked = _working.DraftMeterEnabled;
+        // v2.1.0: the follow-up chips switch, under the meter one.
+        FollowUpChipsCheck.IsChecked = _working.FollowUpChipsEnabled;
         StartWithWindowsCheck.IsChecked = _working.StartWithWindows;
         StartMinimizedCheck.IsChecked = _working.StartMinimizedToTray;
         CloseToTrayCheck.IsChecked = _working.CloseToTray;
@@ -930,6 +932,10 @@ public partial class SettingsWindow : Window
     /// <summary>The draft meter switch (v2.1.0): write-through like the drafts switch beside it. Independent of it — this one governs only the measuring and the tidy offer, never the keeping of drafts.</summary>
     private void OnDraftMeterChanged(object sender, RoutedEventArgs e) =>
         _working.DraftMeterEnabled = DraftMeterCheck.IsChecked == true;
+
+    /// <summary>The follow-up chips switch (v2.1.0): write-through like the meter switch above it. Independent of it — this one governs only the chip bar the page offers after a long answer.</summary>
+    private void OnFollowUpChipsChanged(object sender, RoutedEventArgs e) =>
+        _working.FollowUpChipsEnabled = FollowUpChipsCheck.IsChecked == true;
 
     // ── prompt snippets (R5B #206) ──────────────────────────────────
     // Snippets live in their OWN store (snippets.json), not in the

@@ -247,6 +247,8 @@ public static class SettingsReset
         target.DraftsAutosaveEnabled = fresh.DraftsAutosaveEnabled;
         // v2.1.0: the draft meter switch resets with the drafts switch it sits beside.
         target.DraftMeterEnabled = fresh.DraftMeterEnabled;
+        // v2.1.0: so does the follow-up chips switch beside it.
+        target.FollowUpChipsEnabled = fresh.FollowUpChipsEnabled;
         // S9 fields (v0.13.0): the update channel returns to stable
         // only, the check frequency to every launch, any snooze is
         // cleared, and What's New shows again. NOT preferences, so

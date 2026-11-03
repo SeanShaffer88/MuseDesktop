@@ -124,7 +124,7 @@ public static class PageStyleCss
 
 // ─────────────────────── the page bridge protocol ───────────────────────
 
-/// <summary>What the injected page script can tell the shell (R5B). Deliberately tiny: a bookmark request (a message's text, nothing else), composer draft text, "the draft was sent", the ready handshake that asks the shell to push the current page style + any saved draft for this route, and (R7C) the two approval-card transitions — a card appeared / the card went away, carrying no card content at all. Since R7C2 the appearance also carries WHICH watcher rule matched (<see cref="ApprovalDetectionSignal"/>) — a rule name, never content. Since v2.1.0 a long paste into the composer also reports itself (LongPaste) — carrying ONLY the pasted length, a count; the text itself arrives afterwards through the draft report, like every other draft.</summary>
+/// <summary>What the injected page script can tell the shell (R5B). Deliberately tiny: a bookmark request (a message's text, nothing else), composer draft text, "the draft was sent", the ready handshake that asks the shell to push the current page style + any saved draft for this route, and (R7C) the two approval-card transitions — a card appeared / the card went away, carrying no card content at all. Since R7C2 the appearance also carries WHICH watcher rule matched (<see cref="ApprovalDetectionSignal"/>) — a rule name, never content. Since v2.1.0 a long paste into the composer also reports itself (LongPaste) — carrying ONLY the pasted length, a count; the text itself arrives afterwards through the draft report, like every other draft. And a follow-up chip click (FollowUpChip) carries only the chip's id, from <see cref="FollowUpChips"/>' fixed set — the answer it sat under is measured on the page and never crosses.</summary>
 public enum PageBridgeKind
 {
     Ready,
@@ -134,9 +134,10 @@ public enum PageBridgeKind
     ApprovalAppeared,
     ApprovalGone,
     LongPaste,
+    FollowUpChip,
 }
 
-/// <summary>One parsed page-bridge message (R5B). <see cref="Text"/> is the message snippet (bookmark) or the composer text (draft) — capped at parse time, and never logged by anyone. For a long paste (v2.1.0) it is the pasted length as an invariant-culture integer string — a count, never any of the pasted text. <see cref="Signal"/> is set only on an approval appearance (R7C2): which watcher rule matched — a rule name from a fixed set, never page content.</summary>
+/// <summary>One parsed page-bridge message (R5B). <see cref="Text"/> is the message snippet (bookmark) or the composer text (draft) — capped at parse time, and never logged by anyone. For a long paste (v2.1.0) it is the pasted length as an invariant-culture integer string — a count, never any of the pasted text. For a follow-up chip click (v2.1.0) it is the chip's id, validated against the fixed set at parse time. <see cref="Signal"/> is set only on an approval appearance (R7C2): which watcher rule matched — a rule name from a fixed set, never page content.</summary>
 public sealed record PageBridgeMessage(
     PageBridgeKind Kind, string Text, ApprovalDetectionSignal Signal = ApprovalDetectionSignal.Unknown);
 
@@ -219,6 +220,18 @@ public static class PageBridge
                     return new PageBridgeMessage(PageBridgeKind.ApprovalAppeared, "", signal);
                 case "md-approval-gone":
                     return new PageBridgeMessage(PageBridgeKind.ApprovalGone, "");
+                case "md-followup-chip":
+                    // v2.1.0: a click on a follow-up chip — the id
+                    // only, mapped through the fixed vocabulary like
+                    // the approval signal. A missing, non-string, or
+                    // unknown id is not a report at all: the page is
+                    // untrusted, and the shell acts on known chips
+                    // only.
+                    if (!root.TryGetProperty("chip", out var chipEl)
+                        || chipEl.ValueKind != JsonValueKind.String
+                        || !FollowUpChips.IsKnownId(chipEl.GetString()))
+                        return null;
+                    return new PageBridgeMessage(PageBridgeKind.FollowUpChip, chipEl.GetString()!);
                 default:
                     return null;
             }
