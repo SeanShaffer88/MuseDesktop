@@ -78,6 +78,58 @@ public static class ScreenshotSelection
 }
 
 /// <summary>
+/// One monitor's region maths (M1): a selection dragged on ONE
+/// monitor's full-screen overlay is reported in that overlay's own
+/// space — DIPs, local to the monitor — because a single-monitor
+/// window owns exactly one DPI scale and WPF speaks DIPs. Turning
+/// that into the physical rectangle the capture takes is a pure
+/// decision, so it lives here: normalize the drag (either
+/// direction), scale each edge by the monitor's own factor, lay it
+/// over the monitor's physical origin, and clamp to the monitor's
+/// physical bounds — a drag that runs past an edge selects up to
+/// the edge, never pixels from a neighbouring screen. A selection
+/// that clamps to nothing returns null; whether what remains is
+/// big enough to count is the caller's question, answered by
+/// <see cref="ScreenshotSelection.IsConfirmed"/> on the result.
+/// </summary>
+public static class ScreenshotRegion
+{
+    /// <summary>
+    /// The physical capture rectangle for a DIP selection on one
+    /// monitor. <paramref name="dipSelection"/> is in the overlay's
+    /// local DIP space (its top-left is the monitor's top-left);
+    /// <paramref name="monitorPhysical"/> is the monitor's own
+    /// rectangle in physical pixels and <paramref name="dpiScale"/>
+    /// its scale factor (1.0 at 96 DPI; a non-positive or NaN
+    /// factor means "unknown" and is treated as 1.0, DipMath's
+    /// rule). Edges round to the nearest physical pixel — the same
+    /// rounding the multi-monitor picker applies point by point.
+    /// </summary>
+    public static PhysicalRect? ToPhysicalRect(
+        ScreenRect dipSelection, PhysicalRect monitorPhysical, double dpiScale)
+    {
+        var scale = double.IsFinite(dpiScale) && dpiScale > 0 ? dpiScale : 1.0;
+        var dipLeft = Math.Min(dipSelection.Left, dipSelection.Right);
+        var dipTop = Math.Min(dipSelection.Top, dipSelection.Bottom);
+        var dipRight = Math.Max(dipSelection.Left, dipSelection.Right);
+        var dipBottom = Math.Max(dipSelection.Top, dipSelection.Bottom);
+        var left = monitorPhysical.Left + (int)Math.Round(dipLeft * scale);
+        var top = monitorPhysical.Top + (int)Math.Round(dipTop * scale);
+        var right = monitorPhysical.Left + (int)Math.Round(dipRight * scale);
+        var bottom = monitorPhysical.Top + (int)Math.Round(dipBottom * scale);
+        // Clamp to the monitor: the intersection with its bounds,
+        // in physical pixels.
+        left = Math.Max(left, monitorPhysical.Left);
+        top = Math.Max(top, monitorPhysical.Top);
+        right = Math.Min(right, monitorPhysical.Right);
+        bottom = Math.Min(bottom, monitorPhysical.Bottom);
+        if (right <= left || bottom <= top)
+            return null;
+        return new PhysicalRect(left, top, right - left, bottom - top);
+    }
+}
+
+/// <summary>
 /// The screenshot → ask bookkeeping that doesn't touch pixels: the
 /// temp file's name and path, the starter line, the outcome → status
 /// mapping, and the temp file's guaranteed deletion.

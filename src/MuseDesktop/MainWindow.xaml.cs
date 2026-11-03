@@ -109,6 +109,10 @@ public partial class MainWindow : Window
     // through them and are never logged.
     private readonly DictationEngine _dictation = new();
     private readonly ReadAloudEngine _readAloud = new();
+    // M5: the read-aloud control bar (Concept A) — one pill per
+    // main window, built at the first reading, hidden between
+    // readings, and null again if it is ever closed on its own.
+    private ReadAloudBarWindow? _readAloudBar;
     // v2.1.0: the quick-attach strip's live bits — watchers on the
     // two recent-file folders (events only, never polling), the
     // debounce that turns a burst of folder events into one strip
@@ -3054,6 +3058,10 @@ public partial class MainWindow : Window
         // and the submenu is rebuilt from the store at every open
         // so it can never show a stale list.
         RefreshPinMenuItems();
+        // Screenshot → ask (M1): the submenu's screens are the
+        // monitors connected right now — rebuilt at every open for
+        // the same never-stale reason.
+        RefreshScreenshotMenuItems();
         MoreMenu.PlacementTarget = target;
         MoreMenu.IsOpen = true;
     }
@@ -5569,6 +5577,11 @@ public partial class MainWindow : Window
                 try { return PromptSnippetStore.Load(AppPaths.SnippetsPath).EntriesFor(profileId); }
                 catch (Exception) { return Array.Empty<PromptSnippet>(); }
             },
+            readingEntries: () =>
+            {
+                try { return ReadingListStore.Load(AppPaths.ReadingListPath).EntriesFor(profileId); }
+                catch (Exception) { return Array.Empty<ReadingListEntry>(); }
+            },
             startConversation: StartConversationWithContextPackAsync)
             { Owner = this };
         _contextPacksWindow = window;
@@ -5603,6 +5616,8 @@ public partial class MainWindow : Window
         {
             var snippets = PromptSnippetStore.Load(AppPaths.SnippetsPath);
             var profileId = _settings.ActiveProfileId;
+            var readingLists = ReadingListStore.Load(AppPaths.ReadingListPath);
+            var readingTexts = await ResolveContextPackReadingTextsAsync(pack, readingLists, profileId);
             context = ContextPackComposer.Compose(
                 pack,
                 ReadContextPackFileText,
@@ -5616,7 +5631,16 @@ public partial class MainWindow : Window
                     Strings.Get("context_pack.file_unavailable"),
                     Strings.Get("context_pack.snippet_unavailable"),
                     Strings.Get("context_pack.item_cut_note"),
-                    Strings.Get("context_pack.total_cut_note")));
+                    Strings.Get("context_pack.total_cut_note"),
+                    Strings.Get("context_pack.reading_section"),
+                    Strings.Get("context_pack.reading_unavailable_section"),
+                    Strings.Get("context_pack.reading_unavailable"),
+                    Strings.Get("context_pack.reading_missing")),
+                readingLookup: id => readingLists.EntriesFor(profileId)
+                    .FirstOrDefault(e => e.Id == id),
+                readingTextResolver: entry => readingTexts.TryGetValue(entry.Id, out var text)
+                    ? text
+                    : null);
         }
         catch (Exception ex)
         {
@@ -5660,6 +5684,53 @@ public partial class MainWindow : Window
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// Resolve the text of a pack's reading items (M2) at the
+    /// Start click: a saved page contributes the readable text of
+    /// an OPEN tab showing that page, pulled through the same
+    /// extraction ask-about-this-page uses — only now, at the
+    /// click; never stored, never logged, and the pack never
+    /// navigates anywhere by itself. A page that isn't open (or
+    /// yields nothing readable) resolves to null and Core's
+    /// one-line placeholder says so in the composed block.
+    /// </summary>
+    private async Task<IReadOnlyDictionary<string, string?>> ResolveContextPackReadingTextsAsync(
+        ContextPack pack, ReadingLists lists, string profileId)
+    {
+        var texts = new Dictionary<string, string?>(StringComparer.Ordinal);
+        foreach (var item in pack.Items)
+        {
+            if (item is null || item.Kind != ContextPackItemKind.Reading
+                || texts.ContainsKey(item.ReadingEntryId))
+                continue;
+            var entry = lists.EntriesFor(profileId)
+                .FirstOrDefault(e => e.Id == item.ReadingEntryId);
+            if (entry is null)
+                continue;
+            string? text = null;
+            var tab = _tabs.FirstOrDefault(t => t.WebReady
+                && string.Equals(
+                    AppRoute.FromUrl(t.Browser.Source?.ToString()), entry.Route,
+                    StringComparison.Ordinal));
+            if (tab is not null)
+            {
+                try
+                {
+                    var raw = await tab.Browser.CoreWebView2.ExecuteScriptAsync(
+                        PageScripts.ExtractReadableText);
+                    if (raw is not null && raw != "null")
+                    {
+                        var json = JsonSerializer.Deserialize<string>(raw);
+                        text = PageContext.TryParseExtraction(json)?.Text;
+                    }
+                }
+                catch (Exception) { /* unreadable here = the placeholder in the block */ }
+            }
+            texts[entry.Id] = text;
+        }
+        return texts;
     }
 
     /// <summary>
@@ -5784,38 +5855,26 @@ public partial class MainWindow : Window
             SetStatus(Strings.Get("status.brief_no_message_box"));
     }
 
-    private void OnScreenshotAsk(object sender, RoutedEventArgs e) =>
-        _ = ScreenshotAskAsync();
-
     /// <summary>
-    /// Screenshot → ask (v2.1.0): the user drags a rectangle
-    /// anywhere on the screen (the main window stays put — they may
-    /// be capturing the app itself); the app copies that rectangle,
-    /// opens a NEW conversation, attaches the picture through the
-    /// page's own upload control, and leaves Core's starter line in
-    /// the message box, focused and unsent. If the page won't take
-    /// the file — its shape is the page's business and can change —
-    /// the picture goes on the clipboard instead and the status
-    /// says to paste it. The PNG is a vehicle only: it lives in the
-    /// app's temp folder between the capture and the attach attempt
-    /// and is deleted at the end of every path (Core
+    /// Screenshot → ask (v2.1.0; the one-screen choices are M1):
+    /// the user drags a rectangle anywhere on the screen (the main
+    /// window stays put — they may be capturing the app itself);
+    /// the app copies that rectangle, opens a NEW conversation,
+    /// attaches the picture through the page's own upload control,
+    /// and leaves Core's starter line in the message box, focused
+    /// and unsent. If the page won't take the file — its shape is
+    /// the page's business and can change — the picture goes on the
+    /// clipboard instead and the status says to paste it. The PNG
+    /// is a vehicle only: it lives in the app's temp folder between
+    /// the capture and the attach attempt and is deleted at the end
+    /// of every path (Core
     /// <see cref="ScreenshotAsk.TryDeleteTempFile"/>); the image
     /// itself is never logged, measured, or kept.
     /// </summary>
     private async Task ScreenshotAskAsync()
     {
-        if (_isLocked)
-        {
-            PresentLockWindow();
+        if (!ScreenshotGatesPass())
             return;
-        }
-        if (_screenshotPicking)
-            return;
-        if (_tabs.Count >= MaxOpenTabs)
-        {
-            SetStatus($"You can have up to {MaxOpenTabs} tabs open");
-            return;
-        }
         PhysicalRect? picked;
         _screenshotPicking = true;
         try { picked = RegionPicker.Pick(); }
@@ -5825,6 +5884,117 @@ public partial class MainWindow : Window
             SetStatus(Strings.Get(ScreenshotAsk.StatusKey(ScreenshotAskOutcome.Cancelled)));
             return;
         }
+        await CaptureRectAndStartAsync(rect);
+    }
+
+    /// <summary>
+    /// The gates every screenshot entry shares, in the same order:
+    /// the app lock (the lock screen answers), a pick already in
+    /// flight (a second one would fight over the screen), and the
+    /// tab cap (the capture starts a new conversation, so it needs
+    /// a tab to give it).
+    /// </summary>
+    private bool ScreenshotGatesPass()
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return false;
+        }
+        if (_screenshotPicking)
+            return false;
+        if (_tabs.Count >= MaxOpenTabs)
+        {
+            SetStatus($"You can have up to {MaxOpenTabs} tabs open");
+            return false;
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// Screenshot of one whole screen (M1): no drag — the chosen
+    /// monitor's own physical rectangle is the capture, for the
+    /// common case of "that whole display, exactly".
+    /// </summary>
+    private async Task WholeScreenAskAsync(MonitorGeometry monitor)
+    {
+        if (!ScreenshotGatesPass())
+            return;
+        await CaptureRectAndStartAsync(MonitorRects.PhysicalPixels(monitor.Physical));
+    }
+
+    /// <summary>
+    /// A region on ONE named screen (M1): the overlay covers that
+    /// screen alone and the drag is tracked in its DIPs — the
+    /// space that window honestly owns — and Core's
+    /// <see cref="ScreenshotRegion.ToPhysicalRect"/> turns the drag
+    /// into the physical rectangle (that screen's scale, clamped
+    /// to that screen) the capture takes. Esc cancels; a drag under
+    /// Core's minimum size is a slip and cancels, the same rule as
+    /// the any-screen drag.
+    /// </summary>
+    private async Task MonitorRegionAskAsync(MonitorGeometry monitor)
+    {
+        if (!ScreenshotGatesPass())
+            return;
+        ScreenRect? picked;
+        _screenshotPicking = true;
+        try { picked = MonitorRegionPicker.Pick(monitor); }
+        finally { _screenshotPicking = false; }
+        var physical = picked is { } dip
+            ? ScreenshotRegion.ToPhysicalRect(
+                dip, MonitorRects.PhysicalPixels(monitor.Physical), monitor.DpiScale)
+            : null;
+        if (physical is not { } rect || !ScreenshotSelection.IsConfirmed(rect))
+        {
+            SetStatus(Strings.Get(ScreenshotAsk.StatusKey(ScreenshotAskOutcome.Cancelled)));
+            return;
+        }
+        await CaptureRectAndStartAsync(rect);
+    }
+
+    /// <summary>
+    /// Screenshot → ask's ⋯ submenu (M1), rebuilt at every menu
+    /// open from the monitors connected right now (the pin
+    /// submenu's never-stale discipline): the any-screen drag
+    /// first — still the palette action's one path — then, per
+    /// screen, a drag on that screen alone and the whole screen.
+    /// </summary>
+    private void RefreshScreenshotMenuItems()
+    {
+        ScreenshotAskItem.Items.Clear();
+        var anyScreen = new MenuItem { Header = Strings.Get("screenshot.region_any_screen") };
+        anyScreen.Click += (_, _) => _ = ScreenshotAskAsync();
+        ScreenshotAskItem.Items.Add(anyScreen);
+        var monitors = MonitorRects.AllGeometries();
+        ScreenshotAskItem.Items.Add(new System.Windows.Controls.Separator());
+        for (var i = 0; i < monitors.Count; i++)
+        {
+            var monitor = monitors[i];
+            var label = Strings.Format("screenshot.screen_label",
+                i + 1,
+                (int)Math.Round(monitor.Physical.Width),
+                (int)Math.Round(monitor.Physical.Height));
+            if (monitor.IsPrimary)
+                label += Strings.Get("screenshot.screen_primary_suffix");
+            var region = new MenuItem { Header = Strings.Format("screenshot.region_on_screen", label) };
+            region.Click += (_, _) => _ = MonitorRegionAskAsync(monitor);
+            ScreenshotAskItem.Items.Add(region);
+            var whole = new MenuItem { Header = Strings.Format("screenshot.whole_screen", label) };
+            whole.Click += (_, _) => _ = WholeScreenAskAsync(monitor);
+            ScreenshotAskItem.Items.Add(whole);
+        }
+    }
+
+    /// <summary>
+    /// Capture one physical rectangle and start the conversation
+    /// with it (the shared tail of every screenshot entry): a
+    /// breath for the picker dim to clear, the GDI copy into the
+    /// temp PNG, a new tab, the attach attempt — and the temp
+    /// file's deletion at the end of every path.
+    /// </summary>
+    private async Task CaptureRectAndStartAsync(PhysicalRect rect)
+    {
         if (!IsVisible)
             ShowFromTray();
         var tempPath = ScreenshotAsk.TempFilePath(AppPaths.TempDir, DateTimeOffset.Now);
@@ -6691,7 +6861,7 @@ public partial class MainWindow : Window
     /// now, at the user's click — take the newest assistant
     /// message (Core's pick), segment it for the ear (Core's
     /// <see cref="SpeechText.Segment"/>), and speak it segment by
-    /// segment with the status bar holding the controls. The text
+    /// segment with the control bar holding the controls. The text
     /// is spoken and forgotten: never logged, never stored.
     /// Running it again while reading stops the reading.
     /// </summary>
@@ -6740,20 +6910,19 @@ public partial class MainWindow : Window
         SetStatus(Strings.Get("status.reading_started"));
     }
 
-    /// <summary>Show the reading controls (v2.1.0) with the pause button and the speed label set for a fresh reading at ordinary pace.</summary>
+    /// <summary>Show the reading controls (v2.1.0; the floating control bar since M5): build the pill at the first reading and present it docked to this window.</summary>
     private void ShowReadAloudControls()
     {
-        ReadingPauseButton.Content = Strings.Get("ui.reading_pause");
-        ReadingSpeedButton.Content = SpeechSpeed.Format(_readAloud.Speed,
-            CultureInfo.GetCultureInfo(Strings.Current.Language));
-        ReadAloudPanel.Visibility = Visibility.Visible;
+        if (_readAloudBar is null)
+        {
+            _readAloudBar = new ReadAloudBarWindow(_readAloud, ToggleReadingPause, StopReadingFromBar)
+            { Owner = this };
+            _readAloudBar.Closed += (_, _) => _readAloudBar = null;
+        }
+        _readAloudBar.Present();
     }
 
-    private void HideReadAloudControls()
-    {
-        if (ReadAloudPanel is not null)
-            ReadAloudPanel.Visibility = Visibility.Collapsed;
-    }
+    private void HideReadAloudControls() => _readAloudBar?.Retire();
 
     /// <summary>Stop the reading (v2.1.0) and retire its controls — whoever asked: the user, a tab or route change, the lock, or the window closing.</summary>
     private void StopReading()
@@ -6762,25 +6931,17 @@ public partial class MainWindow : Window
         HideReadAloudControls();
     }
 
-    private void OnReadingPauseResume(object sender, RoutedEventArgs e)
+    /// <summary>The control bar's Pause/Resume (v2.1.0 as a status-bar button; the bar's delegate since M5): the engine pauses or resumes the synthesizer and the controller together, the bar's face follows the controller, and the status line says which happened.</summary>
+    private void ToggleReadingPause()
     {
         if (!_readAloud.IsActive)
             return;
         var paused = _readAloud.TogglePause();
-        ReadingPauseButton.Content = Strings.Get(paused ? "ui.reading_resume" : "ui.reading_pause");
         SetStatus(Strings.Get(paused ? "status.reading_paused" : "status.reading_resumed"));
     }
 
-    /// <summary>The speed button (v2.1.0): cycle Core's five stops; the label updates at once, the pace itself from the next segment.</summary>
-    private void OnReadingSpeed(object sender, RoutedEventArgs e)
-    {
-        if (!_readAloud.IsActive)
-            return;
-        ReadingSpeedButton.Content = SpeechSpeed.Format(_readAloud.CycleSpeed(),
-            CultureInfo.GetCultureInfo(Strings.Current.Language));
-    }
-
-    private void OnReadingStop(object sender, RoutedEventArgs e)
+    /// <summary>The control bar's Stop (M5): stop the reading and say so, as the status-bar button did.</summary>
+    private void StopReadingFromBar()
     {
         StopReading();
         SetStatus(Strings.Get("status.reading_stopped"));
@@ -8581,27 +8742,29 @@ public partial class MainWindow : Window
     /// The popup's "Continue in main window" hand-off: bring the
     /// main window forward and navigate its current tab to the
     /// address Core's <see cref="QuickAsk.ContinueTarget"/> allowed
-    /// (the popup's conversation, or Home). Returns whether the
-    /// hand-off happened — while locked the lock screen answers
-    /// instead and the popup stays open with its conversation.
+    /// (the popup's conversation, or Home). Returns null when the
+    /// hand-off happened, or the reason it didn't (M3) — while
+    /// locked the lock screen answers instead and the popup stays
+    /// open with its conversation; a not-ready refusal is the
+    /// popup footer's line to show, never a silent dead button.
     /// </summary>
-    private bool ContinueQuickAskInMainWindow(string? url)
+    private QuickAskContinueRefusal? ContinueQuickAskInMainWindow(string? url)
     {
         if (_isLocked)
         {
             PresentLockWindow();
-            return false;
+            return QuickAskContinueRefusal.Locked;
         }
         if (url is null || UrlPolicy.ClassifyNavigation(url) != LinkDisposition.InApp)
-            return false;
+            return QuickAskContinueRefusal.PageNotReady;
         if (!IsVisible)
             ShowFromTray();
         if (!IsVisible || !_webReady)
-            return false;
+            return QuickAskContinueRefusal.PageNotReady;
         Browser.CoreWebView2.Navigate(url);
         Activate();
         _log.Info($"Quick ask continued in the main window: {UrlPolicy.RedactForLog(url)}");
-        return true;
+        return null;
     }
 
     /// <summary>

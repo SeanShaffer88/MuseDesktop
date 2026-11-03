@@ -202,6 +202,16 @@ public sealed class DictationEngine : IDisposable
 /// heading segment, ~150 ms between paragraphs. All public events
 /// are raised on the dispatcher handed to
 /// <see cref="Start(IReadOnlyList{SpeechSegment}, CultureInfo, Dispatcher)"/>.
+///
+/// The queue decisions — which segment is current, playing vs
+/// paused, the rate — live in Core's
+/// <see cref="SpeechPlaybackController"/> (M5), exposed as
+/// <see cref="Playback"/> so a control surface can bind to it;
+/// this class is the controller's synthesizer driver and nothing
+/// more. A fresh reading
+/// starts at ordinary pace (the engine resets the rate at Start —
+/// the controller itself keeps the rate across loads); pause,
+/// speed, and stop ride the read-aloud control bar, stop is silent.
 /// </summary>
 public sealed class ReadAloudEngine : IDisposable
 {
@@ -210,11 +220,11 @@ public sealed class ReadAloudEngine : IDisposable
 
     private SpeechSynthesizer? _synth;
     private Dispatcher? _dispatcher;
-    private IReadOnlyList<SpeechSegment> _segments = Array.Empty<SpeechSegment>();
-    private int _index;
     private int _session;
     private Prompt? _currentPrompt;
-    private SpeechSegment? _previous;
+
+    /// <summary>The playback model (Core): the segment queue, the position in it, the pause state, and the rate. The engine drives it; the control bar binds to it.</summary>
+    public SpeechPlaybackController Playback { get; } = new();
 
     /// <summary>The last segment finished: the reading completed on its own.</summary>
     public event Action? Finished;
@@ -223,10 +233,10 @@ public sealed class ReadAloudEngine : IDisposable
     public event Action? Failed;
 
     public bool IsActive => _synth is not null;
-    public bool IsPaused { get; private set; }
+    public bool IsPaused => Playback.State == SpeechPlaybackState.Paused;
 
-    /// <summary>The current speed stop (Core's table); a change applies from the next segment.</summary>
-    public double Speed { get; private set; } = SpeechSpeed.Default;
+    /// <summary>The current rate (Core's controller); a change applies from the next segment.</summary>
+    public double Speed => Playback.Rate;
 
     /// <summary>
     /// Begin reading <paramref name="segments"/> (Core's
@@ -240,11 +250,11 @@ public sealed class ReadAloudEngine : IDisposable
     {
         Stop();
         _dispatcher = dispatcher;
-        _segments = segments;
-        _index = 0;
-        _previous = null;
-        IsPaused = false;
-        Speed = SpeechSpeed.Default;
+        Playback.Load(segments);
+        // A fresh reading starts at ordinary pace — the standing
+        // behavior; the controller keeps a rate across loads, so
+        // the reset is the engine's policy, applied here.
+        Playback.SetRate(SpeechSpeed.Default);
         var session = ++_session;
         if (segments.Count == 0)
         {
@@ -271,7 +281,16 @@ public sealed class ReadAloudEngine : IDisposable
             // synthesizer's default voice reads instead.
         }
         synth.SpeakCompleted += OnSpeakCompleted;
-        SpeakNext(session);
+        if (Playback.Start() is null)
+        {
+            // The queue was non-empty a moment ago; if the
+            // controller still finds nothing to play, end honestly
+            // rather than leaving a live synthesizer idle.
+            Stop();
+            Finished?.Invoke();
+            return;
+        }
+        SpeakCurrent(session);
     }
 
     /// <summary>Pause or resume. Returns the paused state now in force (false when nothing is reading).</summary>
@@ -282,30 +301,30 @@ public sealed class ReadAloudEngine : IDisposable
             return false;
         try
         {
-            if (IsPaused)
+            if (Playback.State == SpeechPlaybackState.Paused)
             {
                 synth.Resume();
-                IsPaused = false;
+                Playback.Resume();
             }
             else if (synth.State == SynthesizerState.Speaking)
             {
                 synth.Pause();
-                IsPaused = true;
+                Playback.Pause();
             }
         }
         catch (Exception) { }
         return IsPaused;
     }
 
-    /// <summary>Move to the next speed stop (wrapping at the top) and return it; it takes effect from the next segment.</summary>
-    public double CycleSpeed() => Speed = SpeechSpeed.CycleNext(Speed);
+    /// <summary>Move to the next of Core's speed stops (wrapping at the top) and return it; it takes effect from the next segment.</summary>
+    public double CycleSpeed() => Playback.SetRate(SpeechSpeed.CycleNext(Playback.Rate));
 
     /// <summary>Stop reading and release the synthesizer, silently — no Finished, no Failed. Safe when idle; never throws.</summary>
     public void Stop()
     {
         _session++;
         _currentPrompt = null;
-        IsPaused = false;
+        Playback.Stop();
         var synth = _synth;
         _synth = null;
         if (synth is null)
@@ -319,26 +338,21 @@ public sealed class ReadAloudEngine : IDisposable
         try { synth.Dispose(); } catch (Exception) { }
     }
 
-    private void SpeakNext(int session)
+    private void SpeakCurrent(int session)
     {
         var synth = _synth;
         if (synth is null || session != _session)
             return;
-        if (_index >= _segments.Count)
-        {
-            Stop();
-            Finished?.Invoke();
+        var segment = Playback.CurrentSegment;
+        if (segment is null)
             return;
-        }
-        var segment = _segments[_index++];
         var builder = new PromptBuilder();
-        if (_previous is not null)
-            builder.AppendBreak(_previous.IsHeading ? AfterHeadingBreak : BetweenParagraphsBreak);
+        if (Playback.PreviousSegment is { } previous)
+            builder.AppendBreak(previous.IsHeading ? AfterHeadingBreak : BetweenParagraphsBreak);
         builder.AppendText(segment.Text);
-        _previous = segment;
         try
         {
-            synth.Rate = SpeechSpeed.ToSapiRate(Speed);
+            synth.Rate = SpeechSpeed.ToSapiRate(Playback.Rate);
             _currentPrompt = synth.SpeakAsync(builder);
         }
         catch (Exception)
@@ -370,8 +384,16 @@ public sealed class ReadAloudEngine : IDisposable
                 Failed?.Invoke();
                 return;
             }
-            if (!e.Cancelled)
-                SpeakNext(session);
+            if (e.Cancelled)
+                return;
+            if (Playback.Advance() is not null)
+            {
+                SpeakCurrent(session);
+                return;
+            }
+            // The queue ran out: the reading completed on its own.
+            Stop();
+            Finished?.Invoke();
         });
     }
 

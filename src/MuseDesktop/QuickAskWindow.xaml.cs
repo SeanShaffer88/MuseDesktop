@@ -12,7 +12,10 @@ namespace MuseDesktop;
 
 /// <summary>
 /// Quick ask: a small Muse window docked at the bottom-right
-/// corner of the primary monitor's work area, for one quick
+/// corner of the work area of the monitor the cursor is on
+/// (design Concept B — the corner card; SEAN's pick 2026-11-02;
+/// the cursor's monitor since M3 — before that, always the
+/// primary), for one quick
 /// question (design Concept B — the corner card; SEAN's pick
 /// 2026-11-02). One WebView2 on the ACTIVE profile's environment —
 /// built exactly the way the main window and the compare window
@@ -33,21 +36,21 @@ namespace MuseDesktop;
 /// decides what may be handed over) to the main window through
 /// the delegate it was constructed with, and the popup closes
 /// when the main window accepts it. Placement is Core's dock
-/// maths over the primary work area, re-decided at every summon
+/// maths over the cursor monitor's work area, re-decided at every summon
 /// and never persisted.
 /// </summary>
 public partial class QuickAskWindow : Window
 {
     private readonly DiagnosticLog _log;
     private readonly string _profileId;
-    private readonly Func<string?, bool> _continueInMainWindow;
+    private readonly Func<string?, QuickAskContinueRefusal?> _continueInMainWindow;
     private Task<CoreWebView2Environment>? _environment;
     private WebView2? _browser;
     private CoreWebView2? _core;
     private string? _currentUrl;
     private bool _closed;
 
-    public QuickAskWindow(AppSettings settings, DiagnosticLog log, Func<string?, bool> continueInMainWindow)
+    public QuickAskWindow(AppSettings settings, DiagnosticLog log, Func<string?, QuickAskContinueRefusal?> continueInMainWindow)
     {
         _log = log;
         _continueInMainWindow = continueInMainWindow;
@@ -60,10 +63,26 @@ public partial class QuickAskWindow : Window
         // The title names the profile the popup is signed in as —
         // the card's one piece of shell chrome above the page.
         Title = Strings.Format("quickask.title_with_profile", Profiles.DisplayLabel(profile));
-        // Dock fresh, bottom-right of the primary monitor's work
-        // area (DIPs from MonitorRects are per-monitor converted,
-        // so the fixed DIP card size arrives DPI-scaled).
-        var workArea = MonitorRects.AllWorkAreasInDip().FirstOrDefault();
+        // Dock fresh, bottom-right of the work area of the monitor
+        // the cursor is on (M3) — the screen the user is looking
+        // at, not always the primary. Core picks the monitor from
+        // the physical cursor point; when the point names no
+        // monitor (a gap, or the position couldn't be read) the
+        // primary — MonitorRects' first — stands, as before.
+        // DIPs from MonitorRects are per-monitor converted, so the
+        // fixed DIP card size arrives DPI-scaled.
+        var geometries = MonitorRects.AllGeometries();
+        var workArea = geometries.Count > 0
+            ? geometries[0].WorkAreaDip
+            : MonitorRects.AllWorkAreasInDip().FirstOrDefault();
+        if (geometries.Count > 1
+            && MonitorRects.CursorPhysicalPoint() is { } cursor)
+        {
+            var index = QuickAsk.MonitorIndexAt(
+                geometries.Select(g => g.Physical).ToList(), cursor.X, cursor.Y);
+            if (index >= 0)
+                workArea = geometries[index].WorkAreaDip;
+        }
         var placement = QuickAsk.DockPlacement(workArea);
         WindowStartupLocation = WindowStartupLocation.Manual;
         Width = Math.Max(placement.Width, MinWidth);
@@ -195,14 +214,20 @@ public partial class QuickAskWindow : Window
     /// The hand-off: the main window takes the conversation from
     /// here. Core decides the address (the page's current one when
     /// it is in-app, Home otherwise); the delegate reports whether
-    /// the main window accepted it (it refuses while locked, for
-    /// instance) — and only then does the popup close.
+    /// the main window accepted it — null — or why it refused
+    /// (locked, not ready). Only an acceptance closes the popup; a
+    /// refusal is said in the footer (M3), never silent, and the
+    /// conversation stays where it is.
     /// </summary>
     private void OnContinueInMainWindow(object sender, RoutedEventArgs e)
     {
         var target = QuickAsk.ContinueTarget(_currentUrl);
         _log.Info($"Quick ask handed to the main window: {UrlPolicy.RedactForLog(target)}");
-        if (_continueInMainWindow(target))
-            Close();
+        if (_continueInMainWindow(target) is { } refusal)
+        {
+            StatusText.Text = Strings.Get(QuickAsk.ContinueRefusalStatusKey(refusal));
+            return;
+        }
+        Close();
     }
 }

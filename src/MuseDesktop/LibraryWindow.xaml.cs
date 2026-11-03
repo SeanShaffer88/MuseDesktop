@@ -349,14 +349,28 @@ public partial class LibraryWindow : Window
     // this tab is a second door onto the same store the menu's
     // toggle and submenu use — never a copy that could drift.
 
+    private string _pinSearch = "";
+
     private void ReloadPins(string? keepId = null)
     {
-        var rows = _pinsRefresh().Select(pin => new PinnedConversationRow(pin)).ToList();
+        var pins = _pinsRefresh();
+        var rows = PinnedConversations.Filter(pins, _pinSearch)
+            .Select(pin => new PinnedConversationRow(pin)).ToList();
         PinList.ItemsSource = rows;
-        PinnedEmptyText.Text = Strings.Get("library.pinned_empty");
+        // Two different emptinesses, two different lines: no pins
+        // at all (how to make one) vs a search that matched none
+        // (how to get the list back).
+        PinnedEmptyText.Text = Strings.Get(
+            pins.Count == 0 ? "library.pinned_empty" : "library.pinned_no_matches");
         PinnedEmptyText.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         if (keepId is not null)
             PinList.SelectedItem = rows.FirstOrDefault(r => r.Pin.Id == keepId);
+    }
+
+    private void OnPinSearchChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        _pinSearch = PinSearchBox.Text;
+        ReloadPins(SelectedPinRow?.Pin.Id);
     }
 
     private PinnedConversationRow? SelectedPinRow => PinList.SelectedItem as PinnedConversationRow;

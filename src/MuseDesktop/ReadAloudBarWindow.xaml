@@ -1,0 +1,43 @@
+<Window x:Class="MuseDesktop.ReadAloudBarWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:MuseDesktop"
+        Title="{local:Loc ui.reading_aloud}"
+        WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False"
+        ShowActivated="False" SizeToContent="WidthAndHeight"
+        AllowsTransparency="True" Background="Transparent"
+        Foreground="{StaticResource TextBrush}">
+    <!-- The read-aloud control bar (M5; design Concept A — the
+         floating pill, SEAN's pick 2026-11-03): a charcoal pill
+         with a red outline floating at the bottom-center of the
+         main window, present only while a reading is playing or
+         paused. The buttons' faces are set from Core's playback
+         controller in code (the toggle flips between Pause and
+         Resume); the glyph buttons carry their words as their
+         accessible names and tooltips, like the zoom controls. -->
+    <Border Background="{StaticResource SurfaceBrush}" BorderBrush="{StaticResource AccentBrush}"
+            BorderThickness="1" CornerRadius="20" Padding="10,6">
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <Button x:Name="PauseResumeButton" Content="{local:Loc ui.reading_pause}" Height="26"
+                    Padding="12,0" Click="OnPauseResume"
+                    ToolTip="{local:Loc ui.reading_pause_tooltip}"
+                    AutomationProperties.Name="{local:Loc ui.reading_pause}" KeyboardNavigation.TabIndex="1"/>
+            <Button x:Name="StopButton" Content="{local:Loc ui.reading_stop}" Height="26"
+                    Padding="12,0" Margin="6,0,0,0" Click="OnStop"
+                    ToolTip="{local:Loc ui.reading_stop_tooltip}"
+                    AutomationProperties.Name="{local:Loc ui.reading_stop}" KeyboardNavigation.TabIndex="2"/>
+            <Button x:Name="SlowerButton" Content="−" Height="26" MinWidth="30"
+                    Padding="6,0" Margin="14,0,0,0" Click="OnSlower"
+                    ToolTip="{local:Loc ui.reading_slower_tooltip}"
+                    AutomationProperties.Name="{local:Loc ui.reading_slower}" KeyboardNavigation.TabIndex="3"/>
+            <TextBlock x:Name="RateText" MinWidth="46" Margin="4,0" VerticalAlignment="Center"
+                       TextAlignment="Center" FontSize="12"/>
+            <Button x:Name="FasterButton" Content="+" Height="26" MinWidth="30"
+                    Padding="6,0" Click="OnFaster"
+                    ToolTip="{local:Loc ui.reading_faster_tooltip}"
+                    AutomationProperties.Name="{local:Loc ui.reading_faster}" KeyboardNavigation.TabIndex="4"/>
+            <TextBlock x:Name="PartText" Margin="12,0,4,0" VerticalAlignment="Center"
+                       FontSize="12" Foreground="{StaticResource MutedBrush}"/>
+        </StackPanel>
+    </Border>
+</Window>
