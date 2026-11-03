@@ -57,7 +57,7 @@ public static class SettingsSearch
         new SettingsSectionInfo(ZoomId, "Zoom",
             "zoom default percent bigger smaller text size page extended range low vision 500"),
         new SettingsSectionInfo(AccessibilityId, "Keyboard & accessibility",
-            "keyboard shortcuts keys remap rebind change hotkey global show hide anywhere dictate reduce motion animation effects announcements screen reader narrator focus dialog extended zoom range low vision accessibility"),
+            "keyboard shortcuts keys remap rebind change hotkey global show hide anywhere dictate reduce motion animation effects announcements screen reader narrator focus dialog extended zoom range low vision accessibility quick ask popup corner card ctrl shift space one-off question"),
         // R7 (v1.8.0): language & announcements sit between
         // accessibility and downloads in the layout; its words
         // (language, español, announcements, spacing) are its own, so
@@ -251,6 +251,10 @@ public static class SettingsReset
         target.FollowUpChipsEnabled = fresh.FollowUpChipsEnabled;
         // v2.1.0: and the quick-attach strip switch beside those.
         target.QuickAttachStripEnabled = fresh.QuickAttachStripEnabled;
+        // Quick ask: its switch returns to on with the rest — the
+        // feature owns no other settings state (fixed gesture,
+        // placement never persisted), so this is the whole reset.
+        target.QuickAskEnabled = fresh.QuickAskEnabled;
         // S9 fields (v0.13.0): the update channel returns to stable
         // only, the check frequency to every launch, any snooze is
         // cleared, and What's New shows again. NOT preferences, so

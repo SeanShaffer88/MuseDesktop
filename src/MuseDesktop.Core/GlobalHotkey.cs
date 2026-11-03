@@ -176,6 +176,9 @@ public static class HotkeyNative
     /// <summary>The quick-note hotkey's registration id (R5 #148): a second registration on the same window handle, so it needs its own id.</summary>
     public const int RegistrationIdQuickNote = 0x4D4E; // "MN"
 
+    /// <summary>The quick-ask hotkey's registration id: a third registration on the same window handle, so it needs its own id too.</summary>
+    public const int RegistrationIdQuickAsk = 0x4D51; // "MQ"
+
     /// <summary>The native modifier mask for a gesture, with MOD_NOREPEAT always included.</summary>
     public static uint ModifiersFor(ShortcutGesture gesture)
     {

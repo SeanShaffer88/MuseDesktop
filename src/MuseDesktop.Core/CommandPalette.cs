@@ -589,6 +589,9 @@ public static class CommandRegistry
         // v2.1.0: Compare mode — the same prompt to two profiles
         // at once, the answers side by side in their own window.
         Action("compare-mode", "Compare mode…", "compare mode side by side two profiles same prompt second take windows", detail: "Windows"),
+        // Quick ask — a small corner window on the active profile
+        // for one quick question, fresh conversation every time.
+        Action("quick-ask", "Quick ask…", "quick ask popup corner window one-off question floating fast ask", detail: "Windows"),
         Action("focus-mode", "Toggle focus mode", "focus mode hide toolbar compact chrome", GestureOf("focus-mode")),
         Action("shell-layout", "Cycle shell layout", "shell layout compact focus left rail standard slim toolbar status pill vertical rail", detail: "Window"),
         Action("fullscreen", "Toggle full screen", "full screen fullscreen f11", GestureOf("fullscreen")),

@@ -1754,5 +1754,20 @@
   "compare.status_still_loading": "Still loading — try again",
   "compare.window_title": "Compare mode",
   "compare_mode": "Compare mode…",
-  "compare_mode_tooltip": "Ask the same question in two profiles, side by side"
+  "compare_mode_tooltip": "Ask the same question in two profiles, side by side",
+  "hotkey.feature.quick_ask": "quick-ask hotkey",
+  "quick_ask": "Quick ask…",
+  "quickask.continue_in_main_window": "Continue in main window",
+  "quickask.continue_tooltip": "Open this conversation in the main window and close Quick ask",
+  "quickask.esc_hint": "Esc to close",
+  "quickask.failed_to_start": "Couldn't start the page",
+  "quickask.hotkey_active": "Active: {0} opens Quick ask from any app.",
+  "quickask.settings_note": "Quick ask: a small Muse window docked at the bottom-right corner of the screen, for one quick question on the profile you're using — a fresh conversation every time. Ctrl+Shift+Space opens it from any app; the ⋯ menu, the tray menu, and Ctrl+K open it too.",
+  "quickask.title_with_profile": "Quick ask — {0}",
+  "quickask.window_title": "Quick ask",
+  "quickask_tooltip": "Ask one quick question in a small window docked at the corner of the screen",
+  "tray.quick_ask": "Quick ask",
+  "ui.enable_quick_ask": "Enable Quick ask and its global hotkey (Ctrl+Shift+Space)",
+  "ui.quick_ask_settings_tooltip": "Turns every Quick ask door on or off together: the global hotkey, the ⋯ menu, the tray menu, and the command palette",
+  "quickask.disabled_status": "Quick ask is off — turn it on in Settings"
 }
