@@ -619,6 +619,9 @@ public static class CommandRegistry
         Action("bookmarks", "Open bookmarks", "bookmarks marked messages nicknames saved jump list", detail: "Bookmarks"),
         Action("export-conversation", "Export conversation as Markdown…", "export conversation save chat markdown file transcript", detail: "Page"),
         Action("export-conversation-pdf", "Export conversation as PDF…", "export conversation save chat pdf file transcript", detail: "Page"),
+        // v2.1.0: Ask about this page — an opened page's readable
+        // text becomes a new conversation's starting context.
+        Action("ask-about-page", "Ask about this page", "ask about page context read article link question new conversation", detail: "Page"),
         Action("exit", "Exit MuseDesktop", "quit exit close app", detail: "App"),
     };
 
