@@ -4,7 +4,7 @@ All notable changes to MuseDesktop. Format follows Keep a Changelog; versions us
 
 Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhancement program; they were never published as releases. Everything in them shipped together as **1.0.0** (2026-10-24).
 
-## [2.1.0] — Unreleased
+## [2.1.0] — 2026-11-02
 
 ### Added
 
