@@ -586,6 +586,9 @@ public static class CommandRegistry
         Action("copy-address", "Copy page address", "copy url link address clipboard", detail: "Page"),
         Action("open-in-browser", "Open page in browser", "browser external open default", detail: "Page"),
         Action("new-window", "Open page in new window", "second window new window another", detail: "Windows"),
+        // v2.1.0: Compare mode — the same prompt to two profiles
+        // at once, the answers side by side in their own window.
+        Action("compare-mode", "Compare mode…", "compare mode side by side two profiles same prompt second take windows", detail: "Windows"),
         Action("focus-mode", "Toggle focus mode", "focus mode hide toolbar compact chrome", GestureOf("focus-mode")),
         Action("shell-layout", "Cycle shell layout", "shell layout compact focus left rail standard slim toolbar status pill vertical rail", detail: "Window"),
         Action("fullscreen", "Toggle full screen", "full screen fullscreen f11", GestureOf("fullscreen")),
@@ -632,6 +635,13 @@ public static class CommandRegistry
         // voice button instead.)
         Action("dictate", "Dictate into the message box", "dictate voice speech microphone speak words dictation type talking", detail: "Voice"),
         Action("read-aloud", "Read the last answer aloud", "read aloud voice speech listen answer speak text to speech hear", detail: "Voice"),
+        // v2.1.0: Context packs — named local bundles of files,
+        // notes, and snippets that can start a conversation as one
+        // organized context block.
+        Action("context-packs", "Context packs…", "context pack bundle files notes snippets start conversation organized material", detail: "Context"),
+        // v2.1.0: Standing briefs — the Library window's Briefs tab,
+        // where one click starts a conversation with the brief.
+        Action("brief-new-conversation", "New conversation with a brief…", "standing brief briefs background rules preferences project card library new conversation start", detail: "Library"),
         Action("exit", "Exit MuseDesktop", "quit exit close app", detail: "App"),
     };
 
