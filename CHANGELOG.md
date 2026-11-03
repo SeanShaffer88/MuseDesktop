@@ -63,6 +63,21 @@ Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhanc
   never logged and never stored — it goes into that one message
   box and nowhere else.
 
+- **Screenshot → ask.** The ⋯ menu's **Screenshot to
+  conversation…** (or Ctrl+K) dims the screen and lets you drag a
+  rectangle anywhere — across monitors, mixed display scales
+  included — and releasing the mouse starts a new conversation
+  with that piece of the screen attached as a picture and the
+  starter line "What is happening in this screenshot?" already in
+  the message box, ready to edit or send. Nothing is saved and
+  there is no attach button to hunt for: the picture goes in
+  through the page's own upload control, and on a page whose
+  shape won't take it that way, the picture is put on the
+  clipboard instead and the status bar tells you to paste it with
+  Ctrl+V. Esc or a right-click cancels, and the captured image
+  exists as a file only between the grab and the attach — it is
+  deleted immediately afterwards, whatever happened.
+
 ## [2.0.0] — 2026-11-02
 
 ### Added

@@ -24,6 +24,60 @@ public static class MonitorRects
     /// </summary>
     public static IReadOnlyList<ScreenRect> AllWorkAreasInDip() => Enumerate(workArea: true);
 
+    /// <summary>
+    /// Every monitor's full geometry (v2.1.0, screenshot → ask): the
+    /// PHYSICAL rect, the same rect in DIPs (converted with that
+    /// monitor's own scale, exactly as <see cref="AllInDip"/> does),
+    /// and the scale itself — primary first. The region picker needs
+    /// all three at once: it parks one overlay window per monitor at
+    /// the DIP rect, then does its drag maths in physical pixels
+    /// with that monitor's scale, so a selection stays exact on
+    /// mixed-DPI setups. Any failure falls back to the virtual
+    /// screen as a single 1.0-scale "monitor", like the rest of
+    /// this class.
+    /// </summary>
+    public static IReadOnlyList<MonitorGeometry> AllGeometries()
+    {
+        var monitors = new List<MonitorGeometry>();
+        try
+        {
+            var ok = EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, (hMonitor, _, _, _) =>
+            {
+                var info = new MonitorInfo { Size = (uint)Marshal.SizeOf<MonitorInfo>() };
+                if (!GetMonitorInfo(hMonitor, ref info))
+                    return true;
+                var scale = 1.0;
+                try
+                {
+                    if (GetDpiForMonitor(hMonitor, MonitorDpiType.EffectiveDpi, out var dpiX, out _) == 0
+                        && dpiX > 0)
+                        scale = dpiX / 96.0;
+                }
+                catch { /* scale stays 1.0 for this monitor */ }
+                var physical = new ScreenRect(
+                    info.Monitor.Left, info.Monitor.Top,
+                    info.Monitor.Right - info.Monitor.Left,
+                    info.Monitor.Bottom - info.Monitor.Top);
+                monitors.Add(new MonitorGeometry(
+                    physical,
+                    DipMath.PhysicalToDip(physical, scale),
+                    scale,
+                    (info.Flags & MonitorInfoPrimary) != 0));
+                return true;
+            }, IntPtr.Zero);
+            if (ok && monitors.Count > 0)
+                return monitors.OrderByDescending(m => m.IsPrimary).ToList();
+        }
+        catch { /* fall through to the virtual-screen fallback */ }
+
+        var fallback = new ScreenRect(
+            System.Windows.SystemParameters.VirtualScreenLeft,
+            System.Windows.SystemParameters.VirtualScreenTop,
+            System.Windows.SystemParameters.VirtualScreenWidth,
+            System.Windows.SystemParameters.VirtualScreenHeight);
+        return new[] { new MonitorGeometry(fallback, fallback, 1.0, IsPrimary: true) };
+    }
+
     private static IReadOnlyList<ScreenRect> Enumerate(bool workArea)
     {
         var monitors = new List<(ScreenRect Dip, bool Primary)>();
@@ -110,3 +164,17 @@ public static class MonitorRects
     [DllImport("shcore.dll")]
     private static extern int GetDpiForMonitor(IntPtr hMonitor, MonitorDpiType dpiType, out uint dpiX, out uint dpiY);
 }
+
+/// <summary>
+/// One monitor in both coordinate spaces at once (v2.1.0):
+/// <see cref="Physical"/> is its rectangle in physical pixels (the
+/// space the screen, the cursor, and a capture live in);
+/// <see cref="Dip"/> is the same rectangle in the DIPs WPF window
+/// placement uses, converted with <see cref="DpiScale"/> — this
+/// monitor's own factor, never a neighbour's.
+/// </summary>
+public sealed record MonitorGeometry(
+    ScreenRect Physical,
+    ScreenRect Dip,
+    double DpiScale,
+    bool IsPrimary);

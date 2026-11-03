@@ -1,0 +1,25 @@
+<Window x:Class="MuseDesktop.RegionPickerWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="MuseDesktop"
+        WindowStyle="None" ResizeMode="NoResize" ShowInTaskbar="False"
+        Topmost="True" AllowsTransparency="True" Background="Transparent"
+        WindowStartupLocation="Manual" Cursor="Cross" Focusable="True">
+    <!-- One overlay per monitor (see RegionPickerWindow.xaml.cs for why
+         it isn't one big window): the canvas is exactly this monitor,
+         dimmed at ~45% black; during a drag the dim pulls back to the
+         four rectangles around the selection, leaving the rectangle
+         itself clear under an accent outline with its size in pixels. -->
+    <Canvas x:Name="Surface">
+        <Rectangle x:Name="DimTop" Fill="#73000000"/>
+        <Rectangle x:Name="DimLeft" Fill="#73000000"/>
+        <Rectangle x:Name="DimRight" Fill="#73000000"/>
+        <Rectangle x:Name="DimBottom" Fill="#73000000"/>
+        <Border x:Name="SelectionBorder" BorderBrush="{StaticResource AccentBrush}" BorderThickness="2"
+                Background="#14FFFFFF" Visibility="Collapsed" IsHitTestVisible="False"/>
+        <Border x:Name="SizeLabel" Background="#D8000000" CornerRadius="3" Padding="6,2"
+                Visibility="Collapsed" IsHitTestVisible="False">
+            <TextBlock x:Name="SizeLabelText" Foreground="White" FontSize="12"/>
+        </Border>
+    </Canvas>
+</Window>

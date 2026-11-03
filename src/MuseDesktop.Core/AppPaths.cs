@@ -105,6 +105,9 @@ public static class AppPaths
     /// <summary>The guided field pass (Diagnostics): the user's own verdicts + notes for the nine on-machine checks — local-only, in their own file like the other small stores, and never part of a settings export.</summary>
     public static string FieldPassPath => Path.Combine(RootDir, "field-pass.json");
 
+    /// <summary>Scratch space for files that are a means to an end, never user documents: the screenshot → ask PNG lives here between its capture and its attach attempt, and is deleted at the end of every path (v2.1.0).</summary>
+    public static string TempDir => Path.Combine(RootDir, "temp");
+
     public static string LogDir => Path.Combine(RootDir, "logs");
     public static string LogPath => Path.Combine(LogDir, "musedesktop.log");
 
