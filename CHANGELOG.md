@@ -4,6 +4,25 @@ All notable changes to MuseDesktop. Format follows Keep a Changelog; versions us
 
 Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhancement program; they were never published as releases. Everything in them shipped together as **1.0.0** (2026-10-24).
 
+## [Unreleased]
+
+### Added
+
+- **Quick ask.** A small Muse window docked at the bottom-right
+  corner of the screen, for one quick question without opening
+  the main window: press Ctrl+Shift+Space anywhere (or use the
+  ⋯ menu, the tray menu, or Ctrl+K) and the card appears, signed
+  in as the profile you're using, on a fresh conversation. Type
+  in the page's own message box and send as usual — the card is a
+  plain page, so drafts and the other conversation tools don't
+  run inside it, and nothing is sent for you. "Continue in main
+  window" at the card's foot opens the same conversation in the
+  main window and closes the card; Esc closes it outright.
+  Closing and reopening starts over with a fresh conversation —
+  it is a one-off tool, not a second main window. The corner
+  card can be turned off (hotkey, menus, and palette together)
+  in Settings → Keyboard & accessibility.
+
 ## [2.1.0] — 2026-11-02
 
 ### Added
