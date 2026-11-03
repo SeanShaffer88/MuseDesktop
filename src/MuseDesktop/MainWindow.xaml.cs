@@ -3042,6 +3042,10 @@ public partial class MainWindow : Window
         // and turning it off retires the meter + offer immediately.
         _settings.DraftMeterEnabled = clone.DraftMeterEnabled;
         ApplyDraftMeterSetting();
+        // v2.1.0: the follow-up chips switch rides along too; the
+        // page is re-configured either way (off retires any bar).
+        _settings.FollowUpChipsEnabled = clone.FollowUpChipsEnabled;
+        ApplyFollowUpChipsSetting();
         _settings.AlwaysOnTop = clone.AlwaysOnTop;
         // S5: appearance + Settings-window memory ride the same adoption.
         _settings.ShellLayout = clone.ShellLayout;
@@ -4712,6 +4716,9 @@ public partial class MainWindow : Window
             case PageBridgeKind.LongPaste:
                 OnPageLongPaste();
                 break;
+            case PageBridgeKind.FollowUpChip:
+                OnFollowUpChip(message.Text);
+                break;
             case PageBridgeKind.ApprovalAppeared:
                 OnApprovalCardAppeared(message.Signal);
                 break;
@@ -4840,6 +4847,7 @@ public partial class MainWindow : Window
     private async Task PushPageStateAsync()
     {
         await ApplyPageStyleAsync();
+        await PushFollowUpChipsConfigAsync();
         if (!_settings.DraftsAutosaveEnabled || _isLocked || !_webReady)
             return;
         var route = AppRoute.FromUrl(Browser.Source?.ToString());
@@ -5119,6 +5127,52 @@ public partial class MainWindow : Window
             return;
         DismissTidyOffer();
         SetDraftMeterText("");
+    }
+
+    // ─────────────────── v2.1.0: follow-up chips ───────────────────
+
+    /// <summary>Push the chips configuration to the page (v2.1.0): the switch, Core's long-answer threshold, and the six labels in the active language. Called on the bridge's ready handshake (so a fresh document — or a new language — is configured before any answer settles) and whenever the setting changes.</summary>
+    private async Task PushFollowUpChipsConfigAsync()
+    {
+        if (!_webReady)
+            return;
+        try
+        {
+            var chips = FollowUpChips.All
+                .Select(chip => (chip.Id, Label: Strings.Get(chip.LabelKey)))
+                .ToList();
+            await Browser.CoreWebView2.ExecuteScriptAsync(
+                PageScripts.ConfigureFollowUpChips(
+                    _settings.FollowUpChipsEnabled, FollowUpChips.LongAnswerWordThreshold, chips));
+        }
+        catch (Exception ex) { _log.Warn($"Follow-up chips configure failed: {ex.Message}"); }
+    }
+
+    /// <summary>The chips switch changed in Settings (v2.1.0): the page is re-configured — off retires any standing bar at once, on lets the next settled long answer offer the bar again.</summary>
+    private void ApplyFollowUpChipsSetting() => _ = PushFollowUpChipsConfigAsync();
+
+    /// <summary>A follow-up chip was clicked (v2.1.0): the bridge carried only the chip's id (Core's parser already refused anything outside the fixed set); resolve it to the prompt text in the active language and drop it into the composer through the snippet insert path — it lands unsent, for the user to edit or send. The answer the chip sat under is never seen here: it was measured on the page, and only there.</summary>
+    private async void OnFollowUpChip(string chipId)
+    {
+        if (_isLocked)
+            return;
+        if (FollowUpChips.Find(chipId) is not { } chip)
+            return;
+        if (!_webReady)
+        {
+            SetStatus(Strings.Get("status.the_page_isn_t_ready_yet"));
+            return;
+        }
+        var inserted = false;
+        try
+        {
+            inserted = await Browser.CoreWebView2.ExecuteScriptAsync(
+                PageScripts.InsertSnippet(Strings.Get(chip.PromptKey))) == "true";
+        }
+        catch (Exception ex) { _log.Warn($"Follow-up chip insert failed: {ex.Message}"); }
+        SetStatus(inserted
+            ? Strings.Get("status.followup_added")
+            : Strings.Get("status.couldnt_find_message_box_followup"));
     }
 
     private void OnExportConversationMarkdown(object sender, RoutedEventArgs e) =>

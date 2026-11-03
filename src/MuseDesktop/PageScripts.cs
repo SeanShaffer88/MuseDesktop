@@ -29,6 +29,7 @@ namespace MuseDesktop;
 ///   {type:"md-draft", text}           — composer text changed (debounced)
 ///   {type:"md-draft-sent"}            — a send was attempted (Enter / send button)
 ///   {type:"md-long-paste", length}    — a paste over the tidy threshold landed in the composer (v2.1.0; the length only, never the pasted text)
+///   {type:"md-followup-chip", chip}   — a follow-up chip was clicked (v2.1.0; the chip's id only, never any answer text)
 ///   {type:"md-approval-appeared", signal} — an approval card appeared (R7C; presence + which watcher rule matched, never any card content)
 ///   {type:"md-approval-gone"}         — that card went away (R7C)
 /// </summary>
@@ -315,6 +316,12 @@ public static class PageScripts
                 if (!collapse(composerText(el))) setComposerText(el, pending);
               }
               el.addEventListener('input', function () {
+                // Follow-up chips (v2.1.0): a composer that now
+                // holds the user's own text retires the chip bar —
+                // its offer was for a moment that has passed. (A
+                // chip click removes the bar itself, before the
+                // inserted prompt ever lands here.)
+                if (collapse(composerText(el))) removeChipBar();
                 if (draftTimer) clearTimeout(draftTimer);
                 draftTimer = setTimeout(function () {
                   post({ type: 'md-draft', text: composerText(el) });
@@ -323,6 +330,7 @@ public static class PageScripts
               el.addEventListener('keydown', function (ev) {
                 if (ev.key === 'Enter' && !ev.shiftKey && !ev.ctrlKey && !ev.altKey && !ev.metaKey) {
                   post({ type: 'md-draft-sent' });
+                  removeChipBar(); // follow-up chips (v2.1.0): a send retires the bar
                 }
               });
               // Tidy paste (v2.1.0): a long paste is REPORTED, never
@@ -392,7 +400,10 @@ public static class PageScripts
               var btn = t && t.closest ? t.closest('button') : null;
               if (!btn) return;
               var label = ((btn.getAttribute('aria-label') || '') + ' ' + (btn.textContent || '')).toLowerCase();
-              if (label.indexOf('send') >= 0 && boundComposer) post({ type: 'md-draft-sent' });
+              if (label.indexOf('send') >= 0 && boundComposer) {
+                post({ type: 'md-draft-sent' });
+                removeChipBar(); // follow-up chips (v2.1.0): a send retires the bar
+              }
             } catch (e) { }
           }, true);
 
@@ -554,12 +565,142 @@ public static class PageScripts
             } catch (e) { return null; }
           };
 
+          // ── follow-up chips (v2.1.0): after a LONG assistant
+          // answer finishes, ONE quiet bar of one-click follow-ups
+          // above the composer — Summarize, Give an example, and
+          // friends. The shell owns the words: it pushes the labels,
+          // the on/off switch, and the word threshold (mirroring
+          // Core's FollowUpChips.LongAnswerWordThreshold) through
+          // __mdConfigureFollowUpChips, and no bar renders until
+          // that push arrives. The answer is MEASURED here and only
+          // here: its text is counted, never read out — a click
+          // posts the chip's id and nothing else, and the shell
+          // turns the id back into the prompt text.
+          //
+          // "Finished" is a settled page, judged the way the code
+          // folding judges it, with both of its signals required:
+          // no generation markers visible (generationIsActive, the
+          // fold checker's own detector) AND the answer's text
+          // unchanged across a ~1.5 s quiet window. Either signal
+          // alone can lie — a stop button can linger, a pause
+          // mid-stream can look settled — so the bar waits for both.
+          var chipConfig = null;        // { enabled, threshold, chips: [{id, label}] }
+          var chipBar = null;           // the bar element, while shown
+          var chipBarAnswer = null;     // the message element the bar belongs to
+          var chipOfferedAnswer = null; // the message element that already had its one offer
+          var chipCandidate = null;     // the message element being watched for settle
+          var chipCandidateText = '';
+          var chipTimer = null;
+          window.__mdConfigureFollowUpChips = function (config) {
+            try {
+              chipConfig = config || null;
+              if (!chipConfig || !chipConfig.enabled) removeChipBar();
+              scheduleChipCheck();
+            } catch (e) { }
+          };
+          // A message's role, from its own markers — the same
+          // guessing the conversation extractor (#203) does.
+          function messageRole(el) {
+            var marker = ((el.getAttribute('data-testid') || '') + ' ' + (el.className || '')).toLowerCase();
+            if (marker.indexOf('user') >= 0 || marker.indexOf('human') >= 0) return 'user';
+            if (marker.indexOf('assistant') >= 0 || marker.indexOf('Muse') >= 0) return 'assistant';
+            return '';
+          }
+          function answerWordCount(el) {
+            // The extractor's discipline: count a CLONE with our
+            // own controls stripped, so their captions are never
+            // mistaken for answer words. The count stays here.
+            var clone = el.cloneNode(true);
+            var own = clone.querySelectorAll('.md-bookmark-btn, .md-code-fold-btn, .md-followup-bar');
+            for (var i = 0; i < own.length; i++) own[i].remove();
+            var text = collapse(clone.innerText || clone.textContent || '');
+            return text ? text.split(' ').length : 0;
+          }
+          function removeChipBar() {
+            if (chipBar) { chipBar.remove(); chipBar = null; chipBarAnswer = null; }
+          }
+          function showChipBar(answerEl) {
+            removeChipBar();
+            var composer = findComposer();
+            if (!composer) return;
+            var anchor = composer.closest ? (composer.closest('form') || composer) : composer;
+            if (!anchor.parentNode) return;
+            var bar = document.createElement('div');
+            bar.className = 'md-followup-bar';
+            bar.setAttribute('role', 'group');
+            bar.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px 0;padding:8px;' +
+              'background:rgba(24,24,27,0.92);border:1px solid rgba(127,127,127,0.4);border-radius:10px;';
+            chipConfig.chips.forEach(function (chip) {
+              var btn = document.createElement('button');
+              btn.type = 'button';
+              btn.textContent = chip.label;
+              btn.style.cssText = 'padding:4px 10px;border:1px solid rgba(127,127,127,0.45);' +
+                'border-radius:999px;background:rgba(127,127,127,0.14);color:#f4f4f5;' +
+                'cursor:pointer;font:inherit;font-size:0.85em;line-height:1.35;';
+              btn.addEventListener('click', function (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                post({ type: 'md-followup-chip', chip: chip.id });
+                removeChipBar(); // one use per answer — the bar's job is done
+              });
+              bar.appendChild(btn);
+            });
+            anchor.parentNode.insertBefore(bar, anchor);
+            chipBar = bar;
+            chipBarAnswer = answerEl;
+            chipOfferedAnswer = answerEl;
+          }
+          function checkFollowUpChips() {
+            try {
+              if (!chipConfig || !chipConfig.enabled || !chipConfig.chips || !chipConfig.chips.length) {
+                removeChipBar();
+                return;
+              }
+              var msgs = messageElements();
+              var last = msgs.length ? msgs[msgs.length - 1] : null;
+              if (!last || messageRole(last) !== 'assistant') {
+                // The newest message is the user's (or there is no
+                // answer yet): any bar up belongs to a moment that
+                // has passed. This is also how in-page navigation
+                // retires the bar — the new view's messages simply
+                // replace the old ones.
+                removeChipBar();
+                chipCandidate = null;
+                return;
+              }
+              if (chipBar && chipBarAnswer === last) return; // this answer's bar is up — leave it
+              removeChipBar(); // any other bar is stale: its answer is no longer the latest
+              if (last === chipOfferedAnswer) { chipCandidate = null; return; } // one offer per answer
+              if (generationIsActive()) { scheduleChipCheck(); return; }
+              if (answerWordCount(last) < chipConfig.threshold) { chipCandidate = null; return; }
+              var text = collapse(last.innerText || last.textContent || '');
+              if (chipCandidate !== last || chipCandidateText !== text) {
+                // First sighting, or the text still moved — watch
+                // it across one quiet window before offering.
+                chipCandidate = last;
+                chipCandidateText = text;
+                scheduleChipCheck();
+                return;
+              }
+              showChipBar(last);
+              chipCandidate = null;
+            } catch (e) { }
+          }
+          function scheduleChipCheck() {
+            if (chipTimer) return;
+            chipTimer = setTimeout(function () {
+              chipTimer = null;
+              checkFollowUpChips();
+            }, 1500);
+          }
+
           // ── watch the page: conversations render and grow as the
           // user chats, so buttons/composer binding re-check on
           // mutation (debounced) rather than once.
           var scanTimer = null;
           function scheduleScan() {
             scheduleAutoFold();
+            scheduleChipCheck();
             if (scanTimer) return;
             scanTimer = setTimeout(function () {
               scanTimer = null;
@@ -578,6 +719,7 @@ public static class PageScripts
           ensureCodeFoldButtons();
           bindComposer();
           scheduleAutoFold();
+          scheduleChipCheck();
           scanApproval();
           post({ type: 'md-ready' });
         })();
@@ -610,4 +752,14 @@ public static class PageScripts
     /// <summary>Insert a snippet's text into the composer (never sends); the script result is the JSON literal true/false.</summary>
     public static string InsertSnippet(string text) =>
         $"(window.__mdInsertSnippet ? window.__mdInsertSnippet({JsonSerializer.Serialize(text)}) : false)";
+
+    /// <summary>Push the follow-up chips configuration (v2.1.0) to the page: the setting, Core's long-answer threshold, and the six chip labels resolved in the active language. The page renders (or retires) the bar from this alone; a click comes back as the chip's id and nothing else.</summary>
+    public static string ConfigureFollowUpChips(
+        bool enabled, int thresholdWords, IReadOnlyList<(string Id, string Label)> chips) =>
+        $"window.__mdConfigureFollowUpChips && window.__mdConfigureFollowUpChips({JsonSerializer.Serialize(new
+        {
+            enabled,
+            threshold = thresholdWords,
+            chips = chips.Select(chip => new { id = chip.Id, label = chip.Label }).ToArray(),
+        })});";
 }
