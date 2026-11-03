@@ -5073,7 +5073,7 @@ public partial class MainWindow : Window
         }
     }
 
-    /// <summary>Insert a snippet into the composer (R5B #206): the text lands in the message box for the user to edit — inserting is all this does; sending stays the user's act.</summary>
+    /// <summary>Insert a snippet into the composer (R5B #206): the text lands in the message box for the user to edit — inserting is all this does; sending stays the user's act. A snippet with {{blanks}} (v2.1.0) asks for them first; cancelling the dialog inserts nothing.</summary>
     private async void InsertSnippetIntoComposer(PromptSnippet snippet)
     {
         if (!_webReady)
@@ -5083,11 +5083,24 @@ public partial class MainWindow : Window
         }
         if (!IsVisible)
             ShowFromTray();
+        var body = snippet.Body;
+        if (SnippetTemplate.HasFields(body))
+        {
+            var dialog = new SnippetTemplateWindow(snippet.Name, SnippetTemplate.Fields(body)) { Owner = this };
+            dialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(dialog);
+            ShellTextScaling.Apply(dialog, _settings.ShellFontScale);
+            if (dialog.ShowDialog() != true
+                || !SnippetTemplate.TryFill(body, dialog.Values, out body, out _))
+            {
+                SetStatus(Strings.Format("status.snippet_blanks_not_filled", snippet.Name));
+                return;
+            }
+        }
         var inserted = false;
         try
         {
             inserted = await Browser.CoreWebView2.ExecuteScriptAsync(
-                PageScripts.InsertSnippet(snippet.Body)) == "true";
+                PageScripts.InsertSnippet(body)) == "true";
         }
         catch (Exception ex) { _log.Warn($"Snippet insert failed: {ex.Message}"); }
         SetStatus(inserted
