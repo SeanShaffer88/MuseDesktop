@@ -251,7 +251,11 @@ public static class PinnedConversationStore
             try
             {
                 var backup = $"{path}.corrupt-{DateTime.Now:yyyyMMdd-HHmmss}";
-                File.Copy(path, backup, overwrite: false);
+                // Move, not copy: the poisoned file leaves the live
+                // path, so the next load starts empty instead of
+                // re-failing (and minting another preserved copy) on
+                // every menu open until some unrelated save.
+                File.Move(path, backup, overwrite: false);
             }
             catch { /* best effort — an empty list is the contract */ }
             return new PinnedConversations();
