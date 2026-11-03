@@ -18,6 +18,22 @@ Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhanc
   cancelling the dialog inserts nothing. Snippets without blanks
   insert exactly as before.
 
+- **Draft meter + tidy paste.** The status bar now shows the
+  current draft's rough size as you write — words and an estimated
+  token count, with a plain note when a draft gets long for one
+  message. Pasting something long into the message box brings a
+  quiet offer in the status bar: **Tidy it** replaces the draft
+  with the same text under a one-line "Pasted text (N words):"
+  header, quoted as a blockquote, so a wall of pasted text reads
+  as material you're sending rather than as your message; **Leave
+  it** keeps the paste exactly as it was. The paste itself is
+  never blocked or altered, the offer is never repeated for an
+  already-tidied draft, and only the paste's length ever leaves
+  the page — its text reaches the app through the same draft
+  report drafts autosave already uses. Settings → Account
+  profiles gains a switch for the meter and the offer; it is
+  independent of the drafts autosave switch.
+
 ## [2.0.0] — 2026-11-02
 
 ### Added
