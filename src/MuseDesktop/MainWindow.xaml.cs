@@ -3049,6 +3049,11 @@ public partial class MainWindow : Window
         // the same switch the Settings checkbox and the hotkey obey.
         QuickAskItem.Visibility = _settings.QuickAskEnabled
             ? Visibility.Visible : Visibility.Collapsed;
+        // Pinned conversations: the toggle names the act it will
+        // do for the conversation on screen (and disables off one),
+        // and the submenu is rebuilt from the store at every open
+        // so it can never show a stale list.
+        RefreshPinMenuItems();
         MoreMenu.PlacementTarget = target;
         MoreMenu.IsOpen = true;
     }
@@ -4775,6 +4780,118 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Pinned conversations: the ⋯ menu's half. The toggle item
+    /// names the act it will do for the conversation on screen —
+    /// Pin on an unpinned conversation, Unpin on a pinned one —
+    /// and disables anywhere that isn't a conversation (Core's
+    /// route rule decides). The submenu lists the active profile's
+    /// pins by title, newest first, open-only: unpinning a pin you
+    /// aren't looking at lives in the Library's Pinned tab.
+    /// </summary>
+    private void RefreshPinMenuItems()
+    {
+        var url = _webReady ? Browser.Source?.ToString() : null;
+        PinnedConversations pins;
+        try { pins = PinnedConversationStore.Load(AppPaths.PinsPath); }
+        catch { pins = new PinnedConversations(); }
+        var profileId = _settings.ActiveProfileId;
+        PinConversationItem.IsEnabled = _webReady && PinnedConversations.IsPinnableUrl(url);
+        PinConversationItem.Header = Strings.Get(
+            pins.FindByUrl(profileId, url) is not null ? "unpin_conversation" : "pin_conversation");
+        PinnedConversationsItem.Items.Clear();
+        var entries = pins.EntriesFor(profileId);
+        if (entries.Count == 0)
+        {
+            PinnedConversationsItem.Items.Add(new MenuItem
+            {
+                Header = Strings.Get("ui.no_pins_yet"),
+                IsEnabled = false,
+            });
+            return;
+        }
+        foreach (var pin in entries)
+        {
+            var captured = pin;
+            var item = new MenuItem { Header = PinnedConversationRow.TitleFor(captured) };
+            item.Click += (_, _) => OpenPinnedConversation(captured);
+            PinnedConversationsItem.Items.Add(item);
+        }
+    }
+
+    private void OnTogglePinConversation(object sender, RoutedEventArgs e) => TogglePinCurrentConversation();
+
+    /// <summary>
+    /// Pin or unpin the conversation on screen (the ⋯ toggle and
+    /// the palette action — one path). The title is the page title
+    /// the shell already holds, frozen at pin time by the store.
+    /// Every outcome gets its own status line, including the plain
+    /// refusals: not a conversation, the list is full. An
+    /// already-pinned conversation can't reach the pin half — the
+    /// toggle unpins it instead — so AlreadyPinned is only a
+    /// belt-and-braces answer here.
+    /// </summary>
+    private void TogglePinCurrentConversation()
+    {
+        var url = _webReady ? Browser.Source?.ToString() : null;
+        if (!PinnedConversations.IsPinnableUrl(url))
+        {
+            SetStatus(Strings.Get("status.pins_only_on_conversations"));
+            return;
+        }
+        try
+        {
+            var pins = PinnedConversationStore.Load(AppPaths.PinsPath);
+            var profileId = _settings.ActiveProfileId;
+            if (pins.FindByUrl(profileId, url) is { } existing)
+            {
+                pins.Unpin(profileId, existing.Id);
+                PinnedConversationStore.Save(AppPaths.PinsPath, pins);
+                SetStatus(Strings.Format("status.unpinned_conversation", PinnedConversationRow.TitleFor(existing)));
+                return;
+            }
+            switch (pins.Pin(profileId, _pageTitle, url, DateTimeOffset.UtcNow, out var pin))
+            {
+                case PinOutcome.Pinned:
+                    PinnedConversationStore.Save(AppPaths.PinsPath, pins);
+                    SetStatus(Strings.Format("status.pinned_conversation", PinnedConversationRow.TitleFor(pin!)));
+                    break;
+                case PinOutcome.AlreadyPinned:
+                    SetStatus(Strings.Get("status.already_pinned"));
+                    break;
+                case PinOutcome.Full:
+                    SetStatus(Strings.Format("status.pin_list_full", PinnedConversations.MaxPerProfile));
+                    break;
+                default:
+                    SetStatus(Strings.Get("status.pins_only_on_conversations"));
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            _log.Warn($"Pin change failed: {ex.Message}");
+            SetStatus(Strings.Get("status.couldnt_change_pins"));
+        }
+    }
+
+    /// <summary>Open a pinned conversation in the current tab (the ⋯ submenu and the Library's Pinned tab both land here).</summary>
+    private void OpenPinnedConversation(PinnedConversation pin)
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        if (!_webReady)
+        {
+            SetStatus(Strings.Get("status.the_page_isn_t_ready_yet"));
+            return;
+        }
+        if (!IsVisible)
+            ShowFromTray();
+        Browser.CoreWebView2.Navigate(pin.Url);
+    }
+
     /// <summary>The reading-list window (R5 #143): store work rides delegates so the window always shows the store's current truth.</summary>
     private void OpenReadingList()
     {
@@ -5547,8 +5664,8 @@ public partial class MainWindow : Window
 
     /// <summary>
     /// The Library window (v2.1.0, design Concept B): snippets,
-    /// standing briefs, and the reading list under one roof. The
-    /// snippets and reading-list tabs ride the same stores and
+    /// standing briefs, the reading list, and the pinned
+    /// conversations under one roof. The snippets and reading-list tabs ride the same stores and
     /// delegates as their first doors (the Settings editor, the
     /// Reading list window) — one truth, two doors. The briefs tab
     /// is its own store, opened here because starting a conversation
@@ -5585,6 +5702,14 @@ public partial class MainWindow : Window
                 var lists = ReadingListStore.Load(AppPaths.ReadingListPath);
                 if (lists.Remove(profileId, id))
                     ReadingListStore.Save(AppPaths.ReadingListPath, lists);
+            },
+            pinsRefresh: () => PinnedConversationStore.Load(AppPaths.PinsPath).EntriesFor(profileId),
+            pinOpen: pin => OpenPinnedConversation(pin),
+            pinUnpin: id =>
+            {
+                var pins = PinnedConversationStore.Load(AppPaths.PinsPath);
+                if (pins.Unpin(profileId, id))
+                    PinnedConversationStore.Save(AppPaths.PinsPath, pins);
             })
             { Owner = this };
         dialog.SourceInitialized += (_, _) => ThemeManager.ApplyTitleBar(dialog);
@@ -7415,6 +7540,7 @@ public partial class MainWindow : Window
             case "action.stats-dashboard": OpenProductivity(showStats: true); break;
             // R5B #202/#203: the conversation tools' fixed doors.
             case "action.bookmarks": OpenBookmarks(); break;
+            case "action.pin-conversation": TogglePinCurrentConversation(); break;
             case "action.export-conversation": _ = ExportConversationAsync(pdf: false); break;
             case "action.export-conversation-pdf": _ = ExportConversationAsync(pdf: true); break;
             case "action.ask-about-page": _ = AskAboutPageAsync(); break;

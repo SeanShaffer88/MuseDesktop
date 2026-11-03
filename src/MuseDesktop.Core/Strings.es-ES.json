@@ -1769,5 +1769,22 @@
   "tray.quick_ask": "Pregunta rápida",
   "ui.enable_quick_ask": "Activar Pregunta rápida y su tecla rápida global (Ctrl+Mayús+Espacio)",
   "ui.quick_ask_settings_tooltip": "Activa o desactiva todas las puertas de Pregunta rápida a la vez: la tecla rápida global, el menú ⋯, el menú de la bandeja y la paleta de comandos",
-  "quickask.disabled_status": "Pregunta rápida está desactivada — actívala en Ajustes"
+  "quickask.disabled_status": "Pregunta rápida está desactivada — actívala en Ajustes",
+  "library.pinned_empty": "Aún no hay conversaciones fijadas — abre una conversación y elige «Fijar esta conversación» en el menú ⋯.",
+  "library.pinned_note": "Las conversaciones fijadas del perfil activo — la misma lista que el submenú Conversaciones fijadas del menú ⋯.",
+  "library.tab_pinned": "Fijadas",
+  "pin.detail": "{0} · fijada el {1:yyyy-MM-dd}",
+  "pin.untitled": "Conversación fijada el {0:yyyy-MM-dd}",
+  "pin_conversation": "Fijar esta conversación",
+  "pin_conversation_tooltip": "Ten esta conversación a un clic, en Conversaciones fijadas del menú ⋯ y en la Biblioteca",
+  "pinned_conversations": "Conversaciones fijadas",
+  "status.already_pinned": "Esa conversación ya está fijada",
+  "status.couldnt_change_pins": "No se pudo cambiar la lista de fijadas — consulta el registro",
+  "status.pin_list_full": "La lista de fijadas está llena — {0} es el máximo por perfil. Desfija una primero.",
+  "status.pinned_conversation": "Fijada — {0}",
+  "status.pins_only_on_conversations": "Las fijadas funcionan en conversaciones — abre primero una conversación",
+  "status.unpinned_conversation": "Desfijada — {0}",
+  "ui.no_pins_yet": "Aún no hay conversaciones fijadas",
+  "unpin": "Desfijar",
+  "unpin_conversation": "Desfijar esta conversación"
 }

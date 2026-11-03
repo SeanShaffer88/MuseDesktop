@@ -10,15 +10,17 @@ public enum LibraryTab
     Snippets,
     Briefs,
     ReadingList,
+    Pinned,
 }
 
 /// <summary>
 /// The Library (v2.1.0, design Concept B): everything the user
 /// keeps, in one window — the snippet library, the standing
-/// briefs, and the reading list, one tab each. The snippets and
-/// reading-list tabs are second doors onto the SAME stores the
-/// Settings editor and the Reading list window use (same files,
-/// same delegates discipline) — never copies that could drift.
+/// briefs, the reading list, and the pinned conversations, one
+/// tab each. The snippets, reading-list, and pinned tabs are
+/// second doors onto the SAME stores their first doors use
+/// (same files, same delegates discipline) — never copies that
+/// could drift.
 /// The briefs tab is its own store (Core <see cref="StandingBriefs"/>),
 /// edited live like the snippets: each save lands as it's made.
 ///
@@ -35,6 +37,9 @@ public partial class LibraryWindow : Window
     private readonly Action<string> _readingOpenRoute;
     private readonly Action<string, bool> _readingSetRead;
     private readonly Action<string> _readingRemove;
+    private readonly Func<IReadOnlyList<PinnedConversation>> _pinsRefresh;
+    private readonly Action<PinnedConversation> _pinOpen;
+    private readonly Action<string> _pinUnpin;
 
     /// <summary>The snippet currently loaded in the editor, if any.</summary>
     private string? _selectedSnippetId;
@@ -49,7 +54,10 @@ public partial class LibraryWindow : Window
         Func<IReadOnlyList<ReadingListEntry>> readingRefresh,
         Action<string> readingOpenRoute,
         Action<string, bool> readingSetRead,
-        Action<string> readingRemove)
+        Action<string> readingRemove,
+        Func<IReadOnlyList<PinnedConversation>> pinsRefresh,
+        Action<PinnedConversation> pinOpen,
+        Action<string> pinUnpin)
     {
         _profileId = profileId;
         _startConversationWithBrief = startConversationWithBrief;
@@ -57,16 +65,21 @@ public partial class LibraryWindow : Window
         _readingOpenRoute = readingOpenRoute;
         _readingSetRead = readingSetRead;
         _readingRemove = readingRemove;
+        _pinsRefresh = pinsRefresh;
+        _pinOpen = pinOpen;
+        _pinUnpin = pinUnpin;
         InitializeComponent();
         SnippetList.DisplayMemberPath = nameof(PromptSnippet.Name);
         BriefList.DisplayMemberPath = nameof(StandingBrief.Name);
         RefreshSnippetList();
         RefreshBriefList();
         ReloadReadingList();
+        ReloadPins();
         LibraryTabs.SelectedIndex = initialTab switch
         {
             LibraryTab.Briefs => 1,
             LibraryTab.ReadingList => 2,
+            LibraryTab.Pinned => 3,
             _ => 0,
         };
     }
@@ -330,4 +343,63 @@ public partial class LibraryWindow : Window
         _readingRemove(row.Entry.Id);
         ReloadReadingList();
     }
+
+    // ─────────────────────── pinned conversations ───────────────────────
+    // The ⋯ menu's pin list, on the same delegates discipline:
+    // this tab is a second door onto the same store the menu's
+    // toggle and submenu use — never a copy that could drift.
+
+    private void ReloadPins(string? keepId = null)
+    {
+        var rows = _pinsRefresh().Select(pin => new PinnedConversationRow(pin)).ToList();
+        PinList.ItemsSource = rows;
+        PinnedEmptyText.Text = Strings.Get("library.pinned_empty");
+        PinnedEmptyText.Visibility = rows.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (keepId is not null)
+            PinList.SelectedItem = rows.FirstOrDefault(r => r.Pin.Id == keepId);
+    }
+
+    private PinnedConversationRow? SelectedPinRow => PinList.SelectedItem as PinnedConversationRow;
+
+    private void OnPinOpen(object sender, RoutedEventArgs e) => OpenSelectedPin();
+
+    private void OnPinDoubleClick(object sender, MouseButtonEventArgs e) => OpenSelectedPin();
+
+    private void OpenSelectedPin()
+    {
+        if (SelectedPinRow is not { } row)
+            return;
+        Close();
+        _pinOpen(row.Pin);
+    }
+
+    private void OnPinUnpin(object sender, RoutedEventArgs e)
+    {
+        if (SelectedPinRow is not { } row)
+            return;
+        _pinUnpin(row.Pin.Id);
+        ReloadPins();
+    }
+}
+
+/// <summary>One pinned-conversation row: the pin plus its display strings (title, address path + pinned date, automation name).</summary>
+public sealed class PinnedConversationRow
+{
+    public PinnedConversationRow(PinnedConversation pin)
+    {
+        Pin = pin;
+        Title = TitleFor(pin);
+        Detail = Strings.Format("pin.detail", AppRoute.FromUrl(pin.Url) ?? pin.Url, pin.PinnedUtc.LocalDateTime);
+    }
+
+    public PinnedConversation Pin { get; }
+    public string Title { get; }
+    public string Detail { get; }
+    public string AutomationName => $"{Title}, {Detail}";
+
+    /// <summary>A pin's display title: the title frozen at pin time, or the dated label when no title could be derived then.</summary>
+    public static string TitleFor(PinnedConversation pin) =>
+        string.IsNullOrWhiteSpace(pin.Title)
+            ? Strings.Format("pin.untitled", pin.PinnedUtc.LocalDateTime)
+            : pin.Title;
 }

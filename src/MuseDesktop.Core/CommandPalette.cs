@@ -623,6 +623,10 @@ public static class CommandRegistry
         // and per-snippet commands ride their own providers below;
         // these are the two fixed doors (the list, the export).
         Action("bookmarks", "Open bookmarks", "bookmarks marked messages nicknames saved jump list", detail: "Bookmarks"),
+        // Pinned conversations: the toggle for the conversation
+        // on screen — the list itself lives in the ⋯ menu and the
+        // Library window, so this one action is the palette's door.
+        Action("pin-conversation", "Pin or unpin this conversation", "pin unpin pinned conversation keep list library favorite", detail: "Page"),
         Action("export-conversation", "Export conversation as Markdown…", "export conversation save chat markdown file transcript", detail: "Page"),
         Action("export-conversation-pdf", "Export conversation as PDF…", "export conversation save chat pdf file transcript", detail: "Page"),
         // v2.1.0: Ask about this page — an opened page's readable

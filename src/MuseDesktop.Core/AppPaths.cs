@@ -81,6 +81,9 @@ public static class AppPaths
     /// <summary>The message bookmarks (R5B #202): per profile — nickname + conversation route + message snippet. Local-only by design (SEAN's): bookmarks are revisited from inside the app and are never exported, so they live in their own file, never in settings.</summary>
     public static string BookmarksPath => Path.Combine(RootDir, "bookmarks.json");
 
+    /// <summary>The pinned conversations: per profile — the pinned-time title + conversation address + when it was pinned. Local-only like the bookmarks (the precedent): pins are revisited from inside the app and are never exported, so they live in their own file, never in settings.</summary>
+    public static string PinsPath => Path.Combine(RootDir, "pins.json");
+
     /// <summary>The composer drafts (R5B #204): per profile, per conversation route — the user's unsent words, kept only to hand them back. Own file, never in settings, never logged.</summary>
     public static string DraftsPath => Path.Combine(RootDir, "drafts.json");
 

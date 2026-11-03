@@ -23,6 +23,17 @@ Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhanc
   card can be turned off (hotkey, menus, and palette together)
   in Settings → Keyboard & accessibility.
 
+- **Pinned conversations.** A conversation you come back to can
+  be pinned: open it and choose "Pin this conversation" from the
+  ⋯ menu (or Ctrl+K), and it joins a short list — the ⋯ menu's
+  "Pinned conversations" submenu and a new Pinned tab in the
+  Library window — one click from anywhere. The same menu item
+  unpins it again. Pins belong to the profile they were pinned
+  under, are ordered most recently pinned first, and keep the
+  title the conversation had at pin time, even if the
+  conversation is renamed later. A profile holds up to 50 pins.
+  Pins are stored on this PC only and are never exported.
+
 ## [2.1.0] — 2026-11-02
 
 ### Added
