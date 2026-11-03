@@ -34,6 +34,21 @@ Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhanc
   profiles gains a switch for the meter and the offer; it is
   independent of the drafts autosave switch.
 
+- **Follow-up chips.** When an answer runs long — 150 words or
+  more — a small row of one-click follow-ups appears above the
+  message box once the answer has finished: **Summarize**,
+  **Give an example**, **Turn into steps**, **Make a table**,
+  **Pros and cons**, **Explain simpler**. Choosing one puts that
+  request in the message box, still unsent, ready to edit or
+  send. The row is offered once per answer and goes away when
+  you send, move to another conversation, or start writing a
+  reply of your own. The answer is only ever measured: its word
+  count is counted on the page itself and never leaves it — the
+  only thing the app hears is which chip was clicked.
+  Settings → Account profiles gains a switch for the chips,
+  beside the draft meter's; it is on by default and independent
+  of the meter and drafts switches.
+
 ## [2.0.0] — 2026-11-02
 
 ### Added
