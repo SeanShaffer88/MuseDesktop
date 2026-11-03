@@ -22,6 +22,16 @@ Microsoft.Web.WebView2 (the WebView2 SDK)
   travels inside the install — that's most of the download size, and
   it's why runtime fixes arrive with app releases.
 
+System.Speech (the Windows speech library)
+  Copyright (c) .NET Foundation and Contributors. All rights reserved.
+  Licensed under the MIT License.
+  The NuGet package MuseDesktop compiles against for its voice
+  features (dictation and read-aloud). It is a managed front-end
+  to the speech recognizers and voices installed in Windows
+  itself, which remain Microsoft Windows components governed by
+  Windows' own terms; recognition and synthesis happen with those
+  on-device engines.
+
 NotifyKit v0.2.0 (notify_kit.dll)
   Licensed under the MIT License.
   https://github.com/SeanShaffer88/NotifyKit
