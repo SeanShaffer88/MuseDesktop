@@ -625,6 +625,13 @@ public static class CommandRegistry
         // v2.1.0: Screenshot to conversation — a dragged screen
         // region becomes a new conversation's first attachment.
         Action("screenshot-ask", "Screenshot to conversation…", "screenshot capture screen region grab ask picture image", detail: "Page"),
+        // v2.1.0: the app's own voice paths — Windows speech
+        // recognition dictating into the message box, and Windows
+        // speech synthesis reading the last answer aloud. (Quick
+        // dictate stays its own action: it hands off to Muse's
+        // voice button instead.)
+        Action("dictate", "Dictate into the message box", "dictate voice speech microphone speak words dictation type talking", detail: "Voice"),
+        Action("read-aloud", "Read the last answer aloud", "read aloud voice speech listen answer speak text to speech hear", detail: "Voice"),
         Action("exit", "Exit MuseDesktop", "quit exit close app", detail: "App"),
     };
 
