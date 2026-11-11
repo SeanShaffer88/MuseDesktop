@@ -12,6 +12,7 @@ This map helps keep feature work tied to both automated evidence and the real-Wi
 | Downloads | `S2Tests.cs`, `R4Tests.cs` | History bounds, concurrent sync/async metadata updates, filename collisions, batch parsing, retry policy, hash checks, sort/undo plans and injected move failures |
 | Profiles and data management | `S3Tests.cs`, `R3Tests.cs` | Profile identity, data facts, import/export, schedules, archive/restore |
 | Workspaces and sessions | `R2Tests.cs` | Apply plans, restore decisions, workspace contracts, bounded/sanitized snapshot and journal tab routes, active-tab indexes, and legacy fallbacks |
+| Dual mode and remembered reading preferences | `DualModeTests.cs`, `DualSessionTests.cs` | Separate pane hosts/composers, lock-gated entry, safe per-profile chat paths, query/fragment exclusion, atomic/corrupt-file recovery, split and independent zoom bounds |
 | Accessibility and XAML labels | `S6Tests.cs` | Declared-control labels, high-DPI math, keyboard/focus policy, long-list virtualization |
 | Reliability and diagnostics | `S8Tests.cs`, `S10Tests.cs` | Recovery decisions, native unresponsive-renderer prompt policy, versioned local-data backup validation, support-bundle privacy/limits, diagnostic report composition |
 | Updates and release metadata | `S9Tests.cs`, `V040Tests.cs` | Hash manifests, asset naming, version and file-content contracts |

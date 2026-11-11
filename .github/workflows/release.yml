@@ -59,6 +59,22 @@ jobs:
           $p = Start-Process -FilePath stage/MuseDesktop.exe -ArgumentList "--smoke-test" -PassThru
           if (-not $p.WaitForExit(120000)) { $p.Kill(); throw "Startup smoke test timed out." }
           if ($p.ExitCode -ne 0) { throw "Startup smoke test failed: $($p.ExitCode)" }
+      - name: Generate CycloneDX inventory
+        uses: anchore/sbom-action@v0
+        with:
+          path: stage
+          format: cyclonedx-json
+          output-file: stage/sbom.cdx.json
+          upload-artifact: false
+      - name: Record build inputs
+        shell: pwsh
+        run: |
+          [ordered]@{
+            commit = "${{ github.sha }}"
+            sdk = (dotnet --version)
+            runtimeIdentifier = "win-${{ matrix.arch }}"
+            configuration = "Release"
+          } | ConvertTo-Json | Set-Content stage/build-info.json -Encoding utf8
       - name: Build installer and portable zip
         shell: pwsh
         run: |
