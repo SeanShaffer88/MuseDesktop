@@ -12,6 +12,8 @@ public sealed class AccountProfile
 {
     public string Id { get; set; } = Profiles.DefaultId;
     public string Name { get; set; } = "Default";
+    /// <summary>Explicit local opt-in for recognized one-time page approvals. Never copied into a new/imported profile.</summary>
+    public bool AutoAcceptApprovalCards { get; set; }
 
     /// <summary>Start this profile at the Muse home page instead of reopening its last page (v0.4.0). Kept in sync with <see cref="StartPage"/> by Profiles.EnsureValid (v0.9.0, S5 #47) so older builds still read the choice correctly.</summary>
     public bool StartAtHome { get; set; }
@@ -348,6 +350,7 @@ public static class Profiles
         {
             Id = newId,
             Name = newName,
+            // Approval automation is authority, not appearance: new copies start off.
             StartAtHome = source.StartAtHome,
             StartPage = source.StartPage,
             CustomStartUrl = source.CustomStartUrl,

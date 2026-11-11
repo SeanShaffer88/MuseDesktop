@@ -130,6 +130,7 @@ public partial class QuickAskWindow : Window
             if (_closed)
                 return;
             var core = browser.CoreWebView2;
+            ApprovalAutoAcceptController.Attach(this, browser, _profileId);
             _core = core;
             core.Settings.AreDevToolsEnabled = false;
             core.Settings.IsStatusBarEnabled = false;

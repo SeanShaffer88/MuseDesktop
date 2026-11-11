@@ -80,6 +80,7 @@ public partial class SettingsWindow : Window
         _openStatsDashboard = openStatsDashboard;
         _activeDownloadCount = activeDownloadCount;
         InitializeComponent();
+        SetupAutoApprovalOption();
 
         // S5 #48: reopen at the remembered size; the last section is
         // restored on Loaded (once layout exists to scroll).
@@ -688,6 +689,7 @@ public partial class SettingsWindow : Window
     {
         var selected = SelectedProfile;
         SwitchProfileButton.IsEnabled = selected is not null && selected.Id != _working.ActiveProfileId;
+        SyncAutoApprovalOption(selected);
         RemoveProfileButton.IsEnabled = selected is not null
                                          && selected.Id != _working.ActiveProfileId
                                          && _working.Profiles.Count > 1;

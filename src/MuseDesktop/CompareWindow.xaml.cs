@@ -175,6 +175,7 @@ public partial class CompareWindow : Window
             if (_closed || generation != pane.Generation)
                 return;
             var core = browser.CoreWebView2;
+            ApprovalAutoAcceptController.Attach(this, browser, profileId);
             pane.Core = core;
             core.Settings.AreDevToolsEnabled = false;
             core.Settings.IsStatusBarEnabled = false;

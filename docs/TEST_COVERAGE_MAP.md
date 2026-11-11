@@ -1,5 +1,12 @@
 # Test coverage map
 
+## Optional one-time Approval-card automation
+
+- `ApprovalAutoAcceptTests`: default-off/local persistence, isolated working clone, import/copy/reset opt-out, exact origin/route and lock/visibility gates, native controller lifetime/desktop guard and coverage across all chat surfaces; unchanged observe-only attention watcher.
+- `scripts/test-auto-approval.mjs`: shipped-script execution against controlled DOM; one-time vs permanent/ambiguous labels, settle/recheck, no repeated dispatch, rerender, multiple cards, hidden/disabled/covered/off-screen actions, form/quoted content and source changes. Both workflows run it.
+- Native Settings smoke: existing per-profile opt-in binding, accessible name/help text and switching off in the working copy without granting the running app authority.
+- Not manually verified: live authenticated provider markup, assistive technology and locked/UAC desktop transition timing. No remote acceptance is inferred from dispatch.
+
 This map helps keep feature work tied to both automated evidence and the real-Windows release pass. A Core test or CI smoke result does not prove UIA, display, WebView2 runtime, installer, or tray behavior on a user's desktop.
 
 ## Automated Core suite

@@ -19,6 +19,7 @@ public partial class SecondaryWindow : Window
     private readonly CoreWebView2Environment _env;
     private readonly DiagnosticLog _log;
     private readonly string _initialUrl;
+    private readonly string? _profileId;
 
     /// <summary>
     /// R1 #101: Ctrl+K in a secondary window asks for the command
@@ -45,11 +46,12 @@ public partial class SecondaryWindow : Window
         }
     }
 
-    public SecondaryWindow(CoreWebView2Environment env, DiagnosticLog log, string initialUrl)
+    public SecondaryWindow(CoreWebView2Environment env, DiagnosticLog log, string initialUrl, string? profileId = null)
     {
         _env = env;
         _log = log;
         _initialUrl = initialUrl;
+        _profileId = profileId;
         InitializeComponent();
         PreviewKeyDown += (_, e) =>
         {
@@ -84,6 +86,7 @@ public partial class SecondaryWindow : Window
         {
             await Browser.EnsureCoreWebView2Async(_env);
             var core = Browser.CoreWebView2;
+            ApprovalAutoAcceptController.Attach(this, Browser, _profileId);
             core.Settings.AreDevToolsEnabled = false;
             core.Settings.IsStatusBarEnabled = false;
             core.Settings.IsBuiltInErrorPageEnabled = false;

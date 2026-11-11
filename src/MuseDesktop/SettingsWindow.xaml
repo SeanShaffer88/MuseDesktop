@@ -348,6 +348,8 @@
                         <CheckBox x:Name="ProfileScrollbarsCheck" Content="{local:Loc always_show_the_conversation_scrollbar}"
                                   Checked="OnProfileViewChanged" Unchecked="OnProfileViewChanged"
                                   ToolTip="{local:Loc muse_s_own_scrollbar_hides_until_you_scroll}" KeyboardNavigation.TabIndex="58"/>
+                        <StackPanel x:Name="AutoApprovalOptionsHost" KeyboardNavigation.TabNavigation="Local"
+                                    KeyboardNavigation.TabIndex="58"/>
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,6,0,0">
                             <TextBlock Text="{local:Loc chat_text_size}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                             <ComboBox x:Name="ChatTextScaleCombo" Width="90" SelectionChanged="OnProfileViewChanged"

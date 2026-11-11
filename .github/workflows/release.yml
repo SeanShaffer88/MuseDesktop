@@ -55,6 +55,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Core tests failed." }
           node scripts/test-dual-tools.mjs
           if ($LASTEXITCODE -ne 0) { throw "Dual DOM fixtures failed." }
+          node scripts/test-auto-approval.mjs
+          if ($LASTEXITCODE -ne 0) { throw "Approval DOM fixtures failed." }
       - name: Publish self-contained app
         shell: pwsh
         run: |

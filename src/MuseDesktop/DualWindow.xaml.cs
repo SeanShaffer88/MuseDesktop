@@ -118,6 +118,7 @@ public partial class DualWindow : Window
             await browser.EnsureCoreWebView2Async(env);
             if (_closed || generation != pane.Generation || !ReferenceEquals(browser, pane.Browser)) return;
             var core = browser.CoreWebView2;
+            ApprovalAutoAcceptController.Attach(this, browser, pane.ProfileId);
             core.Settings.AreDevToolsEnabled = false;
             core.Settings.IsStatusBarEnabled = false;
             core.Settings.IsBuiltInErrorPageEnabled = false;

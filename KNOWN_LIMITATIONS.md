@@ -1,5 +1,13 @@
 # Known limitations
 
+## Optional one-time approval automation — partially verified
+
+- Default off; all recognized one-time operation types are eligible only after explicit per-profile opt-in. This can authorize consequential actions without review. Use trusted chats; disabling only prevents future attempts.
+- Controlled, source-derived DOM cases and native Settings smoke cover the implementation. Live signed-in Muse markup, assistive-technology operation and secure-desktop transitions have not been manually verified; markup changes fail closed and may leave cards for manual approval.
+- Requires a visible chat on the unlocked Default input desktop, not tray/minimized/covered/off-screen content, browser/Windows prompts, authentication pages, frames or forms. Plain Allow without a separate permanent alternative, generic Yes, unknown/localized labels and multiple simultaneous candidates remain manual.
+- React reusing an already-clicked card/action node or an identical recent request without a unique `data-request-id` / `data-approval-id` is deliberately treated as ambiguous, not retried. Page-local duplicate digests are bounded to 128; no card content crosses to native storage/logs. A click dispatch does not prove remote acceptance.
+- Importing settings/backups, profile copying and preference reset revoke this opt-in. An ordinary local save/relaunch preserves it. Imported profile bundles also start off.
+
 Honest list of what MuseDesktop does not do or has not proven yet. Kept current as work proceeds.
 
 - The cross-program pass in `CROSS_PROGRAM_ENHANCEMENTS.md` adds automated Core/source contracts and native prompt/preferences smoke, not a complete Narrator, high-contrast, mixed-DPI or keyboard-only desktop pass. Encrypted backups are now limited to 32 MiB plaintext; temporary byte buffers are zeroed, but .NET strings and caller-owned copies cannot be securely erased. Recent-file discovery still walks directory metadata (off-thread and cancellable); bounded retained results do not make enumeration constant-time.
