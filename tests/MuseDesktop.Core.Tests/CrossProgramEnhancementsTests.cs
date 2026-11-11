@@ -67,6 +67,8 @@ public class CrossProgramEnhancementsTests
         Assert.Contains("Length: > MaxEnvelopeChars", source);
         Assert.Contains("data.Length > MaxPlainBytes", source);
         Assert.Equal(32 * 1024 * 1024, EncryptedExport.MaxPlainBytes);
+        Assert.True(EncryptedExport.MaxEnvelopeChars >= EncryptedExport.MaxCipherChars * 6 + 1024);
+        Assert.Contains("(envelope.Data?.Length ?? 0) > MaxCipherChars", source);
     }
 
     [Fact]

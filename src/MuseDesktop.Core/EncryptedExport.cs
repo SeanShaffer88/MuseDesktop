@@ -46,7 +46,10 @@ public static class EncryptedExport
     public const int FormatVersion = 1;
     public const int Iterations = 210_000;
     public const int MaxPlainBytes = 32 * 1024 * 1024;
-    public const int MaxEnvelopeChars = MaxPlainBytes * 4 / 3 + 4096;
+    public const int MaxCipherChars = ((MaxPlainBytes + 2) / 3) * 4;
+    // A legacy JSON writer may encode each Base64 character as \uXXXX.
+    // Budget for that representation, while bounding decoded fields below.
+    public const int MaxEnvelopeChars = MaxCipherChars * 6 + 4096;
 
     private const int SaltBytes = 16;
     private const int NonceBytes = 12;
@@ -71,10 +74,11 @@ public static class EncryptedExport
             throw new ArgumentException("Export exceeds the 32 MB encrypted backup limit.", nameof(plainJson));
         var salt = RandomNumberGenerator.GetBytes(SaltBytes);
         var nonce = RandomNumberGenerator.GetBytes(NonceBytes);
-        var key = DeriveKey(password, salt, Iterations);
         var plainBytes = Encoding.UTF8.GetBytes(plainJson);
+        byte[]? key = null;
         try
         {
+            key = DeriveKey(password, salt, Iterations);
             var cipherBytes = new byte[plainBytes.Length];
             var tag = new byte[TagBytes];
             using (var aes = new AesGcm(key, TagBytes))
@@ -88,7 +92,10 @@ public static class EncryptedExport
             return Magic + "\n" + JsonSerializer.Serialize(envelope, EnvelopeOptions) + "\n";
         }
         finally
-        { CryptographicOperations.ZeroMemory(key); CryptographicOperations.ZeroMemory(plainBytes); }
+        {
+            if (key is not null) CryptographicOperations.ZeroMemory(key);
+            CryptographicOperations.ZeroMemory(plainBytes);
+        }
     }
 
     /// <summary>
@@ -134,6 +141,11 @@ public static class EncryptedExport
         byte[] salt, nonce, tag, data;
         try
         {
+            // Check before Base64 allocates: tiny IV/tag fields must not be
+            // used to allocate payload-sized buffers, even in hostile JSON.
+            if ((envelope.Salt?.Length ?? 0) > 64 || (envelope.Nonce?.Length ?? 0) > 64 ||
+                (envelope.Tag?.Length ?? 0) > 64 || (envelope.Data?.Length ?? 0) > MaxCipherChars)
+                throw new FormatException("field size");
             salt = Convert.FromBase64String(envelope.Salt ?? "");
             nonce = Convert.FromBase64String(envelope.Nonce ?? "");
             tag = Convert.FromBase64String(envelope.Tag ?? "");
