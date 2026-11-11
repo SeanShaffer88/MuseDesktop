@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
-const source = fs.readFileSync('src/MuseDesktop.Core/ApprovalAutoAccept.cs', 'utf8');
+const normalizeLines = text => text.replace(/\r\n/g, '\n');
+const source = normalizeLines(fs.readFileSync('src/MuseDesktop.Core/ApprovalAutoAccept.cs', 'utf8'));
+assert.equal(normalizeLines(source.replace(/\n/g, '\r\n')), source, 'Windows/LF source parity');
 const extract = name => {
   const m = source.match(new RegExp(`public const string ${name} = """\\n([\\s\\S]*?)\\n        """;`));
   assert.ok(m, `missing shipped ${name}`);

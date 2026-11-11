@@ -76,6 +76,8 @@ public class ApprovalAutoAcceptTests
         Assert.Contains("InputDesktopIsUnlocked()", controller);
         Assert.Contains("IntPtr.Zero) return false", controller);
         Assert.Contains("CanAutoAcceptApprovals(_profileId)", controller);
+        Assert.Contains("WindowState.Minimized", controller);
+        Assert.DoesNotContain("Application.Current.MainWindow", controller);
         Assert.Contains("_window.Closed -= OnClosed", controller);
         Assert.Contains("result.Length <= 64", controller);
         var main = Source("src/MuseDesktop/MainWindow.xaml.cs");

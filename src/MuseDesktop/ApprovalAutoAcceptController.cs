@@ -21,6 +21,8 @@ internal sealed class ApprovalAutoAcceptController
     private readonly string _profileId;
     private readonly DispatcherTimer _timer;
     private bool _busy, _stopped, _wasEnabled;
+    private bool ViewAvailable => _window.IsVisible && _window.IsEnabled &&
+        _window.WindowState != WindowState.Minimized && _view.IsVisible && _view.IsEnabled;
 
     internal static void Attach(Window window, WebView2 view, string? profileId)
     {
@@ -51,8 +53,7 @@ internal sealed class ApprovalAutoAcceptController
         try
         {
             if (!ReferenceEquals(_view.CoreWebView2, _core)) { Stop(); return; }
-            var enabled = _main.CanAutoAcceptApprovals(_profileId) &&
-                _window.IsVisible && _window.IsEnabled && _view.IsVisible && _view.IsEnabled;
+            var enabled = _main.CanAutoAcceptApprovals(_profileId) && ViewAvailable;
             if (!ApprovalAutoAccept.CanRun(enabled, true, true, _core.Source) || !InputDesktopIsUnlocked())
             {
                 var reset = _wasEnabled && DualMode.RestorableRoute(_core.Source) is not null;
@@ -64,8 +65,7 @@ internal sealed class ApprovalAutoAcceptController
             _wasEnabled = true;
             // Recheck consent immediately before dispatch. Turning off/locking
             // prevents future attempts; an already-dispatched action cannot be undone.
-            if (!_main.CanAutoAcceptApprovals(_profileId) || !_window.IsVisible || !_window.IsEnabled ||
-                !_view.IsVisible || !_view.IsEnabled) return;
+            if (!_main.CanAutoAcceptApprovals(_profileId) || !ViewAvailable) return;
             var result = await _core.ExecuteScriptAsync(ApprovalAutoAccept.Script);
             if (result.Length <= 64 && JsonSerializer.Deserialize<string>(result) == "clicked")
                 _main.RecordAutoApprovalAttempt();
