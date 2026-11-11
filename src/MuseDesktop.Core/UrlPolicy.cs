@@ -75,13 +75,18 @@ public static class UrlPolicy
             return LinkDisposition.InApp;
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
             return LinkDisposition.Block;
+        if (uri.UserInfo.Length != 0)
+            return LinkDisposition.Block;
 
         return uri.Scheme switch
         {
             "https" => LinkDisposition.InApp,
             // Blob URLs are how web apps hand the browser a generated file
             // (Muse artifact downloads); WebView2 raises downloads for them.
-            "blob" => LinkDisposition.InApp,
+            "blob" => Uri.TryCreate(url[5..], UriKind.Absolute, out var origin)
+                      && origin.Scheme == "https" && origin.Host.Length > 0
+                      && origin.UserInfo.Length == 0
+                ? LinkDisposition.InApp : LinkDisposition.Block,
             _ => LinkDisposition.Block,
         };
     }
@@ -95,8 +100,12 @@ public static class UrlPolicy
             return LinkDisposition.InApp;
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
             return LinkDisposition.Block;
+        if (uri.UserInfo.Length != 0)
+            return LinkDisposition.Block;
 
         if (uri.Scheme is not ("https" or "http"))
+            return LinkDisposition.Block;
+        if (uri.Scheme == "http" && IsInAppHost(uri.Host))
             return LinkDisposition.Block;
 
         return IsInAppHost(uri.Host)
@@ -119,6 +128,7 @@ public static class UrlPolicy
         if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri))
             return false;
         return uri.Scheme == "https"
+            && uri.IsDefaultPort && uri.UserInfo.Length == 0
             && uri.Host.Equals("muse.ai", StringComparison.OrdinalIgnoreCase);
     }
 
@@ -132,6 +142,8 @@ public static class UrlPolicy
             return "(none)";
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
             return "(unparsable)";
+        if (uri.Scheme is not ("https" or "http"))
+            return "(non-web URL)";
         return $"{uri.Scheme}://{uri.Host}{uri.AbsolutePath}";
     }
 }

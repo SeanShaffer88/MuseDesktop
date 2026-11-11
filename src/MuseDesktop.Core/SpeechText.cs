@@ -98,6 +98,8 @@ public static class SpeechText
         var lines = markdown.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
         var paragraph = new List<string>();
         var inFence = false;
+        var fenceCharacter = '\0';
+        var fenceLength = 0;
 
         void FlushParagraph()
         {
@@ -117,6 +119,7 @@ public static class SpeechText
 
         foreach (var rawLine in lines)
         {
+            if (segments.Count >= MaxSegments) break;
             var line = rawLine.Trim();
             if (IsFenceLine(line))
             {
@@ -125,13 +128,17 @@ public static class SpeechText
                 // for an unterminated block, at the end of input.
                 if (inFence)
                 {
-                    inFence = false;
-                    EmitMarker();
+                    var length = line.TakeWhile(c => c == fenceCharacter).Count();
+                    if (line[0] == fenceCharacter && length >= fenceLength &&
+                        string.IsNullOrWhiteSpace(line[length..]))
+                    { inFence = false; EmitMarker(); }
                 }
                 else
                 {
                     FlushParagraph();
                     inFence = true;
+                    fenceCharacter = line[0];
+                    fenceLength = line.TakeWhile(c => c == fenceCharacter).Count();
                 }
                 continue;
             }

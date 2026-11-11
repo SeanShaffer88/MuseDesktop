@@ -168,11 +168,14 @@ public class S7Tests
             out _, out var damagedError, out _));
         Assert.Equal(EncryptedExportError.Damaged, damagedError);
 
-        // Tampered ciphertext (valid envelope, one flipped base64 char
-        // in the data) → authentication failure, NOT "damaged".
-        var dataAt = encrypted.IndexOf("\"data\":\"", StringComparison.Ordinal) + "\"data\":\"".Length;
-        var flip = encrypted[dataAt] == 'A' ? 'B' : 'A';
-        var tampered = encrypted[..dataAt] + flip + encrypted[(dataAt + 1)..];
+        // Flip a decoded byte, not a JSON character: '+' can be escaped
+        // as \u002B, so the old string splice occasionally broke base64
+        // structure and tested the wrong error category.
+        var envelope = System.Text.Json.Nodes.JsonNode.Parse(encrypted[(encrypted.IndexOf('\n') + 1)..])!;
+        var cipher = Convert.FromBase64String(envelope["data"]!.GetValue<string>());
+        cipher[0] ^= 1;
+        envelope["data"] = Convert.ToBase64String(cipher);
+        var tampered = EncryptedExport.Magic + "\n" + envelope.ToJsonString();
         Assert.False(EncryptedExport.TryDecrypt(tampered, "right password",
             out _, out var tamperedError, out _));
         Assert.Equal(EncryptedExportError.WrongPasswordOrAltered, tamperedError);

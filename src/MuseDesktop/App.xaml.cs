@@ -639,6 +639,7 @@ public partial class App : System.Windows.Application
                     return;
                 }
                 Log.Info("SMOKE-TEST OK: main and Dual WebView2 initialized; live pane moves and native privacy cover checked");
+                SmokePromptAndAttachmentOptions(window);
                 window.Close();
                 Shutdown(0);
             }
@@ -653,6 +654,57 @@ public partial class App : System.Windows.Application
             Log.Error($"SMOKE-TEST FAILED: {ex}");
             Shutdown(1);
         }
+    }
+
+    private void SmokePromptAndAttachmentOptions(MainWindow owner)
+    {
+        var working = Settings.Clone();
+        working.SettingsLastSection = SettingsSearch.ProfilesId;
+        var settings = new SettingsWindow(working, Log, null, (_, _) => { }) { Owner = owner };
+        Exception? failure = null;
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ContextIdle, new Action(() =>
+        {
+            try
+            {
+                var host = (System.Windows.Controls.StackPanel)settings.FindName("QuickAttachOptionsHost");
+                var screenshot = host.Children.OfType<System.Windows.Controls.CheckBox>().Single();
+                if (!screenshot.IsVisible) throw new InvalidOperationException("Attachment controls are not visible.");
+                screenshot.IsChecked = false;
+                screenshot.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                host.Children.OfType<System.Windows.Controls.ComboBox>().Single().SelectedItem = 4;
+                if (working.QuickAttachIncludeScreenshots || working.QuickAttachMaxFiles != 4)
+                    throw new InvalidOperationException("Attachment preferences did not update the working settings.");
+            }
+            catch (Exception ex) { failure = ex; }
+            finally { settings.Close(); }
+        }));
+        FocusReturn.ShowDialog(settings);
+        if (failure is not null) throw failure;
+
+        var prompt = new TextPromptWindow(Strings.Get("text_input"), Strings.Get("text_input"), "123456",
+            multiline: true, maxLength: 5) { Owner = owner };
+        failure = null;
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ContextIdle, new Action(() =>
+        {
+            try
+            {
+                var input = (System.Windows.Controls.TextBox)prompt.FindName("InputText");
+                var save = (System.Windows.Controls.Button)prompt.FindName("OkButton");
+                var count = (System.Windows.Controls.TextBlock)prompt.FindName("CharacterCount");
+                if (input.MaxLength != 5 || string.IsNullOrEmpty(count.Text) || input.Text != "123456")
+                    throw new InvalidOperationException("Prompt limits/count silently changed existing text.");
+                save.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                if (!prompt.IsVisible)
+                    throw new InvalidOperationException("Over-limit prompt was accepted.");
+                input.Text = "12345";
+                save.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+            }
+            catch (Exception ex) { failure = ex; prompt.Close(); }
+        }));
+        var accepted = FocusReturn.ShowDialog(prompt);
+        if (failure is not null) throw failure;
+        if (accepted != true) throw new InvalidOperationException("Valid bounded prompt was not accepted.");
+        Log.Info("SMOKE-TEST OK: attachment preferences and bounded multiline prompt verified");
     }
 
     private void WaitForShowSignal()

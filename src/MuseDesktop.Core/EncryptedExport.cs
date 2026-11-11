@@ -45,6 +45,11 @@ public static class EncryptedExport
     public const string Magic = "MUSEDESKTOP-SETTINGS-ENCRYPTED";
     public const int FormatVersion = 1;
     public const int Iterations = 210_000;
+    public const int MaxPlainBytes = 32 * 1024 * 1024;
+    public const int MaxCipherChars = ((MaxPlainBytes + 2) / 3) * 4;
+    // A legacy JSON writer may encode each Base64 character as \uXXXX.
+    // Budget for that representation, while bounding decoded fields below.
+    public const int MaxEnvelopeChars = MaxCipherChars * 6 + 4096;
 
     private const int SaltBytes = 16;
     private const int NonceBytes = 12;
@@ -65,24 +70,32 @@ public static class EncryptedExport
     {
         if (string.IsNullOrEmpty(password))
             throw new ArgumentException("A password is required to encrypt an export.", nameof(password));
+        if (Encoding.UTF8.GetByteCount(plainJson) > MaxPlainBytes)
+            throw new ArgumentException("Export exceeds the 32 MB encrypted backup limit.", nameof(plainJson));
         var salt = RandomNumberGenerator.GetBytes(SaltBytes);
         var nonce = RandomNumberGenerator.GetBytes(NonceBytes);
-        var key = DeriveKey(password, salt, Iterations);
         var plainBytes = Encoding.UTF8.GetBytes(plainJson);
-        var cipherBytes = new byte[plainBytes.Length];
-        var tag = new byte[TagBytes];
-        using (var aes = new AesGcm(key, TagBytes))
-            aes.Encrypt(nonce, plainBytes, cipherBytes, tag);
-        var envelope = new Envelope
+        byte[]? key = null;
+        try
         {
-            Version = FormatVersion,
-            Iterations = Iterations,
-            Salt = Convert.ToBase64String(salt),
-            Nonce = Convert.ToBase64String(nonce),
-            Tag = Convert.ToBase64String(tag),
-            Data = Convert.ToBase64String(cipherBytes),
-        };
-        return Magic + "\n" + JsonSerializer.Serialize(envelope, EnvelopeOptions) + "\n";
+            key = DeriveKey(password, salt, Iterations);
+            var cipherBytes = new byte[plainBytes.Length];
+            var tag = new byte[TagBytes];
+            using (var aes = new AesGcm(key, TagBytes))
+                aes.Encrypt(nonce, plainBytes, cipherBytes, tag);
+            var envelope = new Envelope
+            {
+                Version = FormatVersion, Iterations = Iterations,
+                Salt = Convert.ToBase64String(salt), Nonce = Convert.ToBase64String(nonce),
+                Tag = Convert.ToBase64String(tag), Data = Convert.ToBase64String(cipherBytes),
+            };
+            return Magic + "\n" + JsonSerializer.Serialize(envelope, EnvelopeOptions) + "\n";
+        }
+        finally
+        {
+            if (key is not null) CryptographicOperations.ZeroMemory(key);
+            CryptographicOperations.ZeroMemory(plainBytes);
+        }
     }
 
     /// <summary>
@@ -96,6 +109,12 @@ public static class EncryptedExport
         plainJson = null;
         error = EncryptedExportError.None;
         message = null;
+        if (text is { Length: > MaxEnvelopeChars })
+        {
+            error = EncryptedExportError.Damaged;
+            message = "That encrypted export exceeds the 32 MB backup limit.";
+            return false;
+        }
         if (!IsEncrypted(text))
         {
             error = EncryptedExportError.NotEncrypted;
@@ -122,11 +141,17 @@ public static class EncryptedExport
         byte[] salt, nonce, tag, data;
         try
         {
+            // Check before Base64 allocates: tiny IV/tag fields must not be
+            // used to allocate payload-sized buffers, even in hostile JSON.
+            if ((envelope.Salt?.Length ?? 0) > 64 || (envelope.Nonce?.Length ?? 0) > 64 ||
+                (envelope.Tag?.Length ?? 0) > 64 || (envelope.Data?.Length ?? 0) > MaxCipherChars)
+                throw new FormatException("field size");
             salt = Convert.FromBase64String(envelope.Salt ?? "");
             nonce = Convert.FromBase64String(envelope.Nonce ?? "");
             tag = Convert.FromBase64String(envelope.Tag ?? "");
             data = Convert.FromBase64String(envelope.Data ?? "");
-            if (salt.Length != SaltBytes || nonce.Length != NonceBytes || tag.Length != TagBytes || data.Length == 0)
+            if (salt.Length != SaltBytes || nonce.Length != NonceBytes || tag.Length != TagBytes ||
+                data.Length == 0 || data.Length > MaxPlainBytes)
                 throw new FormatException("field size");
         }
         catch (Exception)
@@ -135,10 +160,12 @@ public static class EncryptedExport
             message = "That encrypted export is damaged or from an unsupported version — it can't be opened.";
             return false;
         }
+        byte[]? key = null;
+        byte[]? plainBytes = null;
         try
         {
-            var key = DeriveKey(password ?? "", salt, envelope.Iterations);
-            var plainBytes = new byte[data.Length];
+            key = DeriveKey(password ?? "", salt, envelope.Iterations);
+            plainBytes = new byte[data.Length];
             using var aes = new AesGcm(key, TagBytes);
             aes.Decrypt(nonce, data, tag, plainBytes);
             plainJson = Encoding.UTF8.GetString(plainBytes);
@@ -155,6 +182,11 @@ public static class EncryptedExport
             error = EncryptedExportError.Damaged;
             message = "That encrypted export is damaged or from an unsupported version — it can't be opened.";
             return false;
+        }
+        finally
+        {
+            if (key is not null) CryptographicOperations.ZeroMemory(key);
+            if (plainBytes is not null) CryptographicOperations.ZeroMemory(plainBytes);
         }
     }
 

@@ -102,6 +102,14 @@ public static class ReleaseSelection
                 return result;
             foreach (var entry in doc.RootElement.EnumerateArray())
             {
+                if (entry.ValueKind != JsonValueKind.Object)
+                    continue;
+                if (entry.TryGetProperty("draft", out var draft)
+                    && draft.ValueKind != JsonValueKind.False)
+                    continue;
+                if (entry.TryGetProperty("prerelease", out var prerelease)
+                    && prerelease.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
+                    continue;
                 var tag = GetString(entry, "tag_name");
                 if (string.IsNullOrWhiteSpace(tag))
                     continue;
@@ -111,11 +119,13 @@ public static class ReleaseSelection
                 {
                     foreach (var a in assetsEl.EnumerateArray())
                     {
+                        if (a.ValueKind != JsonValueKind.Object) continue;
                         var name = GetString(a, "name");
                         var url = GetString(a, "browser_download_url");
                         if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(url))
                             continue;
-                        var size = a.TryGetProperty("size", out var s) && s.TryGetInt64(out var v) ? v : 0;
+                        var size = a.TryGetProperty("size", out var s) && s.ValueKind == JsonValueKind.Number
+                            && s.TryGetInt64(out var v) ? Math.Max(0, v) : 0;
                         assets.Add(new ReleaseAsset(name, url, size));
                     }
                 }
@@ -205,6 +215,8 @@ public static class UpdateSchedule
             return false;
         if (snoozedUntilUtc is { } until && now < until)
             return false;
+        // A corrected system clock must not suppress checks for weeks.
+        if (lastCheckUtc > now) lastCheckUtc = null;
         return frequency switch
         {
             UpdateCheckFrequency.ManualOnly => false,
@@ -241,6 +253,7 @@ public static class SumsFile
     public static IReadOnlyDictionary<string, string> Parse(string text)
     {
         var map = new Dictionary<string, string>(StringComparer.Ordinal);
+        var ambiguous = new HashSet<string>(StringComparer.Ordinal);
         foreach (var rawLine in text.Split('\n'))
         {
             var line = rawLine.Trim();
@@ -252,7 +265,11 @@ public static class SumsFile
             var rest = line[64..].TrimStart(' ', '\t', '*');
             if (rest.Length == 0 || rest.Contains(' ') || rest.Contains('\t'))
                 continue; // a file name with spaces isn't an asset we ship; junk line
-            map[rest] = hash.ToLowerInvariant();
+            hash = hash.ToLowerInvariant();
+            if (ambiguous.Contains(rest)) continue;
+            if (map.TryGetValue(rest, out var previous) && previous != hash)
+            { map.Remove(rest); ambiguous.Add(rest); continue; }
+            map[rest] = hash;
         }
         return map;
     }

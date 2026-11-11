@@ -55,9 +55,24 @@ public static class Announcer
     /// </summary>
     public static void Kind(AnnouncementKind kind, string text, bool assertive = false)
     {
-        var enabled = kind == AnnouncementKind.General
-                      || _settings is null
-                      || AnnouncementSwitches.IsEnabled(_settings().AnnouncementKindEnabled, kind);
+        if (string.IsNullOrWhiteSpace(text)) return;
+        var dispatcher = _polite?.Dispatcher ?? _assertive?.Dispatcher ?? System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+        {
+            if (!dispatcher.HasShutdownStarted && !dispatcher.HasShutdownFinished)
+            {
+                try { dispatcher.BeginInvoke(new Action(() => Kind(kind, text, assertive))); }
+                catch { /* Shutdown raced the best-effort announcement. */ }
+            }
+            return;
+        }
+        var enabled = false;
+        try
+        {
+            enabled = kind == AnnouncementKind.General || _settings is null
+                || AnnouncementSwitches.IsEnabled(_settings().AnnouncementKindEnabled, kind);
+        }
+        catch { /* Unavailable preferences must not break a feature or speak unexpectedly. */ }
         Record(kind, text, spoken: enabled);
         if (enabled)
             Announce(assertive ? _assertive : _polite, text);

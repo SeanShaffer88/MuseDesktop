@@ -808,8 +808,8 @@ public static class HistorySearch
             var allMatch = terms.All(term =>
                 FuzzyMatch.WordScore(term, title).IsMatch
                 || FuzzyMatch.WordScore(term, path).IsMatch
-                || title.Contains(term, StringComparison.OrdinalIgnoreCase)
-                || path.Contains(term, StringComparison.OrdinalIgnoreCase));
+                || SearchText.Contains(title, term)
+                || SearchText.Contains(path, term));
             if (!allMatch)
                 continue;
             var titleScore = FuzzyMatch.Score(query, title);
