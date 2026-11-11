@@ -4,6 +4,23 @@ Honest list of what MuseDesktop does not do or has not proven yet. Kept current 
 
 ## Verification status
 
+- **Dual mode (2026-11-10): runtime-unverified.** Two independent
+  WebView2 panes on the active profile; no per-pane profile picker,
+  shell drafts, follow-up chips, approval alerts, or workspace
+  integration. Chat routes, divider fraction and separate zoom
+  are now restored from a local per-profile file. Only Home and
+  /chat paths restore: queries, fragments, external pages and
+  authentication callbacks are excluded. A conversation identified
+  only by a query parameter cannot be restored precisely. Closing Dual (also
+  on app lock) disposes both views; unsent page text is not preserved
+  by the shell. Use Open in main for downloads: Dual cancels them
+  with an explanation rather than bypassing the main download
+  manager. Windows verification must cover independent replies,
+  simultaneous loading, sign-in sharing, splitter/mixed-DPI layout,
+  keyboard focus including F6 from the page, link routing, app lock,
+  close during startup, and failed-load recovery. Automated gate
+  results for this change are recorded in its pull request.
+
 - **PR #20 repair and main integration (2026-10-29):** Windows x64 Release build and all 1,264 integrated Core tests passed locally; self-contained x64 and arm64 publishing passed, and the x64 startup/WebView2 smoke test passed. Native arm64 runtime behavior still requires its CI runner or an arm64 machine, including the optional NotifyKit toast channel inherited from main. These checks do not verify the new tabs/recovery UI end-to-end.
 
 - **Verified on a real Windows machine (2026-10-23, v0.1.2):** startup (clean log, WebView2 ready), sign-in, and voice — confirmed by the user with the app log. (v0.1.0 crashed at startup; v0.1.1 fixed it; v0.1.2 is the first fully verified line.)

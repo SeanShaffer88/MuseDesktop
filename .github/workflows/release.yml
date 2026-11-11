@@ -1,0 +1,151 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-latest
+          - arch: arm64
+            runner: windows-11-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+      - name: Validate release version
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          if ($tag -notmatch '^v\d+\.\d+\.\d+$') { throw "Expected a stable vX.Y.Z tag." }
+          $version = $tag.Substring(1)
+          [xml]$shell = Get-Content src/MuseDesktop/MuseDesktop.csproj
+          [xml]$core = Get-Content src/MuseDesktop.Core/MuseDesktop.Core.csproj
+          if ($shell.Project.PropertyGroup.Version -ne $version -or $core.Project.PropertyGroup.Version -ne $version) {
+            throw "Tag and project versions must match."
+          }
+          "VERSION=$version" >> $env:GITHUB_ENV
+      - name: Build and run the complete test suite
+        shell: pwsh
+        run: |
+          dotnet build MuseDesktop.sln -c Release --warnaserror
+          if ($LASTEXITCODE -ne 0) { throw "Release build failed." }
+          dotnet test tests/MuseDesktop.Core.Tests -c Release --no-build
+          if ($LASTEXITCODE -ne 0) { throw "Core tests failed." }
+      - name: Publish self-contained app
+        shell: pwsh
+        run: |
+          dotnet publish src/MuseDesktop/MuseDesktop.csproj -c Release -r win-${{ matrix.arch }} --self-contained true -o stage
+          if ($LASTEXITCODE -ne 0) { throw "Publish failed." }
+          Copy-Item README.md, LICENSE, KNOWN_LIMITATIONS.md, RELEASE_CHECKLIST.md stage/
+      - name: Native Windows startup smoke test
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath stage/MuseDesktop.exe -ArgumentList "--smoke-test" -PassThru
+          if (-not $p.WaitForExit(120000)) { $p.Kill(); throw "Startup smoke test timed out." }
+          if ($p.ExitCode -ne 0) { throw "Startup smoke test failed: $($p.ExitCode)" }
+      - name: Generate CycloneDX inventory
+        uses: anchore/sbom-action@v0
+        with:
+          path: stage
+          format: cyclonedx-json
+          output-file: stage/sbom.cdx.json
+          upload-artifact: false
+      - name: Record build inputs
+        shell: pwsh
+        run: |
+          [ordered]@{
+            commit = "${{ github.sha }}"
+            sdk = (dotnet --version)
+            runtimeIdentifier = "win-${{ matrix.arch }}"
+            configuration = "Release"
+          } | ConvertTo-Json | Set-Content stage/build-info.json -Encoding utf8
+      - name: Build installer and portable zip
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force assets | Out-Null
+          $nsis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
+          if (-not (Test-Path $nsis)) {
+            choco install nsis --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { throw "NSIS installation failed." }
+          }
+          if (-not (Test-Path $nsis)) { throw "NSIS was not found." }
+          & $nsis "/DVERSION=$env:VERSION" "/DARCH=${{ matrix.arch }}" "/DSTAGE=$((Resolve-Path stage).Path)" installer/MuseDesktop.nsi
+          if ($LASTEXITCODE -ne 0) { throw "Installer build failed." }
+          Copy-Item "installer/MuseDesktop-Setup-v$env:VERSION-${{ matrix.arch }}.exe" assets/
+          Compress-Archive -Path stage/* -DestinationPath "assets/MuseDesktop-v$env:VERSION-windows-${{ matrix.arch }}.zip"
+      - uses: actions/upload-artifact@v6
+        with:
+          name: release-${{ matrix.arch }}
+          path: assets/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: release-*
+          path: assets
+          merge-multiple: true
+      - name: Prepare release notes and checksums
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, hashlib
+          tag = os.environ["TAG"]
+          version = tag[1:]
+          assets = pathlib.Path("assets")
+          expected = {
+              f"MuseDesktop-Setup-{tag}-{arch}.exe" for arch in ("x64", "arm64")
+          } | {
+              f"MuseDesktop-{tag}-windows-{arch}.zip" for arch in ("x64", "arm64")
+          }
+          actual = {p.name for p in assets.iterdir() if p.is_file()}
+          if actual != expected:
+              raise SystemExit(f"Unexpected asset set: {actual ^ expected}")
+          lines = []
+          for name in sorted(expected):
+              path = assets / name
+              if path.stat().st_size == 0:
+                  raise SystemExit(f"Empty asset: {name}")
+              with path.open("rb") as f:
+                  digest = hashlib.file_digest(f, "sha256").hexdigest()
+              lines.append(f"{digest}  {name}")
+          (assets / "SHA256SUMS.txt").write_text("\n".join(lines) + "\n")
+          changelog = pathlib.Path("CHANGELOG.md").read_text()
+          section = changelog.split(f"## [{version}]", 1)[1].split("\n## [", 1)[0]
+          notes = section.split("\n", 1)[1].strip()
+          notes += "\n\nVerification: full tests and native startup smoke checks passed on Windows x64 and ARM64. Interactive Dual chat behavior remains unverified; see RELEASE_CHECKLIST.md. Installers are unsigned, as in previous releases.\n"
+          pathlib.Path("release-notes.md").write_text(notes + "\n")
+          PY
+      - name: Publish verified release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" --verify-tag --draft --title "MuseDesktop $TAG" --notes-file release-notes.md
+          gh release upload "$TAG" assets/*
+          gh release edit "$TAG" --draft=false --latest

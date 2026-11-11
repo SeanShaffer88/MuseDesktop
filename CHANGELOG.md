@@ -6,7 +6,32 @@ Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhanc
 
 ## [Unreleased]
 
+## [2.3.0] — 2026-11-11
+
 ### Added
+
+- **Dual mode — two independent chats.** Open it from the ⋯ menu
+  or Ctrl+K → Dual mode. On first use the current Muse page opens
+  on the left and Home on the right, on the same active profile. Each pane
+  has its own page composer, Back/Forward, Reload, New chat, and
+  Open in main controls, with a resizable divider. There is no
+  shared prompt or automatic send; Compare mode stays separate.
+  Downloads use the main window; Dual explains that rather than
+  bypassing the download manager's safety rules.
+
+- **Both Dual chats remembered.** Reopening Dual, even after
+  restarting MuseDesktop, returns to the last chat on each side.
+  Only Muse chat paths are kept per profile on this PC; queries,
+  fragments, sign-in callbacks, message text and unsent drafts are
+  never saved. A failed load does not replace a remembered chat.
+
+- **Remembered pane widths.** Dual keeps your preferred split per
+  profile. Double-click the divider, or focus it and press Home,
+  to return to equal widths. Minimum pane sizes still apply.
+
+- **Independent chat zoom.** Each Dual pane has its own minus,
+  plus and percentage-reset buttons. Zoom one conversation without
+  changing the other; both zoom choices are remembered per profile.
 
 - **Screenshot choices.** "Screenshot to conversation…" is now a
   small menu: the original drag-a-rectangle over any screen, a

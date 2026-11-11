@@ -219,6 +219,7 @@ public partial class MainWindow : Window
     // reopen like the field pass — the two panes are a working
     // surface the user keeps beside the main window, not a dialog.
     private CompareWindow? _compareWindow;
+    private DualWindow? _dualWindow;
 
     // Quick ask: one modeless corner card, reactivated on re-summon
     // while open; a fresh summon after it closed starts a fresh
@@ -7711,6 +7712,7 @@ public partial class MainWindow : Window
             case "action.context-packs": OpenContextPacks(); break;
             case "action.brief-new-conversation": OpenLibrary(LibraryTab.Briefs); break;
             case "action.compare-mode": OpenCompareMode(); break;
+            case "action.dual-mode": OpenDualMode(); break;
             case "action.quick-ask": OpenQuickAsk(); break;
             case "action.exit": ExitApp(); break;
         }
@@ -8664,6 +8666,34 @@ public partial class MainWindow : Window
     private void OnFieldPass(object sender, RoutedEventArgs e) => OpenFieldPass(this);
 
     private void OnCompareMode(object sender, RoutedEventArgs e) => OpenCompareMode();
+
+    private void OnDualMode(object sender, RoutedEventArgs e) => OpenDualMode();
+
+    /// <summary>One modeless two-chat surface; app lock closes it with all other content windows.</summary>
+    private void OpenDualMode()
+    {
+        if (_isLocked)
+        {
+            PresentLockWindow();
+            return;
+        }
+        if (_dualWindow is not null)
+        {
+            if (_dualWindow.WindowState == WindowState.Minimized)
+                _dualWindow.WindowState = WindowState.Normal;
+            _dualWindow.Activate();
+            return;
+        }
+        var window = new DualWindow(_settings, _log,
+            _webReady ? Browser.Source?.ToString() : null,
+            ContinueQuickAskInMainWindow) { Owner = this };
+        _dualWindow = window;
+        window.Closed += (_, _) => _dualWindow = null;
+        ThemeManager.ApplyTitleBar(window);
+        ShellTextScaling.Apply(window, _settings.ShellFontScale);
+        window.Show();
+        window.Activate();
+    }
 
     /// <summary>
     /// Compare mode (v2.1.0): one modeless window, created on first

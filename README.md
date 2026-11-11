@@ -12,6 +12,13 @@ Muse has no Windows app, so this is one: a small native program that opens muse.
 
 ## What you get
 
+- **Dual mode — two chats at once** — choose it from the ⋯ menu
+  or Ctrl+K. Two independent chats share your active sign-in, with
+  their own message boxes and navigation, a resizable divider,
+  and Open in main on either side. It remembers both chats, your
+  split widths and each pane's independent zoom between launches.
+  Compare mode remains separate. Downloads use the main window; Dual does not restore unsent
+  text after closing. Interactive Windows validation is pending.
 - **A real app, not a tab** — its own window, taskbar icon, and Alt-Tab entry; no browser chrome competing for space.
 - **Stay signed in** — a dedicated WebView2 profile on your PC keeps your Muse session between launches, and the app reopens the last Muse page you were on.
 - **Tray support** — the tray menu runs the whole app while it's hidden: Open, **Quick dictate**, New window, Reload, **Downloads** (the manager, plus your newest finished files), **Settings…**, **Switch profile**, a web-view status line, and Exit. The tray icon wears your active profile's accent color as a small dot, and shows an unread-count badge on the icon and taskbar button **only** when Muse's page title itself carries one (like "(2) Muse") — it never guesses. Closing the window minimizes to the tray by default; after a while hidden (1 / 5 / 15 minutes, or never — your choice in Settings) the web view suspends to free memory until you come back, and suspend always waits out downloads and stays out of the way after the microphone has been used, so a voice session is never slept under. Single-click instead of double-click to reopen is a Settings option, and right-clicking the **taskbar** button offers a Jump List: Open Muse, Settings, Quick dictate, and your most recent profiles. "Start with Windows" and "start in the tray" are separate toggles — a sign-in launch can open the window instead, and double-clicking the app always opens it.
@@ -67,6 +74,7 @@ Either way: the app is not code-signed yet, so Windows SmartScreen may warn on f
 | What | Where |
 | --- | --- |
 | Settings | `%APPDATA%\MuseDesktop\settings.json` |
+| Dual mode | `dual-sessions.json` beside settings — per-profile Home/chat paths, split widths and independent zoom; no queries or message text |
 | Download history | `%APPDATA%\MuseDesktop\downloads.json` (names, sizes, dates, paths, and completed/failed state of downloads — never their source URLs) |
 | Diagnostic log | `%APPDATA%\MuseDesktop\logs\musedesktop.log` (1 MB, single rollover; URLs are logged host-and-path only, never with query strings) |
 | Web profile (login session) | `%LOCALAPPDATA%\MuseDesktop\WebView2` for the default profile; extra profiles get sibling folders (`WebView2-<id>`) |

@@ -2,6 +2,42 @@
 
 Run before publishing any release. CI covers the automated half; this is the on-machine half that automation can't prove — it exists because v0.1.0 passed every automated check and crashed on first launch.
 
+## Dual mode — independent two-chat window
+
+- [ ] Open ⋯ → Dual mode and Ctrl+K → Dual mode. Reopening focuses
+  the same window, including when minimized. Compare still opens
+  its separate shared-prompt window.
+- [ ] From a current Muse conversation, the left pane shows that
+  page and the right shows Home. Both share the active sign-in.
+  Open two different chats; send distinct replies from each page's
+  composer while both are loading/responding. Neither input,
+  navigation, reload nor New chat affects the other pane.
+- [ ] Resize the divider by mouse and keyboard, including at 150%
+  shell text and on mixed-DPI monitors. Toolbars wrap without
+  hiding buttons. Tab order, screen-reader labels/statuses, and
+  F6 switching from both chrome and page focus work.
+- [ ] Open in main hands off either conversation without closing
+  Dual. Downloads in Dual show the explanation and create no file;
+  retrying from main uses the existing manager.
+- [ ] Dangerous links and certificate failures are refused;
+  external new-window links open in the default browser. Password
+  saving stays off; microphone/notifications are Muse-only.
+- [ ] Lock now and lock-on-tray-hide close Dual with no readable
+  content left behind. Closing during initialization is safe;
+  reopen starts clean. Test offline load → Reload after reconnect,
+  and close/reopen after an initialization or web-engine failure.
+- [ ] Repeat menu labels and layout in Spanish and High Contrast.
+- [ ] Choose two different chats, set an unequal split and different
+  zoom values; close/reopen Dual, then quit/relaunch MuseDesktop and
+  open Dual again. Both chats, split and zoom values restore.
+- [ ] Divider double-click and focused Home reset equal widths.
+  Each pane's zoom percentage resets only that pane to 100%.
+- [ ] Switch profiles and verify there is no cross-profile chat or
+  reading-preference leak. Failed loads/authentication redirects
+  do not replace saved routes; same-document newly created chats
+  are remembered. Confirm no query/fragment/message text enters
+  dual-sessions.json. Corrupt that file and verify graceful fallback.
+
 ## v1.8.1 hotfix — on-machine check (2 minutes)
 
 - [ ] Update to v1.8.1 via the in-app updater (or the fresh installer).

@@ -589,6 +589,7 @@ public static class CommandRegistry
         // v2.1.0: Compare mode — the same prompt to two profiles
         // at once, the answers side by side in their own window.
         Action("compare-mode", "Compare mode…", "compare mode side by side two profiles same prompt second take windows", detail: "Windows"),
+        Action("dual-mode", "Dual mode — two independent chats…", "dual split two panes chats conversations independent side by side multitask", detail: "Windows"),
         // Quick ask — a small corner window on the active profile
         // for one quick question, fresh conversation every time.
         Action("quick-ask", "Quick ask…", "quick ask popup corner window one-off question floating fast ask", detail: "Windows"),

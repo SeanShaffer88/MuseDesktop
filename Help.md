@@ -131,6 +131,36 @@ Try this:
 4. The full list: this page ends with every command the palette offers, generated from the palette itself when you open the page — so it can never describe a command that isn't really there. Your profiles, recent downloads, and open windows appear in the palette too; they're yours, so they're not printed here.
 5. Finding a setting by eye: the Settings window lists its topics down the left side (General, Appearance, Profiles, Workspaces, Notifications, Focus, Downloads, Data, Language, Accessibility, Privacy). Pick a topic to see just that topic's settings, grouped in cards — or type in the search box at the top of the list, and Settings jumps to the topic that holds the match. Settings reopens where you left it, on the same topic.
 
+### Dual mode — two chats at once
+
+Choose **⋯ → Dual mode — two chats…**, or press **Ctrl+K** and
+search for **Dual**. A two-pane window opens on your active profile:
+the current Muse page on the left and Home on the right. Open a
+different conversation in each page and reply in that page's own
+message box. Nothing is sent to the other chat automatically.
+
+Each side has its own Back, Forward, Reload, and New chat controls.
+Drag the divider to adjust the widths; focus the divider and use
+the arrow keys for keyboard resizing. F6 requests focus on the
+other pane. **Open in main** brings that page to the main window
+without closing either pane; use this for downloads, which Dual
+refuses with an explanation so the normal download manager can
+handle them. The page's file picker remains available for uploads.
+
+Reopening Dual from the menu reactivates the existing window.
+After closing or restarting the app, opening Dual restores both
+remembered chats, your preferred split, and each pane's zoom.
+The minus/plus buttons change only that chat's zoom; its percentage
+button resets it to 100%. Double-click the divider, or focus it and
+press Home, to reset equal widths. These preferences belong to the
+active profile only.
+
+Closing Dual (including app lock) closes both views; it does not
+save unsent text, scroll positions, query strings or sign-in pages. This is
+different from **Compare mode**, which sends one prompt to both
+panes. Interactive Windows behavior still needs the release
+checklist pass.
+
 ## Focus mode, timers, reading list & notes
 
 What you see: you want to concentrate on one conversation, keep a page for later, jot something down without leaving the app, or see a plain summary of your week.
