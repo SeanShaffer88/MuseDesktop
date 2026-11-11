@@ -1,4 +1,5 @@
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows;
 using Microsoft.Win32;
@@ -41,6 +42,15 @@ public partial class App : System.Windows.Application
         // and best-effort, so the peek is safe).
         try { Strings.Initialize(SettingsStore.Load(AppPaths.SettingsPath)); }
         catch { /* English is the fallback — language never breaks startup */ }
+
+        if (!WindowsSupport.IsSupported(OperatingSystem.IsWindows(), Environment.OSVersion.Version,
+                RuntimeInformation.OSArchitecture.ToString(), RuntimeInformation.ProcessArchitecture.ToString()))
+        {
+            System.Windows.MessageBox.Show(Strings.Get("platform.windows11_x64"),
+                "MuseDesktop", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown(1);
+            return;
+        }
 
         // S11 #100: --help / --version are information, not actions —
         // answered by THIS process, before single-instance, so asking
@@ -622,7 +632,13 @@ public partial class App : System.Windows.Application
             var ready = await window.WaitForWebViewReadyAsync(TimeSpan.FromSeconds(45));
             if (ready)
             {
-                Log.Info("SMOKE-TEST OK: window constructed and WebView2 initialized");
+                if (!await window.SmokeDualModeAsync(TimeSpan.FromSeconds(45)))
+                {
+                    Log.Error("SMOKE-TEST FAILED: Dual controls or WebView2 initialization");
+                    Shutdown(1);
+                    return;
+                }
+                Log.Info("SMOKE-TEST OK: main and Dual WebView2 initialized; live pane moves and native privacy cover checked");
                 window.Close();
                 Shutdown(0);
             }

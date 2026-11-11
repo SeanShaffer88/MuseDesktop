@@ -66,7 +66,11 @@ public class DualModeTests
         var splitter = Assert.Single(elements, e => e.Name.LocalName == "GridSplitter");
         Assert.Equal("PreviousAndNext", (string?)splitter.Attribute("ResizeBehavior"));
         Assert.NotNull(splitter.Attribute("AutomationProperties.Name"));
-        Assert.DoesNotContain(elements, e => e.Name.LocalName == "TextBox");
+        // The only native text field is explicit local notes, never a
+        // shared prompt. Each page still owns its independent composer.
+        var notes = Assert.Single(elements, e => e.Name.LocalName == "TextBox");
+        Assert.Equal("Scratchpad", (string?)notes.Attribute(x + "Name"));
+        Assert.Equal("32000", (string?)notes.Attribute("MaxLength"));
         foreach (var handler in new[] { "OnBack", "OnForward", "OnReload", "OnNewChat", "OnOpenMain" })
             Assert.Equal(2, elements.Count(e => (string?)e.Attribute("Click") == handler));
     }

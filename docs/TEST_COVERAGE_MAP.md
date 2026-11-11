@@ -13,6 +13,9 @@ This map helps keep feature work tied to both automated evidence and the real-Wi
 | Profiles and data management | `S3Tests.cs`, `R3Tests.cs` | Profile identity, data facts, import/export, schedules, archive/restore |
 | Workspaces and sessions | `R2Tests.cs` | Apply plans, restore decisions, workspace contracts, bounded/sanitized snapshot and journal tab routes, active-tab indexes, and legacy fallbacks |
 | Dual mode and remembered reading preferences | `DualModeTests.cs`, `DualSessionTests.cs` | Separate pane hosts/composers, lock-gated entry, safe per-profile chat paths, query/fragment exclusion, atomic/corrupt-file recovery, split and independent zoom bounds |
+| Twenty Dual workbench additions | `DualWorkbenchTests.cs` | Pair/profile sanitization, local state migration/bounds, reply transitions, transfer escaping/no-send contract, scroll bounds, pane ownership and safety source contracts; interactive procedures in `DUAL_WORKBENCH.md` |
+| Optional Dual page-tool execution | `scripts/test-dual-tools.mjs` | Source-derived scripts executed against controlled DOM fixtures: append without send, ambiguous/read-only refusal, bounded selection, streaming detection and scroll-loop suppression; not a live Muse proof |
+| Windows 11 x64 support | `WindowsSupportTests.cs` | Minimum build 22000, native x64 OS/process, rejection of Windows 10 and ARM64 emulation |
 | Accessibility and XAML labels | `S6Tests.cs` | Declared-control labels, high-DPI math, keyboard/focus policy, long-list virtualization |
 | Reliability and diagnostics | `S8Tests.cs`, `S10Tests.cs` | Recovery decisions, native unresponsive-renderer prompt policy, versioned local-data backup validation, support-bundle privacy/limits, diagnostic report composition |
 | Updates and release metadata | `S9Tests.cs`, `V040Tests.cs` | Hash manifests, asset naming, version and file-content contracts |
@@ -22,7 +25,7 @@ The authoritative test command is `dotnet test tests/MuseDesktop.Core.Tests -c R
 
 ## Windows-only or real-device evidence
 
-Keep the detailed procedures in `RELEASE_CHECKLIST.md`. In particular, run the Narrator/keyboard-only pass, visual theme and mixed-DPI matrix, WebView2 Runtime availability/version checks, update/install/rollback path, and x64/ARM64 retail-device checks. Record pass, fail, or not run; never infer a pass from a Core test.
+Keep the detailed procedures in `RELEASE_CHECKLIST.md`. In particular, run the Narrator/keyboard-only pass, visual theme and mixed-DPI matrix, WebView2 Runtime availability/version checks, update/install/rollback path, and Windows 11 x64 retail-device checks. Record pass, fail, or not run; never infer a pass from a Core test. ARM64 and Windows 10 are not support targets.
 
 ## Performance evidence
 

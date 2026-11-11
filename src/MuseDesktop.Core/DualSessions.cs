@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace MuseDesktop.Core;
 
-/// <summary>Only routes and reading preferences; never unsent text, titles, queries, or sign-in data.</summary>
+/// <summary>Local routes/preferences and explicitly written scratchpad notes; never composer drafts or sign-in data.</summary>
 public sealed class DualSession
 {
     public string LeftRoute { get; set; } = "/";
@@ -10,6 +10,18 @@ public sealed class DualSession
     public double LeftFraction { get; set; } = 0.5;
     public double LeftZoom { get; set; } = 1;
     public double RightZoom { get; set; } = 1;
+    public string? LeftProfileId { get; set; }
+    public string? RightProfileId { get; set; }
+    public bool Vertical { get; set; }
+    public bool Swapped { get; set; }
+    public bool RestoreOnLaunch { get; set; }
+    public bool WasOpen { get; set; }
+    public double WindowLeft { get; set; }
+    public double WindowTop { get; set; }
+    public double WindowWidth { get; set; } = 1360;
+    public double WindowHeight { get; set; } = 840;
+    public string Scratchpad { get; set; } = "";
+    public List<DualPair> Pairs { get; set; } = new();
 
     public void Sanitize()
     {
@@ -18,9 +30,20 @@ public sealed class DualSession
         LeftFraction = CleanFraction(LeftFraction);
         LeftZoom = CleanZoom(LeftZoom);
         RightZoom = CleanZoom(RightZoom);
+        LeftProfileId = Profiles.IsValidId(LeftProfileId) ? LeftProfileId : null;
+        RightProfileId = Profiles.IsValidId(RightProfileId) ? RightProfileId : null;
+        WindowLeft = double.IsFinite(WindowLeft) ? Math.Clamp(WindowLeft, -100000, 100000) : 0;
+        WindowTop = double.IsFinite(WindowTop) ? Math.Clamp(WindowTop, -100000, 100000) : 0;
+        WindowWidth = double.IsFinite(WindowWidth) ? Math.Clamp(WindowWidth, 840, 10000) : 1360;
+        WindowHeight = double.IsFinite(WindowHeight) ? Math.Clamp(WindowHeight, 480, 10000) : 840;
+        Scratchpad ??= "";
+        if (Scratchpad.Length > DualWorkbench.MaxNotes) Scratchpad = Scratchpad[..DualWorkbench.MaxNotes];
+        Pairs = (Pairs ?? new()).Where(p => p is not null).Take(20).ToList();
+        foreach (var pair in Pairs) pair.Sanitize();
+        Pairs = Pairs.Where(p => p.Name.Length > 0).DistinctBy(p => p.Name.ToUpperInvariant()).ToList();
     }
 
-    private static string CleanRoute(string? route) =>
+    public static string CleanRoute(string? route) =>
         route is not null && route.StartsWith('/') && !route.StartsWith("//", StringComparison.Ordinal)
             ? DualMode.RestorableRoute("https://muse.ai" + route) ?? "/" : "/";
 

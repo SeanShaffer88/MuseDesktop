@@ -8,17 +8,23 @@ Muse ships apps for iOS, Android and macOS, and a web app at muse.ai — but no 
 
 ## TL;DR
 
-Muse has no Windows app, so this is one: a small native program that opens muse.ai in its own window, keeps you signed in, and lives in the system tray. It adds the desktop touches a browser tab can't — downloads with progress, cancel, and a history window, multiple sign-in profiles, a settings window, update notices, and sensible link handling. Free, open source (MIT), no telemetry; you only need Windows 10/11 (x64 or ARM64) and the WebView2 Runtime (usually already installed). Download the installer from Releases and run it.
+Muse has no Windows app, so this is one: a small native program that opens muse.ai in its own window, keeps you signed in, and lives in the system tray. It adds the desktop touches a browser tab can't — downloads with progress, cancel, and a history window, multiple sign-in profiles, a settings window, update notices, and sensible link handling. Free, open source (MIT), no telemetry; you only need Windows 11 on an x64 PC and the WebView2 Runtime (usually already installed). Download the installer from Releases and run it.
 
 ## What you get
 
 - **Dual mode — two chats at once** — choose it from the ⋯ menu
-  or Ctrl+K. Two independent chats share your active sign-in, with
+  or Ctrl+K. Two independent chats start on your active sign-in, with
   their own message boxes and navigation, a resizable divider,
   and Open in main on either side. It remembers both chats, your
   split widths and each pane's independent zoom between launches.
-  Compare mode remains separate. Downloads use the main window; Dual does not restore unsent
-  text after closing. Interactive Windows validation is pending.
+  Choose a different profile in either pane, save named pairs, swap,
+  stack, expand or detach live chats. The workbench adds selected-text
+  transfer (reviewed and unsent), a local scratchpad, find across both
+  panes, optional scroll sync/reply indicators, privacy covers,
+  recovery and opt-in window restoration. Downloads use the shared
+  safe manager. See [all twenty additions](docs/DUAL_WORKBENCH.md).
+  Compare remains separate. Closed composer drafts are not restored.
+  Interactive Windows validation is pending.
 - **A real app, not a tab** — its own window, taskbar icon, and Alt-Tab entry; no browser chrome competing for space.
 - **Stay signed in** — a dedicated WebView2 profile on your PC keeps your Muse session between launches, and the app reopens the last Muse page you were on.
 - **Tray support** — the tray menu runs the whole app while it's hidden: Open, **Quick dictate**, New window, Reload, **Downloads** (the manager, plus your newest finished files), **Settings…**, **Switch profile**, a web-view status line, and Exit. The tray icon wears your active profile's accent color as a small dot, and shows an unread-count badge on the icon and taskbar button **only** when Muse's page title itself carries one (like "(2) Muse") — it never guesses. Closing the window minimizes to the tray by default; after a while hidden (1 / 5 / 15 minutes, or never — your choice in Settings) the web view suspends to free memory until you come back, and suspend always waits out downloads and stays out of the way after the microphone has been used, so a voice session is never slept under. Single-click instead of double-click to reopen is a Settings option, and right-clicking the **taskbar** button offers a Jump List: Open Muse, Settings, Quick dictate, and your most recent profiles. "Start with Windows" and "start in the tray" are separate toggles — a sign-in launch can open the window instead, and double-clicking the app always opens it.
@@ -57,15 +63,15 @@ Still to capture from a real run:
 
 ## Requirements
 
-- Windows 10 or Windows 11 (x64, or ARM64 — native builds ship for both)
-- The Microsoft Edge **WebView2 Runtime** — preinstalled on Windows 11 and most Windows 10 PCs. If it's missing, MuseDesktop tells you and links you to Microsoft's installer.
+- Windows 11 on an x64 PC (build 22000 or newer). Windows 10, ARM64 and Windows-on-ARM emulation are not supported.
+- The Microsoft Edge **WebView2 Runtime** — usually preinstalled on Windows 11. If it's missing, MuseDesktop tells you and links you to Microsoft's installer.
 - Nothing else: the download is **self-contained** — the .NET 10 runtime is bundled in, so there is no separate .NET install.
 
 ## Install
 
-**Installer (recommended):** download `MuseDesktop-Setup-vX.Y.Z-x64.exe` (or `-arm64.exe` on a Windows-on-ARM PC) from the [Releases](../../releases) page and run it. It's a per-user install (no admin needed): program in `%LOCALAPPDATA%\Programs\MuseDesktop` (you can pick a different folder — upgrades reuse it), a Start Menu shortcut, an optional desktop shortcut (off by default; your choice is remembered for upgrades), registration of `musedesktop://` links (see *Command line & links*), and an entry in Apps & Features for uninstalling. Uninstalling keeps your settings and sign-in data unless you choose to delete them when asked. A winget manifest is prepared in `packaging/winget/` but **not yet submitted** — `winget install MuseDesktop` is not live yet.
+**Installer (recommended):** download `MuseDesktop-Setup-vX.Y.Z-x64.exe` from the [Releases](../../releases) page and run it on Windows 11 x64. It's a per-user install (no admin needed): program in `%LOCALAPPDATA%\Programs\MuseDesktop` (you can pick a different folder — upgrades reuse it), a Start Menu shortcut, an optional desktop shortcut (off by default; your choice is remembered for upgrades), registration of `musedesktop://` links (see *Command line & links*), and an entry in Apps & Features for uninstalling. Uninstalling keeps your settings and sign-in data unless you choose to delete them when asked. A legacy winget manifest is retained in `packaging/winget/` but **not yet submitted** — `winget install MuseDesktop` is not live yet.
 
-**Portable zip:** download `MuseDesktop-vX.Y.Z-windows-x64.zip` (or `-windows-arm64.zip`), unzip anywhere, and run `MuseDesktop.exe`.
+**Portable zip:** download `MuseDesktop-vX.Y.Z-windows-x64.zip`, unzip anywhere, and run `MuseDesktop.exe` on Windows 11 x64.
 
 Either way: the app is not code-signed yet, so Windows SmartScreen may warn on first run — choose **More info → Run anyway**. Your data folders (`%APPDATA%\MuseDesktop` and `%LOCALAPPDATA%\MuseDesktop`) hold settings and sign-in profiles; deleting them signs you out.
 
@@ -74,7 +80,7 @@ Either way: the app is not code-signed yet, so Windows SmartScreen may warn on f
 | What | Where |
 | --- | --- |
 | Settings | `%APPDATA%\MuseDesktop\settings.json` |
-| Dual mode | `dual-sessions.json` beside settings — per-profile Home/chat paths, split widths and independent zoom; no queries or message text |
+| Dual mode | `dual-sessions.json` beside settings — safe chat paths, profile IDs, layout/zoom, named pairs, opt-in window state and explicit plaintext scratchpad notes; no query strings or composer drafts |
 | Download history | `%APPDATA%\MuseDesktop\downloads.json` (names, sizes, dates, paths, and completed/failed state of downloads — never their source URLs) |
 | Diagnostic log | `%APPDATA%\MuseDesktop\logs\musedesktop.log` (1 MB, single rollover; URLs are logged host-and-path only, never with query strings) |
 | Web profile (login session) | `%LOCALAPPDATA%\MuseDesktop\WebView2` for the default profile; extra profiles get sibling folders (`WebView2-<id>`) |

@@ -6,14 +6,25 @@ The release notes MuseDesktop shows on the first launch of a new version (S9 #82
 
 ### Added
 
+- **Twenty Dual workbench enhancements.** Swap panes; independent
+  PIN-gated profiles; named chat pairs; stacked layout; expand a
+  pane; detach/return a live view; active-pane highlight; pane
+  shortcuts and commands; conversation-title headers; open links
+  in the opposite pane; reviewed selected-text transfer (unsent);
+  explicit local scratchpad; opt-in reply-complete indicators;
+  find across both panes; optional proportional scroll sync;
+  shared safe downloads; per-pane recovery; opt-in complete window
+  restoration; privacy covers that hide native content; and UIA,
+  focus and High Contrast improvements. See docs/DUAL_WORKBENCH.md
+  for the acceptance map and honest verification limits.
+
 - **Dual mode — two independent chats.** Open it from the ⋯ menu
   or Ctrl+K → Dual mode. On first use the current Muse page opens
   on the left and Home on the right, on the same active profile. Each pane
   has its own page composer, Back/Forward, Reload, New chat, and
   Open in main controls, with a resizable divider. There is no
   shared prompt or automatic send; Compare mode stays separate.
-  Downloads use the main window; Dual explains that rather than
-  bypassing the download manager's safety rules.
+  Downloads use the shared manager's safety rules directly.
 
 - **Both Dual chats remembered.** Reopening Dual, even after
   restarting MuseDesktop, returns to the last chat on each side.
@@ -51,6 +62,11 @@ The release notes MuseDesktop shows on the first launch of a new version (S9 #82
   the whole list back; unpinning works from a filtered list too.
 
 ### Changed
+
+- **Windows 11 x64 only.** Windows 10, ARM64 and Windows-on-ARM
+  emulation are no longer supported. Releases now contain only the
+  x64 installer, x64 portable zip and their SHA-256 checksums.
+  Installer and app startup validate the platform before proceeding.
 
 - **Quick ask follows your cursor.** The corner card now docks
   at the bottom-right of the screen your cursor is on instead

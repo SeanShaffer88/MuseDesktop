@@ -1,5 +1,45 @@
 # Decisions
 
+## 2026-11-11 — Owner approved all twenty Dual workbench additions
+
+- This supersedes the initial active-profile-only/no-script scope and
+  opt-out startup behavior described in earlier entries. The owner
+  explicitly requested all twenty proposed features before publication.
+  The complete mapping lives in docs/DUAL_WORKBENCH.md.
+- Swap, expand and detach move live views, never navigate them. Profile
+  changes and pair loads are explicit replacements with confirmation;
+  per-profile PINs and persistent in-process throttles gate environments.
+- Optional page tools inspect only trusted Muse routes, recheck origin
+  inside the document, never submit, and never log or persist selection,
+  search, streaming status or scroll messages. Cross-profile text transfer
+  has a review dialog and appends rather than replacing the draft.
+- Only explicit scratchpad notes are persisted as plaintext, in the
+  local Dual state, not settings exports/account bundles. Named pairs
+  are capped at 20, safe routes and configured profile IDs only.
+- Downloads share the main manager's existing policies; another
+  profile's signed URLs cannot enter the main-account hidden retry
+  engine or quiet-hours queue. Retrying in the original pane is explicit.
+- Covers hide the native HWND rather than drawing a WPF overlay over
+  it. They are not authentication. App lock closes owned detached views.
+  Startup restore is opt-in, lock-gated and monitor-clamped.
+- Automated gates do not prove the twenty interactive Windows flows.
+  UIA labels/live regions, keyboard focus and High Contrast improvements
+  are implemented; a retail Narrator/mixed-DPI pass remains unverified.
+
+## 2026-11-11 — Windows 11 x64 only, by owner direction
+
+- The owner dropped ARM64 support and requires only Windows 11
+  x64 for all projects. This release removes ARM64 CI/packaging
+  and ships exactly the x64 installer, x64 zip and SHA256SUMS.txt.
+  Windows 10 and Windows-on-ARM emulation are not supported.
+- The app is built as x64; startup and installer checks require
+  native x64 and build 22000 or newer. Hosted Windows runners are
+  automated evidence, not a retail Windows 11 interaction pass.
+  Legacy ARM64 release-parsing fixtures remain for old metadata;
+  they are not shipped architectures or new support promises.
+- This supersedes the earlier release plan's two-architecture
+  packaging and older Windows 10 compatibility commitments.
+
 ## 2026-11-11 — Dual restoration, divider memory, zoom and v2.3.0
 
 - The owner requested remembered chats between launches, then two
@@ -22,7 +62,7 @@
 - Release v2.3.0 includes these changes, the initial Dual mode, and
   previously unreleased improvements already on main. Release
   packaging must run full tests and native Windows smoke checks
-  before publishing x64/ARM64 installers, portable zips and SHA256SUMS.
+  before publishing the Windows 11 x64 installer, portable zip and SHA256SUMS.
 
 ## 2026-11-10 — Dual mode is integrated, independent, and active-profile only
 

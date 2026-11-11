@@ -2,24 +2,36 @@
 
 Honest list of what MuseDesktop does not do or has not proven yet. Kept current as work proceeds.
 
+**Current support target (v2.3.0 onward): Windows 11 x64 only.**
+Windows 10, ARM64 and Windows-on-ARM emulation are unsupported.
+App startup and the installer enforce native x64 and build 22000+.
+Hosted Windows CI is not a retail Windows 11 validation claim.
+ARM64 and Windows 10 mentions in older version entries below are
+historical evidence, not current support promises.
+
 ## Verification status
 
-- **Dual mode (2026-11-10): runtime-unverified.** Two independent
-  WebView2 panes on the active profile; no per-pane profile picker,
-  shell drafts, follow-up chips, approval alerts, or workspace
-  integration. Chat routes, divider fraction and separate zoom
-  are now restored from a local per-profile file. Only Home and
-  /chat paths restore: queries, fragments, external pages and
-  authentication callbacks are excluded. A conversation identified
-  only by a query parameter cannot be restored precisely. Closing Dual (also
-  on app lock) disposes both views; unsent page text is not preserved
-  by the shell. Use Open in main for downloads: Dual cancels them
-  with an explanation rather than bypassing the main download
-  manager. Windows verification must cover independent replies,
-  simultaneous loading, sign-in sharing, splitter/mixed-DPI layout,
-  keyboard focus including F6 from the page, link routing, app lock,
-  close during startup, and failed-load recovery. Automated gate
-  results for this change are recorded in its pull request.
+- **Dual workbench: interactive Windows behavior unverified.**
+  All twenty requested additions are implemented; automated/source
+  tests are not a claim of a live Muse or retail Windows 11 pass.
+  See `docs/DUAL_WORKBENCH.md` and the release checklist. Profile
+  PINs gate new environments, but are privacy screens, not encryption.
+  Saved pairs store safe Home/chat routes, not query-only identities,
+  external pages, OAuth callbacks, page titles, drafts or transcripts.
+  Scratchpad notes are explicitly written local plaintext, not encrypted.
+  Selection transfer appends only after review to one recognizable
+  composer; it never sends. Optional reply indicators require a known
+  streaming stop control. Scroll sync is proportional and best effort,
+  not semantic alignment; both features depend on the current Muse DOM.
+  Native find requires a sufficiently recent WebView2 Runtime.
+  Swapping/detaching preserves live drafts; closing, replacing or
+  rebuilding a view does not. Shared browser-process failure may affect
+  both panes. Privacy covers hide native content but are not a lock.
+  Other-profile downloads use the shared manager, but hidden retries
+  and quiet-hours queuing are refused for them to avoid wrong-account
+  requests; retry from the original pane. Detached windows return
+  when closed, not across app launches. Startup restoration is opt-in,
+  clamped to connected monitors, and skips safe mode/locked startup.
 
 - **PR #20 repair and main integration (2026-10-29):** Windows x64 Release build and all 1,264 integrated Core tests passed locally; self-contained x64 and arm64 publishing passed, and the x64 startup/WebView2 smoke test passed. Native arm64 runtime behavior still requires its CI runner or an arm64 machine, including the optional NotifyKit toast channel inherited from main. These checks do not verify the new tabs/recovery UI end-to-end.
 
@@ -114,8 +126,8 @@ Honest list of what MuseDesktop does not do or has not proven yet. Kept current 
 - **Appearance (v0.9.0):** the shell theme and accent color restyle MuseDesktop's own windows only — never the Muse page. "Follow Windows" reads the Windows app-theme preference at startup and when Windows reports a change; a registry read failure means dark (the family default), never a guessed light. Shell text size scales the shell's own text — the **tray menu's font is drawn by Windows and keeps the system size**, and the lightweight second window has no shell text of its own to scale. The toolbar can hide/reorder its buttons, but Back always stays and the ⋯ menu is always last — those two are how you reach everything else, including the setting that would bring the others back.
 - **Portable mode (v0.9.0):** with `portable.txt` beside the exe, settings, download history, and logs live in a `data` folder beside the exe — but **sign-in data (the WebView2 profiles) still lives in %LOCALAPPDATA%\MuseDesktop** in this version, so a portable copy does not carry your Muse sign-in with it. Nothing is migrated in either direction: portable launches start fresh, and removing the marker returns to the installed data untouched.
 - **Unsigned binary.** SmartScreen will warn on first run until/unless a code-signing certificate is adopted. The signing path is ready (v0.13.0, #87): a manually-triggered workflow exists and stays disabled until the maintainer buys a certificate and adds the two secrets + one variable described in `RELEASE_CHECKLIST.md` — no certificate decision has been made, so this limitation stands.
-- **Self-contained download (tens of MB).** Since v0.1.2 the .NET 10 runtime is bundled, so there is no .NET prerequisite — the cost is download size and that runtime patches arrive via app releases rather than the OS. Distribution is an NSIS installer plus a portable zip (since v0.3.0), for x64 and ARM64 (since v0.4.0).
-- **ARM64 verification level (v0.4.0):** the ARM64 build is built and smoke-tested (window construction + WebView2 init) on GitHub's real ARM64 Windows runners in CI, but it has not been run on a retail ARM device by the maintainer. The x64 build also runs on Windows-on-ARM under emulation, so ARM users are covered either way; pick the download that matches your PC (Settings → System → About shows the system type). The installers don't block a wrong-architecture install — the file names carry the architecture for that reason.
+- **Self-contained download (tens of MB).** The .NET 10 runtime is bundled, so there is no .NET prerequisite. Current distribution is one Windows 11 x64 NSIS installer and one x64 portable zip; runtime patches arrive via app releases.
+- **ARM64 support removed (v2.3.0):** no ARM64 binaries are built or shipped, including no support for running the x64 app under Windows-on-ARM emulation. Old release assets remain historical downloads, not a supported upgrade path.
 - **New in v0.4.0, runtime-unverified:** the Downloads window (open / show-in-folder / clear), per-profile start-at-home, settings export/import round-trip, and Ctrl+, for Settings — all on the `RELEASE_CHECKLIST.md` pass list. The v0.4.0 internal refactor (download/tray/update extraction) is covered by the Core suite plus CI smoke; its on-machine behavior folds into the same pass.
 - **WebView2 Runtime is a prerequisite** on the minority of Windows 10 PCs that lack it; the app detects this and links to Microsoft's Evergreen installer but does not install it for you.
 
