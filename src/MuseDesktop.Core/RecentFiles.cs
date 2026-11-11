@@ -170,7 +170,7 @@ public static class RecentFiles
                         var extension = NormalizeExtension(info.Extension);
                         if (!AttachableExtensions.Contains(extension))
                             continue;
-                        if (!retainedPaths.Add(info.FullName))
+                        if (retainedPaths.Contains(info.FullName))
                             continue;
                         var entry = new RecentFileEntry(
                             info.FullName,
@@ -179,6 +179,7 @@ public static class RecentFiles
                             info.Length,
                             new DateTimeOffset(info.LastWriteTimeUtc, TimeSpan.Zero),
                             KindOf(extension));
+                        retainedPaths.Add(entry.FullPath);
                         entries.Enqueue(entry, entry);
                         if (entries.Count > limit) retainedPaths.Remove(entries.Dequeue().FullPath);
                     }

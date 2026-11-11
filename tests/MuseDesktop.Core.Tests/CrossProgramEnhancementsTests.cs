@@ -121,6 +121,9 @@ public class CrossProgramEnhancementsTests
             Assert.Equal(7, entries.Count);
             Assert.Equal("099.txt", entries[0].Name);
             Assert.Equal("093.txt", entries[^1].Name);
+            foreach (var path in Directory.EnumerateFiles(dir)) File.SetLastWriteTimeUtc(path, start);
+            Assert.Equal(new[] { "000.txt", "001.txt", "002.txt" },
+                RecentFiles.Collect(new[] { dir }, 3).Select(e => e.Name));
             using var cts = new CancellationTokenSource();
             cts.Cancel();
             Assert.Throws<OperationCanceledException>(() => RecentFiles.Collect(new[] { dir }, 7, cts.Token));

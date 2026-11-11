@@ -659,23 +659,31 @@ public partial class App : System.Windows.Application
     private void SmokePromptAndAttachmentOptions(MainWindow owner)
     {
         var working = Settings.Clone();
+        working.SettingsLastSection = SettingsSearch.ProfilesId;
         var settings = new SettingsWindow(working, Log, null, (_, _) => { }) { Owner = owner };
-        try
+        Exception? failure = null;
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ContextIdle, new Action(() =>
         {
-            settings.Show();
-            var host = (System.Windows.Controls.StackPanel)settings.FindName("QuickAttachOptionsHost");
-            var screenshot = host.Children.OfType<System.Windows.Controls.CheckBox>().Single();
-            screenshot.IsChecked = false;
-            screenshot.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
-            host.Children.OfType<System.Windows.Controls.ComboBox>().Single().SelectedItem = 4;
-            if (working.QuickAttachIncludeScreenshots || working.QuickAttachMaxFiles != 4)
-                throw new InvalidOperationException("Attachment preferences did not update the working settings.");
-        }
-        finally { settings.Close(); }
+            try
+            {
+                var host = (System.Windows.Controls.StackPanel)settings.FindName("QuickAttachOptionsHost");
+                var screenshot = host.Children.OfType<System.Windows.Controls.CheckBox>().Single();
+                if (!screenshot.IsVisible) throw new InvalidOperationException("Attachment controls are not visible.");
+                screenshot.IsChecked = false;
+                screenshot.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                host.Children.OfType<System.Windows.Controls.ComboBox>().Single().SelectedItem = 4;
+                if (working.QuickAttachIncludeScreenshots || working.QuickAttachMaxFiles != 4)
+                    throw new InvalidOperationException("Attachment preferences did not update the working settings.");
+            }
+            catch (Exception ex) { failure = ex; }
+            finally { settings.Close(); }
+        }));
+        FocusReturn.ShowDialog(settings);
+        if (failure is not null) throw failure;
 
         var prompt = new TextPromptWindow(Strings.Get("text_input"), Strings.Get("text_input"), "123456",
             multiline: true, maxLength: 5) { Owner = owner };
-        Exception? failure = null;
+        failure = null;
         Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ContextIdle, new Action(() =>
         {
             try
