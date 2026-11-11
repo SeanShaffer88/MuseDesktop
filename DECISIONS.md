@@ -1,5 +1,17 @@
 # Decisions
 
+## 2026-11-11 — Isolate release outputs and preserve the release tag
+
+- The first v2.3.0 publication correctly stopped before upload because
+  the source assets folder's muse.png was mixed with the two release
+  binaries. Package, download and upload now use release-assets, never
+  the source directory. The exact-three-file publication gate stays.
+- A manual Release dispatch can rebuild an existing stable tag using
+  corrected workflow logic without moving that tag or creating another
+  release. Checkout is explicitly refs/tags/input; build-info records
+  the actual checked-out app commit separately from the workflow commit.
+  The owner-created draft and its notes are preserved.
+
 ## 2026-11-11 — Owner approved all twenty Dual workbench additions
 
 - This supersedes the initial active-profile-only/no-script scope and

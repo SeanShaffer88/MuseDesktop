@@ -41,4 +41,20 @@ public class WindowsSupportTests
         Assert.Contains("$0 < 22000", installer);
         Assert.Contains("$0 != \"AMD64\"", installer);
     }
+
+    [Fact]
+    public void ReleaseOutputIsIsolatedAndRecoveryDoesNotRequireMovingTags()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "MuseDesktop.sln")))
+            dir = dir.Parent;
+        Assert.NotNull(dir);
+        var release = File.ReadAllText(Path.Combine(dir.FullName, ".github/workflows/release.yml"));
+        Assert.Contains("path: release-assets/*", release);
+        Assert.Contains("assets = pathlib.Path(\"release-assets\")", release);
+        Assert.DoesNotContain("path: assets", release);
+        Assert.Contains("workflow_dispatch:", release);
+        Assert.Contains("format('refs/tags/{0}', inputs.tag)", release);
+        Assert.Contains("commit = (git rev-parse HEAD)", release);
+    }
 }
