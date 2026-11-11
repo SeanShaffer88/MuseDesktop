@@ -27,6 +27,16 @@ Run before publishing any release. CI covers the automated half; this is the on-
   reopen starts clean. Test offline load → Reload after reconnect,
   and close/reopen after an initialization or web-engine failure.
 - [ ] Repeat menu labels and layout in Spanish and High Contrast.
+- [ ] Choose two different chats, set an unequal split and different
+  zoom values; close/reopen Dual, then quit/relaunch MuseDesktop and
+  open Dual again. Both chats, split and zoom values restore.
+- [ ] Divider double-click and focused Home reset equal widths.
+  Each pane's zoom percentage resets only that pane to 100%.
+- [ ] Switch profiles and verify there is no cross-profile chat or
+  reading-preference leak. Failed loads/authentication redirects
+  do not replace saved routes; same-document newly created chats
+  are remembered. Confirm no query/fragment/message text enters
+  dual-sessions.json. Corrupt that file and verify graceful fallback.
 
 ## v1.8.1 hotfix — on-machine check (2 minutes)
 

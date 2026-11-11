@@ -1,5 +1,29 @@
 # Decisions
 
+## 2026-11-11 — Dual restoration, divider memory, zoom and v2.3.0
+
+- The owner requested remembered chats between launches, then two
+  additional enhancements before merge and release. The additions
+  are a remembered per-profile split (reset with divider double-click
+  or Home) and independent zoom controls with remembered values.
+- dual-sessions.json is local-only, beside settings, never part of
+  settings exports or account bundles. It contains only each
+  profile's last Home/chat paths, split fraction and zoom factors.
+  Queries, fragments, sign-in pages, message text and unsent drafts
+  never enter it. Full successful loads and same-document route
+  changes update it; failed loads and authentication redirects do
+  not erase the last chat. A corrupt file is preserved aside and
+  defaults are used. Writes use AtomicFile.
+- Reopening Dual restores the pair; starting MuseDesktop does not
+  automatically open Dual. Minimum pane widths take precedence
+  over the remembered fraction on small windows. Query-only chat
+  identities and scroll positions are not restored. Closed drafts
+  remain the page's responsibility, not an app persistence promise.
+- Release v2.3.0 includes these changes, the initial Dual mode, and
+  previously unreleased improvements already on main. Release
+  packaging must run full tests and native Windows smoke checks
+  before publishing x64/ARM64 installers, portable zips and SHA256SUMS.
+
 ## 2026-11-10 — Dual mode is integrated, independent, and active-profile only
 
 - The owner chose a Dual mode inside MuseDesktop rather than a

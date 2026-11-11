@@ -148,8 +148,15 @@ refuses with an explanation so the normal download manager can
 handle them. The page's file picker remains available for uploads.
 
 Reopening Dual from the menu reactivates the existing window.
-Closing it (including app lock) closes both views; Dual does not
-save unsent text or restore its layout on reopening. This is
+After closing or restarting the app, opening Dual restores both
+remembered chats, your preferred split, and each pane's zoom.
+The minus/plus buttons change only that chat's zoom; its percentage
+button resets it to 100%. Double-click the divider, or focus it and
+press Home, to reset equal widths. These preferences belong to the
+active profile only.
+
+Closing Dual (including app lock) closes both views; it does not
+save unsent text, scroll positions, query strings or sign-in pages. This is
 different from **Compare mode**, which sends one prompt to both
 panes. Interactive Windows behavior still needs the release
 checklist pass.

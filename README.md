@@ -15,8 +15,9 @@ Muse has no Windows app, so this is one: a small native program that opens muse.
 - **Dual mode — two chats at once** — choose it from the ⋯ menu
   or Ctrl+K. Two independent chats share your active sign-in, with
   their own message boxes and navigation, a resizable divider,
-  and Open in main on either side. Compare mode remains separate.
-  Downloads use the main window; Dual does not restore unsent
+  and Open in main on either side. It remembers both chats, your
+  split widths and each pane's independent zoom between launches.
+  Compare mode remains separate. Downloads use the main window; Dual does not restore unsent
   text after closing. Interactive Windows validation is pending.
 - **A real app, not a tab** — its own window, taskbar icon, and Alt-Tab entry; no browser chrome competing for space.
 - **Stay signed in** — a dedicated WebView2 profile on your PC keeps your Muse session between launches, and the app reopens the last Muse page you were on.
@@ -73,6 +74,7 @@ Either way: the app is not code-signed yet, so Windows SmartScreen may warn on f
 | What | Where |
 | --- | --- |
 | Settings | `%APPDATA%\MuseDesktop\settings.json` |
+| Dual mode | `dual-sessions.json` beside settings — per-profile Home/chat paths, split widths and independent zoom; no queries or message text |
 | Download history | `%APPDATA%\MuseDesktop\downloads.json` (names, sizes, dates, paths, and completed/failed state of downloads — never their source URLs) |
 | Diagnostic log | `%APPDATA%\MuseDesktop\logs\musedesktop.log` (1 MB, single rollover; URLs are logged host-and-path only, never with query strings) |
 | Web profile (login session) | `%LOCALAPPDATA%\MuseDesktop\WebView2` for the default profile; extra profiles get sibling folders (`WebView2-<id>`) |

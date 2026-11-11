@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Automation;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
@@ -25,6 +26,7 @@ public partial class DualWindow : Window
         public required TextBlock Status { get; init; }
         public required Button Back { get; init; }
         public required Button Forward { get; init; }
+        public required Button ZoomReset { get; init; }
         public required string Name { get; init; }
         public WebView2? Browser;
         public CoreWebView2? Core => Browser?.CoreWebView2;
@@ -37,6 +39,8 @@ public partial class DualWindow : Window
     private readonly Func<string?, QuickAskContinueRefusal?> _openInMain;
     private readonly Pane _left;
     private readonly Pane _right;
+    private readonly DualSessions _sessions;
+    private readonly DualSession _session;
     private bool _closed;
 
     public DualWindow(AppSettings settings, DiagnosticLog log, string? currentUrl,
@@ -45,13 +49,23 @@ public partial class DualWindow : Window
         _settings = settings;
         _log = log;
         _profileId = settings.ActiveProfileId;
-        _urls = DualMode.InitialUrls(currentUrl);
+        _sessions = DualSessionStore.Load(AppPaths.DualSessionPath);
+        var saved = _sessions.Find(_profileId);
+        _urls = saved is null
+            ? DualMode.InitialUrls(currentUrl)
+            : ("https://muse.ai" + saved.LeftRoute, "https://muse.ai" + saved.RightRoute);
+        _session = _sessions.ForProfile(_profileId);
+        if (saved is null)
+            _session.LeftZoom = _session.RightZoom = Profiles.EffectiveZoom(
+                settings.Profiles.FirstOrDefault(p => p.Id == _profileId),
+                settings.ZoomFactor, settings.ExtendedZoomRange);
         _openInMain = openInMain;
         InitializeComponent();
         _left = new Pane { Host = LeftHost, Status = LeftStatus, Back = LeftBack,
-            Forward = LeftForward, Name = Strings.Get("dual.left") };
+            Forward = LeftForward, ZoomReset = LeftZoomReset, Name = Strings.Get("dual.left") };
         _right = new Pane { Host = RightHost, Status = RightStatus, Back = RightBack,
-            Forward = RightForward, Name = Strings.Get("dual.right") };
+            Forward = RightForward, ZoomReset = RightZoomReset, Name = Strings.Get("dual.right") };
+        ApplyDivider(_session.LeftFraction);
         Loaded += OnLoaded;
         Closed += OnClosed;
         PreviewKeyDown += OnPreviewKeyDown;
@@ -108,7 +122,14 @@ public partial class DualWindow : Window
             {
                 if (_closed) return;
                 pane.Status.Text = Strings.Get(e.IsSuccess ? "dual.ready" : "dual.failed");
+                if (e.IsSuccess) RememberChat(pane, core.Source);
                 UpdateNavigation(pane);
+            };
+            // Muse creates chat routes with history.pushState; those
+            // same-document changes need remembering as well as full loads.
+            core.SourceChanged += (_, e) =>
+            {
+                if (!_closed && !e.IsNewDocument) RememberChat(pane, core.Source);
             };
             core.HistoryChanged += (_, _) => UpdateNavigation(pane);
             core.NewWindowRequested += (_, e) =>
@@ -157,9 +178,8 @@ public partial class DualWindow : Window
             {
                 if (!_closed) pane.Status.Text = Strings.Get("dual.failed");
             };
-            browser.ZoomFactor = Profiles.EffectiveZoom(
-                _settings.Profiles.FirstOrDefault(p => p.Id == _profileId),
-                _settings.ZoomFactor, _settings.ExtendedZoomRange);
+            SetZoom(pane, ReferenceEquals(pane, _left) ? _session.LeftZoom : _session.RightZoom,
+                persist: false);
             core.Navigate(url);
         }
         catch (Exception ex)
@@ -200,6 +220,91 @@ public partial class DualWindow : Window
 
     private void OnNewChat(object sender, RoutedEventArgs e) =>
         PaneFor(sender).Core?.Navigate(UrlPolicy.HomeUrl);
+
+    private void RememberChat(Pane pane, string? url)
+    {
+        if (!_closed && _sessions.RememberChat(_profileId, ReferenceEquals(pane, _left), url))
+            SaveSession();
+    }
+
+    private void SaveSession()
+    {
+        try { DualSessionStore.Save(AppPaths.DualSessionPath, _sessions); }
+        catch (Exception ex)
+        {
+            _log.Warn($"Dual session save failed: {ex.GetType().Name}");
+            if (!_closed) _left.Status.Text = Strings.Get("dual.save_failed");
+        }
+    }
+
+    private void ApplyDivider(double fraction)
+    {
+        fraction = DualSession.CleanFraction(fraction);
+        PaneLayout.ColumnDefinitions[0].Width = new GridLength(fraction, GridUnitType.Star);
+        PaneLayout.ColumnDefinitions[2].Width = new GridLength(1 - fraction, GridUnitType.Star);
+    }
+
+    private void RememberDivider()
+    {
+        var left = PaneLayout.ColumnDefinitions[0].ActualWidth;
+        var right = PaneLayout.ColumnDefinitions[2].ActualWidth;
+        if (_closed || left + right <= 0) return;
+        _session.LeftFraction = DualSession.CleanFraction(left / (left + right));
+        SaveSession();
+    }
+
+    private void OnDividerChanged(object sender, DragCompletedEventArgs e) => RememberDivider();
+
+    private void OnDividerKeyUp(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Home)
+        {
+            ResetDivider();
+            e.Handled = true;
+        }
+        else if (e.Key is Key.Left or Key.Right)
+            RememberDivider();
+    }
+
+    private void OnResetDivider(object sender, MouseButtonEventArgs e)
+    {
+        ResetDivider();
+        e.Handled = true;
+    }
+
+    private void ResetDivider()
+    {
+        _session.LeftFraction = 0.5;
+        ApplyDivider(0.5);
+        SaveSession();
+    }
+
+    private void OnZoomIn(object sender, RoutedEventArgs e)
+    {
+        var pane = PaneFor(sender);
+        if (pane.Browser is { } browser)
+            SetZoom(pane, ZoomMath.StepUp(browser.ZoomFactor, _settings.ExtendedZoomRange));
+    }
+
+    private void OnZoomOut(object sender, RoutedEventArgs e)
+    {
+        var pane = PaneFor(sender);
+        if (pane.Browser is { } browser)
+            SetZoom(pane, ZoomMath.StepDown(browser.ZoomFactor, _settings.ExtendedZoomRange));
+    }
+
+    private void OnZoomReset(object sender, RoutedEventArgs e) => SetZoom(PaneFor(sender), 1);
+
+    private void SetZoom(Pane pane, double zoom, bool persist = true)
+    {
+        if (pane.Browser is not { } browser || pane.Core is null) return;
+        zoom = ZoomMath.Clamp(zoom, _settings.ExtendedZoomRange);
+        browser.ZoomFactor = zoom;
+        pane.ZoomReset.Content = ZoomMath.FormatPercent(zoom);
+        if (ReferenceEquals(pane, _left)) _session.LeftZoom = zoom;
+        else _session.RightZoom = zoom;
+        if (persist) SaveSession();
+    }
 
     private void OnOpenMain(object sender, RoutedEventArgs e)
     {

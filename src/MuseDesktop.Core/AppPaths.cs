@@ -57,6 +57,9 @@ public static class AppPaths
     /// <summary>The user's one-off session snapshot (R2 #114): profile + app route + placement per window — never full page URLs.</summary>
     public static string SessionSnapshotPath => Path.Combine(RootDir, "session-snapshot.json");
 
+    /// <summary>Local-only per-profile Dual chat routes, divider fraction and independent zoom.</summary>
+    public static string DualSessionPath => Path.Combine(RootDir, "dual-sessions.json");
+
     /// <summary>The session journal (R2 #117/#118): the running app's window list + clean-exit marker, the next launch's crash-restore evidence. Routes only.</summary>
     public static string SessionJournalPath => Path.Combine(RootDir, "session-journal.json");
 

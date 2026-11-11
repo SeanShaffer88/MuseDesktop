@@ -6,8 +6,12 @@ Honest list of what MuseDesktop does not do or has not proven yet. Kept current 
 
 - **Dual mode (2026-11-10): runtime-unverified.** Two independent
   WebView2 panes on the active profile; no per-pane profile picker,
-  shell drafts, follow-up chips, approval alerts, workspace/session
-  restoration, or persisted divider placement. Closing Dual (also
+  shell drafts, follow-up chips, approval alerts, or workspace
+  integration. Chat routes, divider fraction and separate zoom
+  are now restored from a local per-profile file. Only Home and
+  /chat paths restore: queries, fragments, external pages and
+  authentication callbacks are excluded. A conversation identified
+  only by a query parameter cannot be restored precisely. Closing Dual (also
   on app lock) disposes both views; unsent page text is not preserved
   by the shell. Use Open in main for downloads: Dual cancels them
   with an explanation rather than bypassing the main download

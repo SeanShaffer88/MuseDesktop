@@ -13,7 +13,7 @@
         </Grid.RowDefinitions>
         <TextBlock Grid.Row="0" Text="{local:Loc dual.hint}" TextWrapping="Wrap"
                    Margin="0,0,0,8" Foreground="{StaticResource MutedBrush}"/>
-        <Grid Grid.Row="1">
+        <Grid x:Name="PaneLayout" Grid.Row="1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" MinWidth="340"/>
                 <ColumnDefinition Width="10"/>
@@ -38,6 +38,12 @@
                             Margin="4,0" KeyboardNavigation.TabIndex="4"/>
                     <Button Content="{local:Loc dual.open_main}" Click="OnOpenMain" Tag="left"
                             Margin="4,0" KeyboardNavigation.TabIndex="5"/>
+                    <Button Content="−" Click="OnZoomOut" Tag="left" Margin="4,0"
+                            ToolTip="{local:Loc dual.zoom_out}" KeyboardNavigation.TabIndex="6"/>
+                    <Button Content="+" Click="OnZoomIn" Tag="left" Margin="4,0"
+                            ToolTip="{local:Loc dual.zoom_in}" KeyboardNavigation.TabIndex="7"/>
+                    <Button x:Name="LeftZoomReset" Content="100%" Click="OnZoomReset" Tag="left"
+                            ToolTip="{local:Loc dual.zoom_reset}" KeyboardNavigation.TabIndex="8"/>
                 </WrapPanel>
                 <Border Grid.Row="1" BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1">
                     <Grid x:Name="LeftHost"/>
@@ -48,7 +54,9 @@
             <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Center"
                           VerticalAlignment="Stretch" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"
                           Background="{StaticResource HairlineBrush}" Focusable="True"
-                          KeyboardNavigation.TabIndex="6" AutomationProperties.Name="{local:Loc dual.resize}"
+                          KeyboardNavigation.TabIndex="9" AutomationProperties.Name="{local:Loc dual.resize}"
+                          DragCompleted="OnDividerChanged" PreviewKeyUp="OnDividerKeyUp"
+                          MouseDoubleClick="OnResetDivider"
                           ToolTip="{local:Loc dual.resize}"/>
             <Grid Grid.Column="2">
                 <Grid.RowDefinitions>
@@ -60,15 +68,21 @@
                     <TextBlock Text="{local:Loc dual.right}" FontWeight="SemiBold"
                                VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <Button x:Name="RightBack" Content="&#x2190;" Click="OnBack" Tag="right"
-                            IsEnabled="False" ToolTip="{local:Loc back}" KeyboardNavigation.TabIndex="7"/>
+                            IsEnabled="False" ToolTip="{local:Loc back}" KeyboardNavigation.TabIndex="10"/>
                     <Button x:Name="RightForward" Content="&#x2192;" Click="OnForward" Tag="right"
-                            IsEnabled="False" ToolTip="{local:Loc forward}" KeyboardNavigation.TabIndex="8"/>
+                            IsEnabled="False" ToolTip="{local:Loc forward}" KeyboardNavigation.TabIndex="11"/>
                     <Button Content="{local:Loc reload}" Click="OnReload" Tag="right"
-                            Margin="4,0" KeyboardNavigation.TabIndex="9"/>
+                            Margin="4,0" KeyboardNavigation.TabIndex="12"/>
                     <Button Content="{local:Loc dual.new_chat}" Click="OnNewChat" Tag="right"
-                            Margin="4,0" KeyboardNavigation.TabIndex="10"/>
+                            Margin="4,0" KeyboardNavigation.TabIndex="13"/>
                     <Button Content="{local:Loc dual.open_main}" Click="OnOpenMain" Tag="right"
-                            Margin="4,0" KeyboardNavigation.TabIndex="11"/>
+                            Margin="4,0" KeyboardNavigation.TabIndex="14"/>
+                    <Button Content="−" Click="OnZoomOut" Tag="right" Margin="4,0"
+                            ToolTip="{local:Loc dual.zoom_out}" KeyboardNavigation.TabIndex="15"/>
+                    <Button Content="+" Click="OnZoomIn" Tag="right" Margin="4,0"
+                            ToolTip="{local:Loc dual.zoom_in}" KeyboardNavigation.TabIndex="16"/>
+                    <Button x:Name="RightZoomReset" Content="100%" Click="OnZoomReset" Tag="right"
+                            ToolTip="{local:Loc dual.zoom_reset}" KeyboardNavigation.TabIndex="17"/>
                 </WrapPanel>
                 <Border Grid.Row="1" BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1">
                     <Grid x:Name="RightHost"/>
