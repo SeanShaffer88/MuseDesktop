@@ -6,8 +6,15 @@ Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhanc
 
 ## [Unreleased]
 
+## [2.5.0] — 2026-11-11
+
 ### Added
 - Default-off, per-profile auto-accept for recognized one-time Approval cards in main tabs, Dual, Quick Ask, Compare and secondary windows. Explicit risk confirmation; excludes permanent permission choices, forms, ambiguous/hidden/covered cards and browser/Windows prompts. Rechecks native consent and unlocked desktop for every attempt; imports, profile copies and preference reset do not grant automation authority. No new dependencies. See `docs/AUTO_APPROVALS.md`.
+
+### Usage and verification
+- Enable under Settings → Profiles for the selected profile, confirm the consequential-action warning, then Apply/Save. All recognized one-time operation types are eligible, not a read-only allowlist. Already-dispatched actions cannot be undone by disabling the option.
+- The feature passed Windows CI: Release build with zero warnings/errors, all 1,725 Core tests, 48 source-derived approval DOM cases, existing Dual DOM fixtures, native Settings/prompt/main/Dual smoke, SBOM and x64 installer compilation. Release packaging reruns the full gates.
+- Partially verified: live signed-in Muse markup, manual assistive-technology use and secure-desktop transition timing remain unverified. Unknown cards stay manual; a click dispatch is not proof of server-side acceptance. Windows 11 x64 only; existing releases remain unchanged.
 
 ## [2.4.0] — 2026-11-11
 
