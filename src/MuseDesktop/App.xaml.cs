@@ -632,7 +632,13 @@ public partial class App : System.Windows.Application
             var ready = await window.WaitForWebViewReadyAsync(TimeSpan.FromSeconds(45));
             if (ready)
             {
-                Log.Info("SMOKE-TEST OK: window constructed and WebView2 initialized");
+                if (!await window.SmokeDualModeAsync(TimeSpan.FromSeconds(45)))
+                {
+                    Log.Error("SMOKE-TEST FAILED: Dual controls or WebView2 initialization");
+                    Shutdown(1);
+                    return;
+                }
+                Log.Info("SMOKE-TEST OK: main and Dual WebView2 initialized; live pane moves and native privacy cover checked");
                 window.Close();
                 Shutdown(0);
             }

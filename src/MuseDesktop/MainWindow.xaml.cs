@@ -220,6 +220,10 @@ public partial class MainWindow : Window
     // surface the user keeps beside the main window, not a dialog.
     private CompareWindow? _compareWindow;
     private DualWindow? _dualWindow;
+    private bool _dualRestoreChecked;
+    // Session-only signed URIs; never logged or persisted. The hidden retry
+    // view belongs to the main account and must not retry another account.
+    private readonly HashSet<string> _dualNonActiveDownloadUris = new(StringComparer.Ordinal);
 
     // Quick ask: one modeless corner card, reactivated on re-summon
     // while open; a fresh summon after it closed starts a fresh
@@ -1144,6 +1148,7 @@ public partial class MainWindow : Window
         ReevaluateSchedules();
         // S8 #72: safe mode skips the automatic update check.
         MaybeAutoCheckForUpdates();
+        MaybeRestoreDualWindow();
     }
 
     /// <summary>Started via --background: create the window, then park it in the tray.</summary>
@@ -1190,6 +1195,7 @@ public partial class MainWindow : Window
             _startupArrangementDeferred = false;
             RunStartupArrangement();
         }
+        MaybeRestoreDualWindow();
     }
 
     /// <summary>
@@ -1975,6 +1981,25 @@ public partial class MainWindow : Window
             e.Handled = true;
             return;
         }
+        HandleDownloadStarting(e, _settings.EffectiveDownloadsFolder(), allowQuietQueue: true);
+    }
+
+    private void OnDualDownloadStarting(string profileId, CoreWebView2DownloadStartingEventArgs e)
+    {
+        if (_isLocked || _dualWindow is null ||
+            _settings.Profiles.FirstOrDefault(p => p.Id == profileId && !p.Archived) is not { } profile)
+        { e.Cancel = true; e.Handled = true; return; }
+        if (profileId != _settings.ActiveProfileId)
+        {
+            try { _dualNonActiveDownloadUris.Add(e.DownloadOperation.Uri); }
+            catch { e.Cancel = true; e.Handled = true; return; }
+        }
+        var folder = string.IsNullOrWhiteSpace(profile.DownloadsFolder) ? _settings.DownloadsFolder : profile.DownloadsFolder;
+        HandleDownloadStarting(e, folder, allowQuietQueue: profileId == _settings.ActiveProfileId);
+    }
+
+    private void HandleDownloadStarting(CoreWebView2DownloadStartingEventArgs e, string? effectiveFolder, bool allowQuietQueue)
+    {
         // We report progress in the status bar, so suppress WebView2's own
         // download flyout and follow the operation ourselves. This handler
         // serves BOTH the main web view and the hidden retry view (S2 #15):
@@ -2000,7 +2025,7 @@ public partial class MainWindow : Window
             try { heldUri = e.DownloadOperation.Uri; }
             catch { /* an unreadable URI just means this one can't be held */ }
             e.Cancel = true;
-            if (!string.IsNullOrWhiteSpace(heldUri))
+            if (allowQuietQueue && !string.IsNullOrWhiteSpace(heldUri))
             {
                 _heldDownloads.Add((heldUri, suggestedName,
                     schedule.NextChance ?? DateTimeOffset.UtcNow.AddMinutes(5)));
@@ -2018,8 +2043,6 @@ public partial class MainWindow : Window
         // S2 #20: the effective folder is the active profile's override,
         // else the shared downloads folder, else WebView2's default (the
         // system Downloads folder — e.ResultFilePath already points there).
-        var effectiveFolder = _settings.EffectiveDownloadsFolder();
-
         if (_settings.AskWhereToSave)
         {
             // v0.2.0: ask where to save every download.
@@ -2189,6 +2212,8 @@ public partial class MainWindow : Window
     /// </summary>
     private async Task<bool> StartHiddenDownloadAsync(string uri, string fileName, string verb)
     {
+        if (_dualNonActiveDownloadUris.Contains(uri))
+        { SetStatus(Strings.Get("dual.download_retry")); return false; }
         if (!_webReady || Browser.CoreWebView2 is null)
         {
             SetStatus(Strings.Get("status.wait_for_muse_to_load_then_try_the"));
@@ -8677,6 +8702,8 @@ public partial class MainWindow : Window
             PresentLockWindow();
             return;
         }
+        if (_pendingProfileLockRecord is not null)
+        { PresentProfileLockWindow(); return; }
         if (_dualWindow is not null)
         {
             if (_dualWindow.WindowState == WindowState.Minimized)
@@ -8686,13 +8713,30 @@ public partial class MainWindow : Window
         }
         var window = new DualWindow(_settings, _log,
             _webReady ? Browser.Source?.ToString() : null,
-            ContinueQuickAskInMainWindow) { Owner = this };
+            ContinueQuickAskInMainWindow, OnDualDownloadStarting) { Owner = this };
         _dualWindow = window;
         window.Closed += (_, _) => _dualWindow = null;
         ThemeManager.ApplyTitleBar(window);
         ShellTextScaling.Apply(window, _settings.ShellFontScale);
         window.Show();
         window.Activate();
+    }
+
+    private void MaybeRestoreDualWindow()
+    {
+        if (_dualRestoreChecked || _isLocked || _pendingProfileLockRecord is not null ||
+            _safeMode || !_webReady || !IsVisible) return;
+        _dualRestoreChecked = true;
+        var session = DualSessionStore.Load(AppPaths.DualSessionPath).Find(_settings.ActiveProfileId);
+        if (session is { RestoreOnLaunch: true, WasOpen: true }) OpenDualMode();
+    }
+
+    internal async Task<bool> SmokeDualModeAsync(TimeSpan timeout)
+    {
+        OpenDualMode();
+        if (_dualWindow is not { } dual) return false;
+        try { return await dual.RunSmokeChecksAsync(timeout); }
+        finally { dual.Close(); }
     }
 
     /// <summary>

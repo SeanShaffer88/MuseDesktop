@@ -9,14 +9,14 @@ using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.Wpf;
 using MuseDesktop.Core;
 using Button = System.Windows.Controls.Button;
+using ComboBox = System.Windows.Controls.ComboBox;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 
 namespace MuseDesktop;
 
 /// <summary>
-/// Two live, independent pages on the active profile. Each page's own
-/// composer sends only to its own chat: no shared prompt, script, bridge,
-/// or conversation extraction. The owner closes this window on app lock.
+/// Two live, independent pages. Opt-in tools never submit a composer.
+/// The owner closes this window on app lock.
 /// </summary>
 public partial class DualWindow : Window
 {
@@ -27,7 +27,16 @@ public partial class DualWindow : Window
         public required Button Back { get; init; }
         public required Button Forward { get; init; }
         public required Button ZoomReset { get; init; }
-        public required string Name { get; init; }
+        public required string Name { get; set; }
+        public string ProfileId = Profiles.DefaultId;
+        public int Generation;
+        public bool Covered;
+        public bool Failed;
+        public bool PendingReply;
+        public readonly DualReplyTracker Replies = new();
+        public ComboBox? ProfilePicker;
+        public Window? Detached;
+        public Grid? DetachedHost;
         public WebView2? Browser;
         public CoreWebView2? Core => Browser?.CoreWebView2;
     }
@@ -37,14 +46,17 @@ public partial class DualWindow : Window
     private readonly string _profileId;
     private readonly (string Left, string Right) _urls;
     private readonly Func<string?, QuickAskContinueRefusal?> _openInMain;
+    private readonly Action<string, CoreWebView2DownloadStartingEventArgs> _download;
     private readonly Pane _left;
     private readonly Pane _right;
     private readonly DualSessions _sessions;
     private readonly DualSession _session;
     private bool _closed;
+    private readonly TaskCompletionSource<bool> _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public DualWindow(AppSettings settings, DiagnosticLog log, string? currentUrl,
-        Func<string?, QuickAskContinueRefusal?> openInMain)
+        Func<string?, QuickAskContinueRefusal?> openInMain,
+        Action<string, CoreWebView2DownloadStartingEventArgs> download)
     {
         _settings = settings;
         _log = log;
@@ -60,11 +72,13 @@ public partial class DualWindow : Window
                 settings.Profiles.FirstOrDefault(p => p.Id == _profileId),
                 settings.ZoomFactor, settings.ExtendedZoomRange);
         _openInMain = openInMain;
+        _download = download;
         InitializeComponent();
         _left = new Pane { Host = LeftHost, Status = LeftStatus, Back = LeftBack,
             Forward = LeftForward, ZoomReset = LeftZoomReset, Name = Strings.Get("dual.left") };
         _right = new Pane { Host = RightHost, Status = RightStatus, Back = RightBack,
             Forward = RightForward, ZoomReset = RightZoomReset, Name = Strings.Get("dual.right") };
+        InitializeWorkbench();
         ApplyDivider(_session.LeftFraction);
         Loaded += OnLoaded;
         Closed += OnClosed;
@@ -75,15 +89,15 @@ public partial class DualWindow : Window
     {
         try
         {
-            Directory.CreateDirectory(AppPaths.ProfileDir(_profileId));
-            var env = await CoreWebView2Environment.CreateAsync(null, AppPaths.ProfileDir(_profileId));
-            if (_closed) return;
-            await Task.WhenAll(StartPaneAsync(_left, env, _urls.Left),
-                StartPaneAsync(_right, env, _urls.Right));
+            await Task.WhenAll(StartProfileAsync(_left, _session.LeftProfileId ?? _profileId, _urls.Left),
+                StartProfileAsync(_right, _session.RightProfileId ?? _profileId, _urls.Right));
+            _ready.TrySetResult(!_closed && _left.Core is not null && _right.Core is not null &&
+                !_left.Failed && !_right.Failed);
             if (!_closed) _left.Browser?.Focus();
         }
         catch (Exception ex)
         {
+            _ready.TrySetResult(false);
             if (_closed) return;
             _left.Status.Text = _right.Status.Text = Strings.Get("dual.failed");
             // Exception messages may carry an address or a local path.
@@ -91,17 +105,18 @@ public partial class DualWindow : Window
         }
     }
 
-    private async Task StartPaneAsync(Pane pane, CoreWebView2Environment env, string url)
+    private async Task StartPaneAsync(Pane pane, CoreWebView2Environment env, string url, int generation)
     {
-        var browser = new WebView2 { DefaultBackgroundColor = ThemeManager.BrowserBackground };
+        var browser = new WebView2 { DefaultBackgroundColor = ThemeManager.BrowserBackground,
+            Visibility = pane.Covered ? Visibility.Hidden : Visibility.Visible };
         AutomationProperties.SetName(browser, pane.Name);
-        pane.Host.Children.Add(browser);
+        (pane.DetachedHost ?? pane.Host).Children.Add(browser);
         pane.Browser = browser;
         pane.Status.Text = Strings.Get("dual.loading");
         try
         {
             await browser.EnsureCoreWebView2Async(env);
-            if (_closed) return;
+            if (_closed || generation != pane.Generation || !ReferenceEquals(browser, pane.Browser)) return;
             var core = browser.CoreWebView2;
             core.Settings.AreDevToolsEnabled = false;
             core.Settings.IsStatusBarEnabled = false;
@@ -110,6 +125,7 @@ public partial class DualWindow : Window
             core.Settings.IsGeneralAutofillEnabled = _settings.GeneralAutofillEnabled;
             core.NavigationStarting += (_, e) =>
             {
+                if (_closed || generation != pane.Generation) { e.Cancel = true; return; }
                 if (UrlPolicy.ClassifyNavigation(e.Uri) == LinkDisposition.Block)
                 {
                     e.Cancel = true;
@@ -117,19 +133,26 @@ public partial class DualWindow : Window
                     return;
                 }
                 pane.Status.Text = Strings.Get("dual.loading");
+                pane.Replies.Reset();
+                pane.PendingReply = false;
             };
             core.NavigationCompleted += (_, e) =>
             {
-                if (_closed) return;
+                if (_closed || generation != pane.Generation) return;
                 pane.Status.Text = Strings.Get(e.IsSuccess ? "dual.ready" : "dual.failed");
                 if (e.IsSuccess) RememberChat(pane, core.Source);
                 UpdateNavigation(pane);
+                if (e.IsSuccess) _ = ApplyPageToolsAsync(pane);
             };
             // Muse creates chat routes with history.pushState; those
             // same-document changes need remembering as well as full loads.
             core.SourceChanged += (_, e) =>
             {
-                if (!_closed && !e.IsNewDocument) RememberChat(pane, core.Source);
+                if (!_closed && generation == pane.Generation && !e.IsNewDocument)
+                {
+                    RememberChat(pane, core.Source);
+                    _ = ApplyPageToolsAsync(pane);
+                }
             };
             core.HistoryChanged += (_, _) => UpdateNavigation(pane);
             core.NewWindowRequested += (_, e) =>
@@ -168,23 +191,26 @@ public partial class DualWindow : Window
             };
             core.DownloadStarting += (_, e) =>
             {
-                // Only main-window tabs participate in DownloadTracker.
-                // Refuse here rather than bypassing its collision/history rules.
-                e.Cancel = true;
-                e.Handled = true;
-                pane.Status.Text = Strings.Get("dual.download_main");
+                if (_closed || generation != pane.Generation || pane.Covered)
+                { e.Cancel = true; e.Handled = true; return; }
+                _download(pane.ProfileId, e);
+                pane.Status.Text = Strings.Get(e.Cancel ? "dual.download_cancelled" : "dual.download_tracking");
             };
             core.ProcessFailed += (_, _) =>
             {
-                if (!_closed) pane.Status.Text = Strings.Get("dual.failed");
+                if (!_closed && generation == pane.Generation)
+                { pane.Failed = true; pane.Status.Text = Strings.Get("dual.recover_hint"); }
             };
+            WirePaneTools(pane, browser, core, generation);
             SetZoom(pane, ReferenceEquals(pane, _left) ? _session.LeftZoom : _session.RightZoom,
                 persist: false);
             core.Navigate(url);
+            ApplyPrivacy(pane);
         }
         catch (Exception ex)
         {
-            if (!_closed) pane.Status.Text = Strings.Get("dual.failed");
+            if (!_closed && generation == pane.Generation)
+            { pane.Failed = true; pane.Status.Text = Strings.Get("dual.recover_hint"); }
             _log.Error($"Dual pane initialization failed: {ex.GetType().Name}");
         }
     }
@@ -214,8 +240,8 @@ public partial class DualWindow : Window
     private void OnReload(object sender, RoutedEventArgs e)
     {
         var pane = PaneFor(sender);
-        if (pane.Core is { } core) core.Reload();
-        else pane.Status.Text = Strings.Get("dual.failed");
+        if (pane.Failed || pane.Core is null) _ = RecoverPaneAsync(pane);
+        else pane.Core.Reload();
     }
 
     private void OnNewChat(object sender, RoutedEventArgs e) =>
@@ -239,15 +265,14 @@ public partial class DualWindow : Window
 
     private void ApplyDivider(double fraction)
     {
-        fraction = DualSession.CleanFraction(fraction);
-        PaneLayout.ColumnDefinitions[0].Width = new GridLength(fraction, GridUnitType.Star);
-        PaneLayout.ColumnDefinitions[2].Width = new GridLength(1 - fraction, GridUnitType.Star);
+        _session.LeftFraction = DualSession.CleanFraction(fraction);
+        ConfigureLayout();
     }
 
     private void RememberDivider()
     {
-        var left = PaneLayout.ColumnDefinitions[0].ActualWidth;
-        var right = PaneLayout.ColumnDefinitions[2].ActualWidth;
+        var left = _session.Vertical ? PaneLayout.RowDefinitions[0].ActualHeight : PaneLayout.ColumnDefinitions[0].ActualWidth;
+        var right = _session.Vertical ? PaneLayout.RowDefinitions[2].ActualHeight : PaneLayout.ColumnDefinitions[2].ActualWidth;
         if (_closed || left + right <= 0) return;
         _session.LeftFraction = DualSession.CleanFraction(left / (left + right));
         SaveSession();
@@ -262,7 +287,7 @@ public partial class DualWindow : Window
             ResetDivider();
             e.Handled = true;
         }
-        else if (e.Key is Key.Left or Key.Right)
+        else if (e.Key is Key.Left or Key.Right or Key.Up or Key.Down)
             RememberDivider();
     }
 
@@ -310,12 +335,15 @@ public partial class DualWindow : Window
     {
         var pane = PaneFor(sender);
         if (pane.Core is null) return;
+        if (pane.ProfileId != _settings.ActiveProfileId)
+        { Announce(pane, "dual.main_profile"); return; }
         if (_openInMain(QuickAsk.ContinueTarget(pane.Core.Source)) is { } refusal)
             pane.Status.Text = Strings.Get(QuickAsk.ContinueRefusalStatusKey(refusal));
     }
 
     private void OnPreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (HandleWorkbenchKey(e)) return;
         if (e.Key != Key.F6) return;
         e.Handled = true;
         FocusOtherPane(_right.Host.IsKeyboardFocusWithin ? _right : _left);
@@ -323,18 +351,20 @@ public partial class DualWindow : Window
 
     private void FocusOtherPane(Pane current)
     {
-        if (!_closed) (ReferenceEquals(current, _left) ? _right : _left).Browser?.Focus();
+        if (!_closed) FocusPane(ReferenceEquals(current, _left) ? _right : _left);
     }
 
     private void OnClosed(object? sender, EventArgs e)
     {
         _closed = true;
+        _ready.TrySetResult(false);
+        CloseWorkbench();
         foreach (var pane in new[] { _left, _right })
         {
             var browser = pane.Browser;
             pane.Browser = null;
             if (browser is null) continue;
-            pane.Host.Children.Remove(browser);
+            (pane.DetachedHost ?? pane.Host).Children.Remove(browser);
             try { browser.Dispose(); } catch { /* already disposed */ }
         }
     }

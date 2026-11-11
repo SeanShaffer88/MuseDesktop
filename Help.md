@@ -143,9 +143,9 @@ Each side has its own Back, Forward, Reload, and New chat controls.
 Drag the divider to adjust the widths; focus the divider and use
 the arrow keys for keyboard resizing. F6 requests focus on the
 other pane. **Open in main** brings that page to the main window
-without closing either pane; use this for downloads, which Dual
-refuses with an explanation so the normal download manager can
-handle them. The page's file picker remains available for uploads.
+without closing either pane, provided its profile matches the main
+window. Dual downloads now use the same safe download manager
+directly. The page's file picker remains available for uploads.
 
 Reopening Dual from the menu reactivates the existing window.
 After closing or restarting the app, opening Dual restores both
@@ -160,6 +160,46 @@ save unsent text, scroll positions, query strings or sign-in pages. This is
 different from **Compare mode**, which sends one prompt to both
 panes. Interactive Windows behavior still needs the release
 checklist pass.
+
+### Dual workbench controls
+
+- **Swap** moves the live views without reloading or losing drafts.
+  **Stack / side by side** changes orientation. **Expand** temporarily
+  shows just the active chat. **Detach** moves its live view into an
+  owned window; closing that window returns it to Dual.
+- Choose either pane's **profile** independently. Locked profiles
+  require their PIN before creating a web view. Replacing a live
+  page asks for confirmation because unsent text may be lost.
+- **Save pair** names the current routes and profiles (up to 20 pairs).
+  **Open pair** restores them; **Delete pair** removes only that preset.
+- **Transfer selected text** reviews the selection and destination
+  profile before appending to the other composer. Nothing is sent.
+  It works only on trusted Muse Home/chat pages with one recognizable
+  visible composer; an unsupported page leaves the other draft alone.
+- **Shared scratchpad** is explicitly written local plaintext, not
+  encrypted, not exported and not a copy of either chat's draft.
+- **Find in both panes** highlights matches and reports separate
+  counts. Next/Previous target the active pane.
+- **Sync scrolling** is opt-in, proportional, not paragraph matching.
+  Scrollable Muse containers must be recognizable; it does not save
+  scroll position. **Watch reply completion** recognizes a streaming
+  stop-control appearing then disappearing, not every site's state.
+- The active pane has a system-highlight border, named web content
+  and polite status announcements. F6 switches panes. Ctrl+Alt+1/2
+  focus the first/second pane; Ctrl+Alt+R reloads, Ctrl+Alt+N opens a
+  new chat, Ctrl+Alt+P covers, Ctrl+Alt+Enter expands, and Ctrl+K
+  opens commands for the active pane.
+- **Cover** actually hides the native web view, including in a
+  detached window; **Reveal** brings it back. It is a screen-sharing
+  convenience, not a password lock. App lock closes all content.
+- **Recover pane** rebuilds only that view. A shared browser-process
+  failure can still affect both views. **Reopen Dual at launch** is
+  opt-in; it restores the last open state, normal size and clamped
+  monitor position, after startup locks. Safe mode skips auto-open.
+- Downloads honor destination, collisions, duplicate detection and
+  quiet hours. For another profile, retry in the original Dual pane;
+  hidden retries and quiet-hours queuing must not use the main
+  profile's credentials for a different account.
 
 ## Focus mode, timers, reading list & notes
 

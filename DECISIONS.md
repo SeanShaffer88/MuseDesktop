@@ -1,5 +1,31 @@
 # Decisions
 
+## 2026-11-11 — Owner approved all twenty Dual workbench additions
+
+- This supersedes the initial active-profile-only/no-script scope and
+  opt-out startup behavior described in earlier entries. The owner
+  explicitly requested all twenty proposed features before publication.
+  The complete mapping lives in docs/DUAL_WORKBENCH.md.
+- Swap, expand and detach move live views, never navigate them. Profile
+  changes and pair loads are explicit replacements with confirmation;
+  per-profile PINs and persistent in-process throttles gate environments.
+- Optional page tools inspect only trusted Muse routes, recheck origin
+  inside the document, never submit, and never log or persist selection,
+  search, streaming status or scroll messages. Cross-profile text transfer
+  has a review dialog and appends rather than replacing the draft.
+- Only explicit scratchpad notes are persisted as plaintext, in the
+  local Dual state, not settings exports/account bundles. Named pairs
+  are capped at 20, safe routes and configured profile IDs only.
+- Downloads share the main manager's existing policies; another
+  profile's signed URLs cannot enter the main-account hidden retry
+  engine or quiet-hours queue. Retrying in the original pane is explicit.
+- Covers hide the native HWND rather than drawing a WPF overlay over
+  it. They are not authentication. App lock closes owned detached views.
+  Startup restore is opt-in, lock-gated and monitor-clamped.
+- Automated gates do not prove the twenty interactive Windows flows.
+  UIA labels/live regions, keyboard focus and High Contrast improvements
+  are implemented; a retail Narrator/mixed-DPI pass remains unverified.
+
 ## 2026-11-11 — Windows 11 x64 only, by owner direction
 
 - The owner dropped ARM64 support and requires only Windows 11

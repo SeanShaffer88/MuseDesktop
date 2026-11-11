@@ -9,24 +9,31 @@
     <Grid Margin="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <TextBlock Grid.Row="0" Text="{local:Loc dual.hint}" TextWrapping="Wrap"
                    Margin="0,0,0,8" Foreground="{StaticResource MutedBrush}"/>
-        <Grid x:Name="PaneLayout" Grid.Row="1">
+        <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto" MaxHeight="150" Margin="0,0,0,8">
+            <StackPanel x:Name="WorkbenchHost"/>
+        </ScrollViewer>
+        <Grid x:Name="PaneLayout" Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" MinWidth="340"/>
                 <ColumnDefinition Width="10"/>
                 <ColumnDefinition Width="*" MinWidth="340"/>
             </Grid.ColumnDefinitions>
-            <Grid Grid.Column="0">
+            <Grid x:Name="LeftPane" Grid.Column="0">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
-                <WrapPanel Orientation="Horizontal" Margin="0,0,0,6">
-                    <TextBlock Text="{local:Loc dual.left}" FontWeight="SemiBold"
+                <WrapPanel x:Name="LeftToolbar" Orientation="Horizontal" Margin="0,0,0,6">
+                    <TextBlock x:Name="LeftTitle" Text="{local:Loc dual.left}" FontWeight="SemiBold"
+                               MaxWidth="270" TextTrimming="CharacterEllipsis"
                                VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <Button x:Name="LeftBack" Content="&#x2190;" Click="OnBack" Tag="left"
                             IsEnabled="False" ToolTip="{local:Loc back}" KeyboardNavigation.TabIndex="1"/>
@@ -45,27 +52,28 @@
                     <Button x:Name="LeftZoomReset" Content="100%" Click="OnZoomReset" Tag="left"
                             ToolTip="{local:Loc dual.zoom_reset}" KeyboardNavigation.TabIndex="8"/>
                 </WrapPanel>
-                <Border Grid.Row="1" BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1">
+                <Border x:Name="LeftFrame" Grid.Row="1" BorderBrush="{StaticResource HairlineBrush}" BorderThickness="2">
                     <Grid x:Name="LeftHost"/>
                 </Border>
                 <TextBlock x:Name="LeftStatus" Grid.Row="2" Margin="0,5,0,0" TextWrapping="Wrap"
                            Foreground="{StaticResource MutedBrush}" AutomationProperties.LiveSetting="Polite"/>
             </Grid>
-            <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Center"
+            <GridSplitter x:Name="Divider" Grid.Column="1" Width="6" HorizontalAlignment="Center"
                           VerticalAlignment="Stretch" ResizeDirection="Columns" ResizeBehavior="PreviousAndNext"
                           Background="{StaticResource HairlineBrush}" Focusable="True"
                           KeyboardNavigation.TabIndex="9" AutomationProperties.Name="{local:Loc dual.resize}"
                           DragCompleted="OnDividerChanged" PreviewKeyUp="OnDividerKeyUp"
                           MouseDoubleClick="OnResetDivider"
                           ToolTip="{local:Loc dual.resize}"/>
-            <Grid Grid.Column="2">
+            <Grid x:Name="RightPane" Grid.Column="2">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
-                <WrapPanel Orientation="Horizontal" Margin="0,0,0,6">
-                    <TextBlock Text="{local:Loc dual.right}" FontWeight="SemiBold"
+                <WrapPanel x:Name="RightToolbar" Orientation="Horizontal" Margin="0,0,0,6">
+                    <TextBlock x:Name="RightTitle" Text="{local:Loc dual.right}" FontWeight="SemiBold"
+                               MaxWidth="270" TextTrimming="CharacterEllipsis"
                                VerticalAlignment="Center" Margin="0,0,8,0"/>
                     <Button x:Name="RightBack" Content="&#x2190;" Click="OnBack" Tag="right"
                             IsEnabled="False" ToolTip="{local:Loc back}" KeyboardNavigation.TabIndex="10"/>
@@ -84,12 +92,20 @@
                     <Button x:Name="RightZoomReset" Content="100%" Click="OnZoomReset" Tag="right"
                             ToolTip="{local:Loc dual.zoom_reset}" KeyboardNavigation.TabIndex="17"/>
                 </WrapPanel>
-                <Border Grid.Row="1" BorderBrush="{StaticResource HairlineBrush}" BorderThickness="1">
+                <Border x:Name="RightFrame" Grid.Row="1" BorderBrush="{StaticResource HairlineBrush}" BorderThickness="2">
                     <Grid x:Name="RightHost"/>
                 </Border>
                 <TextBlock x:Name="RightStatus" Grid.Row="2" Margin="0,5,0,0" TextWrapping="Wrap"
                            Foreground="{StaticResource MutedBrush}" AutomationProperties.LiveSetting="Polite"/>
             </Grid>
         </Grid>
+        <Expander Grid.Row="3" Header="{local:Loc dual.notes}" Margin="0,8,0,0"
+                  ToolTip="{local:Loc dual.notes_hint}">
+            <TextBox x:Name="Scratchpad" Height="110" AcceptsReturn="True" TextWrapping="Wrap"
+                     KeyboardNavigation.TabIndex="18"
+                     MaxLength="32000" VerticalScrollBarVisibility="Auto"
+                     AutomationProperties.Name="{local:Loc dual.notes}"
+                     TextChanged="OnScratchpadChanged"/>
+        </Expander>
     </Grid>
 </Window>

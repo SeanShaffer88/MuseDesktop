@@ -11,22 +11,27 @@ historical evidence, not current support promises.
 
 ## Verification status
 
-- **Dual mode (2026-11-10): runtime-unverified.** Two independent
-  WebView2 panes on the active profile; no per-pane profile picker,
-  shell drafts, follow-up chips, approval alerts, or workspace
-  integration. Chat routes, divider fraction and separate zoom
-  are now restored from a local per-profile file. Only Home and
-  /chat paths restore: queries, fragments, external pages and
-  authentication callbacks are excluded. A conversation identified
-  only by a query parameter cannot be restored precisely. Closing Dual (also
-  on app lock) disposes both views; unsent page text is not preserved
-  by the shell. Use Open in main for downloads: Dual cancels them
-  with an explanation rather than bypassing the main download
-  manager. Windows verification must cover independent replies,
-  simultaneous loading, sign-in sharing, splitter/mixed-DPI layout,
-  keyboard focus including F6 from the page, link routing, app lock,
-  close during startup, and failed-load recovery. Automated gate
-  results for this change are recorded in its pull request.
+- **Dual workbench: interactive Windows behavior unverified.**
+  All twenty requested additions are implemented; automated/source
+  tests are not a claim of a live Muse or retail Windows 11 pass.
+  See `docs/DUAL_WORKBENCH.md` and the release checklist. Profile
+  PINs gate new environments, but are privacy screens, not encryption.
+  Saved pairs store safe Home/chat routes, not query-only identities,
+  external pages, OAuth callbacks, page titles, drafts or transcripts.
+  Scratchpad notes are explicitly written local plaintext, not encrypted.
+  Selection transfer appends only after review to one recognizable
+  composer; it never sends. Optional reply indicators require a known
+  streaming stop control. Scroll sync is proportional and best effort,
+  not semantic alignment; both features depend on the current Muse DOM.
+  Native find requires a sufficiently recent WebView2 Runtime.
+  Swapping/detaching preserves live drafts; closing, replacing or
+  rebuilding a view does not. Shared browser-process failure may affect
+  both panes. Privacy covers hide native content but are not a lock.
+  Other-profile downloads use the shared manager, but hidden retries
+  and quiet-hours queuing are refused for them to avoid wrong-account
+  requests; retry from the original pane. Detached windows return
+  when closed, not across app launches. Startup restoration is opt-in,
+  clamped to connected monitors, and skips safe mode/locked startup.
 
 - **PR #20 repair and main integration (2026-10-29):** Windows x64 Release build and all 1,264 integrated Core tests passed locally; self-contained x64 and arm64 publishing passed, and the x64 startup/WebView2 smoke test passed. Native arm64 runtime behavior still requires its CI runner or an arm64 machine, including the optional NotifyKit toast channel inherited from main. These checks do not verify the new tabs/recovery UI end-to-end.
 

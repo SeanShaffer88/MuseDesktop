@@ -13,6 +13,8 @@ This map helps keep feature work tied to both automated evidence and the real-Wi
 | Profiles and data management | `S3Tests.cs`, `R3Tests.cs` | Profile identity, data facts, import/export, schedules, archive/restore |
 | Workspaces and sessions | `R2Tests.cs` | Apply plans, restore decisions, workspace contracts, bounded/sanitized snapshot and journal tab routes, active-tab indexes, and legacy fallbacks |
 | Dual mode and remembered reading preferences | `DualModeTests.cs`, `DualSessionTests.cs` | Separate pane hosts/composers, lock-gated entry, safe per-profile chat paths, query/fragment exclusion, atomic/corrupt-file recovery, split and independent zoom bounds |
+| Twenty Dual workbench additions | `DualWorkbenchTests.cs` | Pair/profile sanitization, local state migration/bounds, reply transitions, transfer escaping/no-send contract, scroll bounds, pane ownership and safety source contracts; interactive procedures in `DUAL_WORKBENCH.md` |
+| Optional Dual page-tool execution | `scripts/test-dual-tools.mjs` | Source-derived scripts executed against controlled DOM fixtures: append without send, ambiguous/read-only refusal, bounded selection, streaming detection and scroll-loop suppression; not a live Muse proof |
 | Windows 11 x64 support | `WindowsSupportTests.cs` | Minimum build 22000, native x64 OS/process, rejection of Windows 10 and ARM64 emulation |
 | Accessibility and XAML labels | `S6Tests.cs` | Declared-control labels, high-DPI math, keyboard/focus policy, long-list virtualization |
 | Reliability and diagnostics | `S8Tests.cs`, `S10Tests.cs` | Recovery decisions, native unresponsive-renderer prompt policy, versioned local-data backup validation, support-bundle privacy/limits, diagnostic report composition |

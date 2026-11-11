@@ -17,8 +17,9 @@ Run before publishing any release. Current support is Windows 11 x64 only; older
   hiding buttons. Tab order, screen-reader labels/statuses, and
   F6 switching from both chrome and page focus work.
 - [ ] Open in main hands off either conversation without closing
-  Dual. Downloads in Dual show the explanation and create no file;
-  retrying from main uses the existing manager.
+  Dual when its profile matches main. Dual downloads use the existing
+  destination/collision/duplicate manager. Other-profile hidden retries
+  and quiet-hours queuing are refused, not run with main credentials.
 - [ ] Dangerous links and certificate failures are refused;
   external new-window links open in the default browser. Password
   saving stays off; microphone/notifications are Muse-only.
@@ -37,6 +38,32 @@ Run before publishing any release. Current support is Windows 11 x64 only; older
   do not replace saved routes; same-document newly created chats
   are remembered. Confirm no query/fragment/message text enters
   dual-sessions.json. Corrupt that file and verify graceful fallback.
+
+### Twenty-addition workbench pass — not yet run on retail Windows 11
+
+Use `docs/DUAL_WORKBENCH.md` for the feature-to-check mapping.
+
+- [ ] Swap, stack, expand and detach while each pane contains different
+  unsent text; text survives live moves. Close detached window to return.
+- [ ] Choose different profiles; cancel a PIN and verify no environment
+  opens. Wrong PIN attempts remain throttled across reopening Dual.
+- [ ] Save/open/delete named pairs; verify profile isolation, cap,
+  duplicate-name confirmation and graceful handling of missing profiles.
+- [ ] Headers follow page titles and active focus; keyboard-only pane
+  commands, Narrator announcements and High Contrast remain usable.
+- [ ] Right-click a safe link to open in the other pane; dangerous schemes
+  are rejected. Review selected text before transferring across profiles;
+  existing draft remains, no submit occurs, unsupported editors fail safely.
+- [ ] Explicit scratchpad notes persist locally; no chat draft, search,
+  selection, page title, query or OAuth token is automatically persisted.
+- [ ] Optional completion badge fires once after a recognized stream;
+  no idle false notification. Find reports separate counts; optional
+  scroll sync does not loop, scroll editors or run on authentication pages.
+- [ ] Cover either embedded or detached view; native content and its title
+  disappear. Recover only a failed pane; close safely during initialization.
+- [ ] Opt into auto-open, exit with Dual open, relaunch and verify size,
+  position and profiles after locks. Unplug a monitor; verify reachable
+  position. Manual Dual close, default settings and safe mode do not auto-open.
 
 ## v1.8.1 hotfix — on-machine check (2 minutes)
 
