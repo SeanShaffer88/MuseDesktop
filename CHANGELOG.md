@@ -8,6 +8,15 @@ Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhanc
 
 ### Added
 
+- **Dual mode — two independent chats.** Open it from the ⋯ menu
+  or Ctrl+K → Dual mode. The current Muse page opens on the left;
+  the right starts at Home, on the same active profile. Each pane
+  has its own page composer, Back/Forward, Reload, New chat, and
+  Open in main controls, with a resizable divider. There is no
+  shared prompt or automatic send; Compare mode stays separate.
+  Downloads use the main window; Dual explains that rather than
+  bypassing the download manager's safety rules.
+
 - **Screenshot choices.** "Screenshot to conversation…" is now a
   small menu: the original drag-a-rectangle over any screen, a
   region drag on one named screen, or a whole screen in one

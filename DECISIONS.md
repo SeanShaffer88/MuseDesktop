@@ -1,5 +1,33 @@
 # Decisions
 
+## 2026-11-10 — Dual mode is integrated, independent, and active-profile only
+
+- The owner chose a Dual mode inside MuseDesktop rather than a
+  separate MuseDesktopDual app. It opens one reusable modeless
+  window from the ⋯ menu or command palette. Compare mode remains
+  unchanged: its broadcast composer is a different workflow.
+- Two WebView2 controls share the active profile's sign-in but
+  have independent navigation and page-owned composers. The left
+  starts at the current Muse URL (never an external page or an
+  authentication callback); the right starts at Home. Nothing is
+  copied to a composer or sent by the shell. No scripts, page
+  bridges, answer extraction, or persisted dual-session URLs.
+- The divider is adjustable with mouse or keyboard. F6 requests
+  focus on the other pane; delivery from web content remains a
+  Windows/WebView2 runtime check. Both panes dispose on close,
+  including when the existing app-lock flow closes content windows.
+- Navigation/new-window routing uses UrlPolicy. Password saving
+  stays disabled, certificate failures cancel, and permissions use
+  the existing Muse-only microphone/notifications allow rule.
+- Downloads are deliberately refused in Dual with a visible
+  explanation. Open in main hands off the current page without
+  closing Dual, so downloads keep the main manager's collision,
+  tracking and history safeguards. Full main-window integrations
+  and Dual session restoration are outside this initial slice.
+- Verification is recorded in KNOWN_LIMITATIONS.md. Cross-target
+  compilation and Core/source guards do not prove interactive
+  Windows behavior.
+
 ## 2026-11-01 — Token-usage ring removed (owner direction)
 
 - **SEAN directed the removal:** the ring "doesn't work" and he

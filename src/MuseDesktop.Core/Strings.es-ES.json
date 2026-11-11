@@ -1811,5 +1811,20 @@
   "status.unpinned_conversation": "Desfijada — {0}",
   "ui.no_pins_yet": "Aún no hay conversaciones fijadas",
   "unpin": "Desfijar",
-  "unpin_conversation": "Desfijar esta conversación"
+  "unpin_conversation": "Desfijar esta conversación",
+  "dual.menu": "Modo dual — dos chats…",
+  "dual.title": "MuseDesktop — Modo dual",
+  "dual.hint": "Dos chats independientes en tu perfil activo. Cada chat tiene su propio cuadro de mensaje. Arrastra el separador para ajustar el tamaño; F6 cambia de panel.",
+  "dual.left": "Chat izquierdo",
+  "dual.right": "Chat derecho",
+  "dual.new_chat": "Nuevo chat",
+  "dual.open_main": "Abrir en principal",
+  "dual.resize": "Ajustar los paneles de chat",
+  "dual.loading": "Cargando…",
+  "dual.ready": "Listo — responde en el cuadro de mensaje de este chat",
+  "dual.failed": "No se pudo cargar este chat. Prueba Recargar o cierra y vuelve a abrir el modo dual si el motor web se ha detenido.",
+  "dual.blocked": "Esta dirección se ha bloqueado por tu seguridad.",
+  "dual.browser_failed": "No se pudo abrir el enlace en tu navegador predeterminado.",
+  "dual.certificate": "La conexión tiene un problema de certificado. Se ha bloqueado la página.",
+  "dual.download_main": "Las descargas están disponibles en la ventana principal. Elige Abrir en principal y descarga el archivo allí."
 }

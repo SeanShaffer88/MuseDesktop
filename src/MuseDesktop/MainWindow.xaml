@@ -141,55 +141,57 @@
                                           ToolTip="{local:Loc read_the_last_answer_aloud_tooltip}" KeyboardNavigation.TabIndex="47"/>
                                 <MenuItem Header="{local:Loc context_packs}" Click="OnContextPacks"
                                           ToolTip="{local:Loc context_pack.window_tooltip}" KeyboardNavigation.TabIndex="48"/>
+                                <MenuItem Header="{local:Loc dual.menu}" Click="OnDualMode"
+                                          ToolTip="{local:Loc dual.hint}" KeyboardNavigation.TabIndex="49"/>
                                 <MenuItem Header="{local:Loc compare_mode}" Click="OnCompareMode"
-                                          ToolTip="{local:Loc compare_mode_tooltip}" KeyboardNavigation.TabIndex="49"/>
+                                          ToolTip="{local:Loc compare_mode_tooltip}" KeyboardNavigation.TabIndex="50"/>
                                 <MenuItem x:Name="QuickAskItem" Header="{local:Loc quick_ask}" Click="OnQuickAsk"
-                                          ToolTip="{local:Loc quickask_tooltip}" KeyboardNavigation.TabIndex="50"/>
+                                          ToolTip="{local:Loc quickask_tooltip}" KeyboardNavigation.TabIndex="51"/>
                                 <MenuItem x:Name="QuickAttachItem" Header="{local:Loc ui.quick_attach_strip}" IsCheckable="True" Click="OnToggleQuickAttachStrip"
-                                          ToolTip="{local:Loc ui.quick_attach_strip_tooltip}" KeyboardNavigation.TabIndex="51"/>
-                                <MenuItem Header="{local:Loc copy_page_address}" Click="OnCopyPageAddress" KeyboardNavigation.TabIndex="52"/>
-                                <MenuItem Header="{local:Loc open_in_browser}" Click="OnOpenInBrowser" KeyboardNavigation.TabIndex="53"/>
+                                          ToolTip="{local:Loc ui.quick_attach_strip_tooltip}" KeyboardNavigation.TabIndex="52"/>
+                                <MenuItem Header="{local:Loc copy_page_address}" Click="OnCopyPageAddress" KeyboardNavigation.TabIndex="53"/>
+                                <MenuItem Header="{local:Loc open_in_browser}" Click="OnOpenInBrowser" KeyboardNavigation.TabIndex="54"/>
                                 <MenuItem Header="{local:Loc open_in_new_window}" Click="OnOpenInNewWindow"
-                                          ToolTip="{local:Loc open_the_current_page_in_a_second_window_on}" KeyboardNavigation.TabIndex="54"/>
+                                          ToolTip="{local:Loc open_the_current_page_in_a_second_window_on}" KeyboardNavigation.TabIndex="55"/>
                                 <Separator/>
                                 <MenuItem x:Name="PinItem" Header="{local:Loc always_on_top}" IsCheckable="True" Click="OnTogglePin"
-                                          ToolTip="{local:Loc keep_musedesktop_above_other_windows}" KeyboardNavigation.TabIndex="55"/>
+                                          ToolTip="{local:Loc keep_musedesktop_above_other_windows}" KeyboardNavigation.TabIndex="56"/>
                                 <MenuItem x:Name="FocusItem" Header="{local:Loc focus_mode}" IsCheckable="True" Click="OnToggleFocusMode"
-                                          InputGestureText="F8" ToolTip="{local:Loc hide_the_toolbar_and_status_bar_f8_or_esc}" KeyboardNavigation.TabIndex="56"/>
+                                          InputGestureText="F8" ToolTip="{local:Loc hide_the_toolbar_and_status_bar_f8_or_esc}" KeyboardNavigation.TabIndex="57"/>
                                 <MenuItem x:Name="StandardLayoutItem" Header="{local:Loc standard_layout}" IsCheckable="True" Click="OnSelectStandardLayout"
-                                          ToolTip="{local:Loc standard_layout_tooltip}" KeyboardNavigation.TabIndex="57"/>
+                                          ToolTip="{local:Loc standard_layout_tooltip}" KeyboardNavigation.TabIndex="58"/>
                                 <MenuItem x:Name="CompactFocusItem" Header="{local:Loc compact_focus_layout}" IsCheckable="True" Click="OnToggleCompactFocusLayout"
-                                          ToolTip="{local:Loc slim_toolbar_status_pill_instead_of_the_status_bar}" KeyboardNavigation.TabIndex="58"/>
+                                          ToolTip="{local:Loc slim_toolbar_status_pill_instead_of_the_status_bar}" KeyboardNavigation.TabIndex="59"/>
                                 <MenuItem x:Name="LeftRailLayoutItem" Header="{local:Loc left_rail_layout}" IsCheckable="True" Click="OnSelectLeftRailLayout"
-                                          ToolTip="{local:Loc left_rail_layout_tooltip}" KeyboardNavigation.TabIndex="59"/>
+                                          ToolTip="{local:Loc left_rail_layout_tooltip}" KeyboardNavigation.TabIndex="60"/>
                                 <MenuItem Header="{local:Loc mini_mode}" Click="OnToggleMiniMode"
-                                          ToolTip="{local:Loc shrink_to_a_small_always_on_top_strip}" KeyboardNavigation.TabIndex="60"/>
+                                          ToolTip="{local:Loc shrink_to_a_small_always_on_top_strip}" KeyboardNavigation.TabIndex="61"/>
                                 <MenuItem Header="{local:Loc window_opacity}" StaysOpenOnClick="True"
-                                          ToolTip="{local:Loc how_see_through_this_window_is_it_cannot_go}" KeyboardNavigation.TabIndex="61">
+                                          ToolTip="{local:Loc how_see_through_this_window_is_it_cannot_go}" KeyboardNavigation.TabIndex="62">
                                     <StackPanel Orientation="Horizontal" Margin="4,2">
                                         <Slider x:Name="OpacitySlider" Width="110" Minimum="60" Maximum="100" Value="100"
-                                                ValueChanged="OnOpacityChanged" ToolTip="{local:Loc window_opacity}" AutomationProperties.Name="{local:Loc window_opacity}" KeyboardNavigation.TabIndex="62"/>
+                                                ValueChanged="OnOpacityChanged" ToolTip="{local:Loc window_opacity}" AutomationProperties.Name="{local:Loc window_opacity}" KeyboardNavigation.TabIndex="63"/>
                                         <TextBlock x:Name="OpacityLabel" Text="100%" Width="38" Margin="8,0,0,0" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </MenuItem>
-                                <MenuItem Header="{local:Loc restore_last_closed_page}" Click="OnRestoreClosedPage" InputGestureText="Ctrl+Shift+T" KeyboardNavigation.TabIndex="63"/>
+                                <MenuItem Header="{local:Loc restore_last_closed_page}" Click="OnRestoreClosedPage" InputGestureText="Ctrl+Shift+T" KeyboardNavigation.TabIndex="64"/>
                                 <Separator/>
                                 <MenuItem Header="{local:Loc connection_security}" Click="OnConnectionSecurity"
-                                          ToolTip="{local:Loc the_current_site_s_connection_address}" KeyboardNavigation.TabIndex="64"/>
+                                          ToolTip="{local:Loc the_current_site_s_connection_address}" KeyboardNavigation.TabIndex="65"/>
                                 <MenuItem x:Name="LockNowItem" Header="{local:Loc lock_now}" Click="OnLockNow" Visibility="Collapsed"
-                                          ToolTip="{local:Loc lock_musedesktop_with_your_app_password}" KeyboardNavigation.TabIndex="65"/>
+                                          ToolTip="{local:Loc lock_musedesktop_with_your_app_password}" KeyboardNavigation.TabIndex="66"/>
                                 <MenuItem Header="{local:Loc view_log}" Click="OnViewLog"
-                                          ToolTip="{local:Loc read_the_diagnostic_log_in_the_app_with_its}" KeyboardNavigation.TabIndex="66"/>
-                                <MenuItem Header="{local:Loc open_log_folder}" Click="OnOpenLogFolder" KeyboardNavigation.TabIndex="67"/>
+                                          ToolTip="{local:Loc read_the_diagnostic_log_in_the_app_with_its}" KeyboardNavigation.TabIndex="67"/>
+                                <MenuItem Header="{local:Loc open_log_folder}" Click="OnOpenLogFolder" KeyboardNavigation.TabIndex="68"/>
                                 <MenuItem Header="{local:Loc diagnostics_2}" Click="OnDiagnostics"
-                                          ToolTip="{local:Loc versions_runtime_health_proxy_memory}" KeyboardNavigation.TabIndex="68"/>
+                                          ToolTip="{local:Loc versions_runtime_health_proxy_memory}" KeyboardNavigation.TabIndex="69"/>
                                 <MenuItem Header="{local:Loc field_pass_2}" Click="OnFieldPass"
-                                          ToolTip="{local:Loc fieldpass.menu_tooltip}" KeyboardNavigation.TabIndex="69"/>
+                                          ToolTip="{local:Loc fieldpass.menu_tooltip}" KeyboardNavigation.TabIndex="70"/>
                                 <MenuItem Header="{local:Loc help_troubleshooting_2}" Click="OnHelp"
-                                          ToolTip="{local:Loc offline_pages_for_the_common_problems_sign}" KeyboardNavigation.TabIndex="70"/>
+                                          ToolTip="{local:Loc offline_pages_for_the_common_problems_sign}" KeyboardNavigation.TabIndex="71"/>
                                 <MenuItem Header="{local:Loc export_support_bundle}" Click="OnExportSupportBundle"
-                                          ToolTip="{local:Loc one_zip_with_the_diagnostics_report_the}" KeyboardNavigation.TabIndex="71"/>
-                                <MenuItem Header="{local:Loc about_musedesktop}" Click="OnAbout" KeyboardNavigation.TabIndex="72"/>
+                                          ToolTip="{local:Loc one_zip_with_the_diagnostics_report_the}" KeyboardNavigation.TabIndex="72"/>
+                                <MenuItem Header="{local:Loc about_musedesktop}" Click="OnAbout" KeyboardNavigation.TabIndex="73"/>
                             </ContextMenu>
                         </Button.ContextMenu>
                     </Button>
@@ -208,7 +210,7 @@
                     <Button x:Name="BookmarksButton" Style="{StaticResource BarButton}" Content="&#x1F516;"
                             Width="34" Height="34" Click="OnBookmarks"
                             ToolTip="{local:Loc bookmarks_messages_you_marked_in}"
-                            AutomationProperties.Name="{local:Loc bookmarks}" KeyboardNavigation.TabIndex="73"/>
+                            AutomationProperties.Name="{local:Loc bookmarks}" KeyboardNavigation.TabIndex="74"/>
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0">
@@ -240,28 +242,28 @@
                     <Button x:Name="RailBackButton" Style="{StaticResource BarButton}" Content="&#x2190;" Width="40" Height="40"
                             ToolTip="{local:Loc back_alt_left_right_click_for_history}" Click="OnBack" AutomationProperties.Name="{local:Loc back}"
                             PreviewMouseRightButtonUp="OnBackHistoryMenu"
-                            PreviewMouseLeftButtonDown="OnNavButtonPress" PreviewMouseLeftButtonUp="OnNavButtonRelease" KeyboardNavigation.TabIndex="74"/>
+                            PreviewMouseLeftButtonDown="OnNavButtonPress" PreviewMouseLeftButtonUp="OnNavButtonRelease" KeyboardNavigation.TabIndex="75"/>
                     <Button x:Name="RailForwardButton" Style="{StaticResource BarButton}" Content="&#x2192;" Width="40" Height="40"
                             ToolTip="{local:Loc forward_alt_right_right_click_for_history}" Click="OnForward" AutomationProperties.Name="{local:Loc forward}"
                             PreviewMouseRightButtonUp="OnForwardHistoryMenu"
-                            PreviewMouseLeftButtonDown="OnNavButtonPress" PreviewMouseLeftButtonUp="OnNavButtonRelease" KeyboardNavigation.TabIndex="75"/>
+                            PreviewMouseLeftButtonDown="OnNavButtonPress" PreviewMouseLeftButtonUp="OnNavButtonRelease" KeyboardNavigation.TabIndex="76"/>
                     <Button x:Name="RailReloadButton" Style="{StaticResource BarButton}" Content="&#x27F3;" Width="40" Height="40"
-                            ToolTip="{local:Loc reload_ctrl_r_f5}" Click="OnReload" AutomationProperties.Name="{local:Loc reload}" KeyboardNavigation.TabIndex="76"/>
+                            ToolTip="{local:Loc reload_ctrl_r_f5}" Click="OnReload" AutomationProperties.Name="{local:Loc reload}" KeyboardNavigation.TabIndex="77"/>
                     <Button x:Name="RailHomeButton" Style="{StaticResource BarButton}" Content="&#x2302;" Width="40" Height="40"
-                            ToolTip="{local:Loc muse_home}" Click="OnHome" AutomationProperties.Name="{local:Loc home}" KeyboardNavigation.TabIndex="77"/>
+                            ToolTip="{local:Loc muse_home}" Click="OnHome" AutomationProperties.Name="{local:Loc home}" KeyboardNavigation.TabIndex="78"/>
                     <Border Width="28" Height="1" Background="{StaticResource HairlineBrush}" Margin="0,6"/>
                     <Button x:Name="RailDownloadsButton" Style="{StaticResource BarButton}" Content="&#x2193;" Width="40" Height="40"
-                            ToolTip="{local:Loc files_muse_has_downloaded_for_you_newest}" Click="OnDownloads" AutomationProperties.Name="{local:Loc downloads_2}" KeyboardNavigation.TabIndex="78"/>
+                            ToolTip="{local:Loc files_muse_has_downloaded_for_you_newest}" Click="OnDownloads" AutomationProperties.Name="{local:Loc downloads_2}" KeyboardNavigation.TabIndex="79"/>
                     <Button x:Name="RailPinButton" Style="{StaticResource BarButton}" Content="&#x1F4CC;" Width="40" Height="40"
-                            ToolTip="{local:Loc keep_this_window_on_top}" Click="OnTogglePin" AutomationProperties.Name="{local:Loc always_on_top}" KeyboardNavigation.TabIndex="79"/>
+                            ToolTip="{local:Loc keep_this_window_on_top}" Click="OnTogglePin" AutomationProperties.Name="{local:Loc always_on_top}" KeyboardNavigation.TabIndex="80"/>
                     <Button x:Name="RailBrowserButton" Style="{StaticResource BarButton}" Content="&#x2197;" Width="40" Height="40"
-                            ToolTip="{local:Loc open_this_page_in_your_default_browser}" Click="OnOpenInBrowser" AutomationProperties.Name="{local:Loc open_in_browser}" KeyboardNavigation.TabIndex="80"/>
+                            ToolTip="{local:Loc open_this_page_in_your_default_browser}" Click="OnOpenInBrowser" AutomationProperties.Name="{local:Loc open_in_browser}" KeyboardNavigation.TabIndex="81"/>
                 </StackPanel>
                 <StackPanel DockPanel.Dock="Bottom" Orientation="Vertical" HorizontalAlignment="Center">
                     <Button x:Name="RailSettingsButton" Style="{StaticResource BarButton}" Content="&#x2699;" Width="40" Height="40"
-                            ToolTip="{local:Loc startup_downloads_updates_memory_and_data}" Click="OnSettings" AutomationProperties.Name="{local:Loc settings}" KeyboardNavigation.TabIndex="81"/>
+                            ToolTip="{local:Loc startup_downloads_updates_memory_and_data}" Click="OnSettings" AutomationProperties.Name="{local:Loc settings}" KeyboardNavigation.TabIndex="82"/>
                     <Button x:Name="RailMenuButton" Style="{StaticResource BarButton}" Content="&#x22EF;" Width="40" Height="40"
-                            ToolTip="{local:Loc more_options}" Click="OnRailMenu" AutomationProperties.Name="{local:Loc more_options}" KeyboardNavigation.TabIndex="82"/>
+                            ToolTip="{local:Loc more_options}" Click="OnRailMenu" AutomationProperties.Name="{local:Loc more_options}" KeyboardNavigation.TabIndex="83"/>
                 </StackPanel>
             </DockPanel>
         </Border>
@@ -272,7 +274,7 @@
             <DockPanel LastChildFill="True" Margin="6,2">
                 <Button x:Name="NewTabButton" DockPanel.Dock="Right" Content="+" Width="30" Margin="4,0,0,0"
                         Style="{StaticResource BarButton}" ToolTip="{local:Loc pr20.new_tab_ctrl_t}" Click="OnNewTab"
-                        AutomationProperties.Name="{local:Loc pr20.new_tab}" KeyboardNavigation.TabIndex="83"/>
+                        AutomationProperties.Name="{local:Loc pr20.new_tab}" KeyboardNavigation.TabIndex="84"/>
                 <TextBlock x:Name="PageActivityText" DockPanel.Dock="Right" Width="190" Margin="8,0"
                            VerticalAlignment="Center" TextAlignment="Right" TextTrimming="CharacterEllipsis" FontSize="11"
                            Foreground="{StaticResource MutedBrush}" AutomationProperties.Name="{local:Loc pr20.page_activity}"
@@ -292,15 +294,15 @@
                          Background="{StaticResource BgBrush}" Foreground="{StaticResource TextBrush}"
                          BorderBrush="{StaticResource HairlineBrush}"
                          KeyDown="OnFindTextKeyDown" TextChanged="OnFindTextChanged"
-                         AutomationProperties.Name="{local:Loc find_in_page_2}" KeyboardNavigation.TabIndex="84"/>
+                         AutomationProperties.Name="{local:Loc find_in_page_2}" KeyboardNavigation.TabIndex="85"/>
                 <TextBlock x:Name="FindCountText" Text="" Margin="8,0" VerticalAlignment="Center"
                            Foreground="{StaticResource MutedBrush}" FontSize="12"/>
                 <Button Style="{StaticResource BarButton}" Content="&#x2191;" Width="28"
-                        ToolTip="{local:Loc previous_match_shift_enter}" Click="OnFindPrevious" AutomationProperties.Name="{local:Loc previous_match}" KeyboardNavigation.TabIndex="85"/>
+                        ToolTip="{local:Loc previous_match_shift_enter}" Click="OnFindPrevious" AutomationProperties.Name="{local:Loc previous_match}" KeyboardNavigation.TabIndex="86"/>
                 <Button Style="{StaticResource BarButton}" Content="&#x2193;" Width="28"
-                        ToolTip="{local:Loc next_match_enter}" Click="OnFindNext" AutomationProperties.Name="{local:Loc next_match}" KeyboardNavigation.TabIndex="86"/>
+                        ToolTip="{local:Loc next_match_enter}" Click="OnFindNext" AutomationProperties.Name="{local:Loc next_match}" KeyboardNavigation.TabIndex="87"/>
                 <Button Style="{StaticResource BarButton}" Content="&#x2715;" Width="28"
-                        ToolTip="{local:Loc close_find_esc}" Click="OnFindClose" AutomationProperties.Name="{local:Loc close_find}" KeyboardNavigation.TabIndex="87"/>
+                        ToolTip="{local:Loc close_find_esc}" Click="OnFindClose" AutomationProperties.Name="{local:Loc close_find}" KeyboardNavigation.TabIndex="88"/>
             </StackPanel>
         </Border>
 
@@ -347,9 +349,9 @@
                                TextWrapping="Wrap"
                                Text="{local:Loc the_page_hasn_t_answered_musedesktop_s_last}"/>
                     <Button Content="{local:Loc reload_the_page}" Margin="12,0,0,0" Padding="10,4" Click="OnWatchdogReload"
-                            ToolTip="{local:Loc reload_now_chat_drafts_and_scroll_position}" KeyboardNavigation.TabIndex="88"/>
+                            ToolTip="{local:Loc reload_now_chat_drafts_and_scroll_position}" KeyboardNavigation.TabIndex="89"/>
                     <Button Content="{local:Loc wait}" Margin="8,0,0,0" Padding="10,4" Click="OnWatchdogWait"
-                            ToolTip="{local:Loc leave_the_page_exactly_as_it_is_don_t_check}" KeyboardNavigation.TabIndex="89"/>
+                            ToolTip="{local:Loc leave_the_page_exactly_as_it_is_don_t_check}" KeyboardNavigation.TabIndex="90"/>
                 </StackPanel>
             </Border>
             <Border x:Name="Overlay" Background="{StaticResource BgBrush}" Visibility="Visible">
@@ -360,7 +362,7 @@
                                Foreground="{StaticResource MutedBrush}" TextAlignment="Center" TextWrapping="Wrap"/>
                     <Button x:Name="OverlayButton" Content="{local:Loc retry}" Width="110" Height="32" Margin="0,18,0,0"
                             Visibility="Collapsed" Click="OnReload" HorizontalAlignment="Center"
-                            Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0" KeyboardNavigation.TabIndex="90"/>
+                            Background="{StaticResource AccentFillBrush}" Foreground="{StaticResource AccentTextBrush}" BorderThickness="0" KeyboardNavigation.TabIndex="91"/>
                 </StackPanel>
             </Border>
         </Grid>
@@ -385,11 +387,11 @@
                 <Button x:Name="QuickAttachCloseButton" DockPanel.Dock="Right" Content="&#x2715;" Width="24" Height="22"
                         Margin="6,0,0,0" Style="{StaticResource BarButton}" Click="OnQuickAttachClose"
                         ToolTip="{local:Loc ui.quick_attach_close_tooltip}"
-                        AutomationProperties.Name="{local:Loc ui.quick_attach_close_tooltip}" KeyboardNavigation.TabIndex="91"/>
+                        AutomationProperties.Name="{local:Loc ui.quick_attach_close_tooltip}" KeyboardNavigation.TabIndex="92"/>
                 <Button x:Name="QuickAttachAddButton" DockPanel.Dock="Right" Content="{local:Loc ui.quick_attach_add_files}" Height="22"
                         Padding="8,0" Margin="6,0,0,0" Style="{StaticResource BarButton}" Click="OnQuickAttachAddFiles"
                         ToolTip="{local:Loc ui.quick_attach_add_files_tooltip}"
-                        AutomationProperties.Name="{local:Loc ui.quick_attach_add_files}" KeyboardNavigation.TabIndex="92"/>
+                        AutomationProperties.Name="{local:Loc ui.quick_attach_add_files}" KeyboardNavigation.TabIndex="93"/>
                 <TextBlock DockPanel.Dock="Left" Text="{local:Loc ui.quick_attach}" FontSize="11"
                            Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" Margin="0,0,8,0"/>
                 <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled"
@@ -406,7 +408,7 @@
                 <Button x:Name="CancelDownloadButton" DockPanel.Dock="Right" Content="&#x2715;" Width="22" Height="18"
                         Visibility="Collapsed" ToolTip="{local:Loc cancel_the_most_recent_download_downloads}" Click="OnCancelDownload"
                         Background="Transparent" Foreground="{StaticResource MutedBrush}" BorderThickness="0"
-                        AutomationProperties.Name="{local:Loc cancel_download}" KeyboardNavigation.TabIndex="93"/>
+                        AutomationProperties.Name="{local:Loc cancel_download}" KeyboardNavigation.TabIndex="94"/>
                 <!-- Live regions (S6 #54): zero-width, invisible, not
                      hit-testable — present in the UIA tree only, so
                      screen readers speak download/update events. -->
@@ -431,11 +433,11 @@
                     <Button x:Name="TidyDraftButton" Content="{local:Loc ui.tidy_it}" Height="18"
                             Padding="8,0" Margin="8,0,0,0" FontSize="11" Click="OnTidyDraft"
                             ToolTip="{local:Loc ui.tidy_it_tooltip}"
-                            AutomationProperties.Name="{local:Loc ui.tidy_it}" KeyboardNavigation.TabIndex="94"/>
+                            AutomationProperties.Name="{local:Loc ui.tidy_it}" KeyboardNavigation.TabIndex="95"/>
                     <Button x:Name="LeaveDraftButton" Content="{local:Loc ui.leave_it}" Height="18"
                             Padding="8,0" Margin="6,0,0,0" FontSize="11" Click="OnLeaveDraft"
                             ToolTip="{local:Loc ui.leave_it_tooltip}"
-                            AutomationProperties.Name="{local:Loc ui.leave_it}" KeyboardNavigation.TabIndex="95"/>
+                            AutomationProperties.Name="{local:Loc ui.leave_it}" KeyboardNavigation.TabIndex="96"/>
                 </StackPanel>
                 <!-- The read-aloud controls (v2.1.0) lived here
                      until M5: they moved OUT of the status bar into
