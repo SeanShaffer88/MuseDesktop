@@ -1,5 +1,11 @@
 # Decisions
 
+## 2026-11-11 — Release the cross-program improvements as v2.4.0
+
+- The user authorized merging PR 57, tagging and releasing. Its final head passed Windows CI with all 1,706 tests before merge.
+- Use a new minor version for the added preferences, search and prompt features alongside reliability/security fixes. Match both project versions, CHANGELOG and shipped What's New notes before creating the immutable tag.
+- Keep v2.3.0 untouched. Run the existing Windows x64 release gates, publish exactly installer/portable/checksums, and independently verify downloaded hashes and portable commit/RID/PE metadata.
+
 ## 2026-11-11 — Cross-program pass after the Dual release
 
 - Chose twenty improvements from actual Core/shell behavior rather than repeating the existing Dual workbench features. The numbered rationale, areas and evidence are in `CROSS_PROGRAM_ENHANCEMENTS.md`.

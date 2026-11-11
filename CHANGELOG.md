@@ -6,9 +6,36 @@ Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhanc
 
 ## [Unreleased]
 
-### Cross-program improvement pass
-- Twenty focused improvements covering navigation/permissions, private URL logging, encrypted-backup safety, release/checksum parsing, cancellable bounded attachment discovery, attachment preferences, shortcut aliases, clock recovery, localized transfer numbers and long ETAs, resizable bounded prompts, dispatcher-safe announcements, dialog focus, accent-insensitive search, short hex accents and correct read-aloud fences.
-- Added regression coverage and native Windows smoke checks for attachment settings and prompt limits. See `CROSS_PROGRAM_ENHANCEMENTS.md` for the numbered changes and rationale. No dependency or supported-platform changes; this is separate from the immutable v2.3.0 release.
+## [2.4.0] — 2026-11-11
+
+### Twenty cross-program improvements
+
+1. Reject credential-bearing navigation URLs and unsafe blob origins.
+2. Require the exact Muse HTTPS origin for automatic permissions.
+3. Keep opaque URL payloads and local file paths out of diagnostic logs.
+4. Limit encrypted export plaintext to 32 MiB and clear temporary key/plain-byte buffers; preserve escaped Base64 compatibility.
+5. Skip malformed release records and drafts without losing valid updates.
+6. Refuse conflicting duplicate checksum entries.
+7. Discover recent attachments off-thread with cancellation and lock/close guards.
+8. Retain only the newest requested attachment files during scanning.
+9. Accept friendly shortcut names, digits and plus-key notation.
+10. Recover scheduled update checks after backward clock corrections.
+11. Reset stale download-speed baselines after clock or byte-counter changes.
+12. Correct locale-specific byte formatting and invalid/overflowing speeds.
+13. Show localized hours and days for long download estimates.
+14. Add resizable text prompts, character counts/limits and Ctrl+Enter saving.
+15. Marshal announcements safely to the UI thread and tolerate shutdown races.
+16. Restore dialog focus reliably, including exception paths.
+17. Search pins, history and downloads without typing accents; include download notes.
+18. Choose 4/8/12 recent attachment files and optionally exclude Screenshots.
+19. Accept CSS #RGB accent shorthand while preserving contrast enforcement.
+20. Keep nested or mismatched Markdown code fences silent during read-aloud.
+
+### Verification and compatibility
+
+- Added 37 regression cases and expanded native Settings/prompt smoke checks. The enhancement pass passed all 1,706 tests and Windows CI; every release reruns the full suite and native startup checks.
+- Windows 11 x64 only. No new dependencies or package-version changes beyond the app/Core release version. Full keyboard-only/Narrator, high-contrast and mixed-DPI desktop verification remains manual.
+- See CROSS_PROGRAM_ENHANCEMENTS.md for the architecture, file map, rationale and verification limits. The previously published v2.3.0 tag and assets remain unchanged.
 
 ## [2.3.0] — 2026-11-11
 
