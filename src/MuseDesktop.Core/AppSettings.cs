@@ -859,6 +859,8 @@ public static class SettingsStore
                 return false;
             }
             settings = parsed.Sanitized();
+            // Imports must never silently grant unattended approval authority.
+            foreach (var profile in settings.Profiles) profile.AutoAcceptApprovalCards = false;
             return true;
         }
         catch (Exception)

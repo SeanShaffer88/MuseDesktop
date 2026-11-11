@@ -1547,6 +1547,7 @@ public partial class MainWindow : Window
         }
 
         var core = browser.CoreWebView2;
+        ApprovalAutoAcceptController.Attach(this, browser, _settings.ActiveProfileId);
 #if DEBUG
         core.Settings.AreDevToolsEnabled = true;
 #else
@@ -4489,7 +4490,7 @@ public partial class MainWindow : Window
         }
         try
         {
-            var window = new SecondaryWindow(Browser.CoreWebView2.Environment, _log, src) { Owner = this };
+            var window = new SecondaryWindow(Browser.CoreWebView2.Environment, _log, src, _settings.ActiveProfileId) { Owner = this };
             TrackSecondaryWindow(window);
             window.Show();
         }
@@ -5127,6 +5128,13 @@ public partial class MainWindow : Window
     };
 
     /// <summary>Feed the page everything the profile asks for (R5B #201/#205 style, then the route's saved draft for #204) — called on the bridge's ready handshake, when the document the handshake came from is the one on screen.</summary>
+    internal bool CanAutoAcceptApprovals(string profileId) =>
+        !_isLocked && _pendingProfileLockRecord is null &&
+        _settings.Profiles.Any(p => p.Id == profileId && p.AutoAcceptApprovalCards);
+
+    internal void RecordAutoApprovalAttempt() =>
+        _log.Info("Dispatched a one-time Approval-card click; server-side acceptance is not inferred.");
+
     private async Task PushPageStateAsync()
     {
         await ApplyPageStyleAsync();
@@ -8123,7 +8131,7 @@ public partial class MainWindow : Window
             return;
         try
         {
-            var window = new SecondaryWindow(Browser.CoreWebView2.Environment, _log, AppRoute.ToUrl(entry.Route))
+            var window = new SecondaryWindow(Browser.CoreWebView2.Environment, _log, AppRoute.ToUrl(entry.Route), _settings.ActiveProfileId)
                 { Owner = this };
             if (entry.Placement is { } placement)
                 ApplyPlacementTo(window, placement);

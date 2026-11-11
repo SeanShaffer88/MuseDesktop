@@ -6,6 +6,9 @@ Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhanc
 
 ## [Unreleased]
 
+### Added
+- Default-off, per-profile auto-accept for recognized one-time Approval cards in main tabs, Dual, Quick Ask, Compare and secondary windows. Explicit risk confirmation; excludes permanent permission choices, forms, ambiguous/hidden/covered cards and browser/Windows prompts. Rechecks native consent and unlocked desktop for every attempt; imports, profile copies and preference reset do not grant automation authority. No new dependencies. See `docs/AUTO_APPROVALS.md`.
+
 ## [2.4.0] — 2026-11-11
 
 ### Twenty cross-program improvements

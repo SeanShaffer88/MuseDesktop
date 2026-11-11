@@ -660,6 +660,8 @@ public partial class App : System.Windows.Application
     {
         var working = Settings.Clone();
         working.SettingsLastSection = SettingsSearch.ProfilesId;
+        var approvalProfile = working.Profiles.First(p => p.Id == working.ActiveProfileId);
+        approvalProfile.AutoAcceptApprovalCards = true; // Working copy only; never apply during smoke.
         var settings = new SettingsWindow(working, Log, null, (_, _) => { }) { Owner = owner };
         Exception? failure = null;
         Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ContextIdle, new Action(() =>
@@ -674,6 +676,16 @@ public partial class App : System.Windows.Application
                 host.Children.OfType<System.Windows.Controls.ComboBox>().Single().SelectedItem = 4;
                 if (working.QuickAttachIncludeScreenshots || working.QuickAttachMaxFiles != 4)
                     throw new InvalidOperationException("Attachment preferences did not update the working settings.");
+                var approvalHost = (System.Windows.Controls.StackPanel)settings.FindName("AutoApprovalOptionsHost");
+                var approval = approvalHost.Children.OfType<System.Windows.Controls.CheckBox>().Single();
+                if (!approval.IsVisible || approval.IsChecked != true ||
+                    string.IsNullOrWhiteSpace(System.Windows.Automation.AutomationProperties.GetName(approval)) ||
+                    string.IsNullOrWhiteSpace(System.Windows.Automation.AutomationProperties.GetHelpText(approval)))
+                    throw new InvalidOperationException("Approval opt-in binding or accessible description failed.");
+                approval.IsChecked = false;
+                approval.RaiseEvent(new RoutedEventArgs(System.Windows.Controls.Primitives.ButtonBase.ClickEvent));
+                if (approvalProfile.AutoAcceptApprovalCards)
+                    throw new InvalidOperationException("Disabling approval automation did not update the working profile.");
             }
             catch (Exception ex) { failure = ex; }
             finally { settings.Close(); }

@@ -1,5 +1,13 @@
 # Decisions
 
+## 2026-11-11 — Explicit per-profile one-time approval automation
+
+- The user chose all one-time Approval-card types, rather than an operation allowlist. Add a separate opt-in action module; keep the existing attention watcher observe-only. Default off, explicit warning with No selected, local save/restart persistence, no authority inherited by imports/copies/reset.
+- A native two-second poll authorizes each invocation from live preferences, app/profile lock state, visible view and exact Muse HTTPS Home/chat origin. Query the Windows input desktop, failing closed on inaccessible or non-Default desktops (lock/UAC included); no autonomous page timer.
+- Require a recognizable approval container, one unambiguous single-use action and a rejection alternative, stable for 1.5 seconds. Never click Always allow; generic Allow needs a separate permanent alternative. Skip forms, quoted content, multiple candidates, disabled/invisible/covered/off-screen actions. Duplicate suppression precedes dispatch; no retry of a still-present DOM action or matching recent card after rerender.
+- No card text, requests, commands, URLs or fingerprints cross into native logs/storage. A fixed `clicked` result means dispatch only, not proof the service accepted it. Already-dispatched actions cannot be undone by switching off.
+- Main, Dual, Quick Ask, Compare and secondary chat windows share the guarded controller. Mic test is excluded. Preserve Windows 11 x64-only scope and existing versioned releases; this is an Unreleased change.
+
 ## 2026-11-11 — Release the cross-program improvements as v2.4.0
 
 - The user authorized merging PR 57, tagging and releasing. Its final head passed Windows CI with all 1,706 tests before merge.

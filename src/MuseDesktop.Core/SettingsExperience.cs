@@ -49,7 +49,7 @@ public static class SettingsSearch
         new SettingsSectionInfo(TrayId, "Tray & notifications",
             "tray icon single click double click reopen flash taskbar attention quiet hours do not disturb notifications balloon silent night"),
         new SettingsSectionInfo(ProfilesId, "Account profiles",
-            "profile account sign-in rename accent color dot switch remove add copy settings start page home custom url zoom downloads folder data size last used shortcut desktop storage cap limit cache cleanup avatar glyph icon pin lock password schedule automatic time clone duplicate health cookies backup export import bundle group folder template usage launches archive hide restore quick attach attachments clipboard screenshots recent files count adjuntos capturas recientes límite"),
+            "profile account sign-in rename accent color dot switch remove add copy settings start page home custom url zoom downloads folder data size last used shortcut desktop storage cap limit cache cleanup avatar glyph icon pin lock password schedule automatic time clone duplicate health cookies backup export import bundle group folder template usage launches archive hide restore quick attach attachments clipboard screenshots recent files count adjuntos capturas recientes límite auto-accept approval approvals one-time unattended aprobar aprobación"),
         new SettingsSectionInfo(WorkspacesId, "Workspaces & sessions",
             "workspace workspaces session sessions layout windows arrangement save apply startup launch auto-save restore snapshot crash glyph icon accent duplicate rename delete"),
         new SettingsSectionInfo(AppearanceId, "Appearance & toolbar",
@@ -196,6 +196,7 @@ public static class SettingsReset
         target.ApprovalBeepEnabled = fresh.ApprovalBeepEnabled;
         // R8 field: the approval toast returns to on, with the beep.
         target.ApprovalToastEnabled = fresh.ApprovalToastEnabled;
+        foreach (var profile in target.Profiles) profile.AutoAcceptApprovalCards = false;
         // S7 fields (v0.11.0): the autofill pair return to the
         // current defaults — since R7F (v1.8.8) both are OFF:
         // password autosave is never on at all (Sanitized forces it
