@@ -1,5 +1,11 @@
 # Decisions
 
+## 2026-11-11 — Release optional one-time approval automation as v2.5.0
+
+- The user authorized merging PR 59, tagging and releasing after final-head Windows CI passed all 1,725 tests, DOM fixtures, native smoke and installer validation. PR 59 merged at 9fa5a04fa9297c68560e7ba7f239f9e4111e85d6.
+- Use a new minor version for this default-off feature. Match app/Core versions and CHANGELOG/What's New, validate the release metadata in Windows CI, then create a new immutable v2.5.0 tag at the metadata merge commit.
+- Keep prior tags/releases untouched. Preserve the consequential-action warning and honest live-provider/assistive-technology/secure-desktop verification limits in public notes; no new functionality or dependencies in release preparation.
+
 ## 2026-11-11 — Explicit per-profile one-time approval automation
 
 - The user chose all one-time Approval-card types, rather than an operation allowlist. Add a separate opt-in action module; keep the existing attention watcher observe-only. Default off, explicit warning with No selected, local save/restart persistence, no authority inherited by imports/copies/reset.
