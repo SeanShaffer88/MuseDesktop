@@ -1,5 +1,12 @@
 # Decisions
 
+## 2026-11-11 — Cross-program pass after the Dual release
+
+- Chose twenty improvements from actual Core/shell behavior rather than repeating the existing Dual workbench features. The numbered rationale, areas and evidence are in `CROSS_PROGRAM_ENHANCEMENTS.md`.
+- Kept package versions, Windows 11 x64 support and existing settings defaults. Attachment preferences are additive; discovery uses bounded top-K storage and a cancellable worker with UI-dispatch/generation guards.
+- Kept the encrypted export wire format. Added a 32 MiB plaintext ceiling and best-effort zeroing of temporary keys/plain buffers; immutable input/output strings cannot be wiped. Corrected a flaky test which spliced a JSON-escaped base64 string rather than changing ciphertext bytes.
+- Kept this work unreleased and separate from v2.3.0's immutable tag. Hosted Windows smoke now exercises real attachment preferences and oversized/valid prompt behavior; it does not replace Narrator or a retail-desktop pass.
+
 ## 2026-11-11 — Isolate release outputs and preserve the release tag
 
 - The first v2.3.0 publication correctly stopped before upload because

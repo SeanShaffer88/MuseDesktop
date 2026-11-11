@@ -17,6 +17,16 @@ public static class DownloadLines
     /// <summary>"45 sec" under a minute, "3 min" at or above it (rounded up) — Core: DownloadText.FormatEta.</summary>
     public static string FormatEta(TimeSpan eta)
     {
+        if (eta.TotalDays >= 1)
+        {
+            var hours = (long)Math.Ceiling(eta.TotalHours);
+            return Strings.Format("dl.eta_days", hours / 24, hours % 24);
+        }
+        if (eta.TotalHours >= 1)
+        {
+            var minutes = (long)Math.Ceiling(eta.TotalMinutes);
+            return Strings.Format("dl.eta_hours", minutes / 60, minutes % 60);
+        }
         if (eta.TotalMinutes >= 1)
             return Strings.Format("dl.eta_min", (int)Math.Ceiling(eta.TotalMinutes));
         return Strings.Format("dl.eta_sec", Math.Max(1, (int)Math.Ceiling(eta.TotalSeconds)));

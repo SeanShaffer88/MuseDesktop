@@ -75,8 +75,8 @@ public static class RecentFiles
         { "png", "jpg", "jpeg", "gif", "webp", "pdf", "txt", "md", "docx" };
 
     /// <summary>The attachable extensions, sorted — the Add files picker's filter is built from this, so it always matches <see cref="IsAttachable"/>.</summary>
-    public static IReadOnlyList<string> AttachableExtensionList =>
-        AttachableExtensions.OrderBy(e => e, StringComparer.Ordinal).ToArray();
+    public static IReadOnlyList<string> AttachableExtensionList { get; } =
+        Array.AsReadOnly(AttachableExtensions.OrderBy(e => e, StringComparer.Ordinal).ToArray());
 
     /// <summary>
     /// An extension with the noise removed: "photo.PNG", ".png"
@@ -116,11 +116,11 @@ public static class RecentFiles
     /// temp folder is NOT a source: slice 5 deletes those files by
     /// design the moment they are attached or abandoned.)
     /// </summary>
-    public static IReadOnlyList<string> DefaultSourceFolders()
+    public static IReadOnlyList<string> DefaultSourceFolders(bool includeScreenshots = true)
     {
         var folders = new List<string> { AppPaths.DownloadsHint };
         var pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
-        if (!string.IsNullOrWhiteSpace(pictures))
+        if (includeScreenshots && !string.IsNullOrWhiteSpace(pictures))
             folders.Add(Path.Combine(pictures, "Screenshots"));
         return folders;
     }
@@ -137,22 +137,31 @@ public static class RecentFiles
     /// convenience, never an error.
     /// </summary>
     public static IReadOnlyList<RecentFileEntry> Collect(
-        IEnumerable<string?> sources, int limit = MaxEntries)
+        IEnumerable<string?> sources, int limit = MaxEntries, CancellationToken cancellationToken = default)
     {
         if (limit <= 0)
             return Array.Empty<RecentFileEntry>();
-        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var entries = new List<RecentFileEntry>();
+        var seenFolders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var retainedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var order = Comparer<RecentFileEntry>.Create((a, b) =>
+        {
+            var time = a.ModifiedUtc.CompareTo(b.ModifiedUtc);
+            return time != 0 ? time : StringComparer.OrdinalIgnoreCase.Compare(b.FullPath, a.FullPath);
+        });
+        var entries = new PriorityQueue<RecentFileEntry, RecentFileEntry>(order);
         foreach (var source in sources)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (string.IsNullOrWhiteSpace(source))
                 continue;
             try
             {
-                if (!Directory.Exists(source))
+                var fullSource = Path.TrimEndingDirectorySeparator(Path.GetFullPath(source));
+                if (!seenFolders.Add(fullSource) || !Directory.Exists(fullSource))
                     continue;
-                foreach (var file in Directory.EnumerateFiles(source))
+                foreach (var file in Directory.EnumerateFiles(fullSource))
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     try
                     {
                         var info = new FileInfo(file);
@@ -161,15 +170,17 @@ public static class RecentFiles
                         var extension = NormalizeExtension(info.Extension);
                         if (!AttachableExtensions.Contains(extension))
                             continue;
-                        if (!seen.Add(info.FullName))
+                        if (!retainedPaths.Add(info.FullName))
                             continue;
-                        entries.Add(new RecentFileEntry(
+                        var entry = new RecentFileEntry(
                             info.FullName,
                             info.Name,
                             extension,
                             info.Length,
                             new DateTimeOffset(info.LastWriteTimeUtc, TimeSpan.Zero),
-                            KindOf(extension)));
+                            KindOf(extension));
+                        entries.Enqueue(entry, entry);
+                        if (entries.Count > limit) retainedPaths.Remove(entries.Dequeue().FullPath);
                     }
                     catch (Exception)
                     {
@@ -178,13 +189,14 @@ public static class RecentFiles
                     }
                 }
             }
+            catch (OperationCanceledException) { throw; }
             catch (Exception)
             {
                 // A folder that can't be read is skipped, like a
                 // missing one.
             }
         }
-        return entries
+        return entries.UnorderedItems.Select(item => item.Element)
             .OrderByDescending(e => e.ModifiedUtc)
             .ThenBy(e => e.FullPath, StringComparer.OrdinalIgnoreCase)
             .Take(limit)

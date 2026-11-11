@@ -56,7 +56,11 @@ public readonly record struct ShortcutGesture(GestureModifiers Modifiers, string
         gesture = default;
         if (string.IsNullOrWhiteSpace(text))
             return false;
-        var parts = text.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        text = text.Trim();
+        if (text == "+") text = "OemPlus";
+        else if (text.EndsWith("++", StringComparison.Ordinal)) text = text[..^1] + "OemPlus";
+        var parts = text.Split('+', StringSplitOptions.TrimEntries);
+        if (parts.Any(p => p.Length == 0)) return false;
         if (parts.Length == 0)
             return false;
         var modifiers = GestureModifiers.None;
@@ -137,6 +141,13 @@ public readonly record struct ShortcutGesture(GestureModifiers Modifiers, string
     /// <summary>Canonical casing for a user-typed key name, or null when the key isn't gesture-eligible.</summary>
     private static string? CanonicalKey(string part)
     {
+        part = part.Replace(" ", "", StringComparison.Ordinal);
+        if (part.Length == 1 && part[0] is >= '0' and <= '9') return "D" + part;
+        part = part.ToLowerInvariant() switch
+        {
+            "enter" => "Return", "pgup" => "PageUp", "pgdn" => "PageDown",
+            "ins" => "Insert", "del" => "Delete", _ => part,
+        };
         foreach (var allowed in AllowedKeys)
             if (string.Equals(allowed, part, StringComparison.OrdinalIgnoreCase))
                 return allowed;

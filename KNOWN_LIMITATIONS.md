@@ -2,6 +2,8 @@
 
 Honest list of what MuseDesktop does not do or has not proven yet. Kept current as work proceeds.
 
+- The cross-program pass in `CROSS_PROGRAM_ENHANCEMENTS.md` adds automated Core/source contracts and native prompt/preferences smoke, not a complete Narrator, high-contrast, mixed-DPI or keyboard-only desktop pass. Encrypted backups are now limited to 32 MiB plaintext; temporary byte buffers are zeroed, but .NET strings and caller-owned copies cannot be securely erased. Recent-file discovery still walks directory metadata (off-thread and cancellable); bounded retained results do not make enumeration constant-time.
+
 **Current support target (v2.3.0 onward): Windows 11 x64 only.**
 Windows 10, ARM64 and Windows-on-ARM emulation are unsupported.
 App startup and the installer enforce native x64 and build 22000+.

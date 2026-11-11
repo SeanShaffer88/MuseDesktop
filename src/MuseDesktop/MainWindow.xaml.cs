@@ -3200,6 +3200,8 @@ public partial class MainWindow : Window
         // v2.1.0: the quick-attach strip switch rides along too;
         // the strip re-resolves (and re-reads) immediately.
         _settings.QuickAttachStripEnabled = clone.QuickAttachStripEnabled;
+        _settings.QuickAttachIncludeScreenshots = clone.QuickAttachIncludeScreenshots;
+        _settings.QuickAttachMaxFiles = clone.QuickAttachMaxFiles;
         RefreshQuickAttachStrip();
         // Quick ask: the feature switch rides along too — off
         // retires the hotkey registration on the Apply pass below
@@ -6348,6 +6350,7 @@ public partial class MainWindow : Window
 
     private void DisposeQuickAttachWatchers()
     {
+        CancelQuickAttachRefresh();
         foreach (var watcher in _quickAttachWatchers)
             watcher.Dispose();
         _quickAttachWatchers.Clear();
@@ -6362,24 +6365,6 @@ public partial class MainWindow : Window
     /// elsewhere (layout, focus mode, full screen) read it through
     /// <see cref="UpdateQuickAttachStripVisibility"/>.
     /// </summary>
-    private void RefreshQuickAttachStrip()
-    {
-        if (!_quickAttachSetupDone)
-            return;
-        QuickAttachChips.Children.Clear();
-        _quickAttachHasContent = false;
-        if (ClipboardHasImage())
-        {
-            QuickAttachChips.Children.Add(BuildPastedImageChip());
-            _quickAttachHasContent = true;
-        }
-        foreach (var entry in RecentFiles.Collect(RecentFiles.DefaultSourceFolders()))
-        {
-            QuickAttachChips.Children.Add(BuildFileChip(entry));
-            _quickAttachHasContent = true;
-        }
-        UpdateQuickAttachStripVisibility();
-    }
 
     /// <summary>
     /// Whether the strip shows at all: the setting is on, it has

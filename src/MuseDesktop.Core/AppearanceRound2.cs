@@ -15,13 +15,16 @@ namespace MuseDesktop.Core;
 /// <summary>A #RRGGBB hex color: the one normalizer every appearance feature shares.</summary>
 public static class HexColor
 {
-    /// <summary>Accept "#RRGGBB" or "RRGGBB" (any case, padded) and return the canonical "#RRGGBB" uppercase form; anything else is not a color.</summary>
+    /// <summary>Accept "#RGB", "#RRGGBB" or "RRGGBB" and return canonical "#RRGGBB"; alpha and repeated prefixes are refused.</summary>
     public static bool TryNormalize(string? text, out string hex)
     {
         hex = "";
         if (string.IsNullOrWhiteSpace(text))
             return false;
-        var h = text.Trim().TrimStart('#');
+        var input = text.Trim();
+        var h = input.StartsWith('#') ? input[1..] : input;
+        if (input.StartsWith('#') && h.Length == 3 && h.All(Uri.IsHexDigit))
+            h = string.Concat(h.Select(c => new string(c, 2)));
         if (h.Length != 6)
             return false;
         foreach (var c in h)

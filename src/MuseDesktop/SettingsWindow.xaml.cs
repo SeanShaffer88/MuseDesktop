@@ -304,6 +304,7 @@ public partial class SettingsWindow : Window
         FollowUpChipsCheck.IsChecked = _working.FollowUpChipsEnabled;
         // v2.1.0: the quick-attach strip switch, under the chips one.
         QuickAttachStripCheck.IsChecked = _working.QuickAttachStripEnabled;
+        SetupQuickAttachOptions();
         // Quick ask: the feature switch (in the Keyboard &
         // accessibility card), with the live registration status
         // the main window's manager reports, like the other hotkeys.
@@ -950,6 +951,33 @@ public partial class SettingsWindow : Window
     /// <summary>The quick-attach strip switch (v2.1.0): write-through like the switches above it. The same one setting the ⋯ menu item and the strip's own ✕ drive — three doors, one switch.</summary>
     private void OnQuickAttachStripChanged(object sender, RoutedEventArgs e) =>
         _working.QuickAttachStripEnabled = QuickAttachStripCheck.IsChecked == true;
+
+    private void SetupQuickAttachOptions()
+    {
+        var screenshots = new System.Windows.Controls.CheckBox
+        {
+            Content = Strings.Get("ui.attach_screenshots"),
+            IsChecked = _working.QuickAttachIncludeScreenshots,
+            ToolTip = Strings.Get("ui.attach_screenshots"),
+        };
+        screenshots.Click += (_, _) => _working.QuickAttachIncludeScreenshots = screenshots.IsChecked == true;
+        System.Windows.Input.KeyboardNavigation.SetTabIndex(screenshots, 0);
+        QuickAttachOptionsHost.Children.Add(screenshots);
+        var label = new System.Windows.Controls.TextBlock
+        { Text = Strings.Get("ui.attach_limit"), Margin = new Thickness(0, 6, 0, 2) };
+        QuickAttachOptionsHost.Children.Add(label);
+        var limit = new System.Windows.Controls.ComboBox
+        {
+            Width = 90, HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
+            ItemsSource = new[] { 4, 8, 12 }, SelectedItem = _working.QuickAttachMaxFiles,
+            ToolTip = Strings.Get("ui.attach_limit"),
+        };
+        System.Windows.Automation.AutomationProperties.SetName(limit, Strings.Get("ui.attach_limit"));
+        System.Windows.Input.KeyboardNavigation.SetTabIndex(limit, 1);
+        limit.SelectionChanged += (_, _) =>
+        { if (limit.SelectedItem is int count) _working.QuickAttachMaxFiles = count; };
+        QuickAttachOptionsHost.Children.Add(limit);
+    }
 
     /// <summary>The quick-ask switch: write-through like the switches above it. The same one setting the hotkey registration, the ⋯ item, the tray item, and the palette action all obey — off retires every door on OK.</summary>
     private void OnQuickAskChanged(object sender, RoutedEventArgs e) =>

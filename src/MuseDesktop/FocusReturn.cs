@@ -26,9 +26,8 @@ public static class FocusReturn
     /// <summary>Show a modal dialog, then return focus to <paramref name="invoker"/>.</summary>
     public static bool? ShowDialog(Window dialog, IInputElement? invoker)
     {
-        var result = dialog.ShowDialog();
-        Restore(invoker);
-        return result;
+        try { return dialog.ShowDialog(); }
+        finally { Restore(invoker); }
     }
 
     /// <summary>
@@ -40,11 +39,15 @@ public static class FocusReturn
     {
         try
         {
-            if (target is UIElement { IsVisible: true } element && element.Focus())
+            if (target is UIElement { IsVisible: true, IsEnabled: true, Focusable: true } element && element.Focus())
                 return;
         }
         catch { /* fall through to the window fallback */ }
-        try { System.Windows.Application.Current?.MainWindow?.Focus(); }
+        try
+        {
+            if (System.Windows.Application.Current?.MainWindow is { IsVisible: true, IsEnabled: true } window)
+                window.Focus();
+        }
         catch { /* focus is cosmetic; shutdown must not trip over it */ }
     }
 }

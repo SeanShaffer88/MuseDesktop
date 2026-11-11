@@ -4,6 +4,8 @@ This map helps keep feature work tied to both automated evidence and the real-Wi
 
 ## Automated Core suite
 
+The unreleased cross-program pass adds `CrossProgramEnhancementsTests` (E01–E20), covering policy boundaries, release/checksum parsing, encryption, bounded/cancelled discovery, shortcuts, clock correction, transfer formatting, search and settings. Windows-only helpers have explicit source contracts plus native smoke for real Settings attachment controls and real prompt limit rejection/acceptance. See `../CROSS_PROGRAM_ENHANCEMENTS.md`; those checks do not establish a complete assistive-technology pass.
+
 | Area | Main test files | Examples of contracts |
 |---|---|---|
 | App settings, paths, logging, atomic persistence | `CoreBehaviorTests.cs`, `AtomicFileTests.cs` | Sanitization, path-safe profiles, log redaction, atomic replacement and failure cleanup |

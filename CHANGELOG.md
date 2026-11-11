@@ -6,6 +6,10 @@ Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhanc
 
 ## [Unreleased]
 
+### Cross-program improvement pass
+- Twenty focused improvements covering navigation/permissions, private URL logging, encrypted-backup safety, release/checksum parsing, cancellable bounded attachment discovery, attachment preferences, shortcut aliases, clock recovery, localized transfer numbers and long ETAs, resizable bounded prompts, dispatcher-safe announcements, dialog focus, accent-insensitive search, short hex accents and correct read-aloud fences.
+- Added regression coverage and native Windows smoke checks for attachment settings and prompt limits. See `CROSS_PROGRAM_ENHANCEMENTS.md` for the numbered changes and rationale. No dependency or supported-platform changes; this is separate from the immutable v2.3.0 release.
+
 ## [2.3.0] — 2026-11-11
 
 ### Added

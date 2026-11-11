@@ -49,7 +49,7 @@ public static class SettingsSearch
         new SettingsSectionInfo(TrayId, "Tray & notifications",
             "tray icon single click double click reopen flash taskbar attention quiet hours do not disturb notifications balloon silent night"),
         new SettingsSectionInfo(ProfilesId, "Account profiles",
-            "profile account sign-in rename accent color dot switch remove add copy settings start page home custom url zoom downloads folder data size last used shortcut desktop storage cap limit cache cleanup avatar glyph icon pin lock password schedule automatic time clone duplicate health cookies backup export import bundle group folder template usage launches archive hide restore"),
+            "profile account sign-in rename accent color dot switch remove add copy settings start page home custom url zoom downloads folder data size last used shortcut desktop storage cap limit cache cleanup avatar glyph icon pin lock password schedule automatic time clone duplicate health cookies backup export import bundle group folder template usage launches archive hide restore quick attach attachments clipboard screenshots recent files count adjuntos capturas recientes límite"),
         new SettingsSectionInfo(WorkspacesId, "Workspaces & sessions",
             "workspace workspaces session sessions layout windows arrangement save apply startup launch auto-save restore snapshot crash glyph icon accent duplicate rename delete"),
         new SettingsSectionInfo(AppearanceId, "Appearance & toolbar",

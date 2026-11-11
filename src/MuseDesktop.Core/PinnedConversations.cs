@@ -176,7 +176,7 @@ public sealed class PinnedConversations
 
     private static bool Contains(string? text, string needle) =>
         !string.IsNullOrEmpty(text)
-        && text.Contains(needle, StringComparison.OrdinalIgnoreCase);
+        && SearchText.Contains(text, needle);
 
     /// <summary>Repair pass after a load: drop unusable pins (no id, an address that is no longer a conversation), re-clean what survives, one pin per conversation (the newest wins), re-sort newest first, cap each list.</summary>
     public void Sanitize()

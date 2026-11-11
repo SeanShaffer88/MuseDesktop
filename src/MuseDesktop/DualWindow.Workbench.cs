@@ -417,7 +417,8 @@ public partial class DualWindow
 
     private void SavePair()
     {
-        var prompt = new TextPromptWindow(Strings.Get("dual.save_pair"), Strings.Get("dual.pair_name")) { Owner = this };
+        var prompt = new TextPromptWindow(Strings.Get("dual.save_pair"), Strings.Get("dual.pair_name"),
+            maxLength: 64) { Owner = this };
         if (prompt.ShowDialog() != true || _closed) return;
         var name = DualWorkbench.CleanName(prompt.Text);
         if (name.Length == 0) return;
@@ -478,7 +479,8 @@ public partial class DualWindow
         var destination = core.Source;
         var prompt = new TextPromptWindow(Strings.Get("dual.transfer"),
             Strings.Format("dual.transfer_review", ProfileName(source), ProfileName(target)),
-            selected, multiline: true, okText: Strings.Get("dual.place_unsent")) { Owner = this };
+            selected, multiline: true, okText: Strings.Get("dual.place_unsent"),
+            maxLength: DualWorkbench.MaxTransfer) { Owner = this };
         if (prompt.ShowDialog() != true || _closed) return;
         if (!ReferenceEquals(core, target.Core) || core.Source != destination)
         { Announce(target, "dual.transfer_unavailable"); return; }

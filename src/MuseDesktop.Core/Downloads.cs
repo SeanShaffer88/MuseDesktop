@@ -449,7 +449,7 @@ public static class DownloadHistoryQuery
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();
-            query = query.Where(r => r.FileName.Contains(term, StringComparison.OrdinalIgnoreCase));
+            query = query.Where(r => SearchText.Contains(r.FileName, term) || SearchText.Contains(r.Note, term));
         }
         query = filter switch
         {
@@ -630,6 +630,7 @@ public sealed class DownloadRateSampler
     /// <summary>Feed a new byte count; returns the smoothed rate (bytes/sec).</summary>
     public double Sample(long bytesReceived, DateTimeOffset now)
     {
+        bytesReceived = Math.Max(0, bytesReceived);
         if (!_hasSample)
         {
             _lastBytes = bytesReceived;
@@ -638,6 +639,11 @@ public sealed class DownloadRateSampler
             return 0;
         }
         var dt = (now - _lastTime).TotalSeconds;
+        if (dt < 0)
+        {
+            _lastBytes = bytesReceived; _lastTime = now; _rate = 0;
+            return 0;
+        }
         if (dt <= 0.05)
             return _rate;
         var delta = bytesReceived - _lastBytes;
@@ -675,6 +681,16 @@ public static class DownloadText
     /// <summary>"45 sec" under a minute, "3 min" at or above it (rounded up).</summary>
     public static string FormatEta(TimeSpan eta)
     {
+        if (eta.TotalDays >= 1)
+        {
+            var hours = (long)Math.Ceiling(eta.TotalHours);
+            return $"{hours / 24} d {hours % 24} hr";
+        }
+        if (eta.TotalHours >= 1)
+        {
+            var minutes = (long)Math.Ceiling(eta.TotalMinutes);
+            return $"{minutes / 60} hr {minutes % 60} min";
+        }
         if (eta.TotalMinutes >= 1) return $"{(int)Math.Ceiling(eta.TotalMinutes)} min";
         return $"{Math.Max(1, (int)Math.Ceiling(eta.TotalSeconds))} sec";
     }
@@ -693,16 +709,17 @@ public static class DownloadText
         }
         if (unit == 0)
             return $"{bytes} B";
-        var text = value >= 100 ? value.ToString("0") : value.ToString("0.0").TrimEnd('0').TrimEnd('.');
+        var text = value.ToString(value >= 100 ? "0" : "0.#",
+            System.Globalization.CultureInfo.CurrentCulture);
         return $"{text} {units[unit]}";
     }
 
     /// <summary>Transfer speed for the manager and status bar (S2 #22): "512 B/s", "1.5 KB/s", "2.3 MB/s".</summary>
     public static string FormatSpeed(double bytesPerSecond)
     {
-        if (double.IsNaN(bytesPerSecond) || bytesPerSecond <= 0)
+        if (!double.IsFinite(bytesPerSecond) || bytesPerSecond <= 0)
             return "0 B/s";
-        return FormatBytes((long)Math.Round(bytesPerSecond)) + "/s";
+        return FormatBytes(bytesPerSecond >= long.MaxValue ? long.MaxValue : (long)Math.Round(bytesPerSecond)) + "/s";
     }
 
     /// <summary>
