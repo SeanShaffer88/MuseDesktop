@@ -1,6 +1,6 @@
 # Cross-program improvement pass
 
-This is new, unreleased work after the twenty Dual workbench additions in v2.3.0.
+These are the twenty v2.4.0 improvements, following the Dual workbench additions in v2.3.0.
 
 ## Architecture and constraints
 
