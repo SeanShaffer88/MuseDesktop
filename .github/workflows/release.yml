@@ -3,12 +3,18 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing stable release tag to rebuild without moving it
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -23,13 +29,15 @@ jobs:
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag) || github.ref }}
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
       - name: Validate release version
         shell: pwsh
         run: |
-          $tag = "${{ github.ref_name }}"
+          $tag = "${{ inputs.tag || github.ref_name }}"
           if ($tag -notmatch '^v\d+\.\d+\.\d+$') { throw "Expected a stable vX.Y.Z tag." }
           $version = $tag.Substring(1)
           [xml]$shell = Get-Content src/MuseDesktop/MuseDesktop.csproj
@@ -70,7 +78,8 @@ jobs:
         shell: pwsh
         run: |
           [ordered]@{
-            commit = "${{ github.sha }}"
+            commit = (git rev-parse HEAD)
+            workflowCommit = "${{ github.sha }}"
             sdk = (dotnet --version)
             runtimeIdentifier = "win-${{ matrix.arch }}"
             configuration = "Release"
@@ -78,7 +87,7 @@ jobs:
       - name: Build installer and portable zip
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force assets | Out-Null
+          New-Item -ItemType Directory -Force release-assets | Out-Null
           $nsis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
           if (-not (Test-Path $nsis)) {
             choco install nsis --yes --no-progress
@@ -87,12 +96,12 @@ jobs:
           if (-not (Test-Path $nsis)) { throw "NSIS was not found." }
           & $nsis "/DVERSION=$env:VERSION" "/DARCH=${{ matrix.arch }}" "/DSTAGE=$((Resolve-Path stage).Path)" installer/MuseDesktop.nsi
           if ($LASTEXITCODE -ne 0) { throw "Installer build failed." }
-          Copy-Item "installer/MuseDesktop-Setup-v$env:VERSION-${{ matrix.arch }}.exe" assets/
-          Compress-Archive -Path stage/* -DestinationPath "assets/MuseDesktop-v$env:VERSION-windows-${{ matrix.arch }}.zip"
+          Copy-Item "installer/MuseDesktop-Setup-v$env:VERSION-${{ matrix.arch }}.exe" release-assets/
+          Compress-Archive -Path stage/* -DestinationPath "release-assets/MuseDesktop-v$env:VERSION-windows-${{ matrix.arch }}.zip"
       - uses: actions/upload-artifact@v6
         with:
           name: release-${{ matrix.arch }}
-          path: assets/*
+          path: release-assets/*
           if-no-files-found: error
           retention-days: 14
 
@@ -103,20 +112,22 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && format('refs/tags/{0}', inputs.tag) || github.ref }}
       - uses: actions/download-artifact@v5
         with:
           pattern: release-*
-          path: assets
+          path: release-assets
           merge-multiple: true
       - name: Prepare release notes and checksums
         env:
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           python3 - <<'PY'
           import os, pathlib, hashlib
           tag = os.environ["TAG"]
           version = tag[1:]
-          assets = pathlib.Path("assets")
+          assets = pathlib.Path("release-assets")
           expected = {
               f"MuseDesktop-Setup-{tag}-x64.exe"
           } | {
@@ -144,7 +155,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           if gh release view "$TAG" --json isDraft,body > existing-release.json; then
             python3 - <<'PY'
@@ -161,7 +172,7 @@ jobs:
           else
             gh release create "$TAG" --verify-tag --draft --title "MuseDesktop $TAG" --notes-file release-notes.md
           fi
-          gh release upload "$TAG" assets/* --clobber
+          gh release upload "$TAG" release-assets/* --clobber
           gh release view "$TAG" --json assets > uploaded-assets.json
           python3 - <<'PY'
           import json, os, pathlib
