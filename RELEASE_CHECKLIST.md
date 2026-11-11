@@ -1,6 +1,6 @@
 # Release checklist
 
-Run before publishing any release. CI covers the automated half; this is the on-machine half that automation can't prove — it exists because v0.1.0 passed every automated check and crashed on first launch.
+Run before publishing any release. Current support is Windows 11 x64 only; older-version checks below that mention ARM64 or Windows 10 are historical and no longer part of the support matrix. CI covers the automated half; this is the on-machine half that automation can't prove — it exists because v0.1.0 passed every automated check and crashed on first launch.
 
 ## Dual mode — independent two-chat window
 
@@ -92,7 +92,7 @@ The per-release items below accumulated faster than on-machine passes ran. This 
 - [ ] **v0.4.0 — Settings export/import:** Settings → *Export settings…* → file saved; change a setting (e.g. zoom), *Import settings…* the file → controls show the exported values → OK applies them; importing a non-settings file shows the plain error and changes nothing
 - [ ] **v0.4.0 — Keyboard:** Ctrl+, opens Settings from the main window; ⋯ menu shows the "Ctrl+," label on Settings…
 - [ ] **v0.4.0 — Refactor regression sweep:** tray balloon on first close-to-tray; suspend after 6 min hidden + resume (log lines); tray Reload works; update check from ⋯ reports correctly; a download's progress/cancel/complete flow matches the pre-refactor behavior
-- [ ] **v0.4.0 — ARM64 (if an ARM device is available):** run `MuseDesktop-Setup-vX.Y.Z-arm64.exe`: installs, launches, signs in; otherwise record as CI-verified only
+- [ ] **Platform guard (v2.3.0):** Windows 11 x64 installs and launches; Windows 10 and Windows-on-ARM are refused before install changes or app initialization.
 - [ ] Download a file Muse produced: status bar shows % and ETA, file lands in Downloads, completion is reported
 - [ ] Click an ordinary web link in a chat: opens in the default browser, not in the app
 - [ ] Voice: microphone is granted to muse.ai without extra prompts; dictation works
@@ -428,7 +428,7 @@ These items cover recent safety improvements that supplement the feature-slice c
 - [ ] **Dynamic-control Narrator pass:** inspect the permission action rows, shortcut editor, backup restore rows, profile health actions, and switcher context menus; each code-created control must announce its label, purpose, and enabled state.
 - [ ] **Visual polish matrix:** compare the main window, Downloads, Settings, Help, and command palette in Dark, Light, Follow Windows, and Windows High Contrast at 100%, 150%, and 250% scaling. Check clipping, alignment, icon consistency, focus indication, empty states, and reduced-motion behavior; capture real screenshots for the README after the pass.
 - [ ] **WebView2 runtime matrix:** smoke-test the supported Evergreen runtime and a machine with the runtime missing or too old; confirm the error remains recoverable and links to installation guidance. Record the runtime version with the result.
-- [ ] **Architecture/display matrix:** run the smoke test on x64 and ARM64 runners, then check at least one retail ARM64 device and a mixed-DPI multi-monitor Windows setup when available. CI smoke is not a substitute for those retail-device checks.
+- [ ] **Architecture/display matrix:** run hosted Windows x64 smoke, then check a retail Windows 11 x64 device and a mixed-DPI multi-monitor setup. Hosted CI is not a substitute for the Windows 11 device pass.
 
 ## Release-process steps added by Slice 9 (every release from v1.0.0 on)
 
@@ -436,7 +436,7 @@ These items cover recent safety improvements that supplement the feature-slice c
 - [ ] **SHA256SUMS.txt is mandatory** (S9 #81): the release MUST attach `SHA256SUMS.txt` covering the two x64 binaries, generated from the final staged assets — the in-app updater refuses any release without it. (Existing rule, now load-bearing.)
 - [ ] **What's New** (S9 #82): after finalizing the CHANGELOG section for the release, regenerate `WhatsNew.md` from it (the section under `## [x.y.z]` copied verbatim under the file's header — the Core test `WhatsNew_ShippedFileMatchesChangelogForTheCsprojVersion` fails the suite if the two disagree) and confirm the file is in the publish output beside the exe.
 - [ ] **Help + licenses ship** (S10 #91/#94): confirm `Help.md`, `LICENSE`, and `THIRD-PARTY-NOTICES.txt` are in the publish output beside the exe (the Help window reads Help.md; About's licenses view reads the other two — a missing file degrades visibly, but the release shouldn't ship the degradation).
-- [ ] **SBOM + build inputs + test map:** retrieve the x64 and ARM64 CI artifacts; retain `sbom.cdx.json` and `build-info.json` with the release records; update `docs/TEST_COVERAGE_MAP.md` when test ownership or machine-only verification changes. The SBOM/build facts are inventory, not signatures or attestations; verify release asset hashes separately.
+- [ ] **SBOM + build inputs + test map:** retrieve the x64 CI artifact; retain `sbom.cdx.json` and `build-info.json` with the release records; update `docs/TEST_COVERAGE_MAP.md` when test ownership or machine-only verification changes. The SBOM/build facts are inventory, not signatures or attestations; verify release asset hashes separately.
 - [ ] **winget manifest bump** (S9 #85, once the first submission is live): update the three YAMLs in `packaging/winget/` (new `PackageVersion`, new installer URLs + uppercase SHA-256 from the release's SHA256SUMS.txt, new `ReleaseDate`) and submit the new version folder per `packaging/winget/README.md`. Until the first submission is approved by the maintainer, this step is "prepared only".
 - [ ] **About/topics** (standing rule): update the repo About description + topics for the release and API-verify the topic list.
 

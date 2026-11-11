@@ -56,6 +56,11 @@ Versions 0.6.0–0.14.0 below were internal development builds of the 100-enhanc
 
 ### Changed
 
+- **Windows 11 x64 only.** Windows 10, ARM64 and Windows-on-ARM
+  emulation are no longer supported. Releases now contain only the
+  x64 installer, x64 portable zip and their SHA-256 checksums.
+  Installer and app startup validate the platform before proceeding.
+
 - **Quick ask follows your cursor.** The corner card now docks
   at the bottom-right of the screen your cursor is on instead
   of always the main screen. And if "Continue in main window"

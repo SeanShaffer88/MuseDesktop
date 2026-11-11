@@ -3,7 +3,7 @@
 ; Build (from the repo root, with the verified release publish staged):
 ;   makensis /DVERSION=0.4.0 /DARCH=x64 /DSTAGE=<dir containing the publish output> installer\MuseDesktop.nsi
 ; Produces MuseDesktop-Setup-v<VERSION>-<ARCH>.exe next to this script.
-; ARCH is x64 or arm64 and must match the staged publish (v0.4.0+).
+; Windows 11 x64 only. ARCH must be x64.
 ;
 ; Design notes (see DECISIONS.md, 2026-10-23):
 ; - Per-user install to %LOCALAPPDATA%\Programs\MuseDesktop, HKCU uninstall
@@ -106,6 +106,9 @@
 !endif
 !ifndef ARCH
   !define ARCH "x64"
+!endif
+!if "${ARCH}" != "x64"
+  !error "Only Windows 11 x64 installers are supported."
 !endif
 !ifndef STAGE
   !error "Pass /DSTAGE=<publish output dir>"
@@ -371,6 +374,20 @@ FunctionEnd
 ; keeps its default (off). Defined after the sections on purpose —
 ; section constants only exist once their Section command is read.
 Function .onInit
+  ; Check before any install changes; registry values describe the
+  ; native OS even though NSIS itself is a 32-bit process.
+  ReadRegStr $0 HKLM "SYSTEM\CurrentControlSet\Control\Session Manager\Environment" "PROCESSOR_ARCHITECTURE"
+  ${If} $0 != "AMD64"
+    MessageBox MB_OK|MB_ICONSTOP "MuseDesktop requires Windows 11 on an x64 PC. ARM64 and Windows-on-ARM emulation are not supported."
+    SetErrorLevel 1
+    Abort
+  ${EndIf}
+  ReadRegStr $0 HKLM "SOFTWARE\Microsoft\Windows NT\CurrentVersion" "CurrentBuildNumber"
+  ${If} $0 < 22000
+    MessageBox MB_OK|MB_ICONSTOP "MuseDesktop requires Windows 11 (build 22000 or newer). Windows 10 is not supported."
+    SetErrorLevel 1
+    Abort
+  ${EndIf}
   ReadRegDWORD $0 HKCU "Software\MuseDesktop" "DesktopShortcut"
   ${If} $0 == 1
     SectionSetFlags ${SecDesktop} 1

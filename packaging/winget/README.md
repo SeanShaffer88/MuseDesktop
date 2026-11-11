@@ -1,14 +1,14 @@
 # winget packaging — submission approved by SEAN 2026-10-25
 
-This folder holds a ready-to-submit [winget](https://learn.microsoft.com/windows/package-manager/) manifest set for MuseDesktop:
+This folder holds a legacy [winget](https://learn.microsoft.com/windows/package-manager/) manifest set for MuseDesktop. Current support is Windows 11 x64 only; ARM64 has been removed and the minimum OS is build 22000. Before any submission, replace the legacy release metadata with a verified current release:
 
 | File | Contents |
 | --- | --- |
 | `SeanShaffer88.MuseDesktop.yaml` | Version manifest (identifier + version + default locale) |
-| `SeanShaffer88.MuseDesktop.installer.yaml` | Both installers (x64 + ARM64), type `nullsoft`, per-user scope |
+| `SeanShaffer88.MuseDesktop.installer.yaml` | x64 installer only, Windows 11 minimum, type `nullsoft`, per-user scope |
 | `SeanShaffer88.MuseDesktop.locale.en-US.yaml` | Publisher, name, license, descriptions |
 
-The set currently describes **v1.0.0** — the latest published release — with the real installer URLs and SHA-256 hashes from that release's `SHA256SUMS.txt`. The YAML is schema 1.6.0 and was syntax-checked locally.
+The set still describes historical **v1.0.0**, not the current release, with its real x64 installer URL and hash. It must be refreshed and revalidated before submission; no new hash is invented before release assets exist.
 
 **Status: submission approved.** SEAN gave the go-ahead on 2026-10-25; the submission PR to `microsoft/winget-pkgs` follows the steps below. Until it is merged there, `winget install MuseDesktop` does not exist; the Releases page is the way to get the app.
 
@@ -30,6 +30,6 @@ Alternative: `wingetcreate` (`winget install Microsoft.WingetCreate`) can genera
 
 Every release (see `RELEASE_CHECKLIST.md`):
 
-1. In this folder, copy the three YAMLs' values forward: bump `PackageVersion` in all three, replace both `InstallerUrl`s and `InstallerSha256` values with the new release's (from its `SHA256SUMS.txt`, uppercase hex), and update `ReleaseDate`.
+1. In this folder, copy the three YAMLs' values forward: bump `PackageVersion` in all three, replace the x64 `InstallerUrl` and `InstallerSha256` with the new release's (from its `SHA256SUMS.txt`, uppercase hex), keep the Windows 11 minimum OS, and update `ReleaseDate`.
 2. Submit the same way, into `manifests/s/SeanShaffer88/MuseDesktop/<new version>/` in a new PR. Updates are a new version folder; never edit an already-published version's folder except through a winget-pkgs correction PR.
 3. The hashes MUST come from the published release assets (download them back and re-hash, or use the release's `SHA256SUMS.txt` after verifying it against the assets — the checklist's existing rule).

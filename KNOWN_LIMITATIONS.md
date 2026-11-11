@@ -2,6 +2,13 @@
 
 Honest list of what MuseDesktop does not do or has not proven yet. Kept current as work proceeds.
 
+**Current support target (v2.3.0 onward): Windows 11 x64 only.**
+Windows 10, ARM64 and Windows-on-ARM emulation are unsupported.
+App startup and the installer enforce native x64 and build 22000+.
+Hosted Windows CI is not a retail Windows 11 validation claim.
+ARM64 and Windows 10 mentions in older version entries below are
+historical evidence, not current support promises.
+
 ## Verification status
 
 - **Dual mode (2026-11-10): runtime-unverified.** Two independent
@@ -114,8 +121,8 @@ Honest list of what MuseDesktop does not do or has not proven yet. Kept current 
 - **Appearance (v0.9.0):** the shell theme and accent color restyle MuseDesktop's own windows only — never the Muse page. "Follow Windows" reads the Windows app-theme preference at startup and when Windows reports a change; a registry read failure means dark (the family default), never a guessed light. Shell text size scales the shell's own text — the **tray menu's font is drawn by Windows and keeps the system size**, and the lightweight second window has no shell text of its own to scale. The toolbar can hide/reorder its buttons, but Back always stays and the ⋯ menu is always last — those two are how you reach everything else, including the setting that would bring the others back.
 - **Portable mode (v0.9.0):** with `portable.txt` beside the exe, settings, download history, and logs live in a `data` folder beside the exe — but **sign-in data (the WebView2 profiles) still lives in %LOCALAPPDATA%\MuseDesktop** in this version, so a portable copy does not carry your Muse sign-in with it. Nothing is migrated in either direction: portable launches start fresh, and removing the marker returns to the installed data untouched.
 - **Unsigned binary.** SmartScreen will warn on first run until/unless a code-signing certificate is adopted. The signing path is ready (v0.13.0, #87): a manually-triggered workflow exists and stays disabled until the maintainer buys a certificate and adds the two secrets + one variable described in `RELEASE_CHECKLIST.md` — no certificate decision has been made, so this limitation stands.
-- **Self-contained download (tens of MB).** Since v0.1.2 the .NET 10 runtime is bundled, so there is no .NET prerequisite — the cost is download size and that runtime patches arrive via app releases rather than the OS. Distribution is an NSIS installer plus a portable zip (since v0.3.0), for x64 and ARM64 (since v0.4.0).
-- **ARM64 verification level (v0.4.0):** the ARM64 build is built and smoke-tested (window construction + WebView2 init) on GitHub's real ARM64 Windows runners in CI, but it has not been run on a retail ARM device by the maintainer. The x64 build also runs on Windows-on-ARM under emulation, so ARM users are covered either way; pick the download that matches your PC (Settings → System → About shows the system type). The installers don't block a wrong-architecture install — the file names carry the architecture for that reason.
+- **Self-contained download (tens of MB).** The .NET 10 runtime is bundled, so there is no .NET prerequisite. Current distribution is one Windows 11 x64 NSIS installer and one x64 portable zip; runtime patches arrive via app releases.
+- **ARM64 support removed (v2.3.0):** no ARM64 binaries are built or shipped, including no support for running the x64 app under Windows-on-ARM emulation. Old release assets remain historical downloads, not a supported upgrade path.
 - **New in v0.4.0, runtime-unverified:** the Downloads window (open / show-in-folder / clear), per-profile start-at-home, settings export/import round-trip, and Ctrl+, for Settings — all on the `RELEASE_CHECKLIST.md` pass list. The v0.4.0 internal refactor (download/tray/update extraction) is covered by the Core suite plus CI smoke; its on-machine behavior folds into the same pass.
 - **WebView2 Runtime is a prerequisite** on the minority of Windows 10 PCs that lack it; the app detects this and links to Microsoft's Evergreen installer but does not install it for you.
 

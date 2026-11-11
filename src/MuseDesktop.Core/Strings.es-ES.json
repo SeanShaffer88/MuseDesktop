@@ -1830,5 +1830,6 @@
   "dual.zoom_in": "Ampliar este chat",
   "dual.zoom_out": "Reducir este chat",
   "dual.zoom_reset": "Restablecer el zoom de este chat al 100%",
-  "dual.save_failed": "No se pudieron guardar las preferencias de Dual. Tus chats siguen abiertos; comprueba que la carpeta de datos permite escritura."
+  "dual.save_failed": "No se pudieron guardar las preferencias de Dual. Tus chats siguen abiertos; comprueba que la carpeta de datos permite escritura.",
+  "platform.windows11_x64": "MuseDesktop requiere Windows 11 en un PC x64. Windows 10, ARM64 y la emulación en Windows sobre ARM no son compatibles."
 }

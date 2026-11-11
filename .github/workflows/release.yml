@@ -19,8 +19,6 @@ jobs:
         include:
           - arch: x64
             runner: windows-latest
-          - arch: arm64
-            runner: windows-11-arm
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 40
     steps:
@@ -118,9 +116,9 @@ jobs:
           version = tag[1:]
           assets = pathlib.Path("assets")
           expected = {
-              f"MuseDesktop-Setup-{tag}-{arch}.exe" for arch in ("x64", "arm64")
+              f"MuseDesktop-Setup-{tag}-x64.exe"
           } | {
-              f"MuseDesktop-{tag}-windows-{arch}.zip" for arch in ("x64", "arm64")
+              f"MuseDesktop-{tag}-windows-x64.zip"
           }
           actual = {p.name for p in assets.iterdir() if p.is_file()}
           if actual != expected:
@@ -137,7 +135,7 @@ jobs:
           changelog = pathlib.Path("CHANGELOG.md").read_text()
           section = changelog.split(f"## [{version}]", 1)[1].split("\n## [", 1)[0]
           notes = section.split("\n", 1)[1].strip()
-          notes += "\n\nVerification: full tests and native startup smoke checks passed on Windows x64 and ARM64. Interactive Dual chat behavior remains unverified; see RELEASE_CHECKLIST.md. Installers are unsigned, as in previous releases.\n"
+          notes += "\n\nRequires Windows 11 x64. Windows 10, ARM64 and Windows-on-ARM emulation are not supported. Full tests and startup smoke checks passed on the hosted Windows x64 runner; interactive Windows 11 Dual behavior remains unverified (see RELEASE_CHECKLIST.md). Installers are unsigned, as in previous releases.\n"
           pathlib.Path("release-notes.md").write_text(notes + "\n")
           PY
       - name: Publish verified release assets
@@ -146,6 +144,29 @@ jobs:
           GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
         run: |
-          gh release create "$TAG" --verify-tag --draft --title "MuseDesktop $TAG" --notes-file release-notes.md
-          gh release upload "$TAG" assets/*
+          if gh release view "$TAG" --json isDraft,body > existing-release.json; then
+            python3 - <<'PY'
+          import json, pathlib
+          release = json.loads(pathlib.Path("existing-release.json").read_text())
+          if not release["isDraft"]:
+              raise SystemExit("Refusing to modify an already published release.")
+          marker = "\n\n<!-- MuseDesktop verified release details -->\n"
+          original = (release.get("body") or "").split(marker, 1)[0].rstrip()
+          details = pathlib.Path("release-notes.md").read_text()
+          pathlib.Path("combined-notes.md").write_text(original + marker + details)
+          PY
+            gh release edit "$TAG" --notes-file combined-notes.md
+          else
+            gh release create "$TAG" --verify-tag --draft --title "MuseDesktop $TAG" --notes-file release-notes.md
+          fi
+          gh release upload "$TAG" assets/* --clobber
+          gh release view "$TAG" --json assets > uploaded-assets.json
+          python3 - <<'PY'
+          import json, os, pathlib
+          tag = os.environ["TAG"]
+          assets = json.loads(pathlib.Path("uploaded-assets.json").read_text())["assets"]
+          expected = {f"MuseDesktop-Setup-{tag}-x64.exe", f"MuseDesktop-{tag}-windows-x64.zip", "SHA256SUMS.txt"}
+          if {a["name"] for a in assets} != expected or any(a["size"] <= 0 for a in assets):
+              raise SystemExit("Uploaded asset set does not match the verified Windows x64 package.")
+          PY
           gh release edit "$TAG" --draft=false --latest

@@ -8,7 +8,7 @@ Muse ships apps for iOS, Android and macOS, and a web app at muse.ai — but no 
 
 ## TL;DR
 
-Muse has no Windows app, so this is one: a small native program that opens muse.ai in its own window, keeps you signed in, and lives in the system tray. It adds the desktop touches a browser tab can't — downloads with progress, cancel, and a history window, multiple sign-in profiles, a settings window, update notices, and sensible link handling. Free, open source (MIT), no telemetry; you only need Windows 10/11 (x64 or ARM64) and the WebView2 Runtime (usually already installed). Download the installer from Releases and run it.
+Muse has no Windows app, so this is one: a small native program that opens muse.ai in its own window, keeps you signed in, and lives in the system tray. It adds the desktop touches a browser tab can't — downloads with progress, cancel, and a history window, multiple sign-in profiles, a settings window, update notices, and sensible link handling. Free, open source (MIT), no telemetry; you only need Windows 11 on an x64 PC and the WebView2 Runtime (usually already installed). Download the installer from Releases and run it.
 
 ## What you get
 
@@ -57,15 +57,15 @@ Still to capture from a real run:
 
 ## Requirements
 
-- Windows 10 or Windows 11 (x64, or ARM64 — native builds ship for both)
-- The Microsoft Edge **WebView2 Runtime** — preinstalled on Windows 11 and most Windows 10 PCs. If it's missing, MuseDesktop tells you and links you to Microsoft's installer.
+- Windows 11 on an x64 PC (build 22000 or newer). Windows 10, ARM64 and Windows-on-ARM emulation are not supported.
+- The Microsoft Edge **WebView2 Runtime** — usually preinstalled on Windows 11. If it's missing, MuseDesktop tells you and links you to Microsoft's installer.
 - Nothing else: the download is **self-contained** — the .NET 10 runtime is bundled in, so there is no separate .NET install.
 
 ## Install
 
-**Installer (recommended):** download `MuseDesktop-Setup-vX.Y.Z-x64.exe` (or `-arm64.exe` on a Windows-on-ARM PC) from the [Releases](../../releases) page and run it. It's a per-user install (no admin needed): program in `%LOCALAPPDATA%\Programs\MuseDesktop` (you can pick a different folder — upgrades reuse it), a Start Menu shortcut, an optional desktop shortcut (off by default; your choice is remembered for upgrades), registration of `musedesktop://` links (see *Command line & links*), and an entry in Apps & Features for uninstalling. Uninstalling keeps your settings and sign-in data unless you choose to delete them when asked. A winget manifest is prepared in `packaging/winget/` but **not yet submitted** — `winget install MuseDesktop` is not live yet.
+**Installer (recommended):** download `MuseDesktop-Setup-vX.Y.Z-x64.exe` from the [Releases](../../releases) page and run it on Windows 11 x64. It's a per-user install (no admin needed): program in `%LOCALAPPDATA%\Programs\MuseDesktop` (you can pick a different folder — upgrades reuse it), a Start Menu shortcut, an optional desktop shortcut (off by default; your choice is remembered for upgrades), registration of `musedesktop://` links (see *Command line & links*), and an entry in Apps & Features for uninstalling. Uninstalling keeps your settings and sign-in data unless you choose to delete them when asked. A legacy winget manifest is retained in `packaging/winget/` but **not yet submitted** — `winget install MuseDesktop` is not live yet.
 
-**Portable zip:** download `MuseDesktop-vX.Y.Z-windows-x64.zip` (or `-windows-arm64.zip`), unzip anywhere, and run `MuseDesktop.exe`.
+**Portable zip:** download `MuseDesktop-vX.Y.Z-windows-x64.zip`, unzip anywhere, and run `MuseDesktop.exe` on Windows 11 x64.
 
 Either way: the app is not code-signed yet, so Windows SmartScreen may warn on first run — choose **More info → Run anyway**. Your data folders (`%APPDATA%\MuseDesktop` and `%LOCALAPPDATA%\MuseDesktop`) hold settings and sign-in profiles; deleting them signs you out.
 

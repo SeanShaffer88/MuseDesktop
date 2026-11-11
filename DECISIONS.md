@@ -1,5 +1,19 @@
 # Decisions
 
+## 2026-11-11 — Windows 11 x64 only, by owner direction
+
+- The owner dropped ARM64 support and requires only Windows 11
+  x64 for all projects. This release removes ARM64 CI/packaging
+  and ships exactly the x64 installer, x64 zip and SHA256SUMS.txt.
+  Windows 10 and Windows-on-ARM emulation are not supported.
+- The app is built as x64; startup and installer checks require
+  native x64 and build 22000 or newer. Hosted Windows runners are
+  automated evidence, not a retail Windows 11 interaction pass.
+  Legacy ARM64 release-parsing fixtures remain for old metadata;
+  they are not shipped architectures or new support promises.
+- This supersedes the earlier release plan's two-architecture
+  packaging and older Windows 10 compatibility commitments.
+
 ## 2026-11-11 — Dual restoration, divider memory, zoom and v2.3.0
 
 - The owner requested remembered chats between launches, then two
@@ -22,7 +36,7 @@
 - Release v2.3.0 includes these changes, the initial Dual mode, and
   previously unreleased improvements already on main. Release
   packaging must run full tests and native Windows smoke checks
-  before publishing x64/ARM64 installers, portable zips and SHA256SUMS.
+  before publishing the Windows 11 x64 installer, portable zip and SHA256SUMS.
 
 ## 2026-11-10 — Dual mode is integrated, independent, and active-profile only
 
